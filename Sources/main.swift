@@ -96,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var lastBackgroundRefresh = Date.distantPast
     let menu = AppearanceAwareMenu()
     var menuTitleSources: [NSMenuItem: NSAttributedString] = [:]
+    var menuPlainTitles: [NSMenuItem: String] = [:]
     var menuAppearanceObservation: NSKeyValueObservation?
     var status: NSStatusItem!
     private var lastStatusSymbol: String?
@@ -190,7 +191,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if !hint.isEmpty {
             text.append(NSAttributedString(string: "  \u{2002}" + hint, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: hintColor]))
         }
-        item.title = title
+        menuPlainTitles[item] = title
+        if item.title != title { item.title = title }
         setMenuTitle(item, text)
     }
     func menuWillOpen(_ menu: NSMenu) {

@@ -80,7 +80,7 @@ private func runMenuStatusColorTests() throws {
     func color(_ item: NSMenuItem, _ index: Int) -> NSColor {
         (item.attributedTitle!.attribute(.foregroundColor, at: index, effectiveRange: nil) as! NSColor).usingColorSpace(.sRGB)!
     }
-    for name in [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua, .aqua] {
+    for name in [NSAppearance.Name.aqua, .darkAqua, .vibrantLight, .vibrantDark, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua, .aqua] {
         let appearance = NSAppearance(named: name)!
         let wrongContext = NSAppearance(named: name == .aqua ? .darkAqua : .aqua)!
         app.menu.appearance = appearance
@@ -90,10 +90,29 @@ private func runMenuStatusColorTests() throws {
             initial = color(reading, reading.attributedTitle!.length - 1)
             app.showSystemReading(reading, ("CPU", "18 cores · 12%", ""))
             updated = color(reading, reading.attributedTitle!.length - 1)
-            constant = color(permanent, 0)
+            constant = permanent.attributedTitle!.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
         }
-        guard initial == updated, updated == rgb(StatusColors.information, appearance), constant == rgb(.labelColor, appearance) else {
-            throw AppError(message: "Initial/periodic/unchanged menu colors depend on the ambient appearance in \(name.rawValue): initial=\(initial!) updated=\(updated!) expected=\(rgb(StatusColors.information, appearance)) constant=\(constant!) expectedLabel=\(rgb(.labelColor, appearance)) menu=\(app.menu.effectiveAppearance.name)")
+        guard initial == updated, updated == rgb(StatusColors.information, appearance), constant == NSColor.controlTextColor else {
+            throw AppError(message: "Initial/periodic/unchanged menu colors depend on the ambient appearance in \(name.rawValue): initial=\(initial!) updated=\(updated!) expected=\(rgb(StatusColors.information, appearance)) constant=\(constant!) expectedNative=\(NSColor.controlTextColor) menu=\(app.menu.effectiveAppearance.name)")
+        }
+        app.menu.update()
+        // Native commands must retain AppKit's semantic text color, not a baked
+        // label swatch. Cover all commands, including future decorated rows.
+        for item in app.menu.items where item.action != nil && item.view == nil {
+            guard item.isEnabled else { throw AppError(message: "Native command is unexpectedly disabled: \(item.title)") }
+            guard let source = app.menuTitleSources[item] else { continue }
+            if source.string == app.menuPlainTitles[item] {
+                guard item.attributedTitle == nil else { throw AppError(message: "Plain command unexpectedly styled: \(item.title)") }
+            } else {
+                guard item.attributedTitle?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlTextColor else {
+                    throw AppError(message: "Native command lost its semantic text color: \(item.title)")
+                }
+            }
+        }
+        app.label(app.safetySettingsItem, "Settings…", hint: "⚠ Review keyboards", hintColor: StatusColors.warning)
+        app.label(app.safetySettingsItem, "Settings…")
+        guard app.safetySettingsItem.attributedTitle == nil, app.safetySettingsItem.title == "Settings…" else {
+            throw AppError(message: "Cleared Settings warning retained attributed styling")
         }
         for (text, expected) in [("Warm · OK · Keep ventilated", StatusColors.warning), ("Critical · Let Mac cool", StatusColors.critical)] {
             app.showSystemReading(reading, ("Thermal", text, ""))
@@ -102,5 +121,5 @@ private func runMenuStatusColorTests() throws {
             }
         }
     }
-    print("PASS: initial and periodic native menu colors match under opposite drawing contexts; unchanged titles follow light/dark/high-contrast switches; warning/critical colors preserved")
+    print("PASS: initial and periodic native menu colors match under opposite drawing contexts; native commands keep semantic system colors; plain commands stay unstyled; warnings clear correctly; warning/critical colors preserved")
 }

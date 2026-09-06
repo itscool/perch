@@ -60,10 +60,10 @@ extension AppDelegate {
         let nativeMode = (try? FunctionKeys.standard()).map { $0 ? "✓ macOS: F1–F12 directly" : "✓ macOS: hold Fn for F1–F12" } ?? "⚠ macOS function-key mode unavailable"
         text(nativeMode, 448, 30, color: nativeMode.hasPrefix("✓") ? StatusColors.success : StatusColors.warning)
         text(keyboardModes.busy ? "Applying the macOS setting to connected keyboards…" : "External Fn modes are checked at connection, on wake, and when you change this setting.", 407, 40, color: .secondaryLabelColor)
-        let scroll = NSScrollView(frame: NSRect(x: 8, y: 213, width: 556, height: 185))
+        let scroll = NSScrollView(frame: NSRect(x: 8, y: 103, width: 556, height: 295))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
         let entries = keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
-        let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(180,CGFloat(entries.count*70))))
+        let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(290,CGFloat(entries.count*70))))
         for (index, entry) in entries.enumerated() {
             let label = NSTextField(wrappingLabelWithString: entry.name + "\n" + entry.detail)
             label.textColor = entry.verified ? StatusColors.success : StatusColors.warning
@@ -73,16 +73,9 @@ extension AppDelegate {
         }
         if entries.isEmpty {
             let label = NSTextField(labelWithString: keyboardModes.busy ? "Checking connected keyboards…" : "No external keyboards detected.")
-            label.frame = NSRect(x: 8,y: 135,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
+            label.frame = NSRect(x: 8,y: 245,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
         }
         scroll.documentView = document; view.addSubview(scroll)
-        for (index, builtIn) in [true,false].enumerated() {
-            let devices = nativeKeyboards.filter { $0.builtIn == builtIn }
-            let button = NSButton(checkboxWithTitle: "Swap Control ↔ Command keys · \(builtIn ? "Built-in" : "External")", target: self, action: builtIn ? #selector(toggleModifiers) : #selector(toggleExternalModifiers))
-            button.state = devices.isEmpty ? (UserDefaults.standard.bool(forKey: NativeModifierKeys.intentKey(builtIn)) ? .on : .off) : devices.allSatisfy { $0.swapped == true } ? .on : devices.allSatisfy { $0.swapped == false } ? .off : .mixed
-            button.frame = NSRect(x: 8,y: 175-CGFloat(index*32),width: 556,height: 28); view.addSubview(button)
-        }
-        text("Uses macOS’s per-keyboard modifier settings, including both left and right keys. New keyboards follow a group only after you choose its setting in Perch.", 93, 45, color: .secondaryLabelColor)
         let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.queue() }
         retry.isEnabled = !keyboardModes.busy; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
         let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open Input Monitoring" : "Open Keyboard Settings") { [weak self] in
@@ -95,6 +88,6 @@ extension AppDelegate {
             let drag = PermissionDragItem(title: "Drag Perch → Input Monitoring, then enable it") { Bundle.main.bundleURL }
             drag.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(drag)
         }
-        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "One macOS function-key setting. Separate Control/Command swaps for your laptop and external keyboards. Amber means a keyboard needs attention; green means the step succeeded.", view: view))
+        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Keyboard compatibility, permissions, and setup results. Change function keys and Control/Command swaps in the Input section of Perch’s menu.", view: view))
     }
 }

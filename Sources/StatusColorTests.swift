@@ -7,6 +7,7 @@ private final class StatusPreviewView: NSView {
 }
 
 func runStatusColorTests() throws {
+    try runMenuStatusColorTests()
     let colors: [(String, NSColor)] = [("✓ Ready", StatusColors.success), ("⚠ Review protection", StatusColors.warning), ("⛔ Protection unavailable", StatusColors.critical), ("CPU 18 cores · 4%", StatusColors.information)]
     func luminance(_ color: NSColor) -> Double {
         let c = color.usingColorSpace(.sRGB)!
@@ -65,4 +66,41 @@ func runStatusColorTests() throws {
         }
     }
     withExtendedLifetime(items) {}
+}
+
+private func runMenuStatusColorTests() throws {
+    let app = AppDelegate(); app.buildMenu()
+    let reading = app.systemItems[1]
+    guard let permanent = app.menu.items.first(where: { $0.action == #selector(AppDelegate.turnDisplayOff) }) else { throw AppError(message: "Display-off item missing from menu") }
+    func rgb(_ source: NSColor, _ appearance: NSAppearance) -> NSColor {
+        var result: NSColor!
+        appearance.performAsCurrentDrawingAppearance { result = source.usingColorSpace(.sRGB) }
+        return result
+    }
+    func color(_ item: NSMenuItem, _ index: Int) -> NSColor {
+        (item.attributedTitle!.attribute(.foregroundColor, at: index, effectiveRange: nil) as! NSColor).usingColorSpace(.sRGB)!
+    }
+    for name in [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua, .aqua] {
+        let appearance = NSAppearance(named: name)!
+        let wrongContext = NSAppearance(named: name == .aqua ? .darkAqua : .aqua)!
+        app.menu.appearance = appearance
+        var initial: NSColor!, updated: NSColor!, constant: NSColor!
+        wrongContext.performAsCurrentDrawingAppearance {
+            app.showSystemReading(reading, ("CPU", "18 cores · Measuring…", ""))
+            initial = color(reading, reading.attributedTitle!.length - 1)
+            app.showSystemReading(reading, ("CPU", "18 cores · 12%", ""))
+            updated = color(reading, reading.attributedTitle!.length - 1)
+            constant = color(permanent, 0)
+        }
+        guard initial == updated, updated == rgb(StatusColors.information, appearance), constant == rgb(.labelColor, appearance) else {
+            throw AppError(message: "Initial/periodic/unchanged menu colors depend on the ambient appearance in \(name.rawValue): initial=\(initial!) updated=\(updated!) expected=\(rgb(StatusColors.information, appearance)) constant=\(constant!) expectedLabel=\(rgb(.labelColor, appearance)) menu=\(app.menu.effectiveAppearance.name)")
+        }
+        for (text, expected) in [("Warm · OK · Keep ventilated", StatusColors.warning), ("Critical · Let Mac cool", StatusColors.critical)] {
+            app.showSystemReading(reading, ("Thermal", text, ""))
+            guard color(reading, reading.attributedTitle!.length - 1) == rgb(expected, appearance) else {
+                throw AppError(message: "Menu warning/critical colors lost their theme")
+            }
+        }
+    }
+    print("PASS: initial and periodic native menu colors match under opposite drawing contexts; unchanged titles follow light/dark/high-contrast switches; warning/critical colors preserved")
 }

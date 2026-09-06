@@ -39,7 +39,7 @@ final class InputHelper {
         if let config = try? SafetyFiles.read(SafetyConfiguration.self, from: SafetyFiles.config) {
             inputs.reverseTrackpad = config.reverseTrackpad
             inputs.reverseWheel = config.reverseWheel
-            inputs.swapModifiers = config.swapModifiers
+            inputs.swapModifiers = false // Native per-keyboard modifier settings replace the v1 global event filter.
         }
         let requested = (try? SafetyFiles.read(Date.self, from: InputHelperStatus.permissionRequest)).map { Date().timeIntervalSince($0) < 10 } ?? false
         if requested { try? FileManager.default.removeItem(at: InputHelperStatus.permissionRequest) }

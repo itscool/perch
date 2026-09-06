@@ -33,6 +33,12 @@ func runSettingsTests() throws {
     try render("/private/tmp/perch-input-preview.png")
     app.permissionSetup?.close()
     try check(host.pages.count == 1 && app.permissionSetup?.timer == nil, "Input Done did not return to parent")
+    app.keyboardSettings()
+    try check(host.pages.count == 2 && host.pages.last?.title == "Keyboard settings", "Keyboard settings broke navigation")
+    let swaps = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.contains("Swap Control") }
+    try check(swaps.count == 2 && swaps[0].action != swaps[1].action, "Built-in/external modifier controls are not independent")
+    try render("/private/tmp/perch-keyboard-preview.png")
+    host.goBack()
     app.configurePanic(); app.advancedSafetySettings()
     try check(host.pages.count == 3 && host.window.windowNumber == identity, "Advanced navigation changed windows")
     try render("/private/tmp/perch-advanced-preview.png")

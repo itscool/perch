@@ -9,7 +9,7 @@ private final class ReleaseBackground: NSView {
 }
 
 /// Render app-owned views without desktop capture or changes to the user's theme.
-func renderReleaseView(_ content: NSView, path: String) throws {
+func renderReleaseView(_ content: NSView, path: String, prepare: ((NSAppearance) -> Void)? = nil) throws {
     let wrapper = ReleaseBackground(frame: content.bounds)
     let window = NSWindow(contentRect: wrapper.bounds, styleMask: [], backing: .buffered, defer: false)
     window.contentView = wrapper
@@ -19,6 +19,7 @@ func renderReleaseView(_ content: NSView, path: String) throws {
     for (suffix, name) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
         let appearance = NSAppearance(named: name)!
         window.appearance = appearance; wrapper.appearance = appearance
+        prepare?(appearance)
         wrapper.layoutSubtreeIfNeeded()
         guard let bitmap = wrapper.bitmapImageRepForCachingDisplay(in: wrapper.bounds) else {
             throw AppError(message: "Could not render release view")
@@ -127,6 +128,7 @@ func runReleaseUITests() throws {
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
 
     let renderedMenu = NSView(frame: NSRect(x: 0, y: 0, width: 880, height: CGFloat(app.menu.items.count * 26 + 16)))
+    var nativeLabels: [(NSMenuItem, NSTextField)] = []
     for (index, item) in app.menu.items.enumerated() {
         let frame = NSRect(x: 8, y: renderedMenu.frame.height - CGFloat((index + 1) * 26), width: 864, height: 24)
         if item.view != nil {
@@ -136,11 +138,14 @@ func runReleaseUITests() throws {
         }
         else {
             let label = NSTextField(labelWithString: item.isSeparatorItem ? "────────────────────" : item.title)
-            if let title = item.attributedTitle { label.attributedStringValue = title }
+            if let title = item.attributedTitle { label.attributedStringValue = title; nativeLabels.append((item, label)) }
             label.frame = frame; renderedMenu.addSubview(label)
         }
     }
-    try renderReleaseView(renderedMenu, path: "/private/tmp/perch-release-menu.png")
+    try renderReleaseView(renderedMenu, path: "/private/tmp/perch-release-menu.png") { appearance in
+        app.menu.appearance = appearance
+        for (item, label) in nativeLabels { label.attributedStringValue = item.attributedTitle! }
+    }
     app.menuDidClose(app.menu)
     let requests = app.systemMonitor.processCPU.requests
     app.refreshSystem()

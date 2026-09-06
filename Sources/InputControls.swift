@@ -46,7 +46,7 @@ enum InputTransform {
 final class InputControls {
     var reverseTrackpad = UserDefaults.standard.bool(forKey: "reverseTrackpad")
     var reverseWheel = UserDefaults.standard.bool(forKey: "reverseWheel")
-    var swapModifiers = UserDefaults.standard.bool(forKey: "swapModifiers")
+    var swapModifiers = false // v1.1 uses native per-keyboard modifier settings.
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var configuredMask: CGEventMask = 0

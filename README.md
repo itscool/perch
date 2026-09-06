@@ -1,12 +1,12 @@
-# Perch 1.0
+# Perch 1.1 (in development)
 
 A native Mac menu bar app for sleep, sound, input controls, and an emergency stop for local AI agents.
 
-Local release notes and validation: [RELEASE-1.0.md](RELEASE-1.0.md).
+Stable 1.0 release notes: [RELEASE-1.0.md](RELEASE-1.0.md). The 1.1 keyboard changes and compatibility details are in [KEYBOARDS.md](KEYBOARDS.md).
 
 ## Build and run
 
-This local 1.0 package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.
+This local package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.
 
 ```sh
 ./build.sh
@@ -22,12 +22,12 @@ Perch installs separate launchd process-monitor and input helpers on first launc
 - **Turn display off:** turns off the display; moving the mouse or pressing a key wakes it.
 - **Mute audio:** queries current output mute and toggles it without changing the volume.
 - **Reverse trackpad scroll / Reverse mouse wheel:** independently reverses only the vertical axis. Trackpad gesture/momentum phases distinguish ordinary trackpads from wheels; third-party drivers synthesizing gestures may need hardware testing.
-- **Swap Control ↔ Command keys:** swaps both sides while the background helper runs.
+- **Swap Control ↔ Command keys:** separate built-in/external controls, using macOS’s persistent per-keyboard settings. Both sides swap; defaults are unswapped.
 - **Use F1–F12 directly:** queries and changes the live HID mode and saves the corresponding macOS preference.
 
-Lid sleep, mute and Fn mode are system settings. Awake/input choices are saved and reapplied by the background helper, including after login. Quitting the menu app does not reset them. They cannot keep operating if the helper itself is stopped. The helper does not promise to keep a powered-off Mac awake.
+Lid sleep, mute, modifier swaps and Fn mode are system settings. Awake/scroll choices are saved and reapplied by the background helper, including after login. Quitting the menu app does not reset them. They cannot keep operating if the helper itself is stopped. The helper does not promise to keep a powered-off Mac awake.
 
-Input controls require Accessibility access for Perch's signed helper. Settings → Input controls provides its draggable identity and verifies readiness. Certificate signing preserves the designated requirement across updates; existing input access remained granted during tested updates. The certificate is local signing, not Apple notarization or Developer ID distribution. Checkmarks indicate selected settings, and controls requiring missing access are disabled.
+Scroll reversal requires Accessibility access for Perch's signed helper. External Logitech Fn synchronization uses Input Monitoring for Perch itself; Settings → Keyboard settings provides its drag-to-Settings workflow and shows per-keyboard success or failure. Modifier swapping uses native macOS settings and needs no event tap. Settings → Input controls provides its draggable identity and verifies readiness. Certificate signing preserves the designated requirement across updates; existing input access remained granted during tested updates. The certificate is local signing, not Apple notarization or Developer ID distribution. Checkmarks indicate selected settings, and controls requiring missing access are disabled.
 
 ## System display
 

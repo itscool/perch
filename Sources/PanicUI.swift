@@ -15,14 +15,14 @@ extension AppDelegate {
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue
         if issueChanged && SettingsWindow.shared.window.isVisible && !SettingsWindow.shared.modal && SettingsWindow.shared.pages.last?.title == "Perch settings" { configureSettings() }
-        label(safetySettingsItem, "Settings…", hint: issue.map { "⚠ " + $0.title } ?? "")
-        if let issue, let title = safetySettingsItem.attributedTitle {
+        label(safetySettingsItem, "Settings…", hint: issue.map { "⚠ " + $0.title } ?? (keyboardModes.warning ? "⚠ Review keyboards" : ""), hintColor: keyboardModes.warning && issue == nil ? StatusColors.warning : .secondaryLabelColor)
+        if let issue, let title = menuTitleSources[safetySettingsItem] {
             let colored = NSMutableAttributedString(attributedString: title)
             let range = (colored.string as NSString).range(of: "⚠")
             if range.location != NSNotFound {
                 colored.addAttributes([.foregroundColor: issue.severity == .critical ? StatusColors.critical : StatusColors.warning, .font: NSFont.systemFont(ofSize: 11, weight: .semibold)], range: NSRange(location: range.location, length: colored.length-range.location))
             }
-            safetySettingsItem.attributedTitle = colored
+            setMenuTitle(safetySettingsItem, colored)
         }
         safetySettingsItem.toolTip = issue?.detail ?? "Configure input access, agent safety, and maintenance."
         if let issue, issue.severity == .critical {
@@ -106,13 +106,14 @@ extension AppDelegate {
     @objc func configureSettings() {
         let health = GuardianInstall.status
         let configuration = SafetyConfiguration.load()
-        let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel || configuration.swapModifiers
+        let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel
         let input = InputReadiness.assess(health, config: configuration)
         let inputReady = input.ready
         let issueNow = ProtectionIssue.assess(health, config: configuration)
         var options: [(String,String,Selector)] = [
-            (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scrolling or key swapping.", #selector(inputPermissionsFromSettings)),
+            (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scroll reversal.", #selector(inputPermissionsFromSettings)),
             (issueNow == nil ? "✓ Agent safety…" : "⚠ Agent safety…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
+            (keyboardModes.warning ? "⚠ Keyboard settings…" : "Keyboard settings…", "Function keys and separate Control/Command swaps for built-in and external keyboards.", #selector(keyboardSettings)),
             ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         if let issue {

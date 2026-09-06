@@ -17,7 +17,7 @@ struct ProtectionIssue: Equatable {
         if state.eventCoverage != nil && state.eventCoverage != "Process events active" {
             return .init(severity: .warning, title: (state.processEventCount ?? 0) == 0 ? "Finish process-event setup" : "Process-event coverage degraded", detail: (state.error ?? "Event collection has not passed its health check.") + " Panic remains available through snapshot tracking.", route: "events")
         }
-        if config.reverseTrackpad || config.reverseWheel || config.swapModifiers {
+        if config.reverseTrackpad || config.reverseWheel {
             let input = InputReadiness.assess(state, config: config)
             if !input.ready { return .init(severity: .warning, title: input.title, detail: input.message, route: input.route) }
         }

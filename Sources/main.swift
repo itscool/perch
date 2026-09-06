@@ -76,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var trackpadItem: NSMenuItem!
     var wheelItem: NSMenuItem!
     var swapItem: NSMenuItem!
+    var externalSwapItem: NSMenuItem!
+    let keyboardModes = KeyboardModeMonitor()
+    var nativeKeyboards: [NativeKeyboard] = []
     var fnItem: NSMenuItem!
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
@@ -91,7 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var menuOpen = false
     var menuGeneration: UInt64 = 0
     var lastBackgroundRefresh = Date.distantPast
-    let menu = NSMenu()
+    let menu = AppearanceAwareMenu()
+    var menuTitleSources: [NSMenuItem: NSAttributedString] = [:]
+    var menuAppearanceObservation: NSKeyValueObservation?
     var status: NSStatusItem!
     private var lastStatusSymbol: String?
     private var lastStatusCritical: Bool?
@@ -106,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         status.button?.toolTip = "Perch — your Mac, ready for AI work"
         buildMenu()
         status.menu = menu
+        keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
+        keyboardModes.start()
         if !GuardianInstall.messagingInstalled {
             do { try GuardianInstall.install() } catch { safetyError = error.localizedDescription }
         }
@@ -119,11 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         // Continue refreshing while AppKit tracks an open menu.
         if let inputTimer { inputTimer.tolerance = 0.2; RunLoop.main.add(inputTimer, forMode: .common) }
         refresh()
+        if CommandLine.arguments.contains("--show-keyboard-setup") { DispatchQueue.main.async { self.configureSettings(); self.keyboardSettings() } }
         if CommandLine.arguments.contains("--show-event-setup") { DispatchQueue.main.async { self.configureSettings(); EventCollectorSetup.shared.show(fromSettings: true) } }
     }
     // Kept separate from helper installation so the real menu can be checked safely.
     func buildMenu() {
         menu.delegate = self
+        menu.appearanceChanged = { [weak self] in self?.refreshMenuAppearance() }
+        menuAppearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in self?.refreshMenuAppearance() }
         section("System")
         for _ in 0..<5 { let item = NSMenuItem(title: "Sampling…", action: nil, keyEquivalent: ""); menu.addItem(item); systemItems.append(item) }
         section("Sleep")
@@ -140,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         trackpadItem = add("Reverse trackpad scroll", #selector(toggleTrackpad))
         wheelItem = add("Reverse mouse wheel", #selector(toggleWheel))
         swapItem = add("Swap Control ↔ Command keys", #selector(toggleModifiers))
+        externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
         fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys))
         fnItem.toolTip = "Checked: use F1–F12 without Fn; hold Fn for brightness and media. Unchecked: hold Fn for F1–F12."
         setupSafetyMenu()
@@ -150,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let quit = add("Quit Perch", #selector(quit))
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Controls stay on")
-        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, fnItem, loginItem].compactMap({ $0 }) {
+        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, loginItem].compactMap({ $0 }) {
             item.view = ToggleMenuView(item: item)
         }
         systemMonitor.processCPU.onUpdate = { [weak self] in
@@ -179,21 +190,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if !hint.isEmpty {
             text.append(NSAttributedString(string: "  \u{2002}" + hint, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: hintColor]))
         }
-        guard item.attributedTitle?.isEqual(to: text) != true else {
-            // Checkbox/permission state can change while its text stays identical.
-            item.view?.needsDisplay = true
-            return
-        }
         item.title = title
-        item.attributedTitle = text
-        if let view = item.view {
-            view.setFrameSize(NSSize(width: max(430, ceil(text.size().width) + 45), height: 24))
-            view.needsDisplay = true
-        }
+        setMenuTitle(item, text)
     }
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true; menuGeneration &+= 1
         let generation = menuGeneration
+        refreshMenuAppearance()
+        nativeKeyboards = NativeModifierKeys.keyboards()
         refresh()
         // One quick second interval, then the existing menu refresh cadence.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -208,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let color: NSColor
         if reading.1.contains("Critical") { color = StatusColors.critical }
         else if reading.1.contains("Elevated") || reading.1.contains("Warm") || reading.1.contains("High ·") { color = StatusColors.warning }
-        else if reading.1.contains("Unavailable") || reading.1.contains("Measuring") { color = .secondaryLabelColor }
+        else if reading.1.contains("Unavailable") { color = .secondaryLabelColor }
         else { color = StatusColors.information }
         label(item, reading.0, hint: reading.1, hintColor: color)
         item.toolTip = reading.2
@@ -222,13 +226,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let settings = SafetyConfiguration.load()
         inputs.reverseTrackpad = settings.reverseTrackpad
         inputs.reverseWheel = settings.reverseWheel
-        inputs.swapModifiers = settings.swapModifiers
-        for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel), (swapItem!, inputs.swapModifiers)] {
+        inputs.swapModifiers = false // Modifier swaps now run in macOS, per keyboard.
+        for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel)] {
             item.state = enabled ? .on : .off
         }
         label(trackpadItem, "Reverse trackpad scroll", hint: "Vertical")
         label(wheelItem, "Reverse mouse wheel", hint: "Vertical")
-        label(swapItem, "Swap Control ↔ Command keys", hint: "Both sides")
+        refreshModifierItems()
         if !checkedStartupInputAccess, Date() >= inputStartupGraceEnds,
            let protection = GuardianInstall.status, protection.fresh, protection.inputTrusted != nil {
             checkedStartupInputAccess = true
@@ -243,7 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let loginStatus = SMAppService.mainApp.status
         loginItem.state = loginStatus == .enabled ? .on : (loginStatus == .requiresApproval ? .mixed : .off)
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
-        do { fnItem.state = try FunctionKeys.standard() ? .on : .off; label(fnItem, "Use F1–F12 directly", hint: "Without Fn") }
+        do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
         catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable") }
         do {
             let sleep = try SleepStatus.read()
@@ -355,9 +359,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func showInputAccessPrompt() { inputPermissions() }
     @objc func toggleTrackpad() { inputs.reverseTrackpad.toggle(); updateInputs() }
     @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
-    @objc func toggleModifiers() { inputs.swapModifiers.toggle(); updateInputs() }
+    @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if [#selector(toggleTrackpad), #selector(toggleWheel), #selector(toggleModifiers)].contains(item.action) {
+        if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {
             return GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
         }
         return true
@@ -370,7 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if permissionSetup == nil { permissionSetup = PermissionSetup() }
         permissionSetup?.show()
     }
-    @objc func toggleFunctionKeys() { perform { try FunctionKeys.setStandard(!FunctionKeys.standard()) } }
+    @objc func toggleFunctionKeys() { perform { try FunctionKeys.setStandard(!FunctionKeys.standard()); keyboardModes.queue() } }
     @objc func toggleLogin() {
         perform {
             switch SMAppService.mainApp.status {
@@ -470,6 +474,7 @@ if CommandLine.arguments.contains("--self-test") {
         try runPanicTests()
         try runPanicHotKeyTests()
         try runInputTests()
+        try runKeyboardModeTests()
         print("PASS: function-key mode = \(try FunctionKeys.standard())")
         print("PASS: create/release Mac sleep assertion")
         print("PASS: read sleep override = \(try sleepDisabled())")

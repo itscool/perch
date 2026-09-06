@@ -46,7 +46,7 @@ extension AppDelegate {
         if failures.isEmpty { UserDefaults.standard.set(desired, forKey: NativeModifierKeys.intentKey(builtIn)) }
         keyboardModes.modifierErrors = failures
         keyboardStatusChanged()
-        if !failures.isEmpty { keyboardSettings() }
+        if !failures.isEmpty { menu.cancelTracking(); keyboardSettings() }
     }
     @objc func toggleExternalModifiers() { setModifierGroup(false) }
     @objc func keyboardSettings() {

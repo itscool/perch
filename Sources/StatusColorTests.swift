@@ -34,7 +34,7 @@ func runStatusColorTests() throws {
     let view = StatusPreviewView(frame: NSRect(x: 0, y: 0, width: 490, height: 360))
     let window = NSWindow(contentRect: view.bounds, styleMask: [.titled], backing: .buffered, defer: false)
     window.contentView = view
-    var items: [NSMenuItem] = [] // ToggleMenuView references its menu item weakly.
+    var items: [NSMenuItem] = [] // MenuRowView references its menu item weakly.
     for (index, entry) in colors.enumerated() {
         let label = NSTextField(labelWithString: entry.0)
         label.textColor = entry.1; label.font = .systemFont(ofSize: 13)
@@ -50,8 +50,8 @@ func runStatusColorTests() throws {
         item.isEnabled = index != 2; item.state = .on
         let title = NSMutableAttributedString(string: item.title, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
         title.append(NSAttributedString(string: "   ⚠ Keep ventilated", attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: StatusColors.warning]))
-        item.attributedTitle = title; items.append(item)
-        let row = ToggleMenuView(item: item); row.hover = index == 1
+        items.append(item)
+        let row = MenuRowView(item: item, kind: .toggle, text: title); row.hover = index == 1
         row.frame = NSRect(x: 10,y: 114-index*30,width: 470,height: 24); view.addSubview(row)
     }
     for (suffix, name) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
@@ -77,49 +77,69 @@ private func runMenuStatusColorTests() throws {
         appearance.performAsCurrentDrawingAppearance { result = source.usingColorSpace(.sRGB) }
         return result
     }
-    func color(_ item: NSMenuItem, _ index: Int) -> NSColor {
-        (item.attributedTitle!.attribute(.foregroundColor, at: index, effectiveRange: nil) as! NSColor).usingColorSpace(.sRGB)!
+    func color(_ item: NSMenuItem, last: Bool = false) -> NSColor {
+        let row = item.view as! MenuRowView
+        var result: NSColor!
+        row.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let text = row.displayedText()
+            result = (text.attribute(.foregroundColor, at: last ? text.length - 1 : 0, effectiveRange: nil) as! NSColor).usingColorSpace(.sRGB)
+        }
+        return result
+    }
+    func rendered(_ item: NSMenuItem, appearance: NSAppearance) throws -> Data {
+        let production = item.view as! MenuRowView
+        let row = MenuRowView(item: item, kind: production.kind, text: production.text)
+        let background = StatusPreviewView(frame: NSRect(x: 0, y: 0, width: 650, height: 30))
+        let window = NSWindow(contentRect: background.bounds, styleMask: [], backing: .buffered, defer: false)
+        window.contentView = background; window.appearance = appearance
+        row.frame = background.bounds; background.addSubview(row)
+        guard let bitmap = background.bitmapImageRepForCachingDisplay(in: background.bounds) else { throw AppError(message: "Menu renderer capture failed") }
+        appearance.performAsCurrentDrawingAppearance { background.cacheDisplay(in: background.bounds, to: bitmap) }
+        guard let data = bitmap.representation(using: .png, properties: [:]) else { throw AppError(message: "Menu renderer capture is empty") }
+        return data
     }
     for name in [NSAppearance.Name.aqua, .darkAqua, .vibrantLight, .vibrantDark, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua, .aqua] {
         let appearance = NSAppearance(named: name)!
         let wrongContext = NSAppearance(named: name == .aqua ? .darkAqua : .aqua)!
-        app.menu.appearance = appearance
-        var initial: NSColor!, updated: NSColor!, constant: NSColor!
+        // A live NSMenu sets the row window's appearance. Give the actual renderer
+        // that same context offscreen, without changing the user's desktop theme.
+        for item in app.menu.items where !item.isSeparatorItem {
+            guard let row = item.view as? MenuRowView, item.attributedTitle == nil else { throw AppError(message: "Menu mixed native/custom rendering: \(item.title)") }
+            row.appearance = appearance
+        }
+        var initial: NSColor!, updated: NSColor!
         wrongContext.performAsCurrentDrawingAppearance {
             app.showSystemReading(reading, ("CPU", "18 cores · Measuring…", ""))
-            initial = color(reading, reading.attributedTitle!.length - 1)
+            initial = color(reading, last: true)
             app.showSystemReading(reading, ("CPU", "18 cores · 12%", ""))
-            updated = color(reading, reading.attributedTitle!.length - 1)
-            constant = permanent.attributedTitle!.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+            updated = color(reading, last: true)
         }
-        guard initial == updated, updated == rgb(StatusColors.information, appearance), constant == NSColor.controlTextColor else {
-            throw AppError(message: "Initial/periodic/unchanged menu colors depend on the ambient appearance in \(name.rawValue): initial=\(initial!) updated=\(updated!) expected=\(rgb(StatusColors.information, appearance)) constant=\(constant!) expectedNative=\(NSColor.controlTextColor) menu=\(app.menu.effectiveAppearance.name)")
+        guard initial == updated, updated == rgb(StatusColors.information, appearance), color(permanent) == rgb(.labelColor, appearance) else {
+            throw AppError(message: "Initial/periodic/command colors depend on the ambient appearance in \(name.rawValue)")
         }
         app.menu.update()
-        // Native commands must retain AppKit's semantic text color, not a baked
-        // label swatch. Cover all commands, including future decorated rows.
-        for item in app.menu.items where item.action != nil && item.view == nil {
-            guard item.isEnabled else { throw AppError(message: "Native command is unexpectedly disabled: \(item.title)") }
-            guard let source = app.menuTitleSources[item] else { continue }
-            if source.string == app.menuPlainTitles[item] {
-                guard item.attributedTitle == nil else { throw AppError(message: "Plain command unexpectedly styled: \(item.title)") }
-            } else {
-                guard item.attributedTitle?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlTextColor else {
-                    throw AppError(message: "Native command lost its semantic text color: \(item.title)")
-                }
-            }
+        for item in app.menu.items where item.action != nil && (item.view as! MenuRowView).kind != .toggle {
+            let row = item.view as! MenuRowView
+            guard row.kind == .command, color(item) == rgb(.labelColor, appearance) else { throw AppError(message: "Command text differs from other rows: \(item.title)") }
+            row.keyboardHighlight = true
+            guard color(item) == rgb(.selectedMenuItemTextColor, appearance) || item.isHidden else { throw AppError(message: "Keyboard selection lost contrast") }
+            row.keyboardHighlight = false
         }
-        app.label(app.safetySettingsItem, "Settings…", hint: "⚠ Review keyboards", hintColor: StatusColors.warning)
         app.label(app.safetySettingsItem, "Settings…")
-        guard app.safetySettingsItem.attributedTitle == nil, app.safetySettingsItem.title == "Settings…" else {
-            throw AppError(message: "Cleared Settings warning retained attributed styling")
+        let before = try rendered(app.safetySettingsItem, appearance: appearance)
+        app.label(app.safetySettingsItem, "Settings…", hint: "⚠ Review keyboards", hintColor: StatusColors.warning)
+        let warning = try rendered(app.safetySettingsItem, appearance: appearance)
+        app.label(app.safetySettingsItem, "Settings…")
+        let after = try rendered(app.safetySettingsItem, appearance: appearance)
+        guard before == after, before != warning else { throw AppError(message: "Settings pixels changed after warning was removed") }
+        let settings = app.safetySettingsItem.view as! MenuRowView
+        guard settings.text.string == "Settings…", app.safetySettingsItem.title == "Settings…", color(app.safetySettingsItem) == rgb(.labelColor, appearance) else {
+            throw AppError(message: "Clearing a warning hid or restyled Settings")
         }
         for (text, expected) in [("Warm · OK · Keep ventilated", StatusColors.warning), ("Critical · Let Mac cool", StatusColors.critical)] {
-            app.showSystemReading(reading, ("Thermal", text, ""))
-            guard color(reading, reading.attributedTitle!.length - 1) == rgb(expected, appearance) else {
-                throw AppError(message: "Menu warning/critical colors lost their theme")
-            }
+            wrongContext.performAsCurrentDrawingAppearance { app.showSystemReading(reading, ("Thermal", text, "")) }
+            guard color(reading, last: true) == rgb(expected, appearance) else { throw AppError(message: "Menu status color lost its theme") }
         }
     }
-    print("PASS: initial and periodic native menu colors match under opposite drawing contexts; native commands keep semantic system colors; plain commands stay unstyled; warnings clear correctly; warning/critical colors preserved")
+    print("PASS: every row uses the production renderer; first/periodic colors match in six appearances despite opposite ambient contexts; commands and toggles share semantic colors; Settings warning clears without hiding its text; keyboard highlights keep contrast")
 }

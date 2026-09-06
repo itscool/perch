@@ -19,6 +19,8 @@ enum ModifierKeyMap {
 }
 
 struct NativeKeyboard {
+    // Service handles depend on the event-system connection, even after enumeration.
+    let connection: IOHIDEventSystemClient
     let service: IOHIDServiceClient
     let name: String
     let builtIn: Bool
@@ -30,14 +32,22 @@ struct NativeKeyboard {
 enum NativeModifierKeys {
     static let property = "HIDKeyboardModifierMappingPairs"
     // The formatter also handles older Apple keyboards' alt_handler_id keys.
-    // Soft-link this read-only identity helper; all setting I/O uses public APIs.
+    // Soft-link the native identity helper rather than guessing a preference key.
     private static let formatter: (@convention(c) (IOHIDServiceClient) -> Unmanaged<CFString>?)? = {
         guard let library = dlopen("/System/Library/PrivateFrameworks/MachineSettings.framework/MachineSettings", RTLD_LAZY), let symbol = dlsym(library, "createKeyForKeyboard") else { return nil }
         return unsafeBitCast(symbol, to: (@convention(c) (IOHIDServiceClient) -> Unmanaged<CFString>?).self)
     }()
+    // Apple documents Passive (2) as property access without event delivery or
+    // entitlements. Simple (4) restricts property writes. Keyboard Settings also
+    // uses Passive. Never fall back to an admin or event-monitor connection.
+    private static let createPassive: (@convention(c) (CFAllocator?, UInt32, CFDictionary?) -> Unmanaged<IOHIDEventSystemClient>?)? = {
+        guard let library = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY),
+              let symbol = dlsym(library, "IOHIDEventSystemClientCreateWithType") else { return nil }
+        return unsafeBitCast(symbol, to: (@convention(c) (CFAllocator?, UInt32, CFDictionary?) -> Unmanaged<IOHIDEventSystemClient>?).self)
+    }()
     static func intentKey(_ builtIn: Bool) -> String { builtIn ? "modifierSwap.builtIn" : "modifierSwap.external" }
     static func keyboards() -> [NativeKeyboard] {
-        let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+        guard let client = createPassive?(kCFAllocatorDefault, 2, nil)?.takeRetainedValue() else { return [] }
         let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] ?? []
         return services.compactMap { service in
             guard IOHIDServiceClientConformsTo(service, 1, 6) != 0 else { return nil }
@@ -49,10 +59,13 @@ enum NativeModifierKeys {
             let key = suffix.map { "com.apple.keyboard.modifiermapping." + $0 } ?? ""
             let saved = CFPreferencesCopyValue(key as CFString, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) as? [[String:UInt64]] ?? []
             let current = value(property) as? [[String:UInt64]] ?? saved
-            return NativeKeyboard(service: service, name: value("Product") as? String ?? "Keyboard", builtIn: (value("Built-In") as? NSNumber)?.boolValue == true, preferenceKey: key, mapping: current)
+            return NativeKeyboard(connection: client, service: service, name: value("Product") as? String ?? "Keyboard", builtIn: (value("Built-In") as? NSNumber)?.boolValue == true, preferenceKey: key, mapping: current)
         }
     }
     static func set(_ swapped: Bool, on keyboard: NativeKeyboard) throws {
+        try withExtendedLifetime(keyboard.connection) { try setConnected(swapped, on: keyboard) }
+    }
+    private static func setConnected(_ swapped: Bool, on keyboard: NativeKeyboard) throws {
         guard !keyboard.preferenceKey.isEmpty else { throw AppError(message: "macOS did not provide a settings identity for \(keyboard.name). Use Keyboard Settings for this keyboard.") }
         let next = ModifierKeyMap.setting(swapped, in: keyboard.mapping)
         guard next != keyboard.mapping else { return }
@@ -62,17 +75,32 @@ enum NativeModifierKeys {
         guard IOHIDServiceClientSetProperty(keyboard.service, property as CFString, next as CFArray) else {
             throw AppError(message: "macOS could not apply the modifier swap to \(keyboard.name).")
         }
+        guard let applied = IOHIDServiceClientCopyProperty(keyboard.service, property as CFString) as? [[String:UInt64]], ModifierKeyMap.swapped(applied) == swapped else {
+            _ = IOHIDServiceClientSetProperty(keyboard.service, property as CFString, keyboard.mapping as CFArray)
+            throw AppError(message: "\(keyboard.name) did not confirm the modifier swap. The live change was rolled back.")
+        }
         CFPreferencesSetValue(key, next.isEmpty ? nil : next as CFArray, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         guard CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) else {
             _ = IOHIDServiceClientSetProperty(keyboard.service, property as CFString, keyboard.mapping as CFArray)
             CFPreferencesSetValue(key, previous, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
             throw AppError(message: "Could not save \(keyboard.name)’s modifier setting. The live change was rolled back.")
         }
-        if let applied = IOHIDServiceClientCopyProperty(keyboard.service, property as CFString) as? [[String:UInt64]], ModifierKeyMap.swapped(applied) != swapped {
-            throw AppError(message: "\(keyboard.name) has not confirmed the modifier swap. Review Keyboard Settings.")
+    }
+    static func checkExistingAccess() {
+        for keyboard in keyboards() {
+            withExtendedLifetime(keyboard.connection) {
+                guard let current = IOHIDServiceClientCopyProperty(keyboard.service, property as CFString) as? [[String:UInt64]] else {
+                    print("\(keyboard.name): current live mapping unavailable; no write attempted")
+                    return
+                }
+                let accepted = IOHIDServiceClientSetProperty(keyboard.service, property as CFString, current as CFArray)
+                let readback = IOHIDServiceClientCopyProperty(keyboard.service, property as CFString) as? [[String:UInt64]]
+                print("\(keyboard.name): existing mapping accepted=\(accepted), unchanged=\(readback == current), swapped=\(String(describing: ModifierKeyMap.swapped(current)))")
+            }
         }
     }
     static func applyGroup(_ swapped: Bool, builtIn: Bool) -> [String] {
+        guard createPassive != nil else { return ["This macOS version does not provide native modifier access. Use Keyboard Settings."] }
         var failures: [String] = []
         for keyboard in keyboards() where keyboard.builtIn == builtIn {
             do { try set(swapped, on: keyboard) } catch { failures.append(error.localizedDescription) }

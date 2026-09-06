@@ -94,10 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var menuOpen = false
     var menuGeneration: UInt64 = 0
     var lastBackgroundRefresh = Date.distantPast
-    let menu = AppearanceAwareMenu()
+    let menu = NSMenu()
     var menuTitleSources: [NSMenuItem: NSAttributedString] = [:]
-    var menuPlainTitles: [NSMenuItem: String] = [:]
-    var menuAppearanceObservation: NSKeyValueObservation?
+    var menuKeyMonitor: Any?
     var status: NSStatusItem!
     private var lastStatusSymbol: String?
     private var lastStatusCritical: Bool?
@@ -133,10 +132,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     // Kept separate from helper installation so the real menu can be checked safely.
     func buildMenu() {
         menu.delegate = self
-        menu.appearanceChanged = { [weak self] in self?.refreshMenuAppearance() }
-        menuAppearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in self?.refreshMenuAppearance() }
         section("System")
-        for _ in 0..<5 { let item = NSMenuItem(title: "Sampling…", action: nil, keyEquivalent: ""); menu.addItem(item); systemItems.append(item) }
+        for _ in 0..<5 {
+            let item = NSMenuItem(title: "Sampling…", action: nil, keyEquivalent: "")
+            item.view = MenuRowView(item: item, kind: .information)
+            menu.addItem(item); systemItems.append(item)
+        }
         section("Sleep")
         awakeItem = add("Keep awake", #selector(toggleAwake))
         awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
@@ -163,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Controls stay on")
         for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, loginItem].compactMap({ $0 }) {
-            item.view = ToggleMenuView(item: item)
+            item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
         systemMonitor.processCPU.onUpdate = { [weak self] in
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
@@ -173,30 +174,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func add(_ title: String, _ action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        item.view = MenuRowView(item: item, kind: .command)
         menu.addItem(item)
         return item
     }
     func section(_ title: String) {
         if !menu.items.isEmpty { menu.addItem(.separator()) }
-        if #available(macOS 14.0, *) {
-            menu.addItem(NSMenuItem.sectionHeader(title: title))
-        } else {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            item.attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.secondaryLabelColor])
-            menu.addItem(item)
-        }
+        let item = NSMenuItem.sectionHeader(title: title)
+        item.view = MenuRowView(item: item, kind: .section)
+        menu.addItem(item)
     }
+
     func label(_ item: NSMenuItem, _ title: String, hint: String = "", hintColor: NSColor = .secondaryLabelColor) {
         let text = NSMutableAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
         if !hint.isEmpty {
             text.append(NSAttributedString(string: "  \u{2002}" + hint, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: hintColor]))
         }
-        menuPlainTitles[item] = title
         if item.title != title { item.title = title }
         setMenuTitle(item, text)
     }
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true; menuGeneration &+= 1
+        beginMenuKeyboardHandling()
         let generation = menuGeneration
         refreshMenuAppearance()
         nativeKeyboards = NativeModifierKeys.keyboards()
@@ -209,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func menuDidClose(_ menu: NSMenu) {
         menuOpen = false; menuGeneration &+= 1; systemMonitor.menuClosed()
+        endMenuKeyboardHandling()
     }
     func showSystemReading(_ item: NSMenuItem, _ reading: (String, String, String)) {
         let color: NSColor
@@ -290,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         refresh()
     }
     func showError(_ error: Error) {
+        menu.cancelTracking()
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Couldn’t change the setting"
@@ -401,6 +402,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 }
 
+if CommandLine.arguments.contains("--check-modifier-access") {
+    NativeModifierKeys.checkExistingAccess()
+    exit(0)
+}
 if let index = CommandLine.arguments.firstIndex(of: "--update-catalog"), CommandLine.arguments.count > index + 1 {
     do { try AgentCatalog.install(from: URL(fileURLWithPath: CommandLine.arguments[index + 1])); print("Catalog updated; new targets default to checked and existing choices are preserved."); exit(0) }
     catch { fputs("\(error)\n", stderr); exit(1) }

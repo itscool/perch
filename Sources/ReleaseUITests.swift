@@ -104,10 +104,28 @@ func runReleaseUITests() throws {
     let target = ReleaseToggleTarget()
     let toggle = NSMenuItem(title: "Test toggle", action: #selector(ReleaseToggleTarget.toggle(_:)), keyEquivalent: "")
     toggle.target = target
-    let row = ToggleMenuView(item: toggle)
+    let row = MenuRowView(item: toggle, kind: .toggle)
     try check(row.accessibilityPerformPress() && toggle.state == .on && target.presses == 1, "Toggle action/state failed")
     target.allowed = false
     try check(!row.accessibilityPerformPress() && target.presses == 1, "Disabled toggle remained actionable")
+
+
+    target.allowed = true
+    toggle.state = .mixed
+    try check(row.accessibilityValue() as? Int == 2, "Mixed toggle lost its accessible state")
+    let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: " ", charactersIgnoringModifiers: " ", isARepeat: false, keyCode: 49)!
+    row.keyDown(with: key) // Delivered only to this test view, never posted globally.
+    try check(target.presses == 2 && toggle.state == .on, "Keyboard toggle route differs from mouse/Accessibility")
+    let commandItem = NSMenuItem(title: "Test command", action: #selector(ReleaseToggleTarget.toggle(_:)), keyEquivalent: "")
+    commandItem.target = target
+    let command = MenuRowView(item: commandItem, kind: .command)
+    try check(command.activate() && !command.activate() && target.presses == 2, "Command dispatched before dismissal or accepted twice")
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    try check(target.presses == 3, "Command didn't dispatch once after dismissal")
+    commandItem.isEnabled = false
+    try check(!command.accessibilityPerformPress(), "Disabled command remained actionable")
+    let information = MenuRowView(item: commandItem, kind: .information)
+    try check(!information.accessibilityPerformPress() && information.isAccessibilityEnabled(), "Information is actionable or falsely dimmed")
 
     // Read-only native menu refresh; no helper installation or setting changes.
     let app = AppDelegate(); app.checkedStartupInputAccess = true; app.buildMenu()
@@ -119,33 +137,29 @@ func runReleaseUITests() throws {
     RunLoop.main.add(keepModeAlive, forMode: .eventTracking)
     while Date() < until { RunLoop.main.run(mode: .eventTracking, before: Date().addingTimeInterval(0.05)) }
     keepModeAlive.invalidate()
-    let cpu = app.systemItems[1].attributedTitle?.string ?? ""
+    let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
     try check(!cpu.contains("Measuring") && !cpu.contains("Sampling") && cpu.contains("%"), "CPU did not update while tracking an open menu")
-    let lid = app.lidItem.attributedTitle?.string ?? ""
+    let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
     try check(app.lidItem.state == .on ? lid.contains("⚠ Keep ventilated") : lid.contains("Currently sleeps on lid close"), "Lid wording disagrees with current state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
-    try check(app.safetyItem.view == nil && app.lidItem.view is ToggleMenuView, "Command/toggle menu behavior changed")
+    try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
 
-    let renderedMenu = NSView(frame: NSRect(x: 0, y: 0, width: 880, height: CGFloat(app.menu.items.count * 26 + 16)))
-    var nativeLabels: [(NSMenuItem, NSTextField)] = []
-    for (index, item) in app.menu.items.enumerated() {
-        let frame = NSRect(x: 8, y: renderedMenu.frame.height - CGFloat((index + 1) * 26), width: 864, height: 24)
-        if item.view != nil {
-            // NSMenu owns its attached view's origin; render the same row class
-            // against the real item without moving that menu-owned view.
-            let row = ToggleMenuView(item: item); row.frame = frame; renderedMenu.addSubview(row)
-        }
-        else {
-            let label = NSTextField(labelWithString: item.isSeparatorItem ? "────────────────────" : item.title)
-            if let title = item.attributedTitle { label.attributedStringValue = title; nativeLabels.append((item, label)) }
-            label.frame = frame; renderedMenu.addSubview(label)
-        }
+    let visibleItems = app.menu.items.filter { !$0.isHidden }
+    let menuWidth = max(430, visibleItems.compactMap { $0.view?.frame.width }.max() ?? 430)
+    let renderedMenu = NSView(frame: NSRect(x: 0, y: 0, width: menuWidth + 16, height: CGFloat(visibleItems.count * 26 + 16)))
+    for (index, item) in visibleItems.enumerated() {
+        let frame = NSRect(x: 8, y: renderedMenu.frame.height - CGFloat((index + 1) * 26), width: menuWidth, height: 24)
+        if let production = item.view as? MenuRowView {
+            // Draw the actual production class with its real text/kind/state.
+            let row = MenuRowView(item: item, kind: production.kind, text: production.text)
+            row.frame = frame; renderedMenu.addSubview(row)
+        } else if item.isSeparatorItem {
+            let line = NSBox(frame: NSRect(x: 14, y: frame.midY, width: menuWidth - 12, height: 1))
+            line.boxType = .separator; renderedMenu.addSubview(line)
+        } else { throw AppError(message: "A menu row escaped the unified renderer") }
     }
-    try renderReleaseView(renderedMenu, path: "/private/tmp/perch-release-menu.png") { appearance in
-        app.menu.appearance = appearance
-        for (item, label) in nativeLabels { label.attributedStringValue = item.attributedTitle! }
-    }
+    try renderReleaseView(renderedMenu, path: "/private/tmp/perch-release-menu.png")
     app.menuDidClose(app.menu)
     let requests = app.systemMonitor.processCPU.requests
     app.refreshSystem()

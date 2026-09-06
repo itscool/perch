@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-09-04",
+  "entries": [
+    {
+      "target": {
+        "id": "catalog:cursor",
+        "name": "Cursor (entire editor)",
+        "kind": "app",
+        "match": "Cursor",
+        "enabled": false
+      },
+      "category": "agent host",
+      "note": "Stops the whole editor, not only agent sessions.",
+      "sources": [
+        "https://docs.cursor.com/en/agent/tools"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:cursor-cli",
+        "name": "Cursor CLI",
+        "kind": "cli",
+        "match": "cursor-agent",
+        "enabled": false
+      },
+      "category": "agent",
+      "note": "Native named process matching; use a custom executable if your launcher differs.",
+      "sources": [
+        "https://docs.cursor.com/en/cli/using"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:windsurf",
+        "name": "Windsurf (entire editor)",
+        "kind": "app",
+        "match": "Windsurf",
+        "enabled": false
+      },
+      "category": "agent host",
+      "note": "Cascade can run shell commands. Stops the entire editor.",
+      "sources": [
+        "https://docs.windsurf.com/ja/windsurf/terminal"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:vscode",
+        "name": "VS Code \u2014 Copilot/Cline/Roo (entire editor)",
+        "kind": "app",
+        "match": "com.microsoft.VSCode",
+        "enabled": false
+      },
+      "category": "shared host",
+      "note": "Extensions share the editor process tree; stopping the host can lose non-agent work.",
+      "sources": [
+        "https://code.visualstudio.com/docs/agents/overview"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:warp",
+        "name": "Warp (all terminal sessions)",
+        "kind": "app",
+        "match": "Warp",
+        "enabled": false
+      },
+      "category": "shared host",
+      "note": "Agentic terminal; stopping it affects ordinary sessions too. Cloud work requires separate cancellation.",
+      "sources": [
+        "https://docs.warp.dev/reference/cli"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:zed",
+        "name": "Zed (entire editor)",
+        "kind": "app",
+        "match": "Zed",
+        "enabled": false
+      },
+      "category": "agent host",
+      "note": "Built-in and external agents can execute terminal tools.",
+      "sources": [
+        "https://zed.dev/docs/ai/tools"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:interpreter",
+        "name": "Open Interpreter desktop",
+        "kind": "app",
+        "match": "Interpreter",
+        "enabled": false
+      },
+      "category": "agent",
+      "note": "App display-name matching; select the installed app explicitly if branded differently.",
+      "sources": [
+        "https://www.openinterpreter.com/docs/desktop/approvals"
+      ]
+    },
+    {
+      "target": {
+        "id": "catalog:goose",
+        "name": "Goose CLI",
+        "kind": "cli",
+        "match": "goose",
+        "enabled": false
+      },
+      "category": "agent",
+      "note": "Named native executable matching. Verify launcher on your installation.",
+      "sources": [
+        "https://github.com/aaif-goose/goose"
+      ]
+    }
+  ]
+}

@@ -11,16 +11,37 @@ extension AppDelegate {
             else if modes.allSatisfy({ $0 == true }) { item.state = .on }
             else if modes.allSatisfy({ $0 == false }) { item.state = .off }
             else { item.state = .mixed }
-            label(item, "Swap Control ↔ Command keys", hint: builtIn ? "Built-in" : "External")
+            label(item, "Swap Control ↔ Command keys")
             item.toolTip = devices.isEmpty ? "No \(builtIn ? "built-in" : "external") keyboard connected. Your choice applies when one connects." : devices.map { $0.name + ": " + ($0.swapped == true ? "swapped" : $0.swapped == false ? "unswapped" : "custom mapping") }.joined(separator: "\n")
         }
     }
     func refreshFunctionKeyItem(_ standard: Bool) {
-        fnItem.state = standard ? .on : .off // The checkbox always represents macOS.
-        let failed = keyboardModes.results.filter { !$0.verified }
-        let hint = keyboardModes.busy ? "Applying to keyboards…" : failed.isEmpty ? "Without Fn" : "⚠ \(failed.count) keyboard\(failed.count == 1 ? "" : "s") · see Settings"
-        label(fnItem, "Use F1–F12 directly", hint: hint, hintColor: failed.isEmpty ? .secondaryLabelColor : StatusColors.warning)
-        fnItem.toolTip = "Changes macOS’s actual function-key setting and supported external keyboards’ Fn Lock.\n" + keyboardModes.results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
+        fnItem.state = standard ? .on : .off
+        label(fnItem, "Use F1–F12 directly", hint: standard ? "Without Fn" : "Hold Fn")
+        fnItem.toolTip = "Changes the real macOS function-key setting while preserving connected external keyboards’ Fn modes."
+        fnItem.isEnabled = !keyboardModes.working && nativeKeyboards.contains { $0.builtIn }
+        refreshExternalFunctionKeyItem()
+    }
+    func refreshExternalFunctionKeyItem() {
+        guard let item = externalFnItem else { return }
+        let results = keyboardModes.results
+        let modes = Set(results.compactMap { $0.standard })
+        item.state = modes.count > 1 ? .mixed : modes.first == true ? .on : .off
+        let failed = results.filter { !$0.verified }
+        let hint: String
+        if keyboardModes.working { hint = "Checking keyboards…" }
+        else if !failed.isEmpty { hint = "⚠ \(failed.count) need setup · see Settings" }
+        else if modes.count > 1 { hint = "Mixed modes" }
+        else if let mode = modes.first { hint = mode ? "Without Fn" : "Hold Fn" }
+        else { hint = "No keyboard" }
+        label(item, "Use F1–F12 directly", hint: hint, hintColor: failed.isEmpty ? .secondaryLabelColor : StatusColors.warning)
+        item.isEnabled = !keyboardModes.working && !modes.isEmpty
+        item.toolTip = "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
+    }
+    @objc func toggleExternalFunctionKeys() {
+        let desired = externalFnItem.state != .on
+        UserDefaults.standard.set(desired, forKey: NativeFunctionKeys.externalIntentKey)
+        keyboardModes.queue(reapplyExternal: true)
     }
     func keyboardStatusChanged() {
         nativeKeyboards = NativeModifierKeys.keyboards()
@@ -35,7 +56,7 @@ extension AppDelegate {
             label(safetySettingsItem, "Settings…", hint: "⚠ Review keyboards", hintColor: StatusColors.warning)
         }
         if let index = CommandLine.arguments.firstIndex(of: "--keyboard-diagnostics"), CommandLine.arguments.count > index+1 {
-            let output: [String:Any] = ["busy":keyboardModes.busy, "functionKeys":keyboardModes.results.map { ["name":$0.name,"detail":$0.detail,"verified":$0.verified,"needsAccess":$0.needsAccess] as [String:Any] }, "modifiers":nativeKeyboards.map { ["name":$0.name,"builtIn":$0.builtIn,"swapped":$0.swapped as Any? ?? NSNull()] }, "errors":keyboardModes.modifierErrors]
+            let output: [String:Any] = ["busy":keyboardModes.working, "functionKeys":keyboardModes.results.map { ["name":$0.name,"detail":$0.detail,"verified":$0.verified,"needsAccess":$0.needsAccess,"standard":$0.standard as Any? ?? NSNull()] as [String:Any] }, "modifiers":nativeKeyboards.map { ["name":$0.name,"builtIn":$0.builtIn,"swapped":$0.swapped as Any? ?? NSNull()] }, "errors":keyboardModes.modifierErrors]
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: URL(fileURLWithPath: CommandLine.arguments[index+1]), options: .atomic) }
         }
     }
@@ -46,7 +67,7 @@ extension AppDelegate {
         if failures.isEmpty { UserDefaults.standard.set(desired, forKey: NativeModifierKeys.intentKey(builtIn)) }
         keyboardModes.modifierErrors = failures
         keyboardStatusChanged()
-        if !failures.isEmpty { menu.cancelTracking(); keyboardSettings() }
+        if !failures.isEmpty { withMenuClosed { [weak self] in self?.keyboardSettings() } }
     }
     @objc func toggleExternalModifiers() { setModifierGroup(false) }
     @objc func keyboardSettings() {
@@ -57,9 +78,9 @@ extension AppDelegate {
             label.font = .systemFont(ofSize: 13); label.textColor = color
             label.frame = NSRect(x: 8, y: y, width: 556, height: height); view.addSubview(label)
         }
-        let nativeMode = (try? FunctionKeys.standard()).map { $0 ? "✓ macOS: F1–F12 directly" : "✓ macOS: hold Fn for F1–F12" } ?? "⚠ macOS function-key mode unavailable"
+        let nativeMode = (try? FunctionKeys.standard()).map { $0 ? "✓ Built-in keyboard: F1–F12 directly" : "✓ Built-in keyboard: hold Fn for F1–F12" } ?? "⚠ macOS function-key mode unavailable"
         text(nativeMode, 448, 30, color: nativeMode.hasPrefix("✓") ? StatusColors.success : StatusColors.warning)
-        text(keyboardModes.busy ? "Applying the macOS setting to connected keyboards…" : "External Fn modes are checked at connection, on wake, and when you change this setting.", 407, 40, color: .secondaryLabelColor)
+        text(keyboardModes.working ? "Checking each keyboard’s own setting…" : "Built-in and external Fn choices are independent. Existing modes are read first; only choices you make are saved and reapplied.", 407, 40, color: .secondaryLabelColor)
         let scroll = NSScrollView(frame: NSRect(x: 8, y: 103, width: 556, height: 295))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
         let entries = keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
@@ -72,12 +93,12 @@ extension AppDelegate {
             document.addSubview(label)
         }
         if entries.isEmpty {
-            let label = NSTextField(labelWithString: keyboardModes.busy ? "Checking connected keyboards…" : "No external keyboards detected.")
+            let label = NSTextField(labelWithString: keyboardModes.working ? "Checking connected keyboards…" : "No external keyboards detected.")
             label.frame = NSRect(x: 8,y: 245,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
         }
         scroll.documentView = document; view.addSubview(scroll)
-        let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.queue() }
-        retry.isEnabled = !keyboardModes.busy; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
+        let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.queue(reapplyExternal: true) }
+        retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
         let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open Input Monitoring" : "Open Keyboard Settings") { [weak self] in
             let permission = self?.keyboardModes.needsAccess == true
             if permission { _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent) }
@@ -88,6 +109,6 @@ extension AppDelegate {
             let drag = PermissionDragItem(title: "Drag Perch → Input Monitoring, then enable it") { Bundle.main.bundleURL }
             drag.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(drag)
         }
-        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Keyboard compatibility, permissions, and setup results. Change function keys and Control/Command swaps in the Input section of Perch’s menu.", view: view))
+        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Keyboard compatibility, permissions, and setup results. Change Fn modes and Control/Command swaps under Built-in keyboard or External keyboards in Perch’s menu.", view: view))
     }
 }

@@ -80,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     let keyboardModes = KeyboardModeMonitor()
     var nativeKeyboards: [NativeKeyboard] = []
     var fnItem: NSMenuItem!
+    var externalFnItem: NSMenuItem!
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
@@ -149,13 +150,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         displayItem.toolTip = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
         section("Audio")
         audioItem = add("Mute audio", #selector(toggleAudio))
-        section("Input")
+        section("Scrolling")
         trackpadItem = add("Reverse trackpad scroll", #selector(toggleTrackpad))
         wheelItem = add("Reverse mouse wheel", #selector(toggleWheel))
+        section("Built-in keyboard")
         swapItem = add("Swap Control ↔ Command keys", #selector(toggleModifiers))
-        externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
         fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys))
-        fnItem.toolTip = "Checked: use F1–F12 without Fn; hold Fn for brightness and media. Unchecked: hold Fn for F1–F12."
+        section("External keyboards")
+        externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
+        externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys))
         setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
@@ -164,9 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let quit = add("Quit Perch", #selector(quit))
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Controls stay on")
-        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, loginItem].compactMap({ $0 }) {
+        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
+        (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
+        (loginItem.view as? MenuRowView)?.opensAnotherInterface = { SMAppService.mainApp.status == .requiresApproval }
         systemMonitor.processCPU.onUpdate = { [weak self] in
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
             self.showSystemReading(self.systemItems[1], self.systemMonitor.cpuReading)
@@ -200,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let generation = menuGeneration
         refreshMenuAppearance()
         nativeKeyboards = NativeModifierKeys.keyboards()
+        keyboardModes.queue() // Read external firmware changes, without imposing a new default.
         refresh()
         // One quick second interval, then the existing menu refresh cadence.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -290,13 +296,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         do { try action() } catch { showError(error) }
         refresh()
     }
+    func withMenuClosed(_ action: @escaping () -> Void) {
+        if menuOpen {
+            menu.cancelTracking()
+            // Permission prompts must start after AppKit's tracking loop unwinds.
+            DispatchQueue.main.async(execute: action)
+        } else { action() }
+    }
     func showError(_ error: Error) {
-        menu.cancelTracking()
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Couldn’t change the setting"
-        alert.informativeText = error.localizedDescription
-        SettingsWindow.shared.run(alert)
+        withMenuClosed {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t change the setting"
+            alert.informativeText = error.localizedDescription
+            SettingsWindow.shared.run(alert)
+        }
     }
     @objc func toggleAwake() {
         perform {
@@ -315,9 +329,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func toggleLid() {
-        perform {
-            let target = try !sleepDisabled()
-            try setSleepDisabled(target)
+        withMenuClosed { [weak self] in
+            let result = LidSettingChange.run(read: sleepDisabled, write: setSleepDisabled)
+            self?.refresh()
+            let alert = NSAlert()
+            alert.messageText = result.title
+            alert.informativeText = result.detail
+            alert.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            SettingsWindow.shared.run(alert)
         }
     }
     @objc func turnDisplayOff() {
@@ -365,20 +385,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item === fnItem { return !keyboardModes.working && nativeKeyboards.contains { $0.builtIn } }
+        if item === externalFnItem { return !keyboardModes.working && keyboardModes.results.contains { $0.standard != nil } }
         if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {
             return GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
         }
         return true
     }
     @objc func inputPermissionsFromSettings() {
-        if permissionSetup == nil { permissionSetup = PermissionSetup() }
-        permissionSetup?.show(fromSettings: true)
+        withMenuClosed { [self] in
+            if permissionSetup == nil { permissionSetup = PermissionSetup() }
+            permissionSetup?.show(fromSettings: true)
+        }
     }
     @objc func inputPermissions() {
-        if permissionSetup == nil { permissionSetup = PermissionSetup() }
-        permissionSetup?.show()
+        withMenuClosed { [self] in
+            if permissionSetup == nil { permissionSetup = PermissionSetup() }
+            permissionSetup?.show()
+        }
     }
-    @objc func toggleFunctionKeys() { perform { try FunctionKeys.setStandard(!FunctionKeys.standard()); keyboardModes.queue() } }
+    @objc func toggleFunctionKeys() { perform { try NativeFunctionKeys.setBuiltIn(!FunctionKeys.standard()); keyboardModes.queue() } }
     @objc func toggleLogin() {
         perform {
             switch SMAppService.mainApp.status {

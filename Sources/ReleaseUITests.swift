@@ -30,6 +30,11 @@ func renderReleaseView(_ content: NSView, path: String, prepare: ((NSAppearance)
     }
 }
 
+private final class ReleaseTrackingMenu: NSMenu {
+    var dismissals = 0
+    override func cancelTracking() { dismissals += 1; super.cancelTracking() }
+}
+
 private final class ReleaseToggleTarget: NSObject, NSMenuItemValidation {
     var allowed = true
     var presses = 0
@@ -127,6 +132,19 @@ func runReleaseUITests() throws {
     let information = MenuRowView(item: commandItem, kind: .information)
     try check(!information.accessibilityPerformPress() && information.isAccessibilityEnabled(), "Information is actionable or falsely dimmed")
 
+    let authorizationMenu = ReleaseTrackingMenu()
+    let authorizationItem = NSMenuItem(title: "Test authorization toggle", action: #selector(ReleaseToggleTarget.toggle(_:)), keyEquivalent: "")
+    authorizationItem.target = target
+    authorizationMenu.addItem(authorizationItem)
+    let authorizationRow = MenuRowView(item: authorizationItem, kind: .toggle)
+    authorizationRow.opensAnotherInterface = { true }
+    let beforePrompt = target.presses
+    try check(authorizationRow.activate() && authorizationMenu.dismissals == 1 && target.presses == beforePrompt, "Authorization started inside menu tracking")
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    try check(target.presses == beforePrompt + 1, "Deferred authorization action didn't run")
+    authorizationRow.opensAnotherInterface = { false }
+    try check(authorizationRow.activate() && authorizationMenu.dismissals == 1 && target.presses == beforePrompt + 2, "Ordinary toggle unnecessarily dismissed the menu")
+
     // Read-only native menu refresh; no helper installation or setting changes.
     let app = AppDelegate(); app.checkedStartupInputAccess = true; app.buildMenu()
     let warm = Date().addingTimeInterval(2)
@@ -144,6 +162,16 @@ func runReleaseUITests() throws {
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
     try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
+    try check((app.lidItem.view as! MenuRowView).opensAnotherInterface(), "Lid authorization toggle must close the menu first")
+    let headings = app.menu.items.filter { ($0.view as? MenuRowView)?.kind == .section }.map { $0.title }
+    try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains("External keyboards") && !headings.contains("Input"), "Keyboard groups were not split")
+    // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
+    app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]
+    app.refreshFunctionKeyItem(true)
+    try check(app.fnItem.state == .on && app.externalFnItem.state == .off, "Fn checkboxes reflect the same value")
+    app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: true)]
+    app.refreshFunctionKeyItem(false)
+    try check(app.fnItem.state == .off && app.externalFnItem.state == .on, "External Fn state changed with built-in Fn state")
 
     let visibleItems = app.menu.items.filter { !$0.isHidden }
     let menuWidth = max(430, visibleItems.compactMap { $0.view?.frame.width }.max() ?? 430)

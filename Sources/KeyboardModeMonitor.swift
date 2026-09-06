@@ -10,9 +10,11 @@ final class KeyboardModeMonitor: NSObject {
     var busy = false
     var onChange: (() -> Void)?
     var started = false
+    var working: Bool { busy || pending != nil }
     private var lastStandard: Bool?
     private var pending: DispatchWorkItem?
     private var again = false
+    private var reapplyExternal = false
     private var port: IONotificationPortRef?
     private var added: io_iterator_t = 0
     private var removed: io_iterator_t = 0
@@ -38,24 +40,27 @@ final class KeyboardModeMonitor: NSObject {
             callback(context, added); callback(context, removed)
         } else { connectionError = "Keyboard connection monitoring is unavailable. Recheck keyboards after connecting one." }
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(changed), name: NSNotification.Name("com.apple.keyboard.fnstatedidchange"), object: nil)
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(changed), name: NSWorkspace.didWakeNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(activated), name: NSApplication.didBecomeActiveNotification, object: nil)
         queue()
     }
     @objc private func changed() { queue() }
+    @objc private func woke() { queue(reapplyExternal: true) }
     @objc private func activated() {
-        if needsAccess && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted { queue() }
-        else { onChange?() }
+        if needsAccess && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted { queue(reapplyExternal: true) }
+        else { queue() }
     }
     func observeStandard(_ standard: Bool) {
         guard started, lastStandard != standard else { return }
         lastStandard = standard; queue()
     }
-    func queue() {
+    func queue(reapplyExternal: Bool = false) {
         guard started else { return }
+        self.reapplyExternal = self.reapplyExternal || reapplyExternal
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.run() }
         pending = job
+        onChange?()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: job)
     }
     private func run() {
@@ -63,6 +68,8 @@ final class KeyboardModeMonitor: NSObject {
         guard !busy else { again = true; return }
         busy = true; onChange?()
         let known = knownDevices
+        let forceExternal = reapplyExternal
+        reapplyExternal = false
         // A temporary thread owns the HID reply run loop. It never runs on the
         // menu thread or the input helper's event-tap thread.
         Thread.detachNewThread { [weak self] in
@@ -77,7 +84,10 @@ final class KeyboardModeMonitor: NSObject {
                         do { try NativeModifierKeys.set(intent, on: keyboard) } catch { failures.append(error.localizedDescription); ids.remove(id) }
                     }
                 }
-                let result = standard.map { ExternalKeyboardModes.keyboards(standard: $0) } ?? [.init(name: "macOS", detail: "⚠ Could not read macOS function-key mode.", verified: false)]
+                let desired = NativeFunctionKeys.externalIntent()
+                let newNames = Set(keyboards.filter { !$0.builtIn && !known.contains("\(IOHIDServiceClientGetRegistryID($0.service))") }.map { $0.name })
+                let result = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: desired)
+                    + ExternalKeyboardModes.keyboards(standard: desired, only: forceExternal ? nil : newNames)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     self.busy = false

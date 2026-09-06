@@ -105,6 +105,7 @@ extension AppDelegate {
         systemMonitor.processCPU.setActive(menuOpen && sender.state == .on)
     }
     @objc func configureSettings() {
+        if menuOpen { withMenuClosed { [weak self] in self?.configureSettings() }; return }
         let health = GuardianInstall.status
         let configuration = SafetyConfiguration.load()
         let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel

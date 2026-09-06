@@ -24,6 +24,7 @@ struct NativeKeyboard {
     let service: IOHIDServiceClient
     let name: String
     let builtIn: Bool
+    let vendor: Int
     let preferenceKey: String
     let mapping: [[String:UInt64]]
     var swapped: Bool? { ModifierKeyMap.swapped(mapping) }
@@ -59,7 +60,7 @@ enum NativeModifierKeys {
             let key = suffix.map { "com.apple.keyboard.modifiermapping." + $0 } ?? ""
             let saved = CFPreferencesCopyValue(key as CFString, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) as? [[String:UInt64]] ?? []
             let current = value(property) as? [[String:UInt64]] ?? saved
-            return NativeKeyboard(connection: client, service: service, name: value("Product") as? String ?? "Keyboard", builtIn: (value("Built-In") as? NSNumber)?.boolValue == true, preferenceKey: key, mapping: current)
+            return NativeKeyboard(connection: client, service: service, name: value("Product") as? String ?? "Keyboard", builtIn: (value("Built-In") as? NSNumber)?.boolValue == true, vendor: (value("VendorID") as? NSNumber)?.intValue ?? 0, preferenceKey: key, mapping: current)
         }
     }
     static func set(_ swapped: Bool, on keyboard: NativeKeyboard) throws {

@@ -7,6 +7,7 @@ struct KeyboardModeResult {
     let detail: String
     let verified: Bool
     var needsAccess = false
+    var standard: Bool? = nil
 }
 
 /// HID++ protocol facts: 0x40A0/0x40A2 Fn inversion, 0x40A3 host-specific
@@ -20,6 +21,10 @@ enum KeyboardFnProtocol {
         return index
     }
     static func apply(standard: Bool, request: Request) throws -> Bool {
+        try configure(standard: standard, request: request).changed
+    }
+    /// A nil target is strictly a read: opening Perch never invents an Fn default.
+    static func configure(standard: Bool?, request: Request) throws -> (standard: Bool, changed: Bool) {
         var index: UInt8 = 0
         var host: UInt8?
         for id: UInt16 in [0x40A3, 0x40A2, 0x40A0] {
@@ -45,11 +50,11 @@ enum KeyboardFnProtocol {
             return reply[offset] == 0 // Inversion ON means media keys are primary.
         }
         let before = try read()
-        if before != standard {
+        if let standard, before != standard {
             _ = try request(index, 0x10, prefix + [standard ? 0 : 1])
             guard try read() == standard else { throw AppError(message: "Keyboard did not confirm the new Fn mode. Retry after waking it.") }
         }
-        return before != standard
+        return (standard ?? before, standard.map { before != $0 } ?? false)
     }
 
     // Ignore unrelated reports, notifications, other software, and receiver slots.
@@ -118,7 +123,7 @@ private final class KeyboardHIDSession {
         guard let reply else { throw AppError(message: "Keyboard did not reply. Wake or reconnect it, then retry.") }
         return try reply.get()
     }
-    func apply(standard: Bool, name: String, receiver: Bool) -> [KeyboardModeResult] {
+    func apply(standard: Bool?, name: String, receiver: Bool) -> [KeyboardModeResult] {
         var results: [KeyboardModeResult] = []
         // A receiver exposes up to six paired devices. Query type before changing
         // anything, so a paired mouse or headset can never receive an Fn write.
@@ -134,8 +139,8 @@ private final class KeyboardHIDSession {
                 var displayName = name
                 if receiver { displayName += " · keyboard \(slot)" }
                 do {
-                    _ = try KeyboardFnProtocol.apply(standard: standard, request: { try self.request($0,$1,$2) })
-                    results.append(.init(name: displayName, detail: standard ? "✓ F1–F12 directly · confirmed by keyboard" : "✓ Hold Fn for F1–F12 · confirmed by keyboard", verified: true))
+                    let mode = try KeyboardFnProtocol.configure(standard: standard, request: { try self.request($0,$1,$2) }).standard
+                    results.append(.init(name: displayName, detail: mode ? "✓ F1–F12 directly · confirmed by keyboard" : "✓ Hold Fn for F1–F12 · confirmed by keyboard", verified: true, standard: mode))
                 } catch { results.append(.init(name: displayName, detail: "⚠ " + error.localizedDescription, verified: false)) }
             } catch {
                 if !receiver { results.append(.init(name: name, detail: "⚠ " + error.localizedDescription, verified: false)) }
@@ -148,7 +153,7 @@ private final class KeyboardHIDSession {
 
 enum ExternalKeyboardModes {
     static func property(_ service: io_service_t, _ key: String) -> Any? { IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() }
-    static func keyboards(standard: Bool) -> [KeyboardModeResult] {
+    static func keyboards(standard: Bool?, only names: Set<String>? = nil) -> [KeyboardModeResult] {
         var iterator: io_iterator_t = 0
         guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOHIDDevice"), &iterator) == KERN_SUCCESS else {
             return [.init(name: "External keyboards", detail: "⚠ Could not enumerate connected keyboards.", verified: false)]
@@ -168,9 +173,9 @@ enum ExternalKeyboardModes {
             guard transport != "Virtual", property(service, "Built-In") as? Bool != true else { continue }
             let name = property(service, "Product") as? String ?? "External keyboard"
             let vendor = property(service, "VendorID") as? Int ?? 0
-            if vendor == 0x05AC {
-                results.append(.init(name: name, detail: "✓ Uses the macOS function-key setting", verified: true)); continue
-            }
+            // Apple keyboard Fn modes are queried/set through their native HID
+            // services by NativeFunctionKeys, not the Logitech firmware protocol.
+            if vendor == 0x05AC { continue }
             guard vendor == 0x046D else {
                 results.append(.init(name: name, detail: "⚠ Automatic Fn control is not supported. Match this keyboard’s Fn Lock or manufacturer setting manually.", verified: false)); continue
             }
@@ -189,7 +194,7 @@ enum ExternalKeyboardModes {
             }
             do {
                 let session = try KeyboardHIDSession(service: endpoint)
-                results += session.apply(standard: standard, name: name, receiver: isReceiver)
+                results += session.apply(standard: names == nil || names!.contains(name) ? standard : nil, name: name, receiver: isReceiver)
             } catch { results.append(.init(name: name, detail: "⚠ " + error.localizedDescription, verified: false)) }
         }
         return results

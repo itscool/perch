@@ -7,6 +7,7 @@ final class MenuRowView: NSView {
     enum Kind { case toggle, command, information, section }
     weak var item: NSMenuItem?
     let kind: Kind
+    var opensAnotherInterface: () -> Bool = { false }
     var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
     var keyboardHighlight = false { didSet { if keyboardHighlight != oldValue { needsDisplay = true } } }
     var text: NSAttributedString { didSet { resizeForText(); needsDisplay = true } }
@@ -60,7 +61,7 @@ final class MenuRowView: NSView {
     }
     @discardableResult func activate() -> Bool {
         guard enabled, !commandPending, let item, let action = item.action else { return false }
-        if kind == .command {
+        if kind == .command || opensAnotherInterface() {
             commandPending = true
             item.menu?.cancelTracking()
             // Open a settings/confirmation window only once tracking has ended.

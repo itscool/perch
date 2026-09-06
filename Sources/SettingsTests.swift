@@ -1,6 +1,7 @@
 import AppKit
 
 func runSettingsTests() throws {
+    try runLidSettingTests()
     try runStatusColorTests()
     try runReleaseUITests()
     let host = SettingsWindow.shared

@@ -191,10 +191,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(item)
     }
 
-    func label(_ item: NSMenuItem, _ title: String, hint: String = "", hintColor: NSColor = .secondaryLabelColor) {
+    func label(_ item: NSMenuItem, _ title: String, hint: String = "", hintColor: NSColor = .secondaryLabelColor, hintWeight: NSFont.Weight = .regular) {
         let text = NSMutableAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
         if !hint.isEmpty {
-            text.append(NSAttributedString(string: "  \u{2002}" + hint, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: hintColor]))
+            text.append(NSAttributedString(string: "  \u{2002}" + hint, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: hintWeight), .foregroundColor: hintColor]))
         }
         if item.title != title { item.title = title }
         setMenuTitle(item, text)
@@ -269,7 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         do {
             let disabled = try sleepDisabled()
             lidItem.state = disabled ? .on : .off
-            label(lidItem, "Keep awake with lid closed", hint: disabled ? "⚠ Keep ventilated" : "Currently sleeps on lid close", hintColor: disabled ? StatusColors.warning : StatusColors.success)
+            label(lidItem, "Keep awake with lid closed", hint: disabled ? "⚠ Keep ventilated" : "Currently sleeps on lid close", hintColor: disabled ? StatusColors.warning : StatusColors.success, hintWeight: disabled ? .semibold : .regular)
         } catch { label(lidItem, "Keep awake with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
         do {
             let muted = try AudioStatus.muted()

@@ -4,7 +4,7 @@ import AppKit
 // on light surfaces. Keep semantic colors dynamic, including Increased Contrast.
 enum StatusColors {
     static let success = adaptive("success", light: 0x20743C, dark: 0x82D69B)
-    static let warning = adaptive("warning", light: 0x825000, dark: 0xF1BE70)
+    static let warning = adaptive("warning", light: 0xB04400, dark: 0xF1BE70)
     static let critical = adaptive("critical", light: 0xAD2434, dark: 0xFF929B)
     static let information = adaptive("information", light: 0x246775, dark: 0x85C8D3)
 

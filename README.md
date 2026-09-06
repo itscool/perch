@@ -103,4 +103,4 @@ Self-tests use synthetic ancestry and disposable local shell/sleep processes. Th
 
 `bash Tools/check-release.sh` verifies signing and runs both safe suites. AppKit checks exercise live menu updates during tracking, Settings navigation, light/dark rendering, input-readiness states, and shortcut-test cancellation/success/timeout/cleanup using isolated requests. They do not prove physical keyboard delivery or a real system-wide privacy reset.
 
-See `V1-NOTES.md` for measured performance and validation limits, and `EVENT-COLLECTOR.md` for the collector architecture. `REVIEW.md` is an earlier implementation review; the broader 1.1 review is pending.
+See `V1-NOTES.md` for measured performance and validation limits, and `EVENT-COLLECTOR.md` for the collector architecture. `REVIEW.md` is an earlier implementation review. The whole-app review and its resulting changes are assigned to **1.2**; its pending scope is recorded in [V1.2-REVIEW.md](V1.2-REVIEW.md).

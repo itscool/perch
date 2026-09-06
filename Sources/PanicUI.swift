@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 extension AppDelegate {
     func setupSafetyMenu() {
-        section("Agent Safety")
+        section("Agent Kill Switch")
         safetyItem = add("Panic…", #selector(stopAgents))
         safetyItem.toolTip = "Immediately stop selected agents and their observed children, then keep stopping relaunches until you resume."
         safetyResumeItem = add("Resume agent activity…", #selector(resumeAgents))
@@ -24,7 +24,7 @@ extension AppDelegate {
             }
             setMenuTitle(safetySettingsItem, colored)
         }
-        safetySettingsItem.toolTip = issue?.detail ?? "Configure input access, agent safety, and maintenance."
+        safetySettingsItem.toolTip = issue?.detail ?? "Configure input access, Agent Kill Switch, and maintenance."
         if let issue, issue.severity == .critical {
             if criticalIssueSince == nil { criticalIssueSince = Date() }
             // One in-app notice per critical condition; no extra permission or popup window.
@@ -53,10 +53,11 @@ extension AppDelegate {
                 }
             }
         }
-        let shortcut = state.shortcutActive ? "Immediate: " + SafetyConfiguration.load().shortcut.title : "Shortcut off"
+        let keys = config.shortcut.title.replacingOccurrences(of: "Escape", with: "Esc")
+        let shortcut = state.shortcutActive ? keys + " for Immediate Kill" : "Shortcut off"
         let activity = state.locked ? "Stopping relaunches" : (state.testUntil != nil ? "Test mode" : shortcut)
         let attention = state.error == nil ? "" : " · Needs attention"
-        label(safetyItem, "Panic…", hint: "\(state.trackedCount) tracked · \(activity)\(attention)")
+        label(safetyItem, "Panic…", hint: "\(state.trackedCount) tracked\u{2003}\u{2003}\(activity)\(attention)")
         safetyItem.toolTip = state.error ?? (state.testUntil != nil ? state.message : "Immediately stop selected agents and their observed children. \(state.trackedCount) processes currently tracked. Keep stopping relaunches until you resume.")
         safetyResumeItem.isHidden = !state.locked && state.pendingLaunchJobs == 0
     }
@@ -112,7 +113,7 @@ extension AppDelegate {
         let issueNow = ProtectionIssue.assess(health, config: configuration)
         var options: [(String,String,Selector)] = [
             (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scroll reversal.", #selector(inputPermissionsFromSettings)),
-            (issueNow == nil ? "✓ Agent safety…" : "⚠ Agent safety…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
+            (issueNow == nil ? "✓ Agent Kill Switch…" : "⚠ Agent Kill Switch…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
             (keyboardModes.warning ? "⚠ Keyboard settings…" : "Keyboard settings…", "Function keys and separate Control/Command swaps for built-in and external keyboards.", #selector(keyboardSettings)),
             ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
@@ -126,7 +127,7 @@ extension AppDelegate {
             }
             options.insert(((issue.severity == .critical ? "⛔ " : "⚠ ") + issue.title + "…", issue.detail, action), at: 0)
         }
-        chooseSafetyAction(title: "Perch settings", detail: issue.map { $0.title + "\n" + $0.detail } ?? "Permissions Perch needs are under Input controls. Permissions panic revokes are under Agent safety.", options: options)
+        chooseSafetyAction(title: "Perch settings", detail: issue.map { $0.title + "\n" + $0.detail } ?? "Permissions Perch needs are under Input controls. Permissions panic revokes are under Agent Kill Switch.", options: options)
     }
     @objc func configurePanic() {
         var options: [(String,String,Selector)] = [
@@ -137,10 +138,10 @@ extension AppDelegate {
         if !GuardianInstall.alive {
             options.insert(("Repair background protection…", "The helper is not responding. Reinstall and restart it before relying on panic.", #selector(repairWatcher)), at: 0)
         }
-        chooseSafetyAction(title: "Safety settings", detail: GuardianInstall.alive ? "✓ Background protection is running." : "⛔ Background protection is unavailable. Repair it below.", options: options)
+        chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? "✓ Background protection is running." : "⛔ Background protection is unavailable. Repair it below.", options: options)
     }
     @objc func advancedSafetySettings() {
-        chooseSafetyAction(title: "Advanced safety settings", detail: "These controls are for occasional setup and recovery.", options: [
+        chooseSafetyAction(title: "Advanced settings", detail: "These controls are for occasional setup and recovery.", options: [
             ("Add agent app…", "Include an application missing from the agent selection list.", #selector(addAgentApp)),
             ("Add agent executable…", "Include a command-line agent and its observed children, using its executable path.", #selector(addAgentExecutable)),
             ("Import recognition catalog…", "Load updated agent suggestions from a JSON file. New entries default to checked; existing choices are preserved.", #selector(importAgentCatalog)),
@@ -152,7 +153,7 @@ extension AppDelegate {
         let current = SafetyConfiguration.load()
         var config = AgentCatalog.available()?.suggestions(for: current) ?? current
         let alert = NSAlert()
-        alert.messageText = "Agent safety"
+        alert.messageText = "Agent Kill Switch"
         alert.informativeText = "Panic freezes and force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved agent work can be lost.\n\nThe watcher runs separately from Perch. It cannot stop remote jobs, root processes, or children it never observed."
         let targetCount = config.targets.count
         let listHeight = CGFloat(min(targetCount * 27, 162))
@@ -293,7 +294,7 @@ extension AppDelegate {
             result.informativeText = outcome == "Shortcut worked"
                 ? "Perch received the combination. The shortcut is still harmless. Returning to settings ends the test and restores your configured shortcut."
                 : "The test did not succeed. Check the combination and try again. Returning to settings ends the test."
-            result.addButton(withTitle: "Back to Safety settings")
+            result.addButton(withTitle: "Back")
             SettingsWindow.shared.run(result)
         }
         do {
@@ -312,7 +313,7 @@ extension AppDelegate {
             RunLoop.main.add(poll, forMode: .modalPanel)
             SettingsWindow.shared.run(cleanup)
             poll.invalidate()
-            if !restored { showError(AppError(message: "Could not confirm test cleanup. Background protection may be unavailable; repair it in Safety settings before relying on the shortcut.")) }
+            if !restored { showError(AppError(message: "Could not confirm test cleanup. Background protection may be unavailable; repair it in Agent Kill Switch before relying on the shortcut.")) }
         } catch { showError(error) }
         heartbeat.invalidate()
     }
@@ -346,7 +347,7 @@ extension AppDelegate {
             else if Date().timeIntervalSince(started) > 5 { text.string = "The background helper did not return a preview. Check protection status in Settings."; poll?.invalidate() }
         }
         if let poll { RunLoop.main.add(poll, forMode: .common) }
-        SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Use Back to return to Agent safety.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
+        SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Use Back to return to Agent Kill Switch.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
     }
     @objc func repairWatcher() {
         do { try GuardianInstall.install(); safetyError = nil } catch { safetyError = error.localizedDescription; showError(error) }

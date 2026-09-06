@@ -10,6 +10,9 @@ enum GuardianInstall {
         let monitor = HelperStatusIPC.guardianClient.value
         let input = HelperStatusIPC.inputClient.value
         guard var status = monitor else { return nil }
+        if status.error == "Process events need setup. Open Agent safety settings." {
+            status.error = "Process events need setup. Open Agent Kill Switch settings."
+        }
         status.inputTrusted = input?.fresh == true ? input?.trusted : nil
         status.inputActive = input?.fresh == true && input?.active == true
         return status
@@ -49,7 +52,7 @@ enum GuardianInstall {
         try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0).write(to: plist, options: .atomic)
         _ = SafetyCommand.run("/bin/launchctl", ["bootout", service])
         let result = SafetyCommand.run("/bin/launchctl", ["bootstrap", "gui/\(getuid())", plist.path])
-        guard result == "ok" else { throw AppError(message: "Watcher installation \(result). Try Repair watcher in Agent safety.") }
+        guard result == "ok" else { throw AppError(message: "Watcher installation \(result). Try Repair watcher in Agent Kill Switch.") }
         let inputLabel = "local.scott.perch.input"
         let inputPlist = plist.deletingLastPathComponent().appendingPathComponent(inputLabel + ".plist")
         var inputJob = job

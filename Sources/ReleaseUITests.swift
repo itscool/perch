@@ -91,14 +91,14 @@ func runReleaseUITests() throws {
             if action == "finish-test" { fake.testUntil = nil }
         }, keepAlive: {})
         try check(actions == ["test", "finish-test"] && fake.testUntil == nil && !fake.shortcutActive, "Shortcut test did not restore the original disabled state")
-        try check(host.pages.count == pageCount && host.pages.last?.title == "Safety settings", "Shortcut test did not return to Safety settings")
+        try check(host.pages.count == pageCount && host.pages.last?.title == "Agent Kill Switch", "Shortcut test did not return to Agent Kill Switch")
         try check(messages.contains("Ending shortcut test…"), "Shortcut test skipped cleanup confirmation")
         if scenario == "success" { try check(messages.contains("Shortcut worked"), "Shortcut success was not reported") }
         if scenario == "timeout" { try check(sawReady && messages.contains("No shortcut received"), "Ready/countdown/timeout result missing") }
     }
     host.modalTestDriver = nil
     host.window.close()
-    print("PASS: shortcut preparation cancel, success, 10-second timeout, harmless cleanup, return to Safety settings; isolated helper transport")
+    print("PASS: shortcut preparation cancel, success, 10-second timeout, harmless cleanup, return to Agent Kill Switch; isolated helper transport")
 
     // Exercise the production toggle action route with a harmless local target.
     let target = ReleaseToggleTarget()
@@ -138,7 +138,7 @@ func runReleaseUITests() throws {
     while Date() < until { RunLoop.main.run(mode: .eventTracking, before: Date().addingTimeInterval(0.05)) }
     keepModeAlive.invalidate()
     let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
-    try check(!cpu.contains("Measuring") && !cpu.contains("Sampling") && cpu.contains("%"), "CPU did not update while tracking an open menu")
+    try check(!cpu.contains("--%") && cpu.contains("%"), "CPU did not update while tracking an open menu")
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
     try check(app.lidItem.state == .on ? lid.contains("⚠ Keep ventilated") : lid.contains("Currently sleeps on lid close"), "Lid wording disagrees with current state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")

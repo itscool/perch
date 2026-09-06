@@ -233,11 +233,11 @@ final class ProcessCPUSampler {
     private var nextRead = 0.0
     private(set) var requests = 0
     var onUpdate: (() -> Void)?
-    private(set) var text = "top: Measuring… · us: Measuring…"
+    private(set) var text = "top: -- --% · us: --%"
     func setActive(_ value: Bool) {
         guard active != value else { return }
         active = value; generation += 1; pending = false; nextRead = 0
-        text = "top: Measuring… · us: Measuring…"
+        text = "top: -- --% · us: --%"
         queue.async { [self] in previous = nil }
     }
     func refresh(now: Double = ProcessInfo.processInfo.systemUptime) {

@@ -107,7 +107,7 @@ final class ProcessEventStream {
     var fd: Int32 = -1
     var pending = Data()
     var handler: ((BorrowedProcessEvent) -> Void)?
-    var failure: String? = "Process events need setup. Open Agent safety settings."
+    var failure: String? = "Process events need setup. Open Agent Kill Switch settings."
     var coverageGap = false
     var lastSequence: UInt64?
     var lastProbe = Date.distantPast

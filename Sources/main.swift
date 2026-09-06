@@ -133,9 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func buildMenu() {
         menu.delegate = self
         section("System")
-        for _ in 0..<5 {
-            let item = NSMenuItem(title: "Sampling…", action: nil, keyEquivalent: "")
+        for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.view = MenuRowView(item: item, kind: .information)
+            label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
         section("Sleep")
@@ -306,7 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 try config.save()
                 try state.stopCaffeinate()
             } else {
-                guard GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Agent safety first.") }
+                guard GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
                 config.keepAwake = true
                 try config.save()
             }

@@ -81,7 +81,7 @@ func runProcessCPULiveTest() throws {
     let line = sampler.text
     guard let firstUpdate, firstUpdate < 3 else { throw AppError(message: "Initial CPU result did not notify the menu promptly") }
     print(String(format: "First CPU update callback: %.3f seconds", firstUpdate))
-    guard !line.contains("Measuring"), !line.contains("Unavailable"), sampler.requests == 2 else { throw AppError(message: "CPU live sampler did not finish: " + line) }
+    guard !line.contains("--%"), !line.contains("Unavailable"), sampler.requests == 2 else { throw AppError(message: "CPU live sampler did not finish: " + line) }
     sampler.setActive(false)
     for _ in 0..<100 { sampler.refresh(now: ProcessInfo.processInfo.systemUptime + 100) }
     guard sampler.requests == 2 else { throw AppError(message: "Closed menu continued CPU sampling") }

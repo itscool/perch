@@ -37,9 +37,9 @@ The menu shows the chip and macOS version, CPU/GPU activity, memory in GiB with 
 
 All displayed CPU percentages use total logical CPU capacity, consistent with the main CPU percentage (100% means all cores). The extra readings refresh every ten seconds while the menu is open; the first interval takes two samples about one second apart, and the result appears as soon as it is ready. Native counters cover readable processes; a bounded background `ps` query covers protected processes without requesting additional permissions. Missing counters are marked unavailable/partial rather than zero. Top compares live user-space processes; kernel_task and processes that exit between samples are not included. Sampling stops when the menu closes or the option is off.
 
-## Agent safety
+## Agent Kill Switch
 
-Open **Perch → Settings → Agent safety**.
+Open **Perch → Settings → Agent Kill Switch**.
 
 - **Panic…** in the main menu asks for confirmation, then freezes and force-terminates selected local agents and their observed descendants. Unsaved agent work can be lost.
 - **Agents, shortcut & panic actions…** selects agents, privacy-reset scope, and the configurable shortcut. The shortcut acts immediately when enabled. New configurations default to resetting privacy permissions for all apps, with Perch last; existing user selections are preserved.

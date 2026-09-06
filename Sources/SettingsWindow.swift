@@ -90,7 +90,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             explanation.frame = NSRect(x: 8, y: 0, width: 556, height: 32)
             view.addSubview(box); view.addSubview(explanation)
         }
-        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Safety settings" ? #selector(AppDelegate.configurePanic) : title == "Advanced safety settings" ? #selector(AppDelegate.advancedSafetySettings) : nil
+        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Agent Kill Switch" ? #selector(AppDelegate.configurePanic) : title == "Advanced settings" ? #selector(AppDelegate.advancedSafetySettings) : nil
         show(Page(title: title, detail: detail, view: view, refresh: { [weak delegate] in if let selector { _ = delegate?.perform(selector) } }))
     }
     @discardableResult

@@ -111,7 +111,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         } else if !fresh {
             primary.title = "Waiting for Perch…"; primary.isEnabled = false
             guidance.stringValue = "The collector is installed, but Perch’s background helper is not responding. Close this window and use Repair background protection in Settings."
-        } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent safety settings." {
+        } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
             primary.title = "Retry health check"
             readyState.stringValue = "⚠  3. Events received, but coverage is degraded"
             guidance.stringValue = (state?.error ?? "Stream verification failed.") + "\n\nEvents arrived earlier, but current readiness is not confirmed. Repeating the permission toggle may not help. Perch is using snapshot fallback."

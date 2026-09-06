@@ -109,7 +109,7 @@ private func runMenuStatusColorTests() throws {
         }
         var initial: NSColor!, updated: NSColor!
         wrongContext.performAsCurrentDrawingAppearance {
-            app.showSystemReading(reading, ("CPU", "18 cores · Measuring…", ""))
+            app.showSystemReading(reading, ("CPU", "18 cores · --%", ""))
             initial = color(reading, last: true)
             app.showSystemReading(reading, ("CPU", "18 cores · 12%", ""))
             updated = color(reading, last: true)

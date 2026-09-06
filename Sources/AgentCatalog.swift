@@ -79,7 +79,7 @@ extension AppDelegate {
         let updates = catalog.entries.filter { entry in config.targets.contains { $0.id == entry.target.id && ($0.kind != entry.target.kind || $0.match != entry.target.match) } }
         let alert = NSAlert()
         alert.messageText = "Review catalog updates"
-        alert.informativeText = updates.isEmpty ? "No matching rules have changed for your existing targets. New candidates can be enabled in Safety settings. Catalog reviewed: \(catalog.reviewedOn)." : "These existing targets have updated matching rules:\n\n" + updates.map { entry in
+        alert.informativeText = updates.isEmpty ? "No matching rules have changed for your existing targets. New candidates can be enabled in Agent Kill Switch. Catalog reviewed: \(catalog.reviewedOn)." : "These existing targets have updated matching rules:\n\n" + updates.map { entry in
             let old = config.targets.first { $0.id == entry.target.id }!
             return "\(old.name): \(old.match) → \(entry.target.match)"
         }.joined(separator: "\n") + "\n\nApply these definitions while preserving your on/off selections?"

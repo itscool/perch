@@ -14,7 +14,7 @@ final class SystemMonitor {
     }()
     let processCPU = ProcessCPUSampler()
     var previous: [UInt32]?
-    private var cpuBaseText = "Measuring…"
+    private var cpuBaseText = "\(ProcessInfo.processInfo.processorCount) cores · --%"
     static let cpuExplanation = "System-wide busy time across logical CPUs. All percentages use total CPU capacity (100% = all cores). Top process and combined Perch usage refresh every 10 seconds while this menu is open; the first reading takes about one second. Perch includes the menu app, both helpers, their completed utilities, and its eslogger collector. Top compares live user-space processes; kernel_task and processes that exited between samples are not included. Performance and efficiency cores differ."
     var cpuReading: (String, String, String) {
         ("CPU", cpuBaseText + (CPUDisplaySettings.enabled() ? " · " + processCPU.text : ""), Self.cpuExplanation)
@@ -35,7 +35,7 @@ final class SystemMonitor {
         let host = mach_host_self()
         defer { mach_port_deallocate(mach_task_self_, host) }
         let result = withUnsafeMutablePointer(to: &cpu) { p in p.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count) } }
-        var cpuText = "Measuring…"
+        var cpuText = "--%"
         if result == KERN_SUCCESS {
             let now = [cpu.cpu_ticks.0,cpu.cpu_ticks.1,cpu.cpu_ticks.2,cpu.cpu_ticks.3]
             if let old = previous, let value = Self.usage(old,now) { cpuText = String(format:"%.0f%%",value) }

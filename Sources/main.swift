@@ -509,6 +509,8 @@ if CommandLine.arguments.contains("--self-test") {
         try runPanicHotKeyTests()
         try runInputTests()
         try runKeyboardModeTests()
+        try runNavigationKeyTests()
+        try runNavigationProbeTests()
         print("PASS: function-key mode = \(try FunctionKeys.standard())")
         print("PASS: create/release Mac sleep assertion")
         print("PASS: read sleep override = \(try sleepDisabled())")

@@ -4,6 +4,7 @@ func runSettingsTests() throws {
     try runLidSettingTests()
     try runStatusColorTests()
     try runReleaseUITests()
+    try runNavigationProbeUITests()
     let host = SettingsWindow.shared
     host.testing = true
     let app = AppDelegate()

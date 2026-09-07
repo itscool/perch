@@ -81,7 +81,7 @@ extension AppDelegate {
         let nativeMode = (try? FunctionKeys.standard()).map { $0 ? "✓ Built-in keyboard: F1–F12 directly" : "✓ Built-in keyboard: hold Fn for F1–F12" } ?? "⚠ macOS function-key mode unavailable"
         text(nativeMode, 448, 30, color: nativeMode.hasPrefix("✓") ? StatusColors.success : StatusColors.warning)
         text(keyboardModes.working ? "Checking each keyboard’s own setting…" : "Built-in and external Fn choices are independent. Existing modes are read first; only choices you make are saved and reapplied.", 407, 40, color: .secondaryLabelColor)
-        let scroll = NSScrollView(frame: NSRect(x: 8, y: 103, width: 556, height: 295))
+        let scroll = NSScrollView(frame: NSRect(x: 8, y: 145, width: 556, height: 253))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
         let entries = keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
         let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(290,CGFloat(entries.count*70))))
@@ -97,6 +97,8 @@ extension AppDelegate {
             label.frame = NSRect(x: 8,y: 245,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
         }
         scroll.documentView = document; view.addSubview(scroll)
+        let navigation = SettingsActionButton(title: "Test external navigation keys…") { [weak self] in self?.testNavigationKeys() }
+        navigation.frame = NSRect(x: 8, y: 105, width: 548, height: 30); view.addSubview(navigation)
         let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.queue(reapplyExternal: true) }
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
         let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open Input Monitoring" : "Open Keyboard Settings") { [weak self] in

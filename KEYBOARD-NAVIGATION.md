@@ -19,9 +19,21 @@ App exceptions are necessary. iTerm2 explicitly switches these keys between view
 ## Implementation checks
 
 - Optional, separately configurable Home/End and Page Up/Down modes; defaults off.
-- Clearly disclose whether built-in Fn+arrows are included.
+- External-only: the user requires built-in Fn+arrows to remain unchanged. Do not wire the candidate CGEvent transform globally.
 - Preserve Shift selection, key repeats, matched key-up behavior, and unrelated modifier shortcuts.
 - Respect configured app exceptions, secure input, and disabled/missing permission states.
 - No per-keystroke process scan, file access, preference lookup, or app metadata lookup; no keyboard event subscription while both modes are off.
 - Safe tests operate on unposted events and app-owned text views, without changing physical keyboard settings or sending keys to other apps.
 - Validate permissions/signing and the background helper after installation; disclose any remaining physical-key checks.
+
+## Build 8: read-only feasibility test
+
+Settings → Keyboard settings → Test external navigation keys opens a page in the existing Settings window. Nothing begins until the user chooses a keyboard and presses Start. The test requires Input Monitoring for the signed Perch app, not the development terminal or Codex.
+
+The adapter enumerates physical HID keyboard metadata, excludes built-in/virtual/unknown transports, and opens only the selected external device nonexclusively. `IOHIDDeviceSetInputValueMatchingMultiple` limits delivered values to keyboard-page Home, End, Page Up, and Page Down. The callback checks these usages again before reading a value. No full input-report callback, ordinary text storage, file logging, exclusive device grab, event posting, or keyboard-setting write is added.
+
+The test stores only four bounded press/release states. It stops on all four completed keys, 30 seconds, cancellation, focus loss, disconnect, permission loss, Back, or window closure. Its timer exists only during the test. The normal menu/input helper/collector execution paths do not construct or run this diagnostic.
+
+Mock tests cover device isolation, ignored typing, paired press/release, repeated/invalid values, late callbacks across restart, timeout and all cleanup paths. App-owned UI tests cover the existing window stack, focus loss, results and light/dark rendering. Candidate editing transforms are tested using unposted events only. These tests do **not** prove physical HID delivery, native suppression, key repeat, secure-input behavior or crash recovery of an eventual remapper.
+
+Next hardware check: the user runs the test on MX Keys and verifies all four green rows. If direct delivery works, the proposed subsequent experiment is a short, explicitly initiated per-device mapping test. Apple's keyboard filter source drops an invalid mapped usage, but it is not yet established that raw navigation callbacks remain available after suppression on this keyboard. Production remapping must not be enabled until repeat, key-up, app exceptions, secure input, disconnect and crash recovery are proven. No suppression code is installed in build 8.

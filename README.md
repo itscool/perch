@@ -4,6 +4,8 @@ A native Mac menu bar app for sleep, sound, input controls, and an emergency sto
 
 Stable 1.0 release notes: [RELEASE-1.0.md](RELEASE-1.0.md). The 1.1 keyboard changes and compatibility details are in [KEYBOARDS.md](KEYBOARDS.md).
 
+External-only Home/End and Page Up/Down support is still being validated. Settings → Keyboard settings → Test external navigation keys provides a user-initiated, 30-second read-only test; it observes only the chosen keyboard’s four navigation keys and does not remap them. See [KEYBOARD-NAVIGATION.md](KEYBOARD-NAVIGATION.md) for the remaining implementation checks.
+
 ## Build and run
 
 This local package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.

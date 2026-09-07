@@ -147,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
-        section("Sleep")
+        section("Power & Display")
         awakeItem = add("Keep awake", #selector(toggleAwake))
         awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
         lidItem = add("Keep awake with lid closed", #selector(toggleLid))
@@ -155,6 +155,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
         displayItem.toolTip = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
+        menu.addItem(.separator())
+        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
+        _ = add("Monitor input settings…", #selector(monitorInputSettings))
         section("Audio")
         audioItem = add("Mute audio", #selector(toggleAudio))
         section("Scrolling")
@@ -170,9 +173,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys))
         keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings))
         keyboardSetupItem.isHidden = true
-        section("Monitor")
-        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
-        _ = add("Monitor input settings…", #selector(monitorInputSettings))
         setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))

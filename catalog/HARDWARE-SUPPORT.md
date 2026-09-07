@@ -145,3 +145,5 @@ Q3 descriptors lacking an explicit product string, Bluetooth/receiver variants w
 Automated fixtures cover malformed/missing replies, saved-map preservation, model matching, write-code overrides, explicit single-command tests and cancellation, keyboard transport boundaries and descriptor requirements. They cannot certify real display switching or keyboard delivery. Confirm both monitor directions, reconnect/restart, and external navigation versus built-in Fn+arrows using Perch. New monitor writes occur only on user action.
 
 LG's public OnScreen Control documentation and the source-linked LG side-channel findings were reviewed. No reliable universal retail-model or connected-input query was established. The proprietary application was not installed or run, and its implementation is not claimed as inspected.
+
+Follow-up: [static LG package inspection](LG-IDENTITY-RESEARCH.md) found proprietary ID reads and a 27UN850 firmware-model entry. The earlier uninspected-app limitation above is superseded; live identification remains unverified.

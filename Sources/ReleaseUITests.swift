@@ -167,7 +167,11 @@ func runReleaseUITests() throws {
     try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains("External keyboards") && !headings.contains("Input"), "Keyboard groups were not split")
     // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]
+    app.keyboardModes.busy = true // Routine refresh is not a settings transaction.
     app.refreshFunctionKeyItem(true)
+    try check(app.externalFnItem.isEnabled, "Routine keyboard refresh disabled known external Fn controls")
+    try check(app.fnItem.isEnabled == app.nativeKeyboards.contains { $0.builtIn }, "Routine refresh disabled built-in Fn controls")
+    app.keyboardModes.busy = false
     try check(app.fnItem.state == .on && app.externalFnItem.state == .off, "Fn checkboxes reflect the same value")
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: true)]
     app.refreshFunctionKeyItem(false)

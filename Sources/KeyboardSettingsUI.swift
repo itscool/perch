@@ -19,7 +19,7 @@ extension AppDelegate {
         fnItem.state = standard ? .on : .off
         label(fnItem, "Use F1–F12 directly", hint: standard ? "Without Fn" : "Hold Fn")
         fnItem.toolTip = "Changes the real macOS function-key setting while preserving connected external keyboards’ Fn modes."
-        fnItem.isEnabled = !keyboardModes.working && nativeKeyboards.contains { $0.builtIn }
+        fnItem.isEnabled = !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn }
         refreshExternalFunctionKeyItem()
     }
     func refreshExternalFunctionKeyItem() {
@@ -29,13 +29,13 @@ extension AppDelegate {
         item.state = modes.count > 1 ? .mixed : modes.first == true ? .on : .off
         let failed = results.filter { !$0.verified }
         let hint: String
-        if keyboardModes.working { hint = "Checking keyboards…" }
+        if keyboardModes.blocksFunctionKeyChanges { hint = "Updating keyboards…" }
         else if !failed.isEmpty { hint = "⚠ \(failed.count) need setup · see Settings" }
         else if modes.count > 1 { hint = "Mixed modes" }
         else if let mode = modes.first { hint = mode ? "Without Fn" : "Hold Fn" }
         else { hint = "No keyboard" }
         label(item, "Use F1–F12 directly", hint: hint, hintColor: failed.isEmpty ? .secondaryLabelColor : StatusColors.warning)
-        item.isEnabled = !keyboardModes.working && !modes.isEmpty
+        item.isEnabled = !keyboardModes.blocksFunctionKeyChanges && !modes.isEmpty
         item.toolTip = "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
     }
     @objc func toggleExternalFunctionKeys() {
@@ -103,7 +103,7 @@ extension AppDelegate {
             let message = input?.navigationUnidentified == true ? "⚠ macOS did not identify the source keyboard. Those keys keep their native behavior." : verified ? "✓ External navigation events received and identified." : "Waiting for an external navigation key. App exceptions are listed below."
             navigationStatus = [.init(name:"Navigation",detail:message,verified:verified)]
         }
-        let entries = errors + navigationStatus + registration + keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
+        let entries = errors + registration + navigationStatus + keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
         let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(scroll.contentSize.height,CGFloat(entries.count*70))))
         for (index, entry) in entries.enumerated() {
             let label = NSTextField(wrappingLabelWithString: entry.name + "\n" + entry.detail)

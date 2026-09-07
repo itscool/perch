@@ -12,6 +12,8 @@ final class KeyboardModeMonitor: NSObject {
     private var navigationRevision = 1
     private var appliedNavigationRevision = 0
     var busy = false
+    private var applying = false
+    var blocksFunctionKeyChanges: Bool { applying || reapplyExternal || (started && navigationRevision != appliedNavigationRevision) }
     var onChange: (() -> Void)?
     var started = false
     var working: Bool { busy || pending != nil }
@@ -80,7 +82,9 @@ final class KeyboardModeMonitor: NSObject {
     private func run() {
         pending = nil
         guard !busy else { again = true; return }
-        busy = true; onChange?()
+        busy = true
+        applying = reapplyExternal || navigationRevision != appliedNavigationRevision
+        onChange?()
         let known = knownDevices
         let forceExternal = reapplyExternal
         let revision = navigationRevision
@@ -115,11 +119,11 @@ final class KeyboardModeMonitor: NSObject {
                 }
                 let desired = NativeFunctionKeys.externalIntent()
                 let newNames = Set(keyboards.filter { !$0.builtIn && !known.contains("\(IOHIDServiceClientGetRegistryID($0.service))") }.map { $0.name })
-                let result = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: desired)
+                let result = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: forceExternal || scanNavigation ? desired : nil)
                     + ExternalKeyboardModes.keyboards(standard: desired, only: forceExternal ? nil : newNames)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    self.busy = false
+                    self.busy = false; self.applying = false
                     if self.again { self.again = false; self.run(); return }
                     self.lastStandard = standard; self.knownDevices = ids
                     self.results = result; self.modifierErrors = failures + (self.connectionError.map { [$0] } ?? [])

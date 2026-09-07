@@ -2,6 +2,18 @@ import AppKit
 
 func runNavigationRuntimeTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    let retained = NavigationEngine()
+    let runtime = NavigationRuntime(engine: retained)
+    var prefs = NavigationPreferences(); prefs.homeEnd = true
+    runtime.configure(prefs, profiles: [])
+    retained.devices = [900:[115:115]]; retained.observed = true
+    prefs.pageUpDown = true
+    runtime.configure(prefs, profiles: [])
+    try check(retained.devices[900] != nil && retained.observed, "Toggling navigation invalidated a recognized keyboard")
+    prefs.excludedApps = []
+    runtime.configure(prefs, profiles: [])
+    try check(retained.devices[900] != nil, "Changing app exceptions rescanned keyboard identity")
+    runtime.configure(NavigationPreferences(), profiles: [])
     let engine = NavigationEngine()
     engine.preferences.homeEnd = true; engine.preferences.pageUpDown = true
     engine.devices = [900:[115:115,119:119,116:116,121:121]]

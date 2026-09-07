@@ -143,6 +143,7 @@ final class MonitorInputController: NSObject {
             switch result {
             case .success(let displays):
                 self.displays = displays
+                if self.warning && self.connected != nil { return } // Preserve the last actionable result during metadata refresh.
                 self.warning = self.plan.shortcut.enabled && (!self.hotKey.active || self.connected == nil)
                 self.message = displays.isEmpty ? "No external monitor connected." : self.warning ? "The configured monitor or shortcut is unavailable." : "✓ \(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected"
             case .failure(let error): self.message = error.localizedDescription; self.warning = true
@@ -191,7 +192,7 @@ final class MonitorInputController: NSObject {
         }) { [weak self] result in
             guard let self else { return }
             switch result {
-            case .success(let input): self.lastSent = input.code; self.message = "Command sent: \(input.name) · monitor confirmation unavailable"; self.warning = false
+            case .success(let input): self.lastSent = input.code; self.message = "Command sent: \(input.name) · monitor confirmation unavailable. If nothing changed, check the exact model’s input codes in Edit inputs."; self.warning = true
             case .failure(let error): self.message = error.localizedDescription; self.warning = true
             }
         }

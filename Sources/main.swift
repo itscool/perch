@@ -403,8 +403,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if item === fnItem { return !keyboardModes.working && nativeKeyboards.contains { $0.builtIn } }
-        if item === externalFnItem { return !keyboardModes.working && keyboardModes.results.contains { $0.standard != nil } }
+        if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn } }
+        if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && keyboardModes.results.contains { $0.standard != nil } }
         if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {
             return GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
         }
@@ -435,8 +435,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func about() {
         let alert = NSAlert()
         alert.messageText = "Perch"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions.\n\nVersion \(version)"
+        alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions.\n\nVersion \(version) (build \(build))"
 
         SettingsWindow.shared.run(alert)
     }

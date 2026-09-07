@@ -113,7 +113,7 @@ final class MonitorInputPage: NSObject {
         }
         apply.frame = NSRect(x: 315,y: 5,width: 257,height: 32)
         [scroll,error,apply].forEach { page.addSubview($0) }
-        SettingsWindow.shared.show(.init(title: "Edit monitor inputs", detail: "Manual fallback when your monitor reports no input list or uses unusual codes. Enter one input per line as decimal code = name. Standard examples: 17 = HDMI 1, 18 = HDMI 2, 15 = DisplayPort, 27 = USB-C. LG alternate uses different codes. This only edits the list; it does not switch inputs.", view: page))
+        SettingsWindow.shared.show(.init(title: "Edit monitor inputs", detail: "Manual fallback when your monitor reports no input list or uses unusual codes. Enter one input per line as decimal code = name. Standard examples: 17 = HDMI 1, 18 = HDMI 2, 15 = DisplayPort, 27 = USB-C. LG alternate codes depend on the exact model: USB-C can be 209, 210, or 192. Do not assume a code from the generic display name. This only edits the list; it does not switch inputs.", view: page))
     }
     static func lines(_ inputs: [MonitorInput]) -> String { inputs.map { "\($0.code) = \($0.name)" }.joined(separator: "\n") }
     static func parse(_ text: String) throws -> [MonitorInput] {
@@ -143,7 +143,7 @@ final class MonitorInputPage: NSObject {
             monitors.addItems(withTitles: listed.map { $0.name })
             if let index = listed.firstIndex(where: { $0.id == editedDisplay }) { monitors.selectItem(at: index) }
             else if editedDisplay.isEmpty && listed.count == 1 { editedDisplay = listed[0].id; monitors.selectItem(at: 0)
-                protocolChoice.selectItem(at: MonitorProfiles.match(listed[0])?.alternate == true ? 1 : 0) }
+                protocolChoice.selectItem(at: MonitorProfiles.match(listed[0]).map { $0.alternate && $0.confidence != "suggested" } == true ? 1 : 0) }
             else { monitors.select(nil) }
         }
         let selected = listed.first { $0.id == editedDisplay }
@@ -160,7 +160,7 @@ final class MonitorInputPage: NSObject {
         guard listed.indices.contains(monitors.indexOfSelectedItem) else { return }
         let id = listed[monitors.indexOfSelectedItem].id
         guard editedDisplay != id else { return }
-        editedDisplay = id; candidates = []; selectedCodes = []; renderInputs(); protocolChoice.selectItem(at: MonitorProfiles.match(listed[monitors.indexOfSelectedItem])?.alternate == true ? 1 : 0)
+        editedDisplay = id; candidates = []; selectedCodes = []; renderInputs(); protocolChoice.selectItem(at: MonitorProfiles.match(listed[monitors.indexOfSelectedItem]).map { $0.alternate && $0.confidence != "suggested" } == true ? 1 : 0)
         refresh(); detectInputs()
     }
     @objc private func protocolChanged() {
@@ -168,7 +168,7 @@ final class MonitorInputPage: NSObject {
     }
     private func detectInputs() {
         guard let display = listed.first(where: { $0.id == editedDisplay }), display.ddcAvailable, !controller.busy else { return }
-        if let profile = MonitorProfiles.match(display), profile.alternate, candidates.isEmpty, !didAutoDetect { protocolChoice.selectItem(at: 1) }
+        if let profile = MonitorProfiles.match(display), profile.alternate, profile.confidence != "suggested", candidates.isEmpty, !didAutoDetect { protocolChoice.selectItem(at: 1) }
         let alternate = protocolChoice.indexOfSelectedItem == 1
         controller.inspect(editedDisplay, alternate: alternate) { [weak self] result in
             guard let self, self.shown else { return }
@@ -182,7 +182,7 @@ final class MonitorInputPage: NSObject {
                 } else {
                     if let profile = MonitorProfiles.match(display), profile.alternate == alternate {
                         self.candidates = profile.inputs
-                        self.controller.message = "⚠ Using a bundled \(profile.confidence == "suggested" ? "suggested" : "community-documented") profile for \(profile.name). Check the ports before saving. Current input is unavailable; enable the fallback below to cycle from the last command sent."
+                        self.controller.message = "⚠ Using a bundled \(profile.confidence == "suggested" ? "suggested" : "community-documented") profile for \(profile.name). Check the ports before saving. Input list was not reported. LG port codes vary by exact model; this profile is not proof of support. Use Edit inputs to correct codes."
                     } else {
                         let suggested: [UInt16] = alternate ? [144,145,208,210] : [17,18,15,27]
                         self.candidates = suggested.map { MonitorInput(code: $0,name: MonitorInput.name($0,alternate: alternate)) }

@@ -10,6 +10,8 @@ Perch 1.1 build 10 adds separate **Home/End move to line edges** and **Page Up/D
 
 ## Build and run
 
+Each build reserves the next integer `CFBundleVersion` in `Info.plist`; About shows both the release version and build number. Failed builds may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
+
 This local package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.
 
 ```sh

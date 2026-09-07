@@ -2,6 +2,17 @@
 set -euo pipefail
 export MACOSX_DEPLOYMENT_TARGET=26.0
 cd "$(dirname "$0")"
+# Serialize builds so the persisted counter cannot be reused by concurrent runs.
+mkdir -p build
+if ! mkdir build/.build-lock 2>/dev/null; then
+    echo "Another build is running (build/.build-lock exists)." >&2
+    exit 1
+fi
+trap 'rmdir build/.build-lock' EXIT
+BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)
+[[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "CFBundleVersion must be an integer" >&2; exit 1; }
+BUILD_NUMBER=$((10#$BUILD_NUMBER + 1))
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
 APP="$PWD/build/Perch.app"
 mkdir -p "$APP/Contents/MacOS"
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/EventParser.c -o build/EventParser.o

@@ -101,12 +101,13 @@ final class NavigationRuntime: NSObject {
     private var started = false
     init(engine: NavigationEngine) { self.engine = engine; super.init() }
     func configure(_ preferences: NavigationPreferences, profiles: [NavigationKeyboardProfile]) {
-        let changed = self.profiles != profiles || engine.preferences != preferences
+        let profilesChanged = self.profiles != profiles
+        let changed = profilesChanged || engine.preferences != preferences
         self.profiles = profiles
         engine.preferences = preferences
         if preferences.enabled && !started { start() }
         else if !preferences.enabled && started { stop() }
-        else if changed && started { queue() }
+        else if profilesChanged && started { queue() }
         if started && changed { appChanged() }
     }
     private func start() {

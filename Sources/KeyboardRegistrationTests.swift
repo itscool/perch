@@ -39,6 +39,13 @@ func runKeyboardRegistrationTests() throws {
     try KeyboardNavigationProfiles.save(absent, defaults: defaults)
     let withoutKeys = KeyboardRegistrationStatus.assess(unknown, saved: try KeyboardNavigationProfiles.read(defaults: defaults))
     try check(!withoutKeys.needsSetup && withoutKeys.profile?.hasHomeEnd == false && withoutKeys.profile?.hasPageKeys == false, "Absent keys either blocked registration or enabled unsupported features")
+    for entry in BundledNavigationProfiles.entries {
+        let id = NavigationKeyboardIdentity(vendor:entry.vendor,product:entry.product,version:1,name:entry.deviceNames[0],transport:entry.transports[0],usages:entry.keys.compactMap { $0 }.sorted())
+        try check(entry.matches(id), "Bundled profile rejected its documented descriptor: \(entry.name)")
+        let receiver = NavigationKeyboardIdentity(vendor:entry.vendor,product:0xc548,version:1,name:id.name,transport:"USB",usages:id.usages)
+        try check(!entry.matches(receiver), "Receiver inherited a keyboard profile")
+    }
+    try check(BundledNavigationProfiles.entries.count >= 28, "Expanded keyboard profiles absent")
     let override = NavigationKeyboardProfile(identity: mx, keys: [nil,nil,nil,nil])
     try check(KeyboardRegistrationStatus.assess(mx, saved: [override]).profile == override, "Bundled profile overrode user's learned layout")
     try KeyboardNavigationProfiles.reset(unknown, defaults: defaults)

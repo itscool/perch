@@ -200,6 +200,490 @@
         "https://www.logitech.com/en-us/shop/p/mx-keys-s",
         "Documented Bluetooth identity and full-size navigation layout. Descriptor usages are checked; Perch hardware delivery is untested."
       ]
+    },
+    {
+      "name": "Keychron V3 ansi",
+      "vendor": 13364,
+      "product": 816,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V3"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/ansi/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/ansi/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V3 ansi encoder",
+      "vendor": 13364,
+      "product": 817,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V3"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/ansi_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/ansi_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V3 iso",
+      "vendor": 13364,
+      "product": 818,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V3"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/iso/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/iso/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V3 iso encoder",
+      "vendor": 13364,
+      "product": 819,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V3"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/iso_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v3/iso_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V5 ansi",
+      "vendor": 13364,
+      "product": 848,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V5"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/ansi/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/ansi/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V5 ansi encoder",
+      "vendor": 13364,
+      "product": 849,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V5"
+      ],
+      "keys": [
+        74,
+        77,
+        null,
+        null
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/ansi_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/ansi_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V5 iso",
+      "vendor": 13364,
+      "product": 850,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V5"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/iso/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/iso/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V5 iso encoder",
+      "vendor": 13364,
+      "product": 851,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V5"
+      ],
+      "keys": [
+        74,
+        77,
+        null,
+        null
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/iso_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v5/iso_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V6 ansi",
+      "vendor": 13364,
+      "product": 864,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/ansi/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/ansi/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V6 ansi encoder",
+      "vendor": 13364,
+      "product": 865,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/ansi_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/ansi_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V6 iso",
+      "vendor": 13364,
+      "product": 866,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/iso/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/iso/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron V6 iso encoder",
+      "vendor": 13364,
+      "product": 867,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron V6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/iso_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/v6/iso_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q5 ansi",
+      "vendor": 13364,
+      "product": 336,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q5"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/ansi/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/ansi/keymaps/default/keymap.c",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/info.json"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q5 ansi encoder",
+      "vendor": 13364,
+      "product": 337,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q5"
+      ],
+      "keys": [
+        74,
+        77,
+        null,
+        null
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/ansi_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/ansi_encoder/keymaps/default/keymap.c",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/info.json"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q5 iso",
+      "vendor": 13364,
+      "product": 338,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q5"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/iso/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/iso/keymaps/default/keymap.c",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/info.json"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q5 iso encoder",
+      "vendor": 13364,
+      "product": 339,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q5"
+      ],
+      "keys": [
+        74,
+        77,
+        null,
+        null
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/iso_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/iso_encoder/keymaps/default/keymap.c",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q5/info.json"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q6 ansi",
+      "vendor": 13364,
+      "product": 352,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/ansi/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/ansi/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q6 ansi encoder",
+      "vendor": 13364,
+      "product": 353,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/ansi_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/ansi_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q6 iso",
+      "vendor": 13364,
+      "product": 354,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/iso/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/iso/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
+    },
+    {
+      "name": "Keychron Q6 iso encoder",
+      "vendor": 13364,
+      "product": 355,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "Keychron Q6"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/iso_encoder/keyboard.json",
+        "https://github.com/qmk/qmk_firmware/blob/08c662f286ddfd12a985f57b584b02eca5af0ae6/keyboards/keychron/q6/iso_encoder/keymaps/default/keymap.c"
+      ],
+      "notes": "Stock wired firmware layout only. Modified VIA/QMK layouts require user setup; firmware Fn layers are not controlled by macOS Fn preference. Descriptor usages still required; event source delivery not hardware-tested in Perch."
     }
   ]
 }

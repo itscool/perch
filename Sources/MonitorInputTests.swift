@@ -9,6 +9,10 @@ func runMonitorInputTests() throws {
     plan.allowUnconfirmedCycle = true
     try check(try plan.next(current: nil,lastSent: 17) == b && plan.next(current: nil,lastSent: nil) == a, "Explicit unconfirmed cycle fallback failed")
     plan.inputs = [a,a]; try check(!plan.valid,"Duplicate input codes accepted")
+    let preserved = [MonitorInput(code:145,name:"My HDMI"),MonitorInput(code:209,name:"USB-C")]
+    try check(MonitorCapabilities.merge(preserved, reported: [.init(code:145,name:"HDMI 2"),.init(code:210,name:"Input 210")]) == preserved + [.init(code:210,name:"Input 210")], "Discovery overwrote a working map")
+    try check(MonitorInput.name(27) == "Input 27" && MonitorInput.name(209, alternate:true) == "Input 209", "Unknown input falsely labeled USB-C")
+    try check(MonitorCapabilities.model("(prot(monitor)model(27UN850-W)vcp(60(11)))") == "27UN850-W" && MonitorCapabilities.model("model(") == nil, "Bounded model extraction failed")
     let caps = "(prot(monitor)model(Test)vcp(10 12 60(0f 10 11 12 1b) 62))"
     try check(MonitorCapabilities.inputs(caps) == [15,16,17,18,27],"Capabilities input codes were not decoded as hex")
     for bad in ["", "(vcp(10 12))", "(vcp(60(0f zz)))", "(vcp(60(0f)", "(vcp(60(00000f)))", String(repeating:"x",count:5000)] {
@@ -54,13 +58,27 @@ func runMonitorInputUITests() throws {
     guard !page.worked.isHidden && !page.failed.isHidden && !page.status.frame.intersects(page.worked.frame) else { throw AppError(message:"Unconfirmed switch feedback is hidden or overlaps") }
     guard host.pages.count == 2, host.pages.last?.title == "Monitor inputs" else { throw AppError(message:"Monitor setup left the settings stack") }
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-inputs.png")
+    let original = page.candidates, selected = page.selectedCodes
+    page.detect.performClick(nil)
+    let scanEnd = Date().addingTimeInterval(2)
+    while controller.busy && Date() < scanEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard page.candidates == original && page.selectedCodes == selected else { throw AppError(message:"Detect replaced saved input codes or selection") }
     let before = page.protocolChoice.indexOfSelectedItem
-    let edit = page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Edit inputs…" }!
+    let edit = page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Model & inputs…" }!
     edit.performClick(nil)
     let child = host.pages.last!.view
     let presets = child.subviews.compactMap { $0 as? NSPopUpButton }.first!
     guard presets.itemTitles.contains("LG 27UN850-W / 27UN850-WY") else { throw AppError(message:"Embedded retail presets absent from settings") }
+    presets.selectItem(withTitle: "LG 27UN850-W / 27UN850-WY")
     child.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use preset" }!.performClick(nil)
+    let compatibility = child.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Compatibility test…" }!
+    let beforeCommands = mock.commands.count
+    compatibility.performClick(nil)
+    guard host.pages.last?.title == "Monitor compatibility test", mock.commands.count == beforeCommands else { throw AppError(message:"Opening compatibility setup sent a command") }
+    host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Test selected command" }!.performClick(nil)
+    guard mock.commands.count == beforeCommands else { throw AppError(message:"Compatibility command sent without explicit prerequisite and candidate") }
+    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-compatibility.png")
+    host.goBack()
     host.goBack()
     guard page.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Cancelled preset selection changed parent settings") }
     host.goBack()
@@ -77,7 +95,7 @@ private final class FakeMonitorBackend: MonitorCommandBackend {
     var reportWritten = false
     func run(_ args: [String]) throws -> Data {
         commands.append(args)
-        if args.first == "read" { return Data("{\"current\":\(reported.map(String.init) ?? "null"),\"capabilities\":null}".utf8) }
+        if args.first == "read" || args.first == "inspect" { return Data("{\"current\":\(reported.map(String.init) ?? "null"),\"capabilities\":null}".utf8) }
         if failWrite { throw AppError(message:"Mock disconnected monitor") }
         if reportWritten { reported = args.last.flatMap(UInt16.init) }
         return Data("{\"sent\":true}".utf8)
@@ -120,5 +138,20 @@ func runMonitorTransactionTests() throws {
     guard MonitorProfiles.match(generic)?.confidence == "suggested",
           MonitorProfiles.match(generic,reportedModel:"27UN850-W")?.inputs.contains(.init(code:209,name:"USB-C")) == true,
           MonitorProfiles.entries.count >= 21 else { throw AppError(message:"Embedded model profiles missing or ambiguous LG auto-match") }
+    let samsung = MonitorDescriptor(id:display.id,displayID:99,name:"C49RG9x",vendor:19501,model:0x0f9c,ddcAvailable:true)
+    guard MonitorProfiles.match(samsung)?.inputs.contains(.init(code:6,name:"HDMI")) == true,
+          Set(MonitorProfiles.entries.map { $0.vendor }).count >= 12 else { throw AppError(message:"Multi-vendor or Samsung write-code profiles missing") }
+    let writeOnlyBackend = FakeMonitorBackend(); writeOnlyBackend.failWrite = false; writeOnlyBackend.reportWritten = true
+    let writeOnly = MonitorInputController(displays:[samsung],backend:writeOnlyBackend,defaults:defaults)
+    writeOnly.plan.display = samsung.id; writeOnly.plan.inputs = MonitorProfiles.match(samsung)!.inputs; writeOnly.plan.allowUnconfirmedCycle = true
+    writeOnly.cycle()
+    let done = Date().addingTimeInterval(2)
+    while writeOnly.busy && Date() < done { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard !writeOnly.busy && writeOnly.pendingConfirmation != nil && !writeOnlyBackend.commands.contains(where: { $0.first == "read" }) else { throw AppError(message:"Write-only monitor relied on misleading readback") }
+    let beforeTest = controller.plan
+    var testAccepted = false
+    controller.testInput(.init(code:18,name:"HDMI 2"),display:display.id,alternate:false) { testAccepted = $0 }
+    try finish()
+    guard testAccepted && controller.plan == beforeTest else { throw AppError(message:"Single candidate test changed the saved cycle") }
     print("PASS: production monitor transaction failure preserves cycle position; explicit fallback advances only after accepted commands; mock adapter only")
 }

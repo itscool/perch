@@ -41,3 +41,7 @@ Edit inputs includes embedded exact-model presets. Six retail LG presets cover n
 Local LG 27UN850-W status: a brief response to HDMI 2 was observed; USB-C switching is still unconfirmed. Do not mark the full monitor or adapter combination tested.
 
 Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching works using 209, not 210. This supersedes the earlier unresolved USB-C result above. Exact-model mapping is supported by this local report; other models, all directions, and adapter paths are not thereby certified.
+
+## 1.1 hardware follow-up
+
+Model & inputs now exposes the embedded model choices. Detect preserves the existing list; exact documented write codes take priority over generic capabilities. Compatibility test is a fallback after the defined method fails: choose one command, test it, confirm the intended input, then save. Back does not save. Connected-input occupancy is unknown unless separately established; Perch does not infer it from capabilities. See [hardware catalog](catalog/HARDWARE-SUPPORT.md).

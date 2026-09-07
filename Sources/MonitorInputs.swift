@@ -15,7 +15,7 @@ struct MonitorInput: Codable, Equatable {
     var name: String
     var valid: Bool { code > 0 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf8.count <= 80 }
     static func name(_ code: UInt16, alternate: Bool = false) -> String {
-        let names: [UInt16:String] = alternate ? [144:"HDMI 1",145:"HDMI 2",208:"DisplayPort 1",209:"DisplayPort 2",210:"USB-C / DisplayPort 3"] : [1:"VGA 1",2:"VGA 2",3:"DVI 1",4:"DVI 2",15:"DisplayPort 1",16:"DisplayPort 2",17:"HDMI 1",18:"HDMI 2",27:"USB-C"]
+        let names: [UInt16:String] = alternate ? [:] : [1:"VGA 1",2:"VGA 2",3:"DVI 1",4:"DVI 2",15:"DisplayPort 1",16:"DisplayPort 2",17:"HDMI 1",18:"HDMI 2"]
         return names[code] ?? "Input \(code)"
     }
 }
@@ -44,6 +44,21 @@ struct MonitorInputPlan: Codable, Equatable {
 /// Strict, bounded extraction from the VCP section. A port's presence in this
 /// capability list does not mean that a second computer is connected to it.
 enum MonitorCapabilities {
+    static func model(_ text: String) -> String? {
+        guard text.utf8.count <= 4096,
+              let start = text.range(of: "model(", options: .caseInsensitive),
+              let end = text[start.upperBound...].firstIndex(of: ")") else { return nil }
+        let value = text[start.upperBound..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.utf8.count <= 80, !value.contains("("),
+              !value.unicodeScalars.contains(where: { $0.value < 32 }) else { return nil }
+        return value
+    }
+    /// Discovery only adds unselected ports. Existing names, codes and order win.
+    static func merge(_ existing: [MonitorInput], reported: [MonitorInput]) -> [MonitorInput] {
+        let known = Set(existing.map { $0.code })
+        return Array((existing + reported.filter { !known.contains($0.code) }).prefix(16))
+    }
+
     static func inputs(_ text: String) -> [UInt16] {
         guard text.utf8.count <= 4096 else { return [] }
         let bytes = Array(text.lowercased().utf8)
@@ -201,23 +216,45 @@ final class MonitorInputController: NSObject {
         if value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
         plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
     }
+    func testInput(_ input: MonitorInput, display: String, alternate: Bool,
+                   completion: @escaping (Bool) -> Void) {
+        guard !busy, input.valid, let monitor = displays.first(where: { $0.id == display }), monitor.ddcAvailable,
+              !alternate || monitor.vendor == 0x1e6d else { completion(false); return }
+        // Explicit, single candidate test; no preference or cycle-position mutation.
+        perform({ [backend] () -> Bool in
+            let data = try backend.run(["switch", display, alternate ? "lg" : "standard", String(input.code)])
+            guard let value = try JSONSerialization.jsonObject(with: data) as? [String:Any], value["sent"] as? Bool == true else {
+                throw AppError(message: "The input command was not accepted.")
+            }
+            return true
+        }) { [weak self] result in
+            switch result {
+            case .success: completion(true)
+            case .failure(let error): self?.message = error.localizedDescription; self?.warning = true; completion(false)
+            }
+        }
+    }
     func cycle() {
         guard canCycle else {
             message = busy ? "A monitor request is already in progress." : "Open Monitor input settings to choose a connected display and at least two inputs."
             warning = true; changed(); return
         }
         let plan = self.plan, last = self.lastSent, route = connected?.connection
+        let writeOnly = connected.flatMap { display in
+            MonitorProfiles.entries.first { $0.name == plan.profileName && $0.vendor == display.vendor } ?? MonitorProfiles.match(display)
+        }?.readbackUnavailable == true
         pendingConfirmation = nil; pendingPlan = nil
         perform({ [backend] () -> (MonitorInput, UInt16?) in
-            let data = try backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
-            let state = try JSONDecoder().decode(MonitorInspection.self, from: data)
+            let state: MonitorInspection
+            if writeOnly { state = MonitorInspection(current:nil, capabilities:nil) }
+            else { state = try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])) }
             let next = try plan.next(current: state.current, lastSent: last)
             let result = try backend.run(["switch",plan.display,plan.alternate ? "lg" : "standard",String(next.code)])
             guard let object = try JSONSerialization.jsonObject(with: result) as? [String:Any], object["sent"] as? Bool == true else { throw AppError(message: "The input command was not accepted.") }
             // A transport acknowledgment is not monitor confirmation. Read back only
             // after explicit user action; failures here leave the result unconfirmed.
             Thread.sleep(forTimeInterval: 0.2)
-            let reply = try? backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
+            let reply = writeOnly ? nil : try? backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
             let reported = reply.flatMap { try? JSONDecoder().decode(MonitorInspection.self, from: $0) }.flatMap { $0.current }
             return (next, reported)
         }) { [weak self] result in

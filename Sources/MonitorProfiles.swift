@@ -8,6 +8,7 @@ struct MonitorProfile: Codable {
     let confidence: String
     let inputs: [MonitorInput]
     let evidence: [String]
+    var readbackUnavailable: Bool? = nil
     var automatic: Bool? = nil
     var retailModels: [String]? = nil
     var valid: Bool {

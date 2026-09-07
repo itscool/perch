@@ -68,3 +68,5 @@ For distribution, verify bundled code/data licenses and notices separately from 
 No app code or live device settings changed in this research pass. Follow-up implementation and physical validation remain necessary.
 
 Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching works using 209, not 210. This supersedes the earlier unresolved USB-C result above. Exact-model mapping is supported by this local report; other models, all directions, and adapter paths are not thereby certified.
+
+Implementation update: the 1.1 follow-up expands to 84 monitor records across multiple manufacturers and 28 keyboard profiles. Saved-map preservation, generic labels, capabilities model extraction and an explicit single-command compatibility flow are implemented. See [current catalog and limits](HARDWARE-SUPPORT.md). Earlier build-15 backlog statements above are historical. Physical certification and the 1.2 distribution/review gates remain separate.

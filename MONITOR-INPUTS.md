@@ -39,3 +39,5 @@ Control checks distinguish transport acceptance from monitor readback. An unread
 Edit inputs includes embedded exact-model presets. Six retail LG presets cover nonstandard input maps in addition to the 15 EDID profiles. Model-specific presets do not auto-match generic LG HDR 4K/7706. They never silently change the current saved input list. Existing keyboard presets remain embedded as well.
 
 Local LG 27UN850-W status: a brief response to HDMI 2 was observed; USB-C switching is still unconfirmed. Do not mark the full monitor or adapter combination tested.
+
+Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching works using 209, not 210. This supersedes the earlier unresolved USB-C result above. Exact-model mapping is supported by this local report; other models, all directions, and adapter paths are not thereby certified.

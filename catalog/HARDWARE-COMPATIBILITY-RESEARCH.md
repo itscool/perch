@@ -66,3 +66,5 @@ Minimum fixture matrix: missing/malformed capabilities; unsupported or mismatche
 For distribution, verify bundled code/data licenses and notices separately from factual compatibility research. Existing DDCControl-derived data already includes its license. Reading an upstream list is not authorization to copy all code or datasets without reviewing their terms. Homebrew publication, signing/distribution architecture and the whole-app 1.2 review remain separate work.
 
 No app code or live device settings changed in this research pass. Follow-up implementation and physical validation remain necessary.
+
+Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching works using 209, not 210. This supersedes the earlier unresolved USB-C result above. Exact-model mapping is supported by this local report; other models, all directions, and adapter paths are not thereby certified.

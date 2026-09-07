@@ -400,7 +400,7 @@
       "evidence": [
         "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
       ],
-      "notes": "27UN850-W owner observed only a brief switch to HDMI 2 on 2026-09-07. USB-C switching and adapter behavior remain unconfirmed. Shared GSM7706 ID must not auto-select this model."
+      "notes": "27UN850-W owner confirmed USB-C switching works with code 209 rather than 210 on 2026-09-07. Earlier brief HDMI 2 response was insufficient to establish full compatibility. Confirmation does not cover the WY variant or every adapter. Shared GSM7706 ID must not auto-select this model."
     },
     {
       "name": "LG 27UP850-W",

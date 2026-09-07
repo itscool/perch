@@ -17,3 +17,5 @@ Six additional manual retail-model presets cover LG 27UN850-W/WY, 27UP850-W, 27U
 The 27UN850-W local result is incomplete: a brief switch to HDMI 2 was observed, but USB-C switching remains unconfirmed. Neither all inputs nor the adapter failure is marked verified.
 
 Transport write success is not a successful switch. Perch reads back the requested input after an explicit cycle; missing replies lead to per-input user confirmation and adapter/dock troubleshooting. Previous confirmations are scoped to display identity, registry connection path, protocol and cycle codes, and labeled historical rather than proof of current state. A connection path is not a physical cable fingerprint. No idle polling or automatic test switches are introduced.
+
+Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching works using 209, not 210. This supersedes the earlier unresolved USB-C result above. Exact-model mapping is supported by this local report; other models, all directions, and adapter paths are not thereby certified.

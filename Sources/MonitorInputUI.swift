@@ -8,13 +8,16 @@ final class MonitorInputPage: NSObject {
     let status = NSTextField(wrappingLabelWithString: "")
     var candidates: [MonitorInput] = []
     var selectedCodes = Set<UInt16>()
-    let inputList = NSScrollView(frame: NSRect(x: 0,y: 177,width: 572,height: 118))
+    let inputList = NSScrollView(frame: NSRect(x: 0,y: 155,width: 572,height: 118))
     let blind = NSButton(checkboxWithTitle: "If the current input can’t be read, cycle from the last command sent", target: nil, action: nil)
     let enabled = NSButton(checkboxWithTitle: "Enable monitor shortcut", target: nil, action: nil)
     let keys = NSPopUpButton()
     var modifiers: [(NSButton,UInt32)] = []
     var detect: SettingsActionButton!
     var save: SettingsActionButton!
+    var worked: SettingsActionButton!
+    var failed: SettingsActionButton!
+    private var chosenProfile: String?
     private var listed: [MonitorDescriptor] = []
     private var editedDisplay = ""
     private var shown = false
@@ -28,21 +31,26 @@ final class MonitorInputPage: NSObject {
         protocolChoice.addItems(withTitles: ["Standard DDC", "LG alternate input control"])
         protocolChoice.frame = NSRect(x: 360,y: 452,width: 212,height: 30)
         protocolChoice.target = self; protocolChoice.action = #selector(protocolChanged)
-        status.frame = NSRect(x: 4,y: 387,width: 564,height: 60); status.font = .systemFont(ofSize: 12)
+        status.frame = NSRect(x: 4,y: 374,width: 564,height: 73); status.font = .systemFont(ofSize: 12)
+        worked = SettingsActionButton(title: "Yes, it switched") { [weak controller] in controller?.confirmSwitch(true) }
+        failed = SettingsActionButton(title: "No, troubleshoot") { [weak controller] in controller?.confirmSwitch(false) }
+        worked.frame = NSRect(x: 0,y: 345,width: 230,height: 26)
+        failed.frame = NSRect(x: 240,y: 345,width: 230,height: 26)
+        view.addSubview(worked); view.addSubview(failed)
         detect = SettingsActionButton(title: "Detect inputs") { [weak self] in self?.detectInputs() }
-        detect.frame = NSRect(x: 0,y: 348,width: 175,height: 30)
+        detect.frame = NSRect(x: 0,y: 308,width: 175,height: 30)
         let recheck = SettingsActionButton(title: "Recheck monitors") { [weak controller] in controller?.refresh() }
-        recheck.frame = NSRect(x: 185,y: 348,width: 180,height: 30)
-        label("Choose at least two inputs. Checked inputs cycle from top to bottom.", NSRect(x: 4,y: 307,width: 564,height: 30))
+        recheck.frame = NSRect(x: 185,y: 308,width: 180,height: 30)
+        label("Choose at least two inputs. Checked inputs cycle from top to bottom.", NSRect(x: 4,y: 278,width: 564,height: 26))
         inputList.hasVerticalScroller = true; inputList.autohidesScrollers = false; inputList.borderType = .bezelBorder
         let custom = SettingsActionButton(title: "Edit inputs…") { [weak self] in self?.editInputs() }
-        custom.frame = NSRect(x: 375,y: 348,width: 197,height: 30)
-        blind.frame = NSRect(x: 0,y: 143,width: 572,height: 28)
-        enabled.frame = NSRect(x: 0,y: 109,width: 280,height: 28)
-        keys.addItems(withTitles: PanicShortcut.keys.map { $0.0 }); keys.frame = NSRect(x: 465,y: 73,width: 107,height: 28)
+        custom.frame = NSRect(x: 375,y: 308,width: 197,height: 30)
+        blind.frame = NSRect(x: 0,y: 121,width: 572,height: 28)
+        enabled.frame = NSRect(x: 0,y: 89,width: 280,height: 28)
+        keys.addItems(withTitles: PanicShortcut.keys.map { $0.0 }); keys.frame = NSRect(x: 465,y: 55,width: 107,height: 28)
         for (index, pair) in [("Control",controlKey),("Option",optionKey),("Shift",shiftKey),("Command",cmdKey)].enumerated() {
             let box = NSButton(checkboxWithTitle: pair.0, target: nil, action: nil)
-            box.frame = NSRect(x: CGFloat(index*112),y: 73,width: 112,height: 28)
+            box.frame = NSRect(x: CGFloat(index*112),y: 55,width: 112,height: 28)
             modifiers.append((box,UInt32(pair.1))); view.addSubview(box)
         }
         save = SettingsActionButton(title: "Save") { [weak self] in self?.saveSettings() }
@@ -53,6 +61,7 @@ final class MonitorInputPage: NSObject {
         }
         cycle.frame = NSRect(x: 200,y: 12,width: 195,height: 32)
         [monitors,protocolChoice,status,detect,recheck,custom,inputList,blind,enabled,keys,save,cycle].forEach { view.addSubview($0) }
+        chosenProfile = controller.plan.profileName
         editedDisplay = controller.plan.display
         candidates = controller.plan.inputs; selectedCodes = Set(candidates.map { $0.code })
         renderInputs()
@@ -101,19 +110,37 @@ final class MonitorInputPage: NSObject {
         text.textColor = .labelColor; text.backgroundColor = .textBackgroundColor
         text.isVerticallyResizable = true; text.isHorizontallyResizable = false; text.textContainer?.widthTracksTextView = true
         text.string = Self.lines(candidates)
-        let scroll = NSScrollView(frame: NSRect(x: 0,y: 110,width: 572,height: 370))
+        let scroll = NSScrollView(frame: NSRect(x: 0,y: 110,width: 572,height: 315))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder; scroll.documentView = text
+        var pendingProfile = chosenProfile
+        var pendingAlternate = protocolChoice.indexOfSelectedItem == 1
+        let preset = NSPopUpButton(frame: NSRect(x: 0,y: 443,width: 380,height: 30))
+        let profiles = MonitorProfiles.entries.filter { $0.vendor == listed.first(where: { $0.id == editedDisplay })?.vendor && $0.confidence != "suggested" }
+        preset.addItems(withTitles: profiles.map { $0.name })
+        if let name = chosenProfile, let index = profiles.firstIndex(where: { $0.name == name }) { preset.selectItem(at: index) }
+        let usePreset = SettingsActionButton(title: "Use preset") {
+            guard profiles.indices.contains(preset.indexOfSelectedItem) else { return }
+            let profile = profiles[preset.indexOfSelectedItem]
+            text.string = Self.lines(profile.inputs)
+            pendingAlternate = profile.alternate
+            pendingProfile = profile.name
+        }
+        usePreset.frame = NSRect(x: 390,y: 443,width: 182,height: 30)
+        usePreset.isEnabled = !profiles.isEmpty
+        page.addSubview(preset); page.addSubview(usePreset)
         let error = NSTextField(wrappingLabelWithString: ""); error.frame = NSRect(x: 4,y: 48,width: 564,height: 55); error.textColor = StatusColors.warning
         let apply = SettingsActionButton(title: "Use this input list") { [weak self] in
             do {
                 let values = try Self.parse(text.string)
+                self?.chosenProfile = pendingProfile
+                self?.protocolChoice.selectItem(at: pendingAlternate ? 1 : 0)
                 self?.candidates = values; self?.selectedCodes.formIntersection(values.map { $0.code }); self?.renderInputs()
                 SettingsWindow.shared.goBack()
             } catch let failure { error.stringValue = failure.localizedDescription }
         }
         apply.frame = NSRect(x: 315,y: 5,width: 257,height: 32)
         [scroll,error,apply].forEach { page.addSubview($0) }
-        SettingsWindow.shared.show(.init(title: "Edit monitor inputs", detail: "Manual fallback when your monitor reports no input list or uses unusual codes. Enter one input per line as decimal code = name. Standard examples: 17 = HDMI 1, 18 = HDMI 2, 15 = DisplayPort, 27 = USB-C. LG alternate codes depend on the exact model: USB-C can be 209, 210, or 192. Do not assume a code from the generic display name. This only edits the list; it does not switch inputs.", view: page))
+        SettingsWindow.shared.show(.init(title: "Edit monitor inputs", detail: "Choose a documented preset for your exact model, or edit codes manually. The generic display name does not identify every LG model. Enter one input per line as decimal code = name. Standard examples: 17 = HDMI 1, 18 = HDMI 2, 15 = DisplayPort, 27 = USB-C. LG alternate codes depend on the exact model: USB-C can be 209, 210, or 192. Do not assume a code from the generic display name. This only edits the list; it does not switch inputs.", view: page))
     }
     static func lines(_ inputs: [MonitorInput]) -> String { inputs.map { "\($0.code) = \($0.name)" }.joined(separator: "\n") }
     static func parse(_ text: String) throws -> [MonitorInput] {
@@ -152,6 +179,9 @@ final class MonitorInputPage: NSObject {
         protocolChoice.isEnabled = !controller.busy
         detect.isEnabled = !controller.busy && selected?.ddcAvailable == true
         save.isEnabled = !controller.busy
+        worked.isHidden = controller.pendingConfirmation == nil
+        failed.isHidden = controller.pendingConfirmation == nil
+        worked.isEnabled = !controller.busy; failed.isEnabled = !controller.busy
         status.stringValue = controller.busy ? "Checking monitor… You can continue using your Mac." : controller.message
         status.textColor = controller.warning ? StatusColors.warning : controller.message.hasPrefix("✓") ? StatusColors.success : .secondaryLabelColor
         autoDetect()
@@ -160,10 +190,11 @@ final class MonitorInputPage: NSObject {
         guard listed.indices.contains(monitors.indexOfSelectedItem) else { return }
         let id = listed[monitors.indexOfSelectedItem].id
         guard editedDisplay != id else { return }
-        editedDisplay = id; candidates = []; selectedCodes = []; renderInputs(); protocolChoice.selectItem(at: MonitorProfiles.match(listed[monitors.indexOfSelectedItem]).map { $0.alternate && $0.confidence != "suggested" } == true ? 1 : 0)
+        editedDisplay = id; chosenProfile = nil; candidates = []; selectedCodes = []; renderInputs(); protocolChoice.selectItem(at: MonitorProfiles.match(listed[monitors.indexOfSelectedItem]).map { $0.alternate && $0.confidence != "suggested" } == true ? 1 : 0)
         refresh(); detectInputs()
     }
     @objc private func protocolChanged() {
+        chosenProfile = nil
         candidates = []; selectedCodes = []; renderInputs(); detectInputs()
     }
     private func detectInputs() {
@@ -186,7 +217,7 @@ final class MonitorInputPage: NSObject {
                     } else {
                         let suggested: [UInt16] = alternate ? [144,145,208,210] : [17,18,15,27]
                         self.candidates = suggested.map { MonitorInput(code: $0,name: MonitorInput.name($0,alternate: alternate)) }
-                        self.controller.message = "⚠ Input detection unavailable. These are common port suggestions; choose only ports your monitor has. Edit inputs can correct their codes."
+                        self.controller.message = "⚠ Display detected, but no input list received. Check adapters or docks; try a direct connection. Edit inputs offers documented presets. These port names are suggestions, not detected ports."
                     }
                     self.selectedCodes = []; self.renderInputs()
                     self.controller.warning = true
@@ -200,6 +231,7 @@ final class MonitorInputPage: NSObject {
         do {
             guard UUID(uuidString: editedDisplay) != nil else { throw AppError(message: "Select a connected monitor first.") }
             var plan = MonitorInputPlan()
+            plan.profileName = chosenProfile
             plan.display = editedDisplay; plan.alternate = protocolChoice.indexOfSelectedItem == 1
             plan.inputs = candidates.filter { selectedCodes.contains($0.code) }; plan.allowUnconfirmedCycle = blind.state == .on
             guard plan.inputs.count >= 2 else { throw AppError(message: "Check at least two inputs to cycle between.") }

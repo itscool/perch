@@ -8,6 +8,7 @@ struct MonitorDescriptor: Codable, Equatable {
     let vendor: UInt32
     let model: UInt32
     let ddcAvailable: Bool
+    var connection: String? = nil
 }
 struct MonitorInput: Codable, Equatable {
     var code: UInt16
@@ -21,6 +22,7 @@ struct MonitorInput: Codable, Equatable {
 struct MonitorInputPlan: Codable, Equatable {
     var display = ""
     var alternate = false
+    var profileName: String? = nil
     var inputs: [MonitorInput] = []
     var allowUnconfirmedCycle = false
     var shortcut = PanicShortcut(key: UInt32(kVK_F8), modifiers: UInt32(controlKey | optionKey), enabled: false)
@@ -117,10 +119,33 @@ final class MonitorInputController: NSObject {
     private var pending: DispatchWorkItem?
     private var lastSent: UInt16?
     private var refreshPending = false
+    private let confirmationDefaults: UserDefaults
+    private(set) var pendingConfirmation: UInt16?
+    private var pendingConnection: String?
+    private var pendingPlan: MonitorInputPlan?
+    static let connectionAdvice = "If nothing changed, try a direct connection without a dock or USB-C/HDMI adapter. Some adapters pass video but block monitor commands. Also check DDC/CI and the selected input profile."
+    private func confirmationKey(_ plan: MonitorInputPlan, _ connection: String) -> String {
+        "monitor.confirmed.v1." + plan.display + "." + connection + "." + String(plan.alternate) + "." + plan.inputs.map { String($0.code) }.joined(separator: "-")
+    }
+    func confirmSwitch(_ worked: Bool) {
+        guard !busy, let code = pendingConfirmation, let tested = pendingPlan else { return }
+        if worked {
+            if let route = pendingConnection, connected?.connection == route {
+                let key = confirmationKey(tested, route)
+                var codes = confirmationDefaults.array(forKey: key) as? [Int] ?? []
+                if !codes.contains(Int(code)) { codes.append(Int(code)); confirmationDefaults.set(codes, forKey: key) }
+            }
+            message = "✓ \(tested.inputs.first { $0.code == code }?.name ?? "Input") confirmed by you. Other inputs still need their own confirmation."; warning = false
+        } else {
+            if let route = pendingConnection { confirmationDefaults.removeObject(forKey: confirmationKey(tested, route)) }
+            message = "⚠ Switch did not work. " + Self.connectionAdvice; warning = true
+        }
+        pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil; changed()
+    }
     var connected: MonitorDescriptor? { displays.first { $0.id == plan.display } }
     var canCycle: Bool { !busy && plan.valid && plan.inputs.count >= 2 && connected?.ddcAvailable == true }
     var shortcutActive: Bool { hotKey.active }
-    init(displays: [MonitorDescriptor] = [], backend: MonitorCommandBackend = MonitorDisplayBackend()) { self.displays = displays; self.backend = backend; super.init() }
+    init(displays: [MonitorDescriptor] = [], backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) { self.displays = displays; self.backend = backend; self.confirmationDefaults = defaults; super.init() }
     func start() {
         if let data = UserDefaults.standard.data(forKey: Self.preferenceKey), data.count <= 32768,
            let value = try? JSONDecoder().decode(MonitorInputPlan.self, from: data), value.valid { plan = value }
@@ -145,7 +170,7 @@ final class MonitorInputController: NSObject {
                 self.displays = displays
                 if self.warning && self.connected != nil { return } // Preserve the last actionable result during metadata refresh.
                 self.warning = self.plan.shortcut.enabled && (!self.hotKey.active || self.connected == nil)
-                self.message = displays.isEmpty ? "No external monitor connected." : self.warning ? "The configured monitor or shortcut is unavailable." : "✓ \(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected"
+                self.message = displays.isEmpty ? "No external monitor connected." : self.warning ? "The configured monitor or shortcut is unavailable." : "\(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected · control not yet checked"
             case .failure(let error): self.message = error.localizedDescription; self.warning = true
             }
         }
@@ -173,7 +198,7 @@ final class MonitorInputController: NSObject {
         catch { try? hotKey.register(plan.shortcut); throw error }
         let data = try JSONEncoder().encode(value)
         UserDefaults.standard.set(data, forKey: Self.preferenceKey)
-        if value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil }
+        if value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
         plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
     }
     func cycle() {
@@ -181,19 +206,42 @@ final class MonitorInputController: NSObject {
             message = busy ? "A monitor request is already in progress." : "Open Monitor input settings to choose a connected display and at least two inputs."
             warning = true; changed(); return
         }
-        let plan = self.plan, last = self.lastSent
-        perform({ [backend] () -> MonitorInput in
+        let plan = self.plan, last = self.lastSent, route = connected?.connection
+        pendingConfirmation = nil; pendingPlan = nil
+        perform({ [backend] () -> (MonitorInput, UInt16?) in
             let data = try backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
             let state = try JSONDecoder().decode(MonitorInspection.self, from: data)
             let next = try plan.next(current: state.current, lastSent: last)
             let result = try backend.run(["switch",plan.display,plan.alternate ? "lg" : "standard",String(next.code)])
             guard let object = try JSONSerialization.jsonObject(with: result) as? [String:Any], object["sent"] as? Bool == true else { throw AppError(message: "The input command was not accepted.") }
-            return next
+            // A transport acknowledgment is not monitor confirmation. Read back only
+            // after explicit user action; failures here leave the result unconfirmed.
+            Thread.sleep(forTimeInterval: 0.2)
+            let reply = try? backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
+            let reported = reply.flatMap { try? JSONDecoder().decode(MonitorInspection.self, from: $0) }.flatMap { $0.current }
+            return (next, reported)
         }) { [weak self] result in
             guard let self else { return }
             switch result {
-            case .success(let input): self.lastSent = input.code; self.message = "Command sent: \(input.name) · monitor confirmation unavailable. If nothing changed, check the exact model’s input codes in Edit inputs."; self.warning = true
-            case .failure(let error): self.message = error.localizedDescription; self.warning = true
+            case .success(let (input, reported)):
+                self.lastSent = input.code
+                if reported == input.code {
+                    self.message = "✓ Monitor reports \(input.name) active"; self.warning = false
+                } else {
+                    self.pendingConfirmation = input.code; self.pendingPlan = plan; self.pendingConnection = route
+                    let previous = route.map { self.confirmationDefaults.array(forKey: self.confirmationKey(plan, $0)) as? [Int] ?? [] } ?? []
+                    if let reported, reported > 0 {
+                        self.message = "⚠ Monitor still reports input \(reported); the switch is not confirmed. " + Self.connectionAdvice
+                        self.warning = true
+                    } else if previous.contains(Int(input.code)) {
+                        self.message = "Sent: \(input.name) · previously confirmed by you on this connection; current input unreadable."
+                        self.warning = false
+                    } else {
+                        self.message = "Sent: \(input.name) · did the monitor switch? Confirm below. " + Self.connectionAdvice
+                        self.warning = true
+                    }
+                }
+            case .failure(let error): self.message = error.localizedDescription + " " + Self.connectionAdvice; self.warning = true
             }
         }
     }

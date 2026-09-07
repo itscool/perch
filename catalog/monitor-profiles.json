@@ -365,6 +365,200 @@
         "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM7706.xml",
         "https://github.com/waydabber/m1ddc#usage"
       ]
+    },
+    {
+      "name": "LG 27UN850-W / 27UN850-WY",
+      "vendor": 7789,
+      "model": 30470,
+      "alternate": true,
+      "confidence": "community-documented",
+      "automatic": false,
+      "retailModels": [
+        "27UN850-W",
+        "LG 27UN850-W",
+        "27UN850-WY",
+        "LG 27UN850-WY"
+      ],
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 145,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 208,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 209,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "27UN850-W owner observed only a brief switch to HDMI 2 on 2026-09-07. USB-C switching and adapter behavior remain unconfirmed. Shared GSM7706 ID must not auto-select this model."
+    },
+    {
+      "name": "LG 27UP850-W",
+      "vendor": 7789,
+      "model": null,
+      "automatic": false,
+      "retailModels": [
+        "27UP850-W",
+        "LG 27UP850-W"
+      ],
+      "alternate": true,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 145,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 208,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 209,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+    },
+    {
+      "name": "LG 27UP85NP-W",
+      "vendor": 7789,
+      "model": null,
+      "automatic": false,
+      "retailModels": [
+        "27UP85NP-W",
+        "LG 27UP85NP-W"
+      ],
+      "alternate": true,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 208,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 209,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+    },
+    {
+      "name": "LG 32UD99-W",
+      "vendor": 7789,
+      "model": null,
+      "automatic": false,
+      "retailModels": [
+        "32UD99-W",
+        "LG 32UD99-W"
+      ],
+      "alternate": true,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 145,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 224,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 192,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+    },
+    {
+      "name": "LG 29UM69G",
+      "vendor": 7789,
+      "model": null,
+      "automatic": false,
+      "retailModels": [
+        "29UM69G",
+        "LG 29UM69G"
+      ],
+      "alternate": true,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 192,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 224,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+    },
+    {
+      "name": "LG 40WP95C-W",
+      "vendor": 7789,
+      "model": null,
+      "automatic": false,
+      "retailModels": [
+        "40WP95C-W",
+        "LG 40WP95C-W"
+      ],
+      "alternate": true,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 145,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 208,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 209,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+      ],
+      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
     }
   ]
 }

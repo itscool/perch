@@ -5,14 +5,200 @@
       "name": "Logitech MX Keys",
       "vendor": 1133,
       "product": 45915,
-      "transports": ["Bluetooth", "Bluetooth Low Energy"],
-      "deviceNames": ["MX Keys", "MX Keys Keyboard", "MX Keys Wireless Keyboard"],
-      "keys": [74, 77, 75, 78],
+      "transports": [
+        "Bluetooth",
+        "Bluetooth Low Energy"
+      ],
+      "deviceNames": [
+        "MX Keys",
+        "MX Keys Keyboard",
+        "MX Keys Wireless Keyboard"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
       "verification": "key-delivery",
       "verifiedOn": "2026-09-06",
       "evidence": [
         "User-operated Perch four-key diagnostic confirmed individual presses and releases on MX Keys. This is not a full remapping/repeat/crash-recovery test.",
         "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py"
+      ]
+    },
+    {
+      "name": "Logitech Craft",
+      "vendor": 1133,
+      "product": 45904,
+      "transports": [
+        "Bluetooth",
+        "Bluetooth Low Energy"
+      ],
+      "deviceNames": [
+        "Craft",
+        "Craft Advanced Keyboard"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech G915 TKL",
+      "vendor": 1133,
+      "product": 49987,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "G915 TKL",
+        "G915 TKL LIGHTSPEED Wireless RGB Mechanical Gaming Keyboard"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech G213",
+      "vendor": 1133,
+      "product": 49974,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "G213",
+        "G213 Prodigy Gaming Keyboard",
+        "Gaming Keyboard G213"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech G512",
+      "vendor": 1133,
+      "product": 49980,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "G512",
+        "G512 RGB Mechanical Gaming Keyboard",
+        "G512 Gaming Keyboard"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech G815",
+      "vendor": 1133,
+      "product": 49983,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "G815",
+        "G815 Mechanical Keyboard",
+        "G815 RGB MECHANICAL GAMING KEYBOARD"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech K845",
+      "vendor": 1133,
+      "product": 49985,
+      "transports": [
+        "USB"
+      ],
+      "deviceNames": [
+        "K845",
+        "K845 Mechanical Keyboard"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py",
+        "Identity documented by Solaar. Standard navigation usages must also appear in the device descriptor. Physical delivery has not been tested in Perch; saved setup overrides this layout."
+      ]
+    },
+    {
+      "name": "Logitech MX Keys S",
+      "vendor": 1133,
+      "product": 45944,
+      "transports": [
+        "Bluetooth",
+        "Bluetooth Low Energy"
+      ],
+      "deviceNames": [
+        "MX Keys S",
+        "MX KEYS S"
+      ],
+      "keys": [
+        74,
+        77,
+        75,
+        78
+      ],
+      "verification": "documented-hid-layout",
+      "verifiedOn": "2026-09-07",
+      "evidence": [
+        "https://github.com/marcelhoffs/input-switcher/blob/master/README.md",
+        "https://www.logitech.com/en-us/shop/p/mx-keys-s",
+        "Documented Bluetooth identity and full-size navigation layout. Descriptor usages are checked; Perch hardware delivery is untested."
       ]
     }
   ]

@@ -82,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var fnItem: NSMenuItem!
     var externalFnItem: NSMenuItem!
     var keyboardSetupItem: NSMenuItem!
+    var homeEndItem: NSMenuItem!
+    var pageKeysItem: NSMenuItem!
+    var monitorInputItem: NSMenuItem!
+    let monitorInputs = MonitorInputController()
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
@@ -115,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         status.menu = menu
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
         keyboardModes.start()
+        monitorInputs.onChange = { [weak self] in self?.refreshMonitorInputItem() }
+        monitorInputs.start()
         if !GuardianInstall.messagingInstalled {
             do { try GuardianInstall.install() } catch { safetyError = error.localizedDescription }
         }
@@ -160,8 +166,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("External keyboards")
         externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
         externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys))
+        homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd))
+        pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys))
         keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings))
         keyboardSetupItem.isHidden = true
+        section("Monitor")
+        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
+        _ = add("Monitor input settings…", #selector(monitorInputSettings))
         setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
@@ -169,8 +180,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         _ = add("About Perch", #selector(about))
         let quit = add("Quit Perch", #selector(quit))
         quit.keyEquivalent = "q"
-        label(quit, "Quit Perch", hint: "Controls stay on")
-        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, loginItem].compactMap({ $0 }) {
+        label(quit, "Quit Perch", hint: "Input & sleep stay on")
+        quit.toolTip = "Input and sleep controls continue in the background. The monitor shortcut resumes when Perch is reopened."
+        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
         (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
@@ -238,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let settings = SafetyConfiguration.load()
         inputs.reverseTrackpad = settings.reverseTrackpad
         inputs.reverseWheel = settings.reverseWheel
+        inputs.navigation.preferences = settings.navigation ?? NavigationPreferences()
         inputs.swapModifiers = false // Modifier swaps now run in macOS, per keyboard.
         for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel)] {
             item.state = enabled ? .on : .off
@@ -256,6 +269,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
         }
         refreshSafety()
+        refreshNavigationItems()
+        refreshMonitorInputItem()
         let loginStatus = SMAppService.mainApp.status
         loginItem.state = loginStatus == .enabled ? .on : (loginStatus == .requiresApproval ? .mixed : .off)
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
@@ -492,6 +507,17 @@ if CommandLine.arguments.contains("--settings-self-test") {
 if CommandLine.arguments.contains("--event-self-test") {
     do { try runProcessEventTests(); exit(0) } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
 }
+if CommandLine.arguments.contains("--navigation-device-info") {
+    let devices = NavigationEventDevices.read(profiles: (try? KeyboardNavigationProfiles.read()) ?? [])
+    let native = NativeModifierKeys.keyboards().map { keyboard -> [String:Any] in
+        let result: [String:Any] = ["name":keyboard.name,"vendor":keyboard.vendor,"builtIn":keyboard.builtIn,"id":IOHIDServiceClientGetRegistryID(keyboard.service),"product":IOHIDServiceClientCopyProperty(keyboard.service,"ProductID" as CFString) ?? NSNull(),"transport":IOHIDServiceClientCopyProperty(keyboard.service,"Transport" as CFString) ?? NSNull()]
+        return result
+    }
+    let physical = NavigationProbeKeyboard.connected().map { ["name":$0.name,"vendor":$0.identity.vendor,"product":$0.identity.product,"transport":$0.transport,"usages":$0.identity.usages] as [String:Any] }
+    let output: [String:Any] = ["native":native,"physical":physical,"profiles":BundledNavigationProfiles.entries.count,"matched":devices.map { ["sender":String($0.key),"keyCount":$0.value.count] as [String:Any] }]
+    if let data = try? JSONSerialization.data(withJSONObject: output,options:[.sortedKeys]), let text = String(data:data,encoding:.utf8) { print(text) }
+    exit(0)
+}
 if CommandLine.arguments.contains("--self-test") {
     do {
         let awake = Awake()
@@ -513,6 +539,9 @@ if CommandLine.arguments.contains("--self-test") {
         try runInputTests()
         try runKeyboardModeTests()
         try runNavigationKeyTests()
+        try runNavigationRuntimeTests()
+        try runMonitorInputTests()
+        try runMonitorTransactionTests()
         try runNavigationProbeTests()
         try runKeyboardRegistrationTests()
         print("PASS: function-key mode = \(try FunctionKeys.standard())")

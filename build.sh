@@ -5,12 +5,18 @@ cd "$(dirname "$0")"
 APP="$PWD/build/Perch.app"
 mkdir -p "$APP/Contents/MacOS"
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/EventParser.c -o build/EventParser.o
-xcrun swiftc -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/EventParser.h Sources/*.swift build/EventParser.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -O -whole-module-optimization
+xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/DDCWire.c -o build/DDCWire.o
+xcrun clang -fmodules -fmodules-cache-path="$PWD/build/ClangModuleCache" -O2 -DMAX_DISPLAYS=16 -I Vendor/m1ddc -I Sources Sources/PerchDisplay.m Vendor/m1ddc/ioregistry.m build/DDCWire.o -framework CoreDisplay -framework IOKit -framework Foundation -framework CoreGraphics -o "$APP/Contents/MacOS/PerchDisplay"
+xcrun swiftc -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/EventParser.h Sources/*.swift build/EventParser.o build/DDCWire.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -O -whole-module-optimization
 cp Info.plist "$APP/Contents/Info.plist"
 mkdir -p "$APP/Contents/Resources"
 cp Tools/install-event-collector.sh "$APP/Contents/Resources/install-event-collector.sh"
 cp catalog/agents.json "$APP/Contents/Resources/agents.json"
 cp catalog/keyboard-profiles.json "$APP/Contents/Resources/keyboard-profiles.json"
+cp catalog/monitor-profiles.json "$APP/Contents/Resources/monitor-profiles.json"
+cp catalog/ddccontrol-COPYING.txt "$APP/Contents/Resources/ddccontrol-COPYING.txt"
+cp Vendor/m1ddc/LICENSE "$APP/Contents/Resources/m1ddc-LICENSE.txt"
+codesign --force --sign "Perch Local Code Signing" --timestamp=none "$APP/Contents/MacOS/PerchDisplay"
 codesign --force --sign "Perch Local Code Signing" --timestamp=none "$APP"
 codesign --verify --strict "$APP"
 echo "Built $APP"

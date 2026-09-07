@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "name": "ASUS TUF VG27AQ",
+      "vendor": 1715,
+      "model": 10018,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS2722.xml"
+      ]
+    },
+    {
+      "name": "ASUS VP28U",
+      "vendor": 1715,
+      "model": 10417,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort 1"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS28B1.xml"
+      ]
+    },
+    {
+      "name": "BenQ GW2480",
+      "vendor": 2513,
+      "model": 30951,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E7.xml"
+      ]
+    },
+    {
+      "name": "BenQ GW2283",
+      "vendor": 2513,
+      "model": 30953,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E9.xml"
+      ]
+    },
+    {
+      "name": "Dell U2720Q",
+      "vendor": 4268,
+      "model": 16823,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41B7.xml"
+      ]
+    },
+    {
+      "name": "Dell U2720QM",
+      "vendor": 4268,
+      "model": 16828,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41BC.xml"
+      ]
+    },
+    {
+      "name": "Dell U2723QE (HDMI HDR)",
+      "vendor": 4268,
+      "model": 16999,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4267.xml"
+      ]
+    },
+    {
+      "name": "Dell U2723QE (HDMI)",
+      "vendor": 4268,
+      "model": 17015,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4277.xml"
+      ]
+    },
+    {
+      "name": "Dell U2723QE (DisplayPort1)",
+      "vendor": 4268,
+      "model": 17016,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4278.xml"
+      ]
+    },
+    {
+      "name": "Dell U3223QE (HDMI HDR)",
+      "vendor": 4268,
+      "model": 17008,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4270.xml"
+      ]
+    },
+    {
+      "name": "Dell U3223QE (DP HDR)",
+      "vendor": 4268,
+      "model": 17011,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 27,
+          "name": "USB-C"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4273.xml"
+      ]
+    },
+    {
+      "name": "Dell U2718 (HDMI)",
+      "vendor": 4268,
+      "model": 41194,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 16,
+          "name": "Mini DisplayPort"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EA.xml"
+      ]
+    },
+    {
+      "name": "Dell U2718 (DP/mDP)",
+      "vendor": 4268,
+      "model": 41196,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 16,
+          "name": "Mini DisplayPort"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EC.xml"
+      ]
+    },
+    {
+      "name": "LG UltraGear 27GL850",
+      "vendor": 7789,
+      "model": 23423,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 15,
+          "name": "DisplayPort 1"
+        },
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM5B7F.xml"
+      ]
+    },
+    {
+      "name": "LG HDR 4K (shared GSM7706 identity)",
+      "vendor": 7789,
+      "model": 30470,
+      "alternate": true,
+      "confidence": "suggested",
+      "inputs": [
+        {
+          "code": 144,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 145,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 208,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 210,
+          "name": "USB-C"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM7706.xml",
+        "https://github.com/waydabber/m1ddc#usage"
+      ]
+    }
+  ]
+}

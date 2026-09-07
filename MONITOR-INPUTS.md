@@ -22,3 +22,14 @@ Confirmed behavior: require the monitor to be connected to this Mac; destination
 - Review source licenses before incorporating existing implementations. Test selection/routing/timeouts/disconnection with mocks; real switching must be an explicit user action because it can remove the current display.
 
 Homebrew/distribution work belongs to the 1.2 review scope, recorded separately in `V1.2-REVIEW.md`.
+
+
+## Build 10 implementation and verification
+
+Connected display detected: LG HDR 4K, EDID manufacturer GSM (0x1e6d), model 0x7706. The DDCControl database documents that this ID is shared across LG variants. Metadata discovery and two bounded read-only queries were performed; no input-selection command was sent. Standard current input returned zero (treated as unavailable), capabilities were unavailable, and LG alternate current input was unavailable. The UI offers an explicitly suggested LG alternate profile rather than claiming to have detected the physical ports. Actual switching remains a user action/test.
+
+The main menu now has Cycle monitor input and Monitor input settings. The shared Settings window provides a display picker, automatic detection, checkboxes and ordering arrows, a manual input editor, explicit unknown-state fallback, and a configurable shortcut that defaults off. A fresh query and UUID selection precede each switch. No destination device is required. A failed write leaves the cycle position unchanged; transport acceptance is labeled only as a command sent. The shortcut is active while the menu app runs.
+
+IOAV routing is vendored from MIT-licensed m1ddc; a separate restricted adapter exposes no arbitrary monitor commands. Each request runs on a serial worker in a short-lived process, with an 8-second child deadline and a 9-second parent wait. No new timer polls the monitor. Hotplug/wake refreshes only metadata. Packets are bounded and validate header, command, feature, status, length and checksum; zero current input is unknown. Read failures do not implicitly authorize a switch.
+
+Safe tests exercise the production controller with an injected fake adapter, including failure then retry and order advancement only after accepted commands; pure tests cover protocol frames, truncation/corruption, capability parsing, manual codes and wraparound. App-owned light/dark renders and Settings Back/lifetime checks are included. No physical switch has been tested. Catalog source/confidence details and licensing are in catalog/DEVICE-PROFILES.md. Distribution and formal review remain 1.2 work.

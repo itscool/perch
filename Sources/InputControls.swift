@@ -47,10 +47,11 @@ final class InputControls {
     var reverseTrackpad = UserDefaults.standard.bool(forKey: "reverseTrackpad")
     var reverseWheel = UserDefaults.standard.bool(forKey: "reverseWheel")
     var swapModifiers = false // v1.1 uses native per-keyboard modifier settings.
+    let navigation = NavigationEngine()
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var configuredMask: CGEventMask = 0
-    var wanted: Bool { reverseTrackpad || reverseWheel || swapModifiers }
+    var wanted: Bool { reverseTrackpad || reverseWheel || swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys }
     var active: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
     func save() {
@@ -71,9 +72,10 @@ final class InputControls {
         }
         var types: [CGEventType] = []
         if reverseTrackpad || reverseWheel { types.append(.scrollWheel) }
-        if swapModifiers { types += [.keyDown, .keyUp, .flagsChanged] }
+        if swapModifiers { types.append(.flagsChanged) }
+        if swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys { types += [.keyDown, .keyUp] }
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
-        if let tap, configuredMask == mask {
+        if let tap, configuredMask == mask || navigation.hasHeldKeys {
             // The same verified state feeds the heartbeat; avoid asking
             // WindowServer twice on every unchanged maintenance tick.
             if CGEvent.tapIsEnabled(tap: tap) { return true }
@@ -86,9 +88,11 @@ final class InputControls {
             guard let context else { return Unmanaged.passUnretained(event) }
             let controls = Unmanaged<InputControls>.fromOpaque(context).takeUnretainedValue()
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                controls.navigation.reset()
                 if let tap = controls.tap, controls.wanted { CGEvent.tapEnable(tap: tap, enable: true) }
             } else {
                 InputTransform.apply(event, type: type, trackpad: controls.reverseTrackpad, wheel: controls.reverseWheel, swap: controls.swapModifiers)
+                controls.navigation.apply(event, type: type)
             }
             return Unmanaged.passUnretained(event)
         }, userInfo: Unmanaged.passUnretained(self).toOpaque())
@@ -104,6 +108,7 @@ final class InputControls {
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         source = nil
         tap = nil
+        navigation.reset()
     }
     deinit { stop() }
 }

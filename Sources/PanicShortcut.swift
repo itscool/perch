@@ -25,14 +25,16 @@ final class PanicHotKey {
     private var handler: EventHandlerRef?
     var action: (() -> Void)?
     var active: Bool { reference != nil }
-    init() {
+    let signature: UInt32
+    init(signature: UInt32 = 0x50524348) {
+        self.signature = signature
         var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
             guard let event, let context else { return OSStatus(eventNotHandledErr) }
             var id = EventHotKeyID()
             let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-            guard status == noErr, id.signature == 0x50524348, id.id == 1 else { return OSStatus(eventNotHandledErr) }
             let owner = Unmanaged<PanicHotKey>.fromOpaque(context).takeUnretainedValue()
+            guard status == noErr, id.signature == owner.signature, id.id == 1 else { return OSStatus(eventNotHandledErr) }
             owner.action?()
             return noErr
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
@@ -41,7 +43,7 @@ final class PanicHotKey {
         unregister()
         guard shortcut.enabled else { return }
         guard handler != nil else { throw AppError(message: "Could not install the panic keyboard handler.") }
-        let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers, EventHotKeyID(signature: 0x50524348, id: 1), GetApplicationEventTarget(), 0, &reference)
+        let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers, EventHotKeyID(signature: signature, id: 1), GetApplicationEventTarget(), 0, &reference)
         guard status == noErr else { throw AppError(message: "That shortcut is unavailable or already in use. Choose another combination (\(status)).") }
     }
     func unregister() { if let reference { UnregisterEventHotKey(reference) }; reference = nil }

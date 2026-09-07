@@ -108,7 +108,7 @@ extension AppDelegate {
         if menuOpen { withMenuClosed { [weak self] in self?.configureSettings() }; return }
         let health = GuardianInstall.status
         let configuration = SafetyConfiguration.load()
-        let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel
+        let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel || configuration.navigation?.enabled == true
         let input = InputReadiness.assess(health, config: configuration)
         let inputReady = input.ready
         let issueNow = ProtectionIssue.assess(health, config: configuration)
@@ -116,6 +116,7 @@ extension AppDelegate {
             (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scroll reversal.", #selector(inputPermissionsFromSettings)),
             (issueNow == nil ? "✓ Agent Kill Switch…" : "⚠ Agent Kill Switch…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
             (keyboardModes.warning ? "⚠ Keyboard settings…" : keyboardModes.working ? "Keyboard settings…" : "✓ Keyboard settings…", keyboardModes.attentionDetail, #selector(keyboardSettings)),
+            ("Monitor inputs…", "Choose a display, inputs to cycle, and a keyboard shortcut.", #selector(monitorInputSettings)),
             ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         if let issue {

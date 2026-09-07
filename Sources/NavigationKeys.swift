@@ -6,8 +6,7 @@ struct NavigationPreferences: Codable, Equatable {
     var excludedApps: [String] = NavigationPreferences.defaultExceptions.map { $0.1 }
     var enabled: Bool { homeEnd || pageUpDown }
 
-    // Proposed defaults for the future opt-in feature; not loaded or applied by
-    // the diagnostic. These apps often implement their own navigation behavior.
+    // These apps often implement their own navigation behavior.
     static let defaultExceptions: [(String, String)] = [
         ("Terminal", "com.apple.Terminal"), ("iTerm2", "com.googlecode.iterm2"),
         ("Ghostty", "com.mitchellh.ghostty"), ("Warp", "dev.warp.Warp-Stable"),
@@ -25,7 +24,7 @@ struct NavigationPreferences: Codable, Equatable {
     ]
 }
 
-/// Candidate mapping rules, exercised only on unposted events in self-tests.
+/// Shared mapping rules for the runtime and unposted-event tests.
 /// No event posting, app lookup, or preference access.
 /// Normal arrows and combinations using Control/Option/Command are untouched.
 enum NavigationTransform {

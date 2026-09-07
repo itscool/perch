@@ -25,6 +25,8 @@ struct SafetyConfiguration: Codable, Equatable {
     var shortcut = PanicShortcut()
     var resetAgentPermissions = true
     var resetAllPermissions: Bool? = true
+    var navigation: NavigationPreferences?
+    var navigationProfiles: [NavigationKeyboardProfile]?
     var keepAwake = false
     var reverseTrackpad = UserDefaults.standard.bool(forKey: "reverseTrackpad")
     var reverseWheel = UserDefaults.standard.bool(forKey: "reverseWheel")

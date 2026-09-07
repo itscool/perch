@@ -79,7 +79,7 @@ struct BundledNavigationProfile: Codable {
     let evidence: [String]
     func matches(_ identity: NavigationKeyboardIdentity) -> Bool {
         vendor == identity.vendor && product == identity.product && transports.contains(identity.transport) &&
-        deviceNames.contains(identity.name) && verification == "key-delivery" && !evidence.isEmpty &&
+        deviceNames.contains(identity.name) && ["key-delivery", "documented-hid-layout"].contains(verification) && !evidence.isEmpty &&
         NavigationKeyboardProfile(identity: identity, keys: keys).valid
     }
 }
@@ -108,7 +108,7 @@ struct KeyboardRegistrationStatus: Equatable {
             return .init(name: identity.name, profile: profile, detail: detail)
         }
         if let known = bundled.first(where: { $0.matches(identity) }) {
-            return .init(name: identity.name, profile: .init(identity: identity, keys: known.keys), detail: "✓ Recognized · bundled \(known.name) layout")
+            return .init(name: identity.name, profile: .init(identity: identity, keys: known.keys), detail: "✓ Recognized · bundled \(known.name) layout" + (known.verification == "key-delivery" ? "" : " · documented, not hardware-tested"))
         }
         return .init(name: identity.name, profile: nil, detail: "⚠ Unrecognized navigation layout · set up this keyboard")
     }

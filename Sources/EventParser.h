@@ -28,3 +28,5 @@ bool perch_text_basename(const uint8_t *input, PerchJSONText text, const uint8_t
 size_t perch_text_copy(const uint8_t *input, PerchJSONText text, uint8_t *output, size_t capacity);
 void perch_timestamp_copy(const uint8_t *input, PerchJSONText text, PerchEventTimestamp *timestamp);
 #endif
+
+#include "DDCWire.h"

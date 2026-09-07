@@ -4,7 +4,9 @@ A native Mac menu bar app for sleep, sound, input controls, and an emergency sto
 
 Stable 1.0 release notes: [RELEASE-1.0.md](RELEASE-1.0.md). The 1.1 keyboard changes and compatibility details are in [KEYBOARDS.md](KEYBOARDS.md).
 
-External-only Home/End and Page Up/Down remapping is still being validated. Keyboard recognition now uses bundled profiles (currently the tested Bluetooth MX Keys layout) and saved user profiles. An unrecognized connected keyboard always adds an amber Settings notice, even when navigation options are off. Settings → Keyboard settings → Set up navigation keys guides users through four keys, remembers absent keys, and saves the layout for reconnects. Learning begins only on Start, observes function/navigation keys rather than ordinary typing, and does not remap input. See [KEYBOARD-NAVIGATION.md](KEYBOARD-NAVIGATION.md) for the remaining implementation checks.
+Perch 1.1 build 10 adds separate **Home/End move to line edges** and **Page Up/Down move the cursor** switches under External keyboards, off by default. The input helper transforms only events whose private CoreGraphics sender identity matches a registered external keyboard; built-in and unidentified sources retain native behavior. App exceptions are under Keyboard settings. Registration and source delivery remain separate checks: physical key testing is still needed on the installed build. Eight bundled keyboard profiles distinguish tested delivery from documented layouts.
+
+**Monitor input settings** automatically lists connected external monitors, reads advertised inputs where available, and offers a checklist with cycle ordering, manual input-code editing and an optional shortcut. Input controls use a bounded, short-lived native adapter based on m1ddc display routing. Fifteen model profiles supplement detection. Unknown current inputs require explicit fallback; accepted commands are not presented as confirmed switches. The monitor shortcut runs while the Perch menu app is open; keyboard remapping continues in the input helper. See [MONITOR-INPUTS.md](MONITOR-INPUTS.md) and [catalog/DEVICE-PROFILES.md](catalog/DEVICE-PROFILES.md).
 
 ## Build and run
 

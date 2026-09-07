@@ -7,6 +7,10 @@ import IOKit.hidsystem
 final class KeyboardModeMonitor: NSObject {
     var results: [KeyboardModeResult] = []
     var modifierErrors: [String] = []
+    var registrations: [KeyboardRegistrationStatus] = []
+    var registrationError: String?
+    private var navigationRevision = 1
+    private var appliedNavigationRevision = 0
     var busy = false
     var onChange: (() -> Void)?
     var started = false
@@ -20,7 +24,14 @@ final class KeyboardModeMonitor: NSObject {
     private var removed: io_iterator_t = 0
     private var knownDevices: Set<String> = []
     private var connectionError: String?
-    var warning: Bool { results.contains { !$0.verified } || !modifierErrors.isEmpty }
+    var registrationNeedsSetup: Bool { registrationError != nil || registrations.contains { $0.needsSetup } }
+    var warning: Bool { registrationNeedsSetup || results.contains { !$0.verified } || !modifierErrors.isEmpty }
+    var attentionHint: String { registrationNeedsSetup ? "⚠ Keyboard setup needed" : warning ? "⚠ Review keyboards" : "" }
+    var attentionDetail: String {
+        if let registrationError { return registrationError }
+        let unknown = registrations.filter { $0.needsSetup }.map { $0.name }
+        return unknown.isEmpty ? "Function keys and separate Control/Command swaps for built-in and external keyboards." : "Set up \(unknown.joined(separator: ", ")). Unrecognized layouts need registration even when navigation options are off."
+    }
     var needsAccess: Bool { results.contains { $0.needsAccess } }
     func start() {
         guard !started else { return }; started = true
@@ -32,7 +43,7 @@ final class KeyboardModeMonitor: NSObject {
                 guard let context else { return }
                 let monitor = Unmanaged<KeyboardModeMonitor>.fromOpaque(context).takeUnretainedValue()
                 while case let service = IOIteratorNext(iterator), service != 0 { IOObjectRelease(service) }
-                monitor.queue()
+                monitor.queue(navigationChanged: true)
             }
             let a = IOServiceAddMatchingNotification(port, kIOFirstMatchNotification, IOServiceMatching("IOHIDDevice"), callback, context, &added)
             let r = IOServiceAddMatchingNotification(port, kIOTerminatedNotification, IOServiceMatching("IOHIDDevice"), callback, context, &removed)
@@ -42,10 +53,12 @@ final class KeyboardModeMonitor: NSObject {
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(changed), name: NSNotification.Name("com.apple.keyboard.fnstatedidchange"), object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(activated), name: NSApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(profilesChanged), name: KeyboardNavigationProfiles.changed, object: nil)
         queue()
     }
     @objc private func changed() { queue() }
-    @objc private func woke() { queue(reapplyExternal: true) }
+    @objc private func woke() { queue(reapplyExternal: true, navigationChanged: true) }
+    @objc private func profilesChanged() { queue(navigationChanged: true) }
     @objc private func activated() {
         if needsAccess && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted { queue(reapplyExternal: true) }
         else { queue() }
@@ -54,8 +67,9 @@ final class KeyboardModeMonitor: NSObject {
         guard started, lastStandard != standard else { return }
         lastStandard = standard; queue()
     }
-    func queue(reapplyExternal: Bool = false) {
+    func queue(reapplyExternal: Bool = false, navigationChanged: Bool = false) {
         guard started else { return }
+        if navigationChanged { navigationRevision &+= 1 }
         self.reapplyExternal = self.reapplyExternal || reapplyExternal
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.run() }
@@ -69,6 +83,8 @@ final class KeyboardModeMonitor: NSObject {
         busy = true; onChange?()
         let known = knownDevices
         let forceExternal = reapplyExternal
+        let revision = navigationRevision
+        let scanNavigation = revision != appliedNavigationRevision
         reapplyExternal = false
         // A temporary thread owns the HID reply run loop. It never runs on the
         // menu thread or the input helper's event-tap thread.
@@ -77,6 +93,19 @@ final class KeyboardModeMonitor: NSObject {
                 let standard = try? FunctionKeys.standard()
                 var failures: [String] = []
                 let keyboards = NativeModifierKeys.keyboards()
+                var registrations: [KeyboardRegistrationStatus]?
+                var registrationError: String?
+                if scanNavigation {
+                    let devices = NavigationProbeKeyboard.connected()
+                    do {
+                        let profiles = try KeyboardNavigationProfiles.read()
+                        registrations = devices.map { KeyboardRegistrationStatus.assess($0.identity, saved: profiles) }
+                        let found = Set(devices.map { $0.name })
+                        for keyboard in keyboards where !keyboard.builtIn && !found.contains(keyboard.name) {
+                            registrations?.append(.init(name: keyboard.name, profile: nil, detail: "⚠ Device identity unavailable · review keyboard setup"))
+                        }
+                    } catch { registrationError = error.localizedDescription; registrations = [] }
+                }
                 var ids = Set(keyboards.map { "\(IOHIDServiceClientGetRegistryID($0.service))" })
                 for keyboard in keyboards {
                     let id = "\(IOHIDServiceClientGetRegistryID(keyboard.service))"
@@ -94,6 +123,10 @@ final class KeyboardModeMonitor: NSObject {
                     if self.again { self.again = false; self.run(); return }
                     self.lastStandard = standard; self.knownDevices = ids
                     self.results = result; self.modifierErrors = failures + (self.connectionError.map { [$0] } ?? [])
+                    if let registrations {
+                        self.registrations = registrations; self.registrationError = registrationError
+                        self.appliedNavigationRevision = revision
+                    }
                     self.onChange?()
                 }
             }

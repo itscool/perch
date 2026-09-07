@@ -85,11 +85,13 @@ func runNavigationProbeUITests() throws {
     host.testing = true
     AppDelegate().configureSettings()
     let identity = host.window.windowNumber
-    let page = NavigationProbePage(enumerate: { [] }, hasAccess: { true })
+    var saved: [NavigationKeyboardProfile] = []
+    let page = NavigationProbePage(enumerate: { [] }, hasAccess: { true }, saveProfile: { saved.append($0) })
     page.show()
     try check(host.pages.count == 2 && host.window.windowNumber == identity && page.timer == nil, "Opening navigation test changed window or began listening")
     let source = MockNavigationProbeSource()
-    page.session.start(deviceID: 42, source: source)
+    page.setupIdentity = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Mock keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
+    page.session.start(deviceID: 42, source: source, guided: true)
     try check(page.timer != nil, "Active test lacks timeout timer")
     source.pressAndRelease(.home)
     try check(page.rows[0].stringValue.hasPrefix("✓"), "Received navigation key lacks explicit confirmation")
@@ -98,7 +100,9 @@ func runNavigationProbeUITests() throws {
         try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-navigation-test-\(suffix).png")
     }
     for key in NavigationKey.allCases where key != .home { source.pressAndRelease(key) }
-    try check(page.timer == nil && source.stops == 1 && page.status.stringValue.contains("Test stopped"), "Successful test lacks visible result or retained timer")
+    try check(page.timer == nil && source.stops == 1 && saved.count == 1 && page.status.stringValue.contains("Layout saved"), "Successful setup lacks visible result, failed to save once, or retained timer")
+    page.session.tick()
+    try check(saved.count == 1, "Completed setup saved its profile repeatedly")
     let restarted = MockNavigationProbeSource()
     page.session.start(deviceID: 42, source: restarted)
     NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: host.window)
@@ -107,6 +111,7 @@ func runNavigationProbeUITests() throws {
     page.session.start(deviceID: 42, source: final)
     host.goBack()
     try check(host.pages.count == 1 && page.timer == nil && final.stops == 1, "Back did not stop test or return to Settings")
+    try check(saved.count == 1, "Cancelled setup replaced saved profile")
     host.window.appearance = nil
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     print("PASS: navigation diagnostic stays in Settings, starts only explicitly, shows receipt, stops on success/focus loss/Back; light/dark rendered with synthetic input")

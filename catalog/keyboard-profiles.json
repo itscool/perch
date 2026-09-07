@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "name": "Logitech MX Keys",
+      "vendor": 1133,
+      "product": 45915,
+      "transports": ["Bluetooth", "Bluetooth Low Energy"],
+      "deviceNames": ["MX Keys", "MX Keys Keyboard", "MX Keys Wireless Keyboard"],
+      "keys": [74, 77, 75, 78],
+      "verification": "key-delivery",
+      "verifiedOn": "2026-09-06",
+      "evidence": [
+        "User-operated Perch four-key diagnostic confirmed individual presses and releases on MX Keys. This is not a full remapping/repeat/crash-recovery test.",
+        "https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/descriptors.py"
+      ]
+    }
+  ]
+}

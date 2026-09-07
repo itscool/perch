@@ -120,6 +120,10 @@ private func runMenuStatusColorTests() throws {
         app.menu.update()
         for item in app.menu.items where item.action != nil && (item.view as! MenuRowView).kind != .toggle {
             let row = item.view as! MenuRowView
+            if item.isHidden {
+                guard !row.enabled && !row.activate() && color(item) == rgb(.disabledControlTextColor, appearance) else { throw AppError(message: "Hidden setup action remained actionable or styled as enabled") }
+                continue
+            }
             guard row.kind == .command, color(item) == rgb(.labelColor, appearance) else { throw AppError(message: "Command text differs from other rows: \(item.title)") }
             row.keyboardHighlight = true
             guard color(item) == rgb(.selectedMenuItemTextColor, appearance) || item.isHidden else { throw AppError(message: "Keyboard selection lost contrast") }

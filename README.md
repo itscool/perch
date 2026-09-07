@@ -4,7 +4,7 @@ A native Mac menu bar app for sleep, sound, input controls, and an emergency sto
 
 Stable 1.0 release notes: [RELEASE-1.0.md](RELEASE-1.0.md). The 1.1 keyboard changes and compatibility details are in [KEYBOARDS.md](KEYBOARDS.md).
 
-External-only Home/End and Page Up/Down support is still being validated. Settings → Keyboard settings → Test external navigation keys provides a user-initiated, 30-second read-only test; it observes only the chosen keyboard’s four navigation keys and does not remap them. See [KEYBOARD-NAVIGATION.md](KEYBOARD-NAVIGATION.md) for the remaining implementation checks.
+External-only Home/End and Page Up/Down remapping is still being validated. Keyboard recognition now uses bundled profiles (currently the tested Bluetooth MX Keys layout) and saved user profiles. An unrecognized connected keyboard always adds an amber Settings notice, even when navigation options are off. Settings → Keyboard settings → Set up navigation keys guides users through four keys, remembers absent keys, and saves the layout for reconnects. Learning begins only on Start, observes function/navigation keys rather than ordinary typing, and does not remap input. See [KEYBOARD-NAVIGATION.md](KEYBOARD-NAVIGATION.md) for the remaining implementation checks.
 
 ## Build and run
 

@@ -47,16 +47,14 @@ extension AppDelegate {
         nativeKeyboards = NativeModifierKeys.keyboards()
         refreshModifierItems()
         if let standard = try? FunctionKeys.standard(), fnItem != nil { refreshFunctionKeyItem(standard) }
+        refreshKeyboardAttention()
         let host = SettingsWindow.shared
         if host.window.isVisible && !host.modal {
             if host.pages.last?.title == "Keyboard settings" { keyboardSettings() }
             else if host.pages.last?.title == "Perch settings" { configureSettings() }
         }
-        if keyboardModes.warning && currentProtectionIssue == nil && safetySettingsItem != nil {
-            label(safetySettingsItem, "Settings…", hint: "⚠ Review keyboards", hintColor: StatusColors.warning)
-        }
         if let index = CommandLine.arguments.firstIndex(of: "--keyboard-diagnostics"), CommandLine.arguments.count > index+1 {
-            let output: [String:Any] = ["busy":keyboardModes.working, "functionKeys":keyboardModes.results.map { ["name":$0.name,"detail":$0.detail,"verified":$0.verified,"needsAccess":$0.needsAccess,"standard":$0.standard as Any? ?? NSNull()] as [String:Any] }, "modifiers":nativeKeyboards.map { ["name":$0.name,"builtIn":$0.builtIn,"swapped":$0.swapped as Any? ?? NSNull()] }, "errors":keyboardModes.modifierErrors]
+            let output: [String:Any] = ["busy":keyboardModes.working, "registration":keyboardModes.registrations.map { ["name":$0.name,"needsSetup":$0.needsSetup,"detail":$0.detail] as [String:Any] }, "registrationError":keyboardModes.registrationError as Any? ?? NSNull(), "functionKeys":keyboardModes.results.map { ["name":$0.name,"detail":$0.detail,"verified":$0.verified,"needsAccess":$0.needsAccess,"standard":$0.standard as Any? ?? NSNull()] as [String:Any] }, "modifiers":nativeKeyboards.map { ["name":$0.name,"builtIn":$0.builtIn,"swapped":$0.swapped as Any? ?? NSNull()] }, "errors":keyboardModes.modifierErrors]
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: URL(fileURLWithPath: CommandLine.arguments[index+1]), options: .atomic) }
         }
     }
@@ -70,6 +68,17 @@ extension AppDelegate {
         if !failures.isEmpty { withMenuClosed { [weak self] in self?.keyboardSettings() } }
     }
     @objc func toggleExternalModifiers() { setModifierGroup(false) }
+    func refreshKeyboardAttention() {
+        if let item = keyboardSetupItem {
+            item.isHidden = !keyboardModes.registrationNeedsSetup
+            label(item, "Set up keyboard…", hint: "⚠ Unrecognized layout", hintColor: StatusColors.warning)
+            item.toolTip = keyboardModes.attentionDetail
+        }
+        if currentProtectionIssue == nil, let item = safetySettingsItem {
+            label(item, "Settings…", hint: keyboardModes.attentionHint, hintColor: StatusColors.warning)
+            item.toolTip = keyboardModes.attentionDetail
+        }
+    }
     @objc func keyboardSettings() {
         nativeKeyboards = NativeModifierKeys.keyboards()
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
@@ -83,8 +92,10 @@ extension AppDelegate {
         text(keyboardModes.working ? "Checking each keyboard’s own setting…" : "Built-in and external Fn choices are independent. Existing modes are read first; only choices you make are saved and reapplied.", 407, 40, color: .secondaryLabelColor)
         let scroll = NSScrollView(frame: NSRect(x: 8, y: 145, width: 556, height: 253))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
-        let entries = keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
-        let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(290,CGFloat(entries.count*70))))
+        let registration = keyboardModes.registrations.map { KeyboardModeResult(name: $0.name + " · Recognition", detail: $0.detail, verified: !$0.needsSetup) }
+        let errors = keyboardModes.registrationError.map { [KeyboardModeResult(name: "Keyboard registration", detail: "⚠ " + $0, verified: false)] } ?? []
+        let entries = errors + registration + keyboardModes.results + keyboardModes.modifierErrors.map { KeyboardModeResult(name: "Modifier keys", detail: "⚠ " + $0, verified: false) }
+        let document = NSView(frame: NSRect(x: 0,y: 0,width: 530,height: max(scroll.contentSize.height,CGFloat(entries.count*70))))
         for (index, entry) in entries.enumerated() {
             let label = NSTextField(wrappingLabelWithString: entry.name + "\n" + entry.detail)
             label.textColor = entry.verified ? StatusColors.success : StatusColors.warning
@@ -94,10 +105,15 @@ extension AppDelegate {
         }
         if entries.isEmpty {
             let label = NSTextField(labelWithString: keyboardModes.working ? "Checking connected keyboards…" : "No external keyboards detected.")
-            label.frame = NSRect(x: 8,y: 245,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
+            label.frame = NSRect(x: 8,y: document.bounds.height-36,width: 510,height: 28); label.textColor = .secondaryLabelColor; document.addSubview(label)
         }
         scroll.documentView = document; view.addSubview(scroll)
-        let navigation = SettingsActionButton(title: "Test external navigation keys…") { [weak self] in self?.testNavigationKeys() }
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, document.bounds.height-scroll.contentSize.height)))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        let navigation = SettingsActionButton(title: keyboardModes.registrationNeedsSetup ? "⚠ Set up navigation keys…" : "Set up navigation keys…") { [weak self] in self?.testNavigationKeys() }
+        if keyboardModes.registrationNeedsSetup {
+            navigation.attributedTitle = NSAttributedString(string: navigation.title, attributes: [.foregroundColor: StatusColors.warning, .font: NSFont.systemFont(ofSize: 13, weight: .semibold)])
+        }
         navigation.frame = NSRect(x: 8, y: 105, width: 548, height: 30); view.addSubview(navigation)
         let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.queue(reapplyExternal: true) }
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
@@ -111,6 +127,6 @@ extension AppDelegate {
             let drag = PermissionDragItem(title: "Drag Perch → Input Monitoring, then enable it") { Bundle.main.bundleURL }
             drag.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(drag)
         }
-        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Keyboard compatibility, permissions, and setup results. Change Fn modes and Control/Command swaps under Built-in keyboard or External keyboards in Perch’s menu.", view: view))
+        SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: keyboardModes.registrationNeedsSetup ? keyboardModes.attentionDetail : "Keyboard recognition, permissions, and setup results. Change Fn modes and Control/Command swaps in Perch’s menu. Navigation remapping is still in development.", view: view, refresh: { [weak self] in self?.keyboardSettings() }))
     }
 }

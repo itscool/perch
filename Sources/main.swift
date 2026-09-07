@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var nativeKeyboards: [NativeKeyboard] = []
     var fnItem: NSMenuItem!
     var externalFnItem: NSMenuItem!
+    var keyboardSetupItem: NSMenuItem!
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
@@ -159,6 +160,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("External keyboards")
         externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
         externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys))
+        keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings))
+        keyboardSetupItem.isHidden = true
         setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
@@ -511,6 +514,7 @@ if CommandLine.arguments.contains("--self-test") {
         try runKeyboardModeTests()
         try runNavigationKeyTests()
         try runNavigationProbeTests()
+        try runKeyboardRegistrationTests()
         print("PASS: function-key mode = \(try FunctionKeys.standard())")
         print("PASS: create/release Mac sleep assertion")
         print("PASS: read sleep override = \(try sleepDisabled())")

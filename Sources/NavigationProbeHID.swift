@@ -7,6 +7,7 @@ struct NavigationProbeKeyboard {
     let id: UInt64
     let name: String
     let transport: String
+    let identity: NavigationKeyboardIdentity
 
     /// Enumeration reads device metadata only; no device is opened or scheduled.
     static func connected() -> [NavigationProbeKeyboard] {
@@ -24,7 +25,11 @@ struct NavigationProbeKeyboard {
             var id: UInt64 = 0
             guard IORegistryEntryGetRegistryEntryID(service, &id) == KERN_SUCCESS, id != 0 else { continue }
             let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "External keyboard"
-            result.append(.init(device: device, id: id, name: name, transport: transport))
+            func number(_ key: String) -> Int { (IOHIDDeviceGetProperty(device, key as CFString) as? NSNumber)?.intValue ?? 0 }
+            let elements = IOHIDDeviceCopyMatchingElements(device, [kIOHIDElementUsagePageKey: 7] as CFDictionary, 0) as? [IOHIDElement] ?? []
+            let usages = Set(elements.map { IOHIDElementGetUsage($0) }.filter { NavigationLearning.allowed($0) }).sorted()
+            let identity = NavigationKeyboardIdentity(vendor: number(kIOHIDVendorIDKey), product: number(kIOHIDProductIDKey), version: number(kIOHIDVersionNumberKey), name: name, transport: transport, usages: usages)
+            result.append(.init(device: device, id: id, name: name, transport: transport, identity: identity))
         }
         return result.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
     }
@@ -37,7 +42,8 @@ final class NavigationProbeHID: NavigationProbeSource {
     private var opened = false
     private var value: ((UInt64, UInt32, UInt32, Int) -> Void)?
     private var failed: ((String) -> Void)?
-    init(keyboard: NavigationProbeKeyboard) { self.keyboard = keyboard }
+    let learning: Bool
+    init(keyboard: NavigationProbeKeyboard, learning: Bool = false) { self.keyboard = keyboard; self.learning = learning }
     static var hasAccess: Bool { IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted }
     func start(value: @escaping (UInt64, UInt32, UInt32, Int) -> Void, failed: @escaping (String) -> Void) throws {
         precondition(Thread.isMainThread)
@@ -45,7 +51,8 @@ final class NavigationProbeHID: NavigationProbeSource {
         guard Self.hasAccess else { throw AppError(message: "Enable Input Monitoring for Perch, then start the test again.") }
         self.value = value; self.failed = failed
         let device = keyboard.device
-        let matches = NavigationKey.allCases.map { [kIOHIDElementUsagePageKey: 7, kIOHIDElementUsageKey: Int($0.rawValue)] }
+        let usages = learning ? NavigationLearning.usages : NavigationKey.allCases.map { $0.rawValue }
+        let matches = usages.map { [kIOHIDElementUsagePageKey: 7, kIOHIDElementUsageKey: Int($0)] }
         IOHIDDeviceSetInputValueMatchingMultiple(device, matches as CFArray)
         let result = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
         guard result == kIOReturnSuccess else {
@@ -61,8 +68,9 @@ final class NavigationProbeHID: NavigationProbeSource {
             guard result == kIOReturnSuccess else { source.failed?("Keyboard input became unavailable. Test stopped."); return }
             let element = IOHIDValueGetElement(value)
             let page = IOHIDElementGetUsagePage(element), usage = IOHIDElementGetUsage(element)
-            // Defense in depth: never read or retain a non-navigation value.
-            guard page == 7, NavigationKey(rawValue: usage) != nil else { return }
+            // Defense in depth: setup permits only function/navigation usages;
+            // the diagnostic permits only the original four navigation usages.
+            guard page == 7, source.learning ? NavigationLearning.allowed(usage) : NavigationKey(rawValue: usage) != nil else { return }
             guard IOHIDValueGetLength(value) > 0, IOHIDValueGetLength(value) <= MemoryLayout<CFIndex>.size else { return }
             source.value?(source.keyboard.id, page, usage, IOHIDValueGetIntegerValue(value))
         }, context)

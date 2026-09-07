@@ -15,7 +15,7 @@ extension AppDelegate {
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue
         if issueChanged && SettingsWindow.shared.window.isVisible && !SettingsWindow.shared.modal && SettingsWindow.shared.pages.last?.title == "Perch settings" { configureSettings() }
-        label(safetySettingsItem, "Settings…", hint: issue.map { "⚠ " + $0.title } ?? (keyboardModes.warning ? "⚠ Review keyboards" : ""), hintColor: keyboardModes.warning && issue == nil ? StatusColors.warning : .secondaryLabelColor)
+        label(safetySettingsItem, "Settings…", hint: issue.map { "⚠ " + $0.title } ?? keyboardModes.attentionHint, hintColor: keyboardModes.warning && issue == nil ? StatusColors.warning : .secondaryLabelColor)
         if let issue, let title = menuTitleSources[safetySettingsItem] {
             let colored = NSMutableAttributedString(attributedString: title)
             let range = (colored.string as NSString).range(of: "⚠")
@@ -24,7 +24,7 @@ extension AppDelegate {
             }
             setMenuTitle(safetySettingsItem, colored)
         }
-        safetySettingsItem.toolTip = issue?.detail ?? "Configure input access, Agent Kill Switch, and maintenance."
+        safetySettingsItem.toolTip = issue?.detail ?? (keyboardModes.warning ? keyboardModes.attentionDetail : "Configure input access, Agent Kill Switch, and maintenance.")
         if let issue, issue.severity == .critical {
             if criticalIssueSince == nil { criticalIssueSince = Date() }
             // One in-app notice per critical condition; no extra permission or popup window.
@@ -115,7 +115,7 @@ extension AppDelegate {
         var options: [(String,String,Selector)] = [
             (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scroll reversal.", #selector(inputPermissionsFromSettings)),
             (issueNow == nil ? "✓ Agent Kill Switch…" : "⚠ Agent Kill Switch…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
-            (keyboardModes.warning ? "⚠ Keyboard settings…" : "Keyboard settings…", "Function keys and separate Control/Command swaps for built-in and external keyboards.", #selector(keyboardSettings)),
+            (keyboardModes.warning ? "⚠ Keyboard settings…" : keyboardModes.working ? "Keyboard settings…" : "✓ Keyboard settings…", keyboardModes.attentionDetail, #selector(keyboardSettings)),
             ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         if let issue {

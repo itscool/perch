@@ -94,14 +94,14 @@ final class MenuRowView: NSView {
     private var sectionTint: NSColor {
         switch item?.title ?? "" {
         case "System": return .systemTeal
-        case "Sleep": return .systemIndigo
-        case "Display": return .systemGreen
+        case "Sleep": return .systemPurple
+        case "Display": return .systemOrange
         case "Audio": return .systemYellow
-        case "Scrolling": return .systemOrange
+        case "Scrolling": return .systemGreen
         case "Built-in keyboard": return .systemBlue
-        case let title where title.hasPrefix("External keyboard"): return .systemPurple
+        case let title where title.hasPrefix("External keyboard"): return .systemIndigo
         case "Agent Kill Switch": return .systemRed
-        case "Perch": return .systemPink
+        case "Perch": return StatusColors.perchPink
         default: return .systemPurple
         }
     }

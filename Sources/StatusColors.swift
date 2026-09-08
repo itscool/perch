@@ -6,6 +6,7 @@ enum StatusColors {
     static let success = adaptive("success", light: 0x20743C, dark: 0x82D69B)
     static let warning = adaptive("warning", light: 0xB04400, dark: 0xF1BE70)
     static let critical = adaptive("critical", light: 0xAD2434, dark: 0xFF929B)
+    static let perchPink = adaptive("perchPink", light: 0xD73789, dark: 0xFF6EB5)
     static let information = adaptive("information", light: 0x246775, dark: 0x85C8D3)
 
     private static func adaptive(_ name: String, light: UInt32, dark: UInt32) -> NSColor {

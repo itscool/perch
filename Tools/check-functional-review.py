@@ -8,6 +8,7 @@ The production sources and installed app are not rewritten by this tool.
 from pathlib import Path
 import argparse
 import plistlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -64,7 +65,13 @@ installer.write_text(installer.read_text().replace('static func install() throws
 monitor = src / 'MonitorInputs.swift'
 monitor.write_text(monitor.read_text().replace('func run(_ arguments: [String]) throws -> Data {', 'func run(_ arguments: [String]) throws -> Data {\n        guard arguments == ["transport-self-test"] else { throw AppError(message: "Physical monitor requests blocked in isolated tests") }', 1))
 lid = src / 'LidGuardHardware.swift'
-lid.write_text(lid.read_text().replace('func preventLidSleep(_ enabled: Bool) throws {', 'func preventLidSleep(_ enabled: Bool) throws {\n        throw AppError(message: "Physical lid control blocked in isolated tests")').replace('func requestSleep() throws {', 'func requestSleep() throws {\n        throw AppError(message: "System sleep requests blocked in isolated tests")'))
+lid_text = lid.read_text()
+for signature, message in [('func preventLidSleep(_ enabled: Bool) throws', 'Physical lid control blocked in isolated tests'), ('func requestSleep() throws', 'System sleep requests blocked in isolated tests')]:
+    pattern = r'    ' + re.escape(signature) + r' \{.*?\n    \}'
+    lid_text, replacements = re.subn(pattern, '    ' + signature + ' {\n        throw AppError(message: "' + message + '")\n    }', lid_text, count=1, flags=re.S)
+    assert replacements == 1, 'Could not isolate power method: ' + signature
+lid.write_text(lid_text)
+
 lid_service = src / 'LidGuardService.swift'
 lid_service.write_text(lid_service.read_text().replace('/var/run/local.scott.perch.lid.active', str(root / 'isolated-lid-ownership')))
 app = root / 'Perch Functional Review.app' / 'Contents'

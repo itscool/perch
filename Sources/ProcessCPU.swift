@@ -1,6 +1,5 @@
 import Foundation
 import Darwin
-import ServiceManagement
 
 enum CPUDisplaySettings {
     static let key = "showProcessCPU"
@@ -89,13 +88,8 @@ final class ProcessCPUReader {
         let wallTime = Date().timeIntervalSince1970
         let ticks = mach_absolute_time()
         var ours = perchPIDs
-        // Reviewed SDK deprecation: there is no direct replacement for this job
-        // dictionary/PID query; SMAppService.status reports registration, not PID.
-        // Keep the warning visible until collector identity is available through
-        // Perch's own status channel (V1.2-REVIEW.md, BW-01). Do not substitute a
-        // process-name match, which could count somebody else's eslogger as ours.
-        if let job = SMJobCopyDictionary(kSMDomainSystemLaunchd, "local.scott.perch.events" as CFString)?.takeRetainedValue() as? [String: Any],
-           let pid = (job["PID"] as? NSNumber)?.int32Value, pid > 1 { ours.insert(pid) }
+        let collector = CollectorIdentity.current()
+        if let identity = collector.identity { ours.insert(identity.pid) }
         let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size)))
         var complete = count > 0 && count < pids.count
         var counters: [Int32: ProcessCPUCounter] = [:]
@@ -128,8 +122,17 @@ final class ProcessCPUReader {
                 }
             } else { complete = false }
         }
+        // Bracket the whole sample (including ps) so exit/restart or PID reuse
+        // cannot attach another process's CPU to the recorded collector.
+        var collectorKnown = collector.complete
+        let collectorAfter = CollectorIdentity.current()
+        if collectorAfter != collector {
+            if let identity = collector.identity { ours.remove(identity.pid); counters.removeValue(forKey: identity.pid) }
+            if let identity = collectorAfter.identity { counters.removeValue(forKey: identity.pid) }
+            collectorKnown = false; complete = false
+        }
         lastWallMS = Double(DispatchTime.now().uptimeNanoseconds - began) / 1_000_000
-        return ProcessCPUSnapshot(time: time, counters: counters, perch: ours, complete: complete, perchComplete: helpersKnown)
+        return ProcessCPUSnapshot(time: time, counters: counters, perch: ours, complete: complete, perchComplete: helpersKnown && collectorKnown)
     }
     static func birth(_ pid: Int32) -> UInt64? {
         // KERN_PROC_PID exposes birth identity for other users' processes even

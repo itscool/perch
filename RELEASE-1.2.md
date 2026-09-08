@@ -1,6 +1,16 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 60. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 61. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 61: collector identity without deprecated job lookup
+
+CPU accounting no longer calls `SMJobCopyDictionary`. A small signed native launcher records its PID, process start time and boot UUID in a protected file, then replaces itself with Apple's eslogger using a fixed command. No extra persistent process, shell launcher or new Endpoint Security client is added. The reader rejects unsafe ownership/modes, symlinks, hard links, special files, oversized data, stale boots and reused/exited PIDs. Sampling checks identity again afterward; a collector transition leaves the combined total unavailable for that sample.
+
+Existing direct-eslogger installations keep collecting events. **Process event collection → Update CPU accounting…** explicitly installs the new launch path with administrator authorization and restarts observation. Until an installed collector has a verified identity, Perch reports its combined CPU total as unavailable rather than silently omitting the collector. The installer stages and verifies the signed launcher and configuration before stopping the existing collector. Identity-write failure does not prevent event collection.
+
+The new launch path's Full Disk Access behavior still needs installation acceptance on the affected Mac. No grant is reset; macOS may require access for the native launcher. Event delivery and the existing health probe remain the authority for collection readiness. This build was prepared separately, without installing/restarting live helpers or touching permissions. The separate lid-control defect and password-entry acceptance remain open.
+
+Validation: production and isolated test builds completed with zero compiler warnings. All 20 isolated suites and the native launcher fixture checks passed. App, display-tool and launcher strict signatures passed; the installer’s derived launcher requirement matched, and the production launcher refused unprivileged execution. The isolated harness now replaces blocked power-method bodies instead of retaining unreachable code, preserving the safety blocks without their two synthetic warnings. No warning suppression was added.
 
 ## Build 60: complete system-dialog focus sweep
 

@@ -10,6 +10,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     let guidance = NSTextField(wrappingLabelWithString: "")
     let primary = NSButton()
     let reveal = NSButton()
+    let identityUpdate = NSButton()
     var timer: Timer?
     var fromSettings = false
     var installing = false
@@ -25,8 +26,8 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         guard installed else { return nil }
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: "/Library/LaunchDaemons/local.scott.perch.events.plist")),
               let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return "The collector configuration cannot be read. Update it to restore the supported configuration." }
-        if (job["ProgramArguments"] as? [String])?.first != "/usr/bin/eslogger" {
-            return "The old launcher makes macOS check the shell’s permission. Updating launches Apple’s collector directly so the eslogger grant can apply."
+        if !Self.supportedArguments(job["ProgramArguments"] as? [String]) {
+            return "The collector uses an unsupported launcher or command. Update it to restore the fixed collector command."
         }
         if job["ProcessType"] as? String != "Interactive" {
             return "The collector uses macOS’s default CPU and I/O throttling. Updating removes that throttling so process events can be delivered promptly. It restarts the collector and begins a new verified observation session; earlier gaps cannot be recovered."
@@ -34,6 +35,15 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         return nil
     }
     var needsRepair: Bool { repairReason != nil }
+    static func supportedArguments(_ arguments: [String]?) -> Bool {
+        arguments == ["/usr/bin/eslogger", "fork", "exec", "exit"] || arguments == [CollectorIdentity.launcher]
+    }
+    var identityUpdateAvailable: Bool {
+        guard installed, let data = try? Data(contentsOf: URL(fileURLWithPath: CollectorIdentity.job)),
+              let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return false }
+        return job["ProgramArguments"] as? [String] == ["/usr/bin/eslogger", "fork", "exec", "exit"]
+    }
+
     override init() {
         super.init()
         panel.title = "Set up process event collection"
@@ -64,6 +74,12 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         openSettings.contentTintColor = .linkColor
         openSettings.frame = NSRect(x: 20, y: 65, width: 230, height: 22)
         panel.contentView?.addSubview(openSettings)
+        identityUpdate.title = "Update CPU accounting…"; identityUpdate.target = self
+        identityUpdate.action = #selector(updateCollectorIdentity); identityUpdate.isBordered = false
+        identityUpdate.font = .systemFont(ofSize: 12); identityUpdate.contentTintColor = .linkColor
+        identityUpdate.frame = NSRect(x: 274, y: 65, width: 262, height: 22)
+        identityUpdate.toolTip = "Install the collector identity launcher with administrator approval. This restarts observation; macOS access must be checked again."
+        panel.contentView?.addSubview(identityUpdate)
 
     }
     func show(fromSettings: Bool) {
@@ -77,6 +93,8 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         refresh()
     }
     func refresh() {
+        identityUpdate.isHidden = !identityUpdateAvailable || needsRepair
+        identityUpdate.isEnabled = !installing
         let state = GuardianInstall.status
         let fresh = state?.fresh == true
         if waitingForSession, let session = state?.eventSessionID, session != previousSession { waitingForSession = false }
@@ -95,8 +113,8 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         if !installed || needsRepair {
             primary.title = needsRepair ? "Update collector…" : "Install collector…"
             guidance.stringValue = installError ?? (needsRepair
-                ? (repairReason ?? "Collector update required.") + "\n\nApprove the update in Perch’s macOS prompt. Existing eslogger access is preserved. The checks above update automatically."
-                : "Perch will ask for administrator approval to install Apple’s built-in eslogger as a background service. It observes process starts, forks and exits. Perch itself stays unprivileged.\n\nNext, grant eslogger Full Disk Access. Codex does not need permission.")
+                ? (repairReason ?? "Collector update required.") + "\n\nApprove the update in Perch’s macOS prompt. The update does not reset permissions; macOS may require access for the new launcher. The checks above verify event delivery again."
+                : "Perch will ask for administrator approval to install Apple’s built-in eslogger as a background service. It observes process starts, forks and exits. A small Perch launcher records its process identity, then becomes Apple’s collector.\n\nNext, grant eslogger Full Disk Access. Codex does not need permission.")
 
         } else if waitingForSession {
             let expired = Date().timeIntervalSince(updateRequestedAt ?? .distantPast) > 10
@@ -126,13 +144,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     }
     @objc func nextStep() {
         if !installed || needsRepair {
-            guard let url = Bundle.main.url(forResource: "install-event-collector", withExtension: "sh") else { installError = "The collector installer is missing. Reinstall Perch."; refresh(); return }
-            installing = true; refresh()
-            let command = "/bin/sh " + GuardianInstall.shellQuote(url.path) + " " + String(getuid())
-            let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-            do { _ = try script("do shell script \"\(escaped)\" with administrator privileges"); try requestNewSession(); installError = nil }
-            catch { installError = "Installation did not finish: \(error.localizedDescription). You can try again." }
-            installing = false; refresh()
+            installCollector()
         } else if GuardianInstall.status?.fresh != true {
             do { try GuardianInstall.install(); installError = nil }
             catch { installError = error.localizedDescription }
@@ -145,6 +157,24 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             catch { guidance.stringValue = "Could not request a health check: \(error.localizedDescription)" }
         }
         else { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
+    }
+    @objc func updateCollectorIdentity() { installCollector() }
+    private func installCollector() {
+        guard !installing else { return }
+        guard !SettingsWindow.shared.testing else { installError = "Collector installation is blocked in tests."; return }
+        guard let url = Bundle.main.url(forResource: "install-event-collector", withExtension: "sh"),
+              let requirement = HelperStatusIPC.requirement,
+              requirement.contains("identifier \"local.scott.perch\"") else {
+            installError = "The signed collector installer is unavailable. Reinstall Perch."; refresh(); return
+        }
+        let launcher = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/PerchEventLauncher")
+        let launcherRequirement = requirement.replacingOccurrences(of: "identifier \"local.scott.perch\"", with: "identifier \"local.scott.perch.event-launcher\"")
+        installing = true; refresh()
+        let command = "/bin/sh " + GuardianInstall.shellQuote(url.path) + " " + String(getuid()) + " " + GuardianInstall.shellQuote(launcher.path) + " " + GuardianInstall.shellQuote(launcherRequirement)
+        let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        do { _ = try script("do shell script \"\(escaped)\" with administrator privileges"); try requestNewSession(); installError = nil }
+        catch { installError = "Installation did not finish: \(error.localizedDescription). You can try again." }
+        installing = false; refresh()
     }
     func requestNewSession() throws {
         previousSession = GuardianInstall.status?.eventSessionID

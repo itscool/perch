@@ -23,6 +23,7 @@ BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)
 BUILD_NUMBER=$((10#$BUILD_NUMBER + 1))
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
 mkdir -p "$APP/Contents/MacOS"
+xcrun clang -std=c11 -O2 -Wall -Wextra -Werror Sources/PerchEventLauncher.c -o "$APP/Contents/MacOS/PerchEventLauncher"
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/EventParser.c -o build/EventParser.o
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/DDCWire.c -o build/DDCWire.o
 xcrun clang -fmodules -fmodules-cache-path="$PWD/build/ClangModuleCache" -O2 -DMAX_DISPLAYS=16 -I Vendor/m1ddc -I Sources Sources/PerchDisplay.m Sources/MonitorTransport.m Vendor/m1ddc/ioregistry.m build/DDCWire.o -framework CoreDisplay -framework IOKit -framework Foundation -framework CoreGraphics -o "$APP/Contents/MacOS/PerchDisplay"
@@ -37,6 +38,7 @@ cp catalog/lg-firmware-families.json "$APP/Contents/Resources/lg-firmware-famili
 cp catalog/monitor-profiles.json "$APP/Contents/Resources/monitor-profiles.json"
 cp catalog/ddccontrol-COPYING.txt "$APP/Contents/Resources/ddccontrol-COPYING.txt"
 cp Vendor/m1ddc/LICENSE "$APP/Contents/Resources/m1ddc-LICENSE.txt"
+codesign --force --sign "Perch Local Code Signing" --identifier local.scott.perch.event-launcher --timestamp=none "$APP/Contents/MacOS/PerchEventLauncher"
 codesign --force --sign "Perch Local Code Signing" --timestamp=none "$APP/Contents/MacOS/PerchDisplay"
 codesign --force --sign "Perch Local Code Signing" --timestamp=none "$APP"
 codesign --verify --strict "$APP"

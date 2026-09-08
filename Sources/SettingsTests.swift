@@ -9,6 +9,7 @@ func runSettingsTests() throws {
     try runMonitorInputUITests()
     try runMonitorDraftTests()
     try runReviewFixTests()
+    try runPresentationHandoffTests()
     try runSetupOverviewTests()
     try runLidActivityUITests()
     let host = SettingsWindow.shared

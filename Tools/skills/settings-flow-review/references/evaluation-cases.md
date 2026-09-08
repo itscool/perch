@@ -63,3 +63,9 @@ An embedded settings editor scrolls but its checkboxes and popup choices do not 
 Scenario: the first administrator prompt accepts no typing; cancelling it and retrying works. The app lowers a floating Settings panel, calls app activation immediately before opening the prompt, and has delayed notifications that can activate the app. Tests check only the panel level.
 
 Expected: identify focus competition as a source-supported candidate, trace all entry routes and delayed UI, and test withdrawing/restoring the originating page plus cancellation, retry and nested completion. Preserve drafts and avoid reopening Settings after a menu-only operation. Keep actual OS password entry unverified without affected-machine acceptance; do not read credentials or claim the incident's cause from panel-level assertions. A correctly attached OS sheet need not have its parent hidden.
+
+## The shared flag misses native dialogs
+
+Scenario: authorization sets a busy flag, but a file-picker sheet and a standalone alert return before that flag is set. A background result checks only authorization. A permission button requests a grant and opens System Settings; the app restores its floating instructions as soon as the URL opener returns.
+
+Expected: enumerate both native and embedded branches, protect their complete lifetimes and parent navigation, defer background UI, and reject overlapping synchronous confirmations without approving them. Treat external-open acceptance separately from user return and retain useful drag instructions. Inspect all sibling entry handlers and label which were replayed with injected OS operations; a single wrapper test does not prove secure text entry or native picker keyboard operation.

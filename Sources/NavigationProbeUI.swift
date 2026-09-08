@@ -55,8 +55,7 @@ final class NavigationProbePage: NSObject {
         drag = PermissionDragItem(title: "Drag Perch → Input Monitoring") { Bundle.main.bundleURL }
         drag.frame = NSRect(x: 8, y: 327, width: 332, height: 42); view.addSubview(drag)
         open = SettingsActionButton(title: "Open Input Monitoring") {
-            _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)
+            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) }
         }
         open.frame = NSRect(x: 344, y: 333, width: 220, height: 30); view.addSubview(open)
         reset = SettingsActionButton(title: "Reset saved layout…") { [weak self] in self?.resetProfile() }

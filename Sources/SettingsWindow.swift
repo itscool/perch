@@ -24,11 +24,17 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var feedback: String?
     var testing = false
     var modalTestDriver: ((NSAlert) -> NSApplication.ModalResponse)?
+    var pickerTestDriver: ((NSOpenPanel) -> NSApplication.ModalResponse)?
+    var externalAppTestDriver: (() -> Bool)?
     var modal = false
+    private(set) var picking = false
+    private(set) var externalHandoff = false
+    var interactionBusy: Bool { authorizing || modal || picking || externalHandoff }
     private(set) var authorizing = false
     private var authorizationDepth = 0
     private var authorizationRestore: (() -> Void)?
     private var authorizationCompletions: [() -> Void] = []
+    private var externalRestore: (() -> Void)?
     private var modalAllowsCancel = true
     var cancelCode = NSApplication.ModalResponse.abort
     override init() {
@@ -40,6 +46,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.delegate = self
+        NotificationCenter.default.addObserver(self, selector: #selector(returnedToApp), name: NSApplication.didBecomeActiveNotification, object: nil)
         back.target = self; back.action = #selector(goBack); back.bezelStyle = .rounded
         back.frame = NSRect(x: 20, y: 653, width: 75, height: 28)
         heading.font = .systemFont(ofSize: 20, weight: .semibold)
@@ -71,6 +78,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         detailScroll.reflectScrolledClipView(detailScroll.contentView)
     }
     func beginAuthorization() -> () -> Void {
+        if externalHandoff { returnedToApp() }
         if authorizationDepth == 0 {
             let level = window.level, floating = window.isFloatingPanel
             let visible = window.isVisible, key = window.isKeyWindow
@@ -96,16 +104,41 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             self.authorizing = false
             let restore = self.authorizationRestore; self.authorizationRestore = nil
             restore?()
-            let pending = self.authorizationCompletions; self.authorizationCompletions.removeAll()
-            for action in pending {
-                DispatchQueue.main.async { [weak self] in self?.afterAuthorization(action) }
-            }
+            self.drainPresentationQueue()
         }
     }
     func afterAuthorization(_ action: @escaping () -> Void) {
-        if authorizing { authorizationCompletions.append(action) }
+        afterInteraction(action)
+    }
+    func afterInteraction(_ action: @escaping () -> Void) {
+        if interactionBusy { authorizationCompletions.append(action) }
         else { action() }
     }
+    private func drainPresentationQueue() {
+        guard !interactionBusy else { return }
+        let pending = authorizationCompletions; authorizationCompletions.removeAll()
+        for action in pending {
+            DispatchQueue.main.async { [weak self] in self?.afterInteraction(action) }
+        }
+    }
+    // Keep permission drag instructions visible, but below the destination app.
+    // Completion is the user's return, not NSWorkspace accepting the open request.
+    func handoffToExternalApp(_ open: @escaping () -> Bool) {
+        guard !interactionBusy else { afterInteraction { [weak self] in self?.handoffToExternalApp(open) }; return }
+        let level = window.level, floating = window.isFloatingPanel
+        externalHandoff = true
+        window.isFloatingPanel = false; window.level = .normal
+        externalRestore = { [weak self] in self?.window.isFloatingPanel = floating; self?.window.level = level }
+        let opened = testing ? externalAppTestDriver?() ?? false : open()
+        if !opened { returnedToApp() }
+    }
+    @objc func returnedToApp() {
+        guard externalHandoff else { return }
+        externalHandoff = false
+        let restore = externalRestore; externalRestore = nil; restore?()
+        drainPresentationQueue()
+    }
+    func windowDidBecomeKey(_ notification: Notification) { returnedToApp() }
     func display(_ page: Page) {
         heading.stringValue = page.title; detail.stringValue = feedback ?? page.detail
         let issue: ProtectionIssue? = nil
@@ -132,9 +165,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height)))
         contentScroll.reflectScrolledClipView(contentScroll.contentView)
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
-        if !testing && !authorizing && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+        if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     }
     func show(_ page: Page) {
+        guard !interactionBusy else { afterInteraction { [weak self] in self?.show(page) }; return }
         feedback = nil
         if page.title == "Perch settings" {
             pages.reversed().forEach { $0.leave?() }
@@ -144,6 +178,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         pages.append(page); display(page)
     }
     @objc func goBack() {
+        guard !picking, !authorizing else { return }
         if modal { if modalAllowsCancel { NSApp.stopModal(withCode: cancelCode) }; return }
         guard pages.count > 1 else { window.close(); return }
         pages.removeLast().leave?()
@@ -173,8 +208,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     @discardableResult
     func run(_ alert: NSAlert, allowsCancel: Bool = true) -> NSApplication.ModalResponse {
+        // Synchronous confirmations cannot safely be replayed after their caller
+        // has continued. Refuse overlap; asynchronous notices use afterInteraction.
+        guard !interactionBusy else { return .abort }
+        modal = true
+        defer { modal = false; drainPresentationQueue() }
         alert.layout()
-        guard window.isVisible || (testing && modalTestDriver != nil) else { return alert.runModal() }
+        guard window.isVisible || (testing && modalTestDriver != nil) else {
+            return testing ? .abort : alert.runModal()
+        }
         let view = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
         if let accessory = alert.accessoryView {
             accessory.removeFromSuperview()
@@ -217,14 +259,18 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             if self.detail.stringValue != alert.informativeText { self.detail.stringValue = alert.informativeText; self.layoutDetail() }
         }
         RunLoop.main.add(timer,forMode: .modalPanel)
-        modal = true
         let result = NSApp.runModal(for: window)
-        modal = false; timer.invalidate()
+        timer.invalidate()
         if let page = pages.last { display(page) }
         return result
     }
     @objc func modalChoice(_ sender: NSButton) { NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag)) }
     func open(_ panel: NSOpenPanel) -> NSApplication.ModalResponse {
+        guard !interactionBusy else { return .cancel }
+        picking = true
+        let previousBack = back.isEnabled; back.isEnabled = false
+        defer { back.isEnabled = previousBack; picking = false; drainPresentationQueue() }
+        if testing { return pickerTestDriver?(panel) ?? .cancel }
         guard window.isVisible else { return panel.runModal() }
         var result = NSApplication.ModalResponse.cancel
         panel.beginSheetModal(for: window) { response in result = response; NSApp.stopModal() }
@@ -232,6 +278,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         return result
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !picking, !authorizing else { return false }
         if modal { if modalAllowsCancel { NSApp.stopModal(withCode: cancelCode) }; return false }
         return true
     }

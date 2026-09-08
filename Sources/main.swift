@@ -290,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             checkedStartupInputAccess = true
             if inputs.wanted && protection.inputTrusted == false {
                 DispatchQueue.main.async { [weak self] in
-                    guard let self, self.inputs.wanted, GuardianInstall.status?.inputTrusted == false, !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.authorizing else { return }
+                    guard let self, self.inputs.wanted, GuardianInstall.status?.inputTrusted == false, !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.interactionBusy else { return }
                     self.showInputAccessPrompt()
                 }
             }
@@ -375,12 +375,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func showError(_ error: Error) {
         withMenuClosed {
-            SettingsWindow.shared.afterAuthorization {
-            NSApp.activate(ignoringOtherApps: true)
-            let alert = NSAlert()
-            alert.messageText = "Couldn’t change the setting"
-            alert.informativeText = error.localizedDescription
-            SettingsWindow.shared.run(alert)
+            SettingsWindow.shared.afterInteraction {
+                NSApp.activate(ignoringOtherApps: true)
+                let alert = NSAlert()
+                alert.messageText = "Couldn’t change the setting"
+                alert.informativeText = error.localizedDescription
+                SettingsWindow.shared.run(alert)
             }
         }
     }
@@ -458,7 +458,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         config.swapModifiers = inputs.swapModifiers
         do {
             try config.save()
-            try SafetyFiles.send("input-access")
         } catch { showError(error) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             guard let self else { return }
@@ -468,7 +467,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self.refresh()
         }
     }
-    func showInputAccessPrompt() { inputPermissions() }
+    func showInputAccessPrompt() {
+        SettingsWindow.shared.afterInteraction { [weak self] in
+            guard let self, self.inputs.wanted, GuardianInstall.status?.inputActive != true else { return }
+            self.inputPermissions()
+        }
+    }
     @objc func toggleTrackpad() { inputs.reverseTrackpad.toggle(); updateInputs() }
     @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
     @objc func toggleModifiers() { setModifierGroup(true) }
@@ -498,7 +502,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         perform {
             switch SMAppService.mainApp.status {
             case .enabled: try SMAppService.mainApp.unregister()
-            case .requiresApproval: SMAppService.openSystemSettingsLoginItems()
+            case .requiresApproval: SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
             default: try SMAppService.mainApp.register()
             }
         }

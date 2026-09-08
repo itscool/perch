@@ -39,7 +39,7 @@ final class SettingsTaskPage {
         delegate?.settingsRefresh = { [weak self] in self?.refresh() }
         refresh()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard !host.modal, !host.authorizing else { return }
+            guard !host.interactionBusy else { return }
             self?.refresh()
         }
         timer.tolerance = 0.2; self.timer = timer; RunLoop.main.add(timer, forMode: .common)

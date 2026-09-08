@@ -47,12 +47,11 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
         status.textColor = readiness.ready ? StatusColors.success : StatusColors.warning
     }
     @objc func openSettings() {
-        try? SafetyFiles.send("input-access")
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     }
     @objc func revealHelper() {
         let helper = FileManager.default.fileExists(atPath: GuardianInstall.protectedBinary.path) ? GuardianInstall.protectedBinary.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() : SafetyFiles.helperApp
-        NSWorkspace.shared.activateFileViewerSelecting([helper])
+        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([helper]); return true }
     }
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil

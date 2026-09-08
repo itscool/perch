@@ -144,15 +144,15 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             do { try SafetyFiles.send("check-events"); retryUntil = Date().addingTimeInterval(10); refresh() }
             catch { guidance.stringValue = "Could not request a health check: \(error.localizedDescription)" }
         }
-        else { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) }
+        else { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
     }
     func requestNewSession() throws {
         previousSession = GuardianInstall.status?.eventSessionID
         try SafetyFiles.send("restart-events")
         waitingForSession = true; updateRequestedAt = Date()
     }
-    @objc func openPrivacySettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) }
-    @objc func showFile() { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: "/usr/bin/eslogger")]) }
+    @objc func openPrivacySettings() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
+    @objc func showFile() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: "/usr/bin/eslogger")]); return true } }
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil
         if fromSettings { fromSettings = false; NSApp.stopModal() }

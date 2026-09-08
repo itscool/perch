@@ -164,7 +164,7 @@ final class SetupOverviewPage {
         refresh()
         self.timer?.invalidate()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard SettingsWindow.shared.pages.last?.title == "Setup & status", !SettingsWindow.shared.modal, !SettingsWindow.shared.authorizing else { return }
+            guard SettingsWindow.shared.pages.last?.title == "Setup & status", !SettingsWindow.shared.interactionBusy else { return }
             self?.refresh()
         }
         timer.tolerance = 0.2; self.timer = timer
@@ -214,12 +214,13 @@ extension AppDelegate {
         return result
     }
     func showFirstSetupIfNeeded() {
-        guard !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey), !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.modal, !SettingsWindow.shared.authorizing else { return }
+        guard !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey), !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.interactionBusy else { return }
         configureSettings(); setupOverview()
     }
     @objc func setupOverview() {
         if menuOpen { withMenuClosed { [weak self] in self?.setupOverview() }; return }
         let host = SettingsWindow.shared
+        guard !host.interactionBusy else { host.afterInteraction { [weak self] in self?.setupOverview() }; return }
         if let index = host.pages.firstIndex(where: { $0.title == "Setup & status" }) {
             while host.pages.count > index + 1 { host.goBack() }
             host.pages.last?.refresh?()

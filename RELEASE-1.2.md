@@ -1,6 +1,16 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 59. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 60. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 60: complete system-dialog focus sweep
+
+The [focus audit](V1.2-FOCUS-REVIEW.md) covers all administrator command sites, three file-picker entry routes, 16 app-alert sites, nine external-destination routes and explicit activation/window-ordering paths. File pickers and standalone alerts now own shared busy state; parent navigation and delayed notices cannot interrupt their interaction. Overlapping synchronous confirmations return abort. Queued page changes and notices wait until the active interaction finishes.
+
+System Settings and Finder handoffs keep drag instructions visible at normal window level and hold competing Perch UI until the user returns. Permission links no longer request an independent OS grant prompt at the same time. Saving input choices still updates the helper through configuration observation. The main menu design is unchanged.
+
+This extends build 59's candidate password-focus correction. Actual secure password entry on the other Mac and native picker keyboard behavior remain acceptance checks; injected panel tests do not close that report. The shared macOS lid-control flag defect and BW-01 deprecation remain open.
+
+Validation: the final production build and all 20 isolated suites passed, including the new picker-entry and external-link action tests. Strict app/helper signatures and archive integrity were checked before packaging completion. One distinct production warning remains (BW-01). No live OS grant, password entry, installation, panic or hardware operation was performed.
 
 ## Build 59: system password-prompt handoff
 

@@ -29,10 +29,10 @@ extension AppDelegate {
         if let issue, issue.severity == .critical {
             if criticalIssueSince == nil { criticalIssueSince = Date() }
             // One in-app notice per critical condition; no extra permission or popup window.
-            if notifiedCriticalIssue != issue.title && Date().timeIntervalSince(criticalIssueSince!) >= 10 && !SettingsWindow.shared.modal && !SettingsWindow.shared.authorizing && !SettingsWindow.shared.testing && !SettingsWindow.shared.window.isVisible {
+            if notifiedCriticalIssue != issue.title && Date().timeIntervalSince(criticalIssueSince!) >= 10 && !SettingsWindow.shared.interactionBusy && !SettingsWindow.shared.testing && !SettingsWindow.shared.window.isVisible {
                 notifiedCriticalIssue = issue.title
                 DispatchQueue.main.async { [weak self] in
-                    guard !SettingsWindow.shared.authorizing, !SettingsWindow.shared.modal, !SettingsWindow.shared.window.isVisible,
+                    guard !SettingsWindow.shared.interactionBusy, !SettingsWindow.shared.window.isVisible,
                           self?.currentProtectionIssue?.title == issue.title else { self?.notifiedCriticalIssue = nil; return }
                     self?.configureSettings(); self?.setupOverview(); SettingsWindow.shared.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
                 }
@@ -49,13 +49,13 @@ extension AppDelegate {
             if awaitingShortcutTest {
                 awaitingShortcutTest = false
                 DispatchQueue.main.async {
-                    SettingsWindow.shared.afterAuthorization {
-                    let alert = NSAlert()
-                    alert.messageText = "Shortcut worked"
-                    alert.informativeText = "Perch received your shortcut. No agents were stopped and no permissions were changed. Test mode has ended and your previous shortcut settings have been restored."
-                    alert.addButton(withTitle: "OK")
-                    NSApp.activate(ignoringOtherApps: true)
-                    SettingsWindow.shared.run(alert)
+                    SettingsWindow.shared.afterInteraction {
+                        let alert = NSAlert()
+                        alert.messageText = "Shortcut worked"
+                        alert.informativeText = "Perch received your shortcut. No agents were stopped and no permissions were changed. Test mode has ended and your previous shortcut settings have been restored."
+                        alert.addButton(withTitle: "OK")
+                        NSApp.activate(ignoringOtherApps: true)
+                        SettingsWindow.shared.run(alert)
                     }
                 }
             }

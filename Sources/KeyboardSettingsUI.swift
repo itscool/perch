@@ -192,8 +192,7 @@ extension AppDelegate {
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
         let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open macOS Input Monitoring" : "Open macOS Keyboard Settings") { [weak self] in
             let permission = self?.keyboardModes.needsAccess == true
-            if permission { _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent) }
-            NSWorkspace.shared.open(URL(string: permission ? "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" : "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!)
+            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: permission ? "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" : "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!) }
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
         if keyboardModes.needsAccess {

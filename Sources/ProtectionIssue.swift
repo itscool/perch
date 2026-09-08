@@ -7,6 +7,9 @@ struct ProtectionIssue: Equatable {
     let detail: String
     let route: String
     static func assess(_ state: SafetyStatus?, config: SafetyConfiguration) -> ProtectionIssue? {
+        if let state, !state.compatible {
+            return .init(severity: .critical, title: "Background helper needs updating", detail: "The running helper does not match this version of Perch. Repair the background helper before relying on protection.", route: "repair")
+        }
         guard let state, state.fresh else { return .init(severity: .critical, title: "Panic protection unavailable", detail: "The background helper is not responding. Repair protection before relying on panic.", route: "repair") }
         if config.shortcut.enabled && !state.shortcutActive && state.testUntil == nil {
             return .init(severity: .critical, title: "Emergency shortcut unavailable", detail: "Your enabled panic shortcut is not registered. Menu panic is still available. Check the shortcut configuration and test it.", route: "shortcut")
@@ -45,5 +48,11 @@ func runProtectionIssueTests() throws {
     try check(ProtectionIssue.assess(state, config: config)?.route == "repair")
     state.inputTrusted = false
     try check(ProtectionIssue.assess(state, config: config)?.route == "input")
+    state.helperBuild = "previous-build"
+    try check(!state.fresh && ProtectionIssue.assess(state, config: config)?.route == "repair")
+    var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
+    legacy.removeValue(forKey: "helperBuild"); legacy.removeValue(forKey: "statusProtocol")
+    let decoded = try JSONDecoder().decode(SafetyStatus.self, from: JSONSerialization.data(withJSONObject: legacy))
+    try check(!decoded.fresh && decoded.helperBuild == nil)
     print("PASS: critical helper/shortcut failure, warning-only event setup, intentional shortcut disablement, verified recovery")
 }

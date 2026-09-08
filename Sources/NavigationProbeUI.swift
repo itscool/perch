@@ -13,9 +13,12 @@ final class NavigationProbePage: NSObject {
     private(set) var timer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var keyboards: [NavigationProbeKeyboard] = []
+    private var disconnected: [NavigationKeyboardIdentity] = []
     private let enumerate: () -> [NavigationProbeKeyboard]
     private let hasAccess: () -> Bool
     private let saveProfile: (NavigationKeyboardProfile) throws -> Void
+    private let readProfiles: () throws -> [NavigationKeyboardProfile]
+    private let resetProfiles: (NavigationKeyboardIdentity?) throws -> Void
     private var profiles: [NavigationKeyboardProfile] = []
     private var profileReadError: String?
     private var saveAttempted = false
@@ -29,11 +32,15 @@ final class NavigationProbePage: NSObject {
     private var reset: SettingsActionButton!
     private var open: SettingsActionButton!
     private var drag: PermissionDragItem!
+    private var accept: SettingsActionButton!
 
     init(enumerate: @escaping () -> [NavigationProbeKeyboard] = NavigationProbeKeyboard.connected,
          hasAccess: @escaping () -> Bool = { NavigationProbeHID.hasAccess },
-         saveProfile: @escaping (NavigationKeyboardProfile) throws -> Void = { try KeyboardNavigationProfiles.save($0) }) {
+         saveProfile: @escaping (NavigationKeyboardProfile) throws -> Void = { try KeyboardNavigationProfiles.save($0) },
+         readProfiles: @escaping () throws -> [NavigationKeyboardProfile] = { try KeyboardNavigationProfiles.read() },
+         resetProfiles: @escaping (NavigationKeyboardIdentity?) throws -> Void = { try KeyboardNavigationProfiles.reset($0) }) {
         self.enumerate = enumerate; self.hasAccess = hasAccess; self.saveProfile = saveProfile
+        self.readProfiles = readProfiles; self.resetProfiles = resetProfiles
         super.init()
         view.addSubview(picker)
         picker.setAccessibilityLabel("External keyboard to set up")
@@ -72,18 +79,19 @@ final class NavigationProbePage: NSObject {
             }
         }
         skip.frame = NSRect(x: 195, y: 5, width: 182, height: 32); view.addSubview(skip)
-        cancel = SettingsActionButton(title: "Done") { [weak self] in
+        cancel = SettingsActionButton(title: "Cancel setup") { [weak self] in
             guard let self else { return }
             if self.session.state.listening { self.session.stop("Setup cancelled. Your saved layout was kept.") }
-            else { SettingsWindow.shared.goBack() }
         }
         cancel.frame = NSRect(x: 385, y: 5, width: 179, height: 32); view.addSubview(cancel)
+        accept = SettingsActionButton(title: "Use this layout") { [weak self] in self?.acceptLayout() }
+        accept.frame = skip.frame; accept.isHidden = true; view.addSubview(accept)
         session.changed = { [weak self] in self?.update() }
         reload()
     }
     func show() {
         let host = SettingsWindow.shared
-        host.show(.init(title: "Set up navigation keys", detail: "Bundled and saved keyboard profiles are recognized automatically. For another keyboard, follow the four prompts; Perch remembers the result for future connections. Setup identifies keys without changing their behavior. Built-in Fn+arrows stay unchanged.", view: view, leave: { [self] in close() }))
+        host.show(.init(title: "Set up navigation keys", detail: "Learn four keys, review the result, then choose Use this layout. Your previous layout stays saved until you accept the replacement. Saved disconnected keyboards can also be selected to forget their layout. Built-in Fn+arrows stay unchanged.", view: view, leave: { [self] in close() }))
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: host.window, queue: .main) { [weak self] _ in
             self?.session.stop("Setup stopped because you left this window. Your saved layout was kept.")
         })
@@ -91,20 +99,28 @@ final class NavigationProbePage: NSObject {
     }
     private func reload() {
         guard !session.state.listening else { return }
-        let selectedID = selected?.id
+        let previousIdentity = selectedIdentity
+        do { profiles = try readProfiles(); profileReadError = nil }
+        catch { profiles = []; profileReadError = error.localizedDescription }
         keyboards = enumerate(); picker.removeAllItems()
         for keyboard in keyboards {
             picker.menu?.addItem(NSMenuItem(title: "\(keyboard.name) · \(keyboard.transport)", action: nil, keyEquivalent: ""))
             picker.lastItem?.toolTip = "Device identity: \(keyboard.id)"
         }
-        if keyboards.isEmpty { picker.addItem(withTitle: "No supported external keyboard detected") }
-        picker.selectItem(at: keyboards.firstIndex(where: { $0.id == selectedID }) ?? 0)
-        if selectedID != selected?.id { session.reset(); setupIdentity = nil }
-        do { profiles = try KeyboardNavigationProfiles.read(); profileReadError = nil }
-        catch { profiles = []; profileReadError = error.localizedDescription }
+        disconnected = profiles.map(\.identity).filter { identity in !keyboards.contains { $0.identity == identity } }
+        for identity in disconnected { picker.addItem(withTitle: "\(identity.name) · Saved, disconnected") }
+        let identities = keyboards.map(\.identity) + disconnected
+        if identities.isEmpty { picker.addItem(withTitle: "No connected or saved external keyboard") }
+        picker.selectItem(at: identities.firstIndex(where: { $0 == previousIdentity }) ?? 0)
+        if previousIdentity != selectedIdentity { session.reset(); setupIdentity = nil }
         update()
     }
     private var selected: NavigationProbeKeyboard? { keyboards.indices.contains(picker.indexOfSelectedItem) ? keyboards[picker.indexOfSelectedItem] : nil }
+    private var selectedIdentity: NavigationKeyboardIdentity? {
+        if let selected { return selected.identity }
+        let index = picker.indexOfSelectedItem - keyboards.count
+        return disconnected.indices.contains(index) ? disconnected[index] : nil
+    }
     @objc private func selectedKeyboard() {
         guard !session.state.listening else { return }
         session.reset(); setupIdentity = nil; update()
@@ -123,8 +139,8 @@ final class NavigationProbePage: NSObject {
         let result = SettingsWindow.shared.run(alert)
         guard result == .alertFirstButtonReturn || result == .alertSecondButtonReturn else { return }
         do {
-            guard result == .alertSecondButtonReturn || selected != nil else { return }
-            try KeyboardNavigationProfiles.reset(result == .alertSecondButtonReturn ? nil : selected?.identity)
+            guard result == .alertSecondButtonReturn || selectedIdentity != nil else { return }
+            try resetProfiles(result == .alertSecondButtonReturn ? nil : selectedIdentity)
             session.reset(); setupIdentity = nil; reload()
         } catch { status.stringValue = "⚠ " + error.localizedDescription; status.textColor = StatusColors.warning }
     }
@@ -132,10 +148,8 @@ final class NavigationProbePage: NSObject {
         if !hasAccess() { session.stop("Input Monitoring became unavailable. Setup stopped; your saved layout was kept.") }
         else { session.tick() }
     }
-    private func update() {
-        let active = session.state.listening, access = hasAccess()
-        if session.state.phase != .complete { saveAttempted = false; saveResult = nil; saved = false }
-        if session.state.phase == .complete && !saveAttempted {
+    private func acceptLayout() {
+        if session.state.phase == .complete && !saved {
             saveAttempted = true
             if let identity = setupIdentity, let keys = session.state.learnedKeys {
                 do {
@@ -146,19 +160,30 @@ final class NavigationProbePage: NSObject {
                 } catch { saveResult = "⚠ " + error.localizedDescription }
             } else { saveResult = "⚠ Keyboard identity unavailable. The layout was not saved." }
         }
-        let recognized = selected.map { KeyboardRegistrationStatus.assess($0.identity, saved: profiles) }
+        update()
+    }
+    private func update() {
+        let active = session.state.listening, access = hasAccess()
+        if session.state.phase != .complete { saveAttempted = false; saveResult = nil; saved = false }
+        let recognized = selectedIdentity.map { KeyboardRegistrationStatus.assess($0, saved: profiles) }
+        let offline = selected == nil && selectedIdentity != nil
         registration.stringValue = profileReadError.map { "⚠ " + $0 } ?? recognized?.detail ?? "Connect an external keyboard, then recheck."
         registration.textColor = profileReadError == nil && recognized?.needsSetup == false ? StatusColors.success : StatusColors.warning
-        permission.stringValue = access ? "✓ Input Monitoring granted to Perch" : "⚠ Input Monitoring required to learn a layout"
-        permission.textColor = access ? StatusColors.success : StatusColors.warning
-        drag.isHidden = access || profileReadError != nil; open.isHidden = access; reset.isHidden = !access && profileReadError == nil
+        permission.stringValue = offline ? "Saved keyboard · disconnected" : access ? "✓ Input Monitoring granted to Perch" : "⚠ Input Monitoring required to learn a layout"
+        permission.textColor = offline ? .secondaryLabelColor : access ? StatusColors.success : StatusColors.warning
+        drag.isHidden = access || profileReadError != nil || offline; open.isHidden = access || offline
+        reset.isHidden = !access && profileReadError == nil && !offline
         reset.isEnabled = !active && (!profiles.isEmpty || profileReadError != nil)
-        picker.isEnabled = !active && !keyboards.isEmpty; recheck.isEnabled = !active
+        picker.isEnabled = !active && (!keyboards.isEmpty || !disconnected.isEmpty); recheck.isEnabled = !active
         start.isEnabled = !active && access && selected?.identity.canRemember == true && profileReadError == nil
         start.title = active ? "Setup in progress…" : session.state.phase == .idle ? "Start setup" : "Set up again"
         skip.title = active ? "This key is absent" : "No navigation keys"
+        skip.isHidden = session.state.phase == .complete
+        accept.isHidden = session.state.phase != .complete
+        accept.isEnabled = !saved
+        accept.title = saveAttempted && !saved ? "Retry saving layout" : "Use this layout"
         skip.isEnabled = active ? session.state.guided && !session.state.keys.contains { $0.held } : selected?.identity.canRemember == true && profileReadError == nil
-        cancel.title = active ? "Cancel setup" : "Done"
+        cancel.isHidden = !active
         for (index, key) in NavigationKey.allCases.enumerated() {
             let state = session.state.keys[index]
             rows[index].stringValue = state.absent ? "✓ \(key.name) — marked absent" : state.complete ? "✓ \(key.name) — identified" : state.held ? "\(key.name) — pressed; release it" : "\(key.name) — not identified yet"
@@ -167,7 +192,7 @@ final class NavigationProbePage: NSObject {
         switch session.state.phase {
         case .idle:
             instruction.stringValue = "Start setup to identify one key at a time."
-            status.stringValue = recognized?.needsSetup == false ? "This keyboard is already recognized. You can teach a different layout if its keys behave differently. Navigation remapping is still in development." : "Unknown layouts need setup even when navigation options are off. If a prompted key does not exist, choose “This key is absent.”"
+            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : recognized?.needsSetup == false ? "This keyboard is recognized. Learn a replacement only if its navigation keys behave differently." : "Learn a layout if you want to change navigation behavior. Fn and modifier controls work independently. Mark any missing key with “This key is absent.”"
             status.textColor = .secondaryLabelColor
         case .listening:
             let key = session.state.currentKey?.name ?? "next key"
@@ -176,8 +201,9 @@ final class NavigationProbePage: NSObject {
             status.stringValue = session.state.notice ?? "Keep this window focused · \(remaining) seconds left. Only function/navigation keys are observed. Letters and numbers are excluded."
             status.textColor = session.state.notice == nil ? StatusColors.information : StatusColors.warning
         case .complete:
-            instruction.stringValue = saved ? "✓ Keyboard layout registered" : "The layout could not be saved"
-            status.stringValue = saveResult ?? ""; status.textColor = saved ? StatusColors.success : StatusColors.warning
+            instruction.stringValue = saved ? "✓ Keyboard layout registered" : saveAttempted ? "The layout could not be saved" : "Review your keyboard layout"
+            status.stringValue = saveResult ?? "Choose Use this layout to save these four results. Back or closing this window keeps your previous layout."
+            status.textColor = saved ? StatusColors.success : saveAttempted ? StatusColors.warning : .secondaryLabelColor
         case .incomplete:
             instruction.stringValue = "Setup timed out"
             status.stringValue = "⚠ Setup ended before all four prompts were completed. Your saved layout was kept. Start again when ready."

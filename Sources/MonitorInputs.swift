@@ -21,6 +21,7 @@ struct MonitorInput: Codable, Equatable {
 }
 struct MonitorInputPlan: Codable, Equatable {
     var display = ""
+    var displayName: String? = nil
     var alternate = false
     var profileName: String? = nil
     var controlConnection: MonitorConnection? = nil
@@ -40,8 +41,8 @@ struct MonitorInputPlan: Codable, Equatable {
         guard inputs.count >= 2 else { throw AppError(message: "Choose at least two inputs in Monitor input settings.") }
         let current = current == 0 ? nil : current
         let position = current ?? (allowUnconfirmedCycle ? lastSent : nil)
-        guard current != nil || allowUnconfirmedCycle else { throw AppError(message: "The monitor did not report its current input. In Monitor input settings, you can explicitly allow cycling from the last command sent.") }
-        guard let position else { throw AppError(message: "Current input is unknown. In Settings → Monitor inputs, choose what the monitor is showing before the first cycle.") }
+        guard current != nil || allowUnconfirmedCycle else { throw AppError(message: "The monitor did not report its current input. Open Monitor inputs to choose a destination or confirm what it is showing.") }
+        guard let position else { throw AppError(message: "Current input is unknown. Choose a destination, or confirm what the monitor is showing before cycling. A previous command cannot establish its current input.") }
         if let index = inputs.firstIndex(where: { $0.code == position }) { return inputs[(index+1)%inputs.count] }
         return inputs[0]
     }
@@ -137,6 +138,7 @@ final class MonitorDisplayBackend: MonitorCommandBackend {
 
 final class MonitorInputController: NSObject {
     static let preferenceKey = "monitor.inputCycle.v1"
+    static let savedPlansKey = "monitor.inputPlans.v1"
     var plan = MonitorInputPlan()
     private(set) var displays: [MonitorDescriptor] = []
     private(set) var busy = false
@@ -149,8 +151,21 @@ final class MonitorInputController: NSObject {
     private let hotKey = PanicHotKey(signature: 0x504d4f4e)
     private var pending: DispatchWorkItem?
     private var lastSent: UInt16?
+    private var confirmedCurrent: UInt16?
+    private var confirmedAt: Date?
+    private(set) var reportedCurrent: UInt16?
+    private(set) var checkedAt: Date?
+    var currentSummary: String {
+        let name: (UInt16) -> String = { code in (self.plan.availableInputs ?? self.plan.inputs).first { $0.code == code }?.name ?? "Input \(code)" }
+        if let reportedCurrent, let checkedAt {
+            return "Monitor reported \(name(reportedCurrent)) · checked \(checkedAt.formatted(date: .omitted, time: .standard))"
+        }
+        if let confirmedCurrent, let confirmedAt, Date().timeIntervalSince(confirmedAt) < 30 { return "You confirmed \(name(confirmedCurrent)) · use within 30 seconds" }
+        return "Current input unknown" + (lastSent.map { " · last requested \(name($0))" } ?? "")
+    }
     private var refreshPending = false
     private let confirmationDefaults: UserDefaults
+    lazy var groups = MonitorGroupController(monitor: self, defaults: confirmationDefaults)
     private(set) var pendingConfirmation: UInt16?
     private var pendingConnection: String?
     private var pendingPlan: MonitorInputPlan?
@@ -174,20 +189,61 @@ final class MonitorInputController: NSObject {
         pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil; changed()
     }
     var connected: MonitorDescriptor? { displays.first { $0.id == plan.display } }
-    var canCycle: Bool { !busy && plan.valid && !plan.display.isEmpty && plan.inputs.count >= 2 && (plan.controlConnection != nil || connected?.ddcAvailable == true) }
+    var canSwitch: Bool { !busy && plan.valid && !plan.display.isEmpty && !(plan.availableInputs ?? plan.inputs).isEmpty && (plan.controlConnection != nil || connected?.ddcAvailable == true) }
+    var canCycle: Bool { canSwitch && plan.inputs.count >= 2 }
+    var readbackUnavailable: Bool {
+        plan.controlConnection == nil && connected.flatMap { display in
+            MonitorProfiles.entries.first { $0.name == plan.profileName && $0.vendor == display.vendor } ?? MonitorProfiles.match(display)
+        }?.readbackUnavailable == true
+    }
+    func savedPlan(for display: String) -> MonitorInputPlan? {
+        try? savedPlans()[display]
+    }
+    func savedPlans() throws -> [String: MonitorInputPlan] {
+        guard let object = confirmationDefaults.object(forKey: Self.savedPlansKey) else { return [:] }
+        guard let data = object as? Data, data.count <= 1_048_576,
+              let plans = try? JSONDecoder().decode([String: MonitorInputPlan].self, from: data),
+              plans.count <= 64, plans.allSatisfy({ !$0.key.isEmpty && $0.value.display == $0.key && $0.value.valid }) else {
+            throw AppError(message: "Saved monitor setups could not be read. No setups were replaced. Review device setup in Reset settings before trying again.")
+        }
+        return plans
+    }
     var shortcutActive: Bool { hotKey.active }
     init(displays: [MonitorDescriptor] = [], backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) { self.displays = displays; self.backend = backend; self.confirmationDefaults = defaults; super.init() }
     func start() {
-        if let data = UserDefaults.standard.data(forKey: Self.preferenceKey), data.count <= 32768,
+        if let data = confirmationDefaults.data(forKey: Self.preferenceKey), data.count <= 32768,
            let value = try? JSONDecoder().decode(MonitorInputPlan.self, from: data), value.valid { plan = value }
         hotKey.action = { [weak self] in self?.cycle() }
         do { try hotKey.register(plan.shortcut) } catch { message = error.localizedDescription; warning = true }
+        groups.start()
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged), name: NSWorkspace.didWakeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(confirmationExpired), name: NSApplication.didResignActiveNotification, object: nil)
         refresh()
     }
     private func changed() { onChange?(); pageChanged?() }
+    func notifyGroupChanged() { changed() }
+    func performGroup(_ requests: [MonitorGroupRequest], progress: @escaping (MonitorGroupResult) -> Void, completion: @escaping () -> Void) {
+        guard !busy else { return }
+        if requests.contains(where: { $0.member.display == plan.display }) {
+            reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil
+            pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil
+        }
+        perform({ [backend] in
+            MonitorGroupEngine.execute(requests, backend: backend) { result in DispatchQueue.main.async { progress(result) } }
+        }) { _ in completion() }
+    }
+    func readGroup(_ requests: [MonitorGroupRequest], completion: @escaping (Result<[String: UInt16], Error>) -> Void) {
+        guard !busy else { return }
+        perform({ [backend] in
+            var inputs: [String: UInt16] = [:]
+            for request in requests { inputs[request.member.display] = try MonitorGroupEngine.read(request, backend: backend) }
+            return inputs
+        }, completion: completion)
+    }
+    @objc private func confirmationExpired() { confirmedCurrent = nil; confirmedAt = nil; changed() }
     @objc private func screensChanged() {
+        reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.refresh() }
         pending = job; DispatchQueue.main.asyncAfter(deadline: .now()+0.5, execute: job)
@@ -212,11 +268,26 @@ final class MonitorInputController: NSObject {
     }
     func useCurrentInput(_ code: UInt16) {
         guard plan.inputs.contains(where: { $0.code == code }) || plan.availableInputs?.contains(where: { $0.code == code }) == true else { return }
-        lastSent = code
+        confirmedCurrent = code
+        confirmedAt = Date()
+        reportedCurrent = nil; checkedAt = nil
+        changed()
     }
     func readInput(_ id: String, mode: String, completion: @escaping (Result<MonitorInspection,Error>) -> Void) {
         guard !busy else { return }
-        perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self,from:backend.run(["read",id,mode])) },completion:completion)
+        if plan.display == id && plan.commandMode == mode && readbackUnavailable {
+            reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil
+            completion(.failure(AppError(message: "This monitor’s selected control method cannot reliably report its current input. Choose a named destination, or confirm what is showing before one cycle.")))
+            changed(); return
+        }
+        perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self,from:backend.run(["read",id,mode])) }) { [weak self] result in
+            if let self, self.plan.display == id, self.plan.commandMode == mode {
+                self.reportedCurrent = (try? result.get().current).flatMap { $0 > 0 ? $0 : nil }
+                self.checkedAt = self.reportedCurrent == nil ? nil : Date()
+                self.confirmedCurrent = nil
+            }
+            completion(result)
+        }
     }
     func usbDevices(completion: @escaping (Result<[MonitorUSBDevice],Error>) -> Void) {
         guard !busy else { return }
@@ -233,16 +304,33 @@ final class MonitorInputController: NSObject {
             }
         }
     }
-    func save(_ value: MonitorInputPlan) throws {
-        guard value.valid else { throw AppError(message: "Choose unique input codes, a monitor, and at least two inputs and two modifiers for an enabled shortcut.") }
+    func save(_ value: MonitorInputPlan, preserveMessage: Bool = false) throws {
+        guard !busy else { throw AppError(message: "Wait for the display operation to finish before changing its setup.") }
+        var value = value
+        value.displayName = displays.first { $0.id == value.display }?.name ?? value.displayName
+        guard value.valid, !value.display.isEmpty else { throw AppError(message: "Choose unique input codes, a monitor, and at least two inputs and two modifiers for an enabled shortcut.") }
         let panic = SafetyConfiguration.load().shortcut
         guard !value.shortcut.enabled || !panic.enabled || value.shortcut.key != panic.key || value.shortcut.modifiers != panic.modifiers else { throw AppError(message: "Choose a different shortcut from Immediate Kill.") }
+        if let shortcut = groups.active?.shortcut, shortcut.enabled, value.shortcut.enabled, shortcut.key == value.shortcut.key, shortcut.modifiers == value.shortcut.modifiers {
+            throw AppError(message: "Choose a different shortcut from the active display group.")
+        }
+        let data = try JSONEncoder().encode(value)
+        var saved = try savedPlans()
+        if !plan.display.isEmpty && plan.valid { saved[plan.display] = plan }
+        saved[value.display] = value
+        let savedData = try JSONEncoder().encode(saved)
+        guard saved.count <= 64, savedData.count <= 1_048_576 else { throw AppError(message: "Saved monitor setups are full. No existing setup was replaced.") }
         do { try hotKey.register(value.shortcut) }
         catch { try? hotKey.register(plan.shortcut); throw error }
-        let data = try JSONEncoder().encode(value)
+        confirmationDefaults.set(savedData, forKey: Self.savedPlansKey)
         confirmationDefaults.set(data, forKey: Self.preferenceKey)
-        if value.controlConnection != plan.controlConnection || value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
-        plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
+        if value.controlConnection != plan.controlConnection || value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs {
+            lastSent = nil; confirmedCurrent = nil; reportedCurrent = nil; checkedAt = nil
+            pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil
+        }
+        plan = value
+        if !preserveMessage { message = "✓ Monitor input settings saved"; warning = false }
+        changed()
     }
     func testInput(_ input: MonitorInput, display: String, alternate: Bool, connection: MonitorConnection? = nil,
                    completion: @escaping (Bool) -> Void) {
@@ -262,23 +350,24 @@ final class MonitorInputController: NSObject {
             }
         }
     }
-    func cycle() {
-        guard canCycle else {
+    func cycle(destination: MonitorInput? = nil) {
+        guard destination == nil ? canCycle : canSwitch else {
             message = busy ? "A monitor request is already in progress." : "Open Monitor input settings to choose a connected display and at least two inputs."
             warning = true; changed(); return
         }
-        let plan = self.plan, last = self.lastSent, route = plan.controlConnection?.argument ?? connected?.connection
-        let writeOnly = plan.controlConnection == nil && connected.flatMap { display in
-            MonitorProfiles.entries.first { $0.name == plan.profileName && $0.vendor == display.vendor } ?? MonitorProfiles.match(display)
-        }?.readbackUnavailable == true
-        pendingConfirmation = nil; pendingPlan = nil
+        let plan = self.plan, confirmed = self.confirmedAt.map { Date().timeIntervalSince($0) < 30 } == true ? self.confirmedCurrent : nil, route = plan.controlConnection?.argument ?? connected?.connection
+        if let destination, !(plan.availableInputs ?? plan.inputs).contains(destination) { return }
+        let writeOnly = readbackUnavailable
+        pendingConfirmation = nil; pendingPlan = nil; confirmedCurrent = nil
+        reportedCurrent = nil; checkedAt = nil
         perform({ [backend] () -> (MonitorInput, UInt16?) in
             let state: MonitorInspection
             if writeOnly { state = MonitorInspection(current:nil, capabilities:nil) }
-            else { state = try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.commandMode])) }
-            let knownInputs = plan.availableInputs ?? plan.inputs
-            let current = state.current.flatMap { code in knownInputs.contains(where: { $0.code == code }) ? code : nil }
-            let next = try plan.next(current: current, lastSent: last)
+            else { state = (try? JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.commandMode]))) ?? MonitorInspection(current:nil, capabilities:nil) }
+            let current = state.current.flatMap { $0 > 0 ? $0 : nil }
+            // A shared display can change from another computer at any time.
+            // Only fresh readback or a one-use user observation may drive cycling.
+            let next = try destination ?? plan.next(current: current, lastSent: confirmed)
             let result = try backend.run(["switch",plan.display,plan.commandMode,String(next.code)])
             guard let object = try JSONSerialization.jsonObject(with: result) as? [String:Any], object["sent"] as? Bool == true else { throw AppError(message: "The input command was not accepted.") }
             // A transport acknowledgment is not monitor confirmation. Read back only
@@ -292,6 +381,8 @@ final class MonitorInputController: NSObject {
             switch result {
             case .success(let (input, reported)):
                 self.lastSent = input.code
+                self.reportedCurrent = reported.flatMap { $0 > 0 ? $0 : nil }
+                self.checkedAt = self.reportedCurrent == nil ? nil : Date()
                 if reported == input.code {
                     self.message = "✓ Monitor reports \(input.name) active"; self.warning = false
                 } else {

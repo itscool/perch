@@ -10,6 +10,12 @@ struct AppError: LocalizedError {
 }
 
 func script(_ source: String) throws -> NSAppleEventDescriptor {
+    var restoreAuthorization: (() -> Void)?
+    if source.contains("with administrator privileges") {
+        _ = NSApplication.shared
+        restoreAuthorization = SettingsWindow.shared.beginAuthorization()
+    }
+    defer { restoreAuthorization?() }
     var error: NSDictionary?
     guard let script = NSAppleScript(source: source) else { throw AppError(message: "Could not prepare the system command.") }
     let result = script.executeAndReturnError(&error)
@@ -109,6 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var lastStatusCritical: Bool?
     var awakeItem: NSMenuItem!
     var lidItem: NSMenuItem!
+    var observedLidDisabled: Bool?
+    var settingsRefresh: (() -> Void)?
     var audioItem: NSMenuItem!
     var audioSection: NSMenuItem!
 
@@ -123,6 +131,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         keyboardModes.start()
         monitorInputs.onChange = { [weak self] in self?.refreshMonitorInputItem() }
         monitorInputs.start()
+        monitorInputs.groups.onNeedsDestination = { [weak self] in self?.monitorGroupSettings() }
+        LidGuardClient.shared.start()
         if !GuardianInstall.messagingInstalled {
             do { try GuardianInstall.install() } catch { safetyError = error.localizedDescription }
         }
@@ -138,19 +148,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         refresh()
         if CommandLine.arguments.contains("--show-keyboard-setup") { DispatchQueue.main.async { self.configureSettings(); self.keyboardSettings() } }
         if CommandLine.arguments.contains("--show-event-setup") { DispatchQueue.main.async { self.configureSettings(); EventCollectorSetup.shared.show(fromSettings: true) } }
+        if !CommandLine.arguments.contains("--show-keyboard-setup") && !CommandLine.arguments.contains("--show-event-setup") {
+            DispatchQueue.main.async { [weak self] in self?.showFirstSetupIfNeeded() }
+        }
     }
     // Kept separate from helper installation so the real menu can be checked safely.
     func buildMenu() {
         menu.delegate = self
-        let systemHeading = section("System")
-        (systemHeading.view as? MenuRowView)?.panelPart = .top
-        for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            item.view = MenuRowView(item: item, kind: .information)
-            (item.view as? MenuRowView)?.panelPart = title == "Thermal" ? .bottom : .middle
-            label(item, title, hint: "--", hintColor: StatusColors.information)
-            menu.addItem(item); systemItems.append(item)
-        }
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
@@ -183,8 +187,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         _ = add("About Perch", #selector(about))
         let quit = add("Quit Perch", #selector(quit))
         quit.keyEquivalent = "q"
-        label(quit, "Quit Perch", hint: "Input & sleep stay on")
-        quit.toolTip = "Input and sleep controls continue in the background. The monitor shortcut resumes when Perch is reopened."
+        label(quit, "Quit Perch", hint: "Background controls stay on")
+        quit.toolTip = "Input controls, ordinary keep-awake and agent protection continue. Monitor shortcuts and supervised lid protection stop. If the lid stays closed on battery, the lid helper requests sleep."
+        let systemHeading = section("System")
+        (systemHeading.view as? MenuRowView)?.panelPart = .top
+        for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.view = MenuRowView(item: item, kind: .information)
+            (item.view as? MenuRowView)?.panelPart = title == "Thermal" ? .bottom : .middle
+            label(item, title, hint: "--", hintColor: StatusColors.information)
+            menu.addItem(item); systemItems.append(item)
+        }
         for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
@@ -262,15 +275,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel)] {
             item.state = enabled ? .on : .off
         }
-        label(trackpadItem, "Reverse trackpad scroll", hint: "Vertical")
-        label(wheelItem, "Reverse mouse wheel", hint: "Vertical")
+        let scrollReady = GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
+        for (item, title, action) in [(trackpadItem!, "Reverse trackpad scroll", #selector(toggleTrackpad)), (wheelItem!, "Reverse mouse wheel", #selector(toggleWheel))] {
+            item.action = scrollReady ? action : #selector(inputPermissionsFromSettings)
+            item.isEnabled = true
+            (item.view as? MenuRowView)?.opensAnotherInterface = { !scrollReady }
+            label(item, title, hint: scrollReady ? "Vertical" : "Set up in Settings", hintColor: scrollReady ? .secondaryLabelColor : StatusColors.warning)
+        }
         refreshModifierItems()
         if !checkedStartupInputAccess, Date() >= inputStartupGraceEnds,
            let protection = GuardianInstall.status, protection.fresh, protection.inputTrusted != nil {
             checkedStartupInputAccess = true
             if inputs.wanted && protection.inputTrusted == false {
                 DispatchQueue.main.async { [weak self] in
-                    guard let self, self.inputs.wanted, GuardianInstall.status?.inputTrusted == false else { return }
+                    guard let self, self.inputs.wanted, GuardianInstall.status?.inputTrusted == false, !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.authorizing else { return }
                     self.showInputAccessPrompt()
                 }
             }
@@ -294,9 +312,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         do {
             let disabled = try sleepDisabled()
-            lidItem.state = disabled ? .on : .off
-            label(lidItem, "Including with lid closed", hint: disabled ? "⚠ Keep ventilated" : "Currently sleeps on lid close", hintColor: disabled ? StatusColors.warning : StatusColors.success, hintWeight: disabled ? .semibold : .regular)
-        } catch { label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
+            observedLidDisabled = disabled
+            LidGuardClient.shared.refresh()
+            let guarded = LidGuardClient.shared.active
+            lidItem.state = disabled || guarded ? .on : LidGuardClient.shared.status?.error != nil || LidGuardOwnership.exists ? .mixed : .off
+            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Open lid within \($0)s" } ?? "Powered, or 60s on battery") : lidItem.state == .mixed ? "Review lid protection" : "Normal lid sleep"
+            label(lidItem, "Including with lid closed", hint: hint, hintColor: disabled ? StatusColors.warning : .secondaryLabelColor)
+        } catch { observedLidDisabled = nil; label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
         applyLidSleepPresentation()
         do {
             let muted = try AudioStatus.muted()
@@ -317,6 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
             button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
         }
+        settingsRefresh?()
         let symbol = awakeItem.state == .on ? "awake-bird" : "bird"
         if lastStatusSymbol != symbol {
             lastStatusSymbol = symbol
@@ -326,15 +349,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func applyLidSleepPresentation() {
         let actualLid = lidItem.state
         if actualLid == .on { awakeItem.state = .on }
-        awakeItem.isEnabled = actualLid != .mixed && awakeItem.state != .mixed
+        awakeItem.isEnabled = actualLid != .mixed && awakeItem.state != .mixed && !LidGuardClient.shared.changing
         lidItem.isEnabled = awakeItem.isEnabled && awakeItem.state == .on
         if !lidItem.isEnabled && actualLid == .off && awakeItem.state == .off {
             lidItem.state = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) ? .on : .off
             label(lidItem, "Including with lid closed", hint: "Applies when Keep awake is on")
         }
         if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid open or closed") }
-        awakeItem.toolTip = "Master switch for idle-sleep prevention and the lid override. Turning off may require administrator authorization and also stops your active caffeinate sessions."
-        lidItem.toolTip = "Include lid-closed operation while Keep awake is on. This preference is remembered when the master is off. Requires administrator authorization. Keep ventilated while active."
+        awakeItem.toolTip = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
+        lidItem.toolTip = "Stay awake with the lid closed on external power. On battery, you have 60 seconds to open the lid after undocking or closing it. If it stays closed, Perch requests sleep. Set up the authorized helper with the lid open."
     }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }
@@ -357,57 +380,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func toggleAwake() {
-        let change = { [weak self] in
+        withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read()
-                let lid = try sleepDisabled()
-                if self.menuOpen && (lid || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)) {
-                    self.withMenuClosed { [weak self] in self?.toggleAwake() }; return
-                }
-                let enabling = !(lid || state.perchActive || state.caffeinateActive)
-                if enabling && !GuardianInstall.alive { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
+                let state = try SleepStatus.read(), legacy = try sleepDisabled()
+                let enabling = !(legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
+                guard !enabling || GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Maintenance first.") }
                 let remembered = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
-                try SleepMasterChange.run(enabled: enabling, includeLid: remembered, readLid: sleepDisabled, writeLid: setSleepDisabled, setAwake: { enabled in
-                    var config = SafetyConfiguration.load(); config.keepAwake = enabled; try config.save()
-                }, stopCaffeinate: { try state.stopCaffeinate() })
-                if !enabling && lid { UserDefaults.standard.set(true, forKey: SleepMasterChange.lidPreferenceKey) }
-                self.refresh()
-                if lid || (enabling && remembered) {
-                    let alert = NSAlert()
-                    alert.messageText = enabling ? "Keep awake is on" : "Keep awake is turning off"
-                    alert.informativeText = enabling ? "Including with the lid closed.\n\n⚠ Keep ventilated" : "The lid override is off. The background helper is releasing idle-sleep prevention. Your lid preference is remembered for the next time you enable Keep awake."
-                    SettingsWindow.shared.run(alert)
+                let finish: (Result<Void, Error>) -> Void = { result in
+                    do {
+                        try result.get()
+                        var config = SafetyConfiguration.load(); config.keepAwake = enabling; try config.save()
+                        if !enabling { try state.stopCaffeinate() }
+                        self.refresh()
+                    } catch { self.refresh(); self.showError(error) }
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
+                if legacy { try setSleepDisabled(false) }
+                if enabling && remembered { self.changeSupervisedLid(true, completion: finish) }
+                else if LidGuardClient.shared.status?.armed == true || LidGuardOwnership.exists { self.changeSupervisedLid(false, completion: finish) }
+                else { finish(.success(())) }
             } catch { self.refresh(); self.showError(error) }
         }
-        if lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) { withMenuClosed(change) }
-        else { change() }
     }
     @objc func toggleLid() {
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read(), lid = try sleepDisabled()
-                guard lid || state.perchActive || state.caffeinateActive else { self.refresh(); return }
-                guard GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
-                // Retain ordinary keep-awake when removing the all-sleep override.
-                try SleepMasterChange.run(enabled: true, includeLid: !lid, readLid: sleepDisabled, writeLid: setSleepDisabled, setAwake: { enabled in
-                    var config = SafetyConfiguration.load(); config.keepAwake = enabled; try config.save()
-                }, stopCaffeinate: {})
-                UserDefaults.standard.set(!lid, forKey: SleepMasterChange.lidPreferenceKey)
-                self.refresh()
-                let result = LidSettingResult(enabled: try? sleepDisabled(), error: nil)
-                let alert = NSAlert(); alert.messageText = result.title; alert.informativeText = result.detail
-                SettingsWindow.shared.run(alert)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
-            } catch {
-                self.refresh()
-                let result = LidSettingResult(enabled: try? sleepDisabled(), error: error.localizedDescription)
-                let alert = NSAlert(); alert.messageText = result.title; alert.informativeText = result.detail
-                SettingsWindow.shared.run(alert)
-            }
+                let state = try SleepStatus.read(), legacy = try sleepDisabled()
+                guard legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
+                let enabling = !(legacy || LidGuardClient.shared.active)
+                if legacy { try setSleepDisabled(false) }
+                let finish: (Result<Void, Error>) -> Void = { result in
+                    do {
+                        try result.get()
+                        UserDefaults.standard.set(enabling, forKey: SleepMasterChange.lidPreferenceKey)
+                        var config = SafetyConfiguration.load(); config.keepAwake = true; try config.save()
+                        self.refresh(); self.settingsRefresh?()
+                    } catch { self.refresh(); self.showError(error) }
+                }
+                if legacy && !LidGuardOwnership.exists && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
+                else { self.changeSupervisedLid(enabling, completion: finish) }
+            } catch { self.refresh(); self.showError(error) }
         }
     }
     @objc func turnDisplayOff() {
@@ -456,7 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn } }
-        if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && keyboardModes.results.contains { $0.standard != nil } }
+        if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardSettings) || keyboardModes.results.contains { $0.standard != nil }) }
         if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {
             return GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
         }
@@ -486,9 +499,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc func about() {
         let alert = NSAlert()
-        alert.messageText = "Perch"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        alert.messageText = "Perch \(version) · build \(build)"
         alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions.\n\nVersion \(version) (build \(build))"
 
         SettingsWindow.shared.run(alert)
@@ -508,6 +521,21 @@ if let index = CommandLine.arguments.firstIndex(of: "--update-catalog"), Command
     do { try AgentCatalog.install(from: URL(fileURLWithPath: CommandLine.arguments[index + 1])); print("Catalog updated; new targets default to checked and existing choices are preserved."); exit(0) }
     catch { fputs("\(error)\n", stderr); exit(1) }
 }
+var retainedLidGuard: LidGuardService?
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--lid-guard", let owner = UInt32(CommandLine.arguments[2]), owner >= 501, geteuid() == 0 {
+    retainedLidGuard = LidGuardService(owner: owner)
+    retainedLidGuard!.run()
+}
+if CommandLine.arguments == [CommandLine.arguments[0], "--lid-watchdog"] { runLidGuardWatchdog() }
+if CommandLine.arguments == [CommandLine.arguments[0], "--lid-cleanup"] {
+    guard geteuid() == 0 else { exit(1) }
+    do {
+        let hardware = MacLidGuardHardware(), observation = hardware.observe()
+        try LidGuardOwnership.release(LidGuardEnforcer(hardware), sleep: observation.closed != false && observation.power != .external, now: LidGuardClock.now)
+        exit(0)
+    } catch { fputs("Lid cleanup failed: \(error.localizedDescription)\n", stderr); exit(1) }
+}
+
 if CommandLine.arguments.contains("--prepare-safety-config") {
     do {
         if !FileManager.default.fileExists(atPath: SafetyFiles.config.path) {

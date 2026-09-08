@@ -4,12 +4,14 @@ import Darwin
 struct InputHelperStatus: Codable {
     var timestamp = Date()
     var pid = getpid()
+    var helperBuild: String? = HelperBuild.current
+    var statusProtocol: Int? = HelperBuild.protocolVersion
     var trusted: Bool
     var active: Bool
     var navigationDevices: Int?
     var navigationObserved: Bool?
     var navigationUnidentified: Bool?
-    var fresh: Bool { Date().timeIntervalSince(timestamp) < 4 }
+    var fresh: Bool { HelperBuild.compatible(build: helperBuild, protocolVersion: statusProtocol) && Date().timeIntervalSince(timestamp) < 4 }
     static var permissionRequest: URL { SafetyFiles.base.appendingPathComponent("input-permission-request.json") }
 }
 final class InputHelper {

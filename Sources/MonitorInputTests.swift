@@ -67,13 +67,18 @@ func runMonitorInputUITests() throws {
     guard !page.worked.isHidden && !page.failed.isHidden && !page.status.frame.intersects(page.worked.frame) else { throw AppError(message:"Unconfirmed switch feedback is hidden or overlaps") }
     guard host.pages.count == 2, host.pages.last?.title == "Monitor inputs" else { throw AppError(message:"Monitor setup left the settings stack") }
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-inputs.png")
-    let original = page.candidates, selected = page.selectedCodes
-    page.detect.performClick(nil)
+    guard page.protocolChoice.isHidden && page.detect.isHidden && !page.view.subviews.compactMap({ $0 as? NSButton }).contains(where: { !$0.isHidden && ($0.title == "Save" || $0.title.contains("Apply")) }) else { throw AppError(message: "Ordinary monitor settings mixes immediate changes with Apply") }
+    let setup = page.editSetup()
+    guard host.pages.last?.title == "Monitor connection & inputs" && host.back.title == "Cancel" && setup.save.title == "Save" else { throw AppError(message: "Monitor setup does not have an explicit Save/Cancel boundary") }
+    guard !setup.status.stringValue.contains("Confirm below") && setup.save.keyEquivalent == "\r" else { throw AppError(message: "Setup inherited unrelated switch confirmation or lost Save keyboard access") }
+    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-setup.png")
+    let original = setup.candidates, selected = setup.selectedCodes
+    setup.detect.performClick(nil)
     let scanEnd = Date().addingTimeInterval(2)
     while controller.busy && Date() < scanEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
-    guard page.candidates == original && page.selectedCodes == selected else { throw AppError(message:"Detect replaced saved input codes or selection") }
-    let before = page.protocolChoice.indexOfSelectedItem
-    let edit = page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Model & inputs…" }!
+    guard setup.candidates == original && setup.selectedCodes == selected else { throw AppError(message:"Detect replaced saved input codes or selection") }
+    let before = setup.protocolChoice.indexOfSelectedItem
+    let edit = setup.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Model & inputs…" }!
     edit.performClick(nil)
     let child = host.pages.last!.view
     let presets = child.subviews.compactMap { $0 as? NSPopUpButton }.first!
@@ -89,13 +94,14 @@ func runMonitorInputUITests() throws {
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-compatibility.png")
     host.goBack()
     host.goBack()
-    guard page.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Cancelled preset selection changed parent settings") }
-    page.protocolChoice.selectItem(at:2)
-    _ = NSApp.sendAction(page.protocolChoice.action!,to:page.protocolChoice.target,from:page.protocolChoice)
+    guard setup.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Cancelled preset selection changed parent settings") }
+    setup.protocolChoice.selectItem(at:2)
+    _ = NSApp.sendAction(setup.protocolChoice.action!,to:setup.protocolChoice.target,from:setup.protocolChoice)
     guard host.pages.last?.title == "Monitor control connection" && mock.commands.count == beforeCommands else { throw AppError(message:"Opening connection setup caused hardware IO") }
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-connection.png")
     host.goBack()
-    guard page.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Connection cancel changed protocol") }
+    guard setup.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Connection cancel changed protocol") }
+    host.goBack()
     host.goBack()
     guard host.pages.count == 1 && controller.pageChanged == nil else { throw AppError(message:"Monitor setup did not clean up on Back") }
     host.pages = []
@@ -136,7 +142,12 @@ func runMonitorTransactionTests() throws {
     controller.cycle(); try finish()
     guard controller.warning else { throw AppError(message:"Failed monitor write wasn't surfaced") }
     backend.failWrite = false
+    controller.useCurrentInput(15)
     controller.cycle(); try finish()
+    let beforeUnknown = backend.commands.filter { $0.first == "switch" }.count
+    controller.cycle(); try finish()
+    guard backend.commands.filter({ $0.first == "switch" }).count == beforeUnknown && controller.currentSummary.contains("unknown") else { throw AppError(message:"Shared monitor cycled from a stale last command") }
+    controller.useCurrentInput(17)
     controller.cycle(); try finish()
     let writes = backend.commands.filter { $0.first == "switch" }.map { $0.last! }
     guard writes == ["17","17","15"] else { throw AppError(message:"Failed switch advanced the cycle position") }
@@ -144,6 +155,7 @@ func runMonitorTransactionTests() throws {
     controller.confirmSwitch(true)
     let saved = defaults.dictionaryRepresentation().filter { $0.key.hasPrefix("monitor.confirmed.v1.") }
     guard saved.count == 1 && (saved.values.first as? [Int]) == [15] else { throw AppError(message:"Confirmation did not remain scoped to one input") }
+    controller.useCurrentInput(15)
     controller.cycle(); try finish()
     guard controller.warning && controller.pendingConfirmation == 17 else { throw AppError(message:"Another input inherited an unrelated confirmation") }
     controller.confirmSwitch(false)
@@ -151,6 +163,13 @@ func runMonitorTransactionTests() throws {
     backend.reported = 15; backend.reportWritten = true
     controller.cycle(); try finish()
     guard !controller.warning && controller.pendingConfirmation == nil && controller.message.contains("Monitor reports") else { throw AppError(message:"Readback did not verify the requested input") }
+    // Another computer changes the monitor after our previous command.
+    backend.reported = 15
+    controller.cycle(); try finish()
+    guard backend.commands.last?.first == "read" && backend.commands.filter({ $0.first == "switch" }).last?.last == "17" else { throw AppError(message:"External input change did not determine the next destination") }
+    backend.reported = nil; backend.reportWritten = false
+    controller.cycle(destination: controller.plan.inputs[1]); try finish()
+    guard backend.commands.filter({ $0.first == "switch" }).last?.last == "15" && controller.currentSummary.contains("unknown") else { throw AppError(message:"Explicit destination required a guessed current input or claimed confirmation") }
     let generic = MonitorDescriptor(id:display.id,displayID:99,name:"LG HDR 4K",vendor:7789,model:30470,ddcAvailable:true)
     guard MonitorProfiles.match(generic)?.confidence == "suggested",
           MonitorProfiles.match(generic,reportedModel:"27UN850-W")?.inputs.contains(.init(code:209,name:"USB-C")) == true,
@@ -166,12 +185,15 @@ func runMonitorTransactionTests() throws {
     let done = Date().addingTimeInterval(2)
     while writeOnly.busy && Date() < done { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
     guard !writeOnly.busy && writeOnly.pendingConfirmation != nil && !writeOnlyBackend.commands.contains(where: { $0.first == "read" }) else { throw AppError(message:"Write-only monitor relied on misleading readback") }
+    var rejectedRead = false
+    writeOnly.readInput(samsung.id, mode: writeOnly.plan.commandMode) { if case .failure = $0 { rejectedRead = true } }
+    guard rejectedRead && writeOnly.currentSummary.contains("unknown") && !writeOnlyBackend.commands.contains(where: { $0.first == "read" }) else { throw AppError(message: "Manual read trusted an unreliable monitor report") }
     let beforeTest = controller.plan
     var testAccepted = false
     controller.testInput(.init(code:18,name:"HDMI 2"),display:display.id,alternate:false) { testAccepted = $0 }
     try finish()
     guard testAccepted && controller.plan == beforeTest else { throw AppError(message:"Single candidate test changed the saved cycle") }
-    print("PASS: production monitor transaction failure preserves cycle position; explicit fallback advances only after accepted commands; mock adapter only")
+    print("PASS: fresh monitor readback after another computer switches; one-use manual observation; stale commands refused; direct destination without readback; per-input confirmation; mock adapter only")
 }
 
 func runMonitorConnectionTests() throws {
@@ -205,19 +227,88 @@ func runMonitorDraftTests() throws {
     controller.plan.display = display.id; controller.plan.alternate = true
     controller.plan.inputs = [.init(code:145,name:"My HDMI"),.init(code:209,name:"My USB"),.init(code:210,name:"Old candidate")]
     host.show(.init(title:"Perch settings",detail:"",view:NSView()))
-    let page = MonitorInputPage(controller); page.show(); page.inputList.documentView!.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Old candidate" }!.performClick(nil); page.save.performClick(nil)
+    let page = MonitorInputPage(controller); page.show(); page.inputList.documentView!.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Old candidate" }!.performClick(nil); host.goBack()
     guard controller.plan.availableInputs?.count == 3 && controller.plan.inputs.count == 2 else { throw AppError(message:"Saving unchecked inputs deleted them") }
     let saved = defaults.data(forKey:MonitorInputController.preferenceKey)
     let fresh = MonitorInputPage(controller); fresh.show()
-    guard fresh.candidates.count == 3 && !fresh.selectedCodes.contains(210) && host.back.title == "Done" else { throw AppError(message:"Reopening lost unchecked inputs or cancellation label") }
-    fresh.detect.performClick(nil)
-    let end = Date().addingTimeInterval(2)
-    while controller.busy && Date()<end { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
-    guard fresh.candidates.map({ $0.code }) == [144,145,208,209], fresh.selectedCodes.isEmpty,
-          defaults.data(forKey:MonitorInputController.preferenceKey) != saved else { throw AppError(message:"Restore did not save detected settings immediately") }
-    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-fresh-draft.png")
-    fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Undo restore" }!.performClick(nil)
-    guard controller.plan.availableInputs?.count == 3 && controller.plan.inputs.count == 2 else { throw AppError(message:"Undo did not restore prior inputs") }
+    guard fresh.candidates.count == 3 && !fresh.selectedCodes.contains(210) && host.back.title == "Back" else { throw AppError(message:"Reopening lost unchecked inputs or cancellation label") }
+    func finish() throws {
+        let end = Date().addingTimeInterval(2)
+        while controller.busy && Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        guard !controller.busy else { throw AppError(message: "Mock monitor check timed out") }
+    }
+    func chooseProtocol(_ editor: MonitorInputPage, _ index: Int) throws {
+        editor.protocolChoice.selectItem(at: index)
+        _ = NSApp.sendAction(editor.protocolChoice.action!, to: editor.protocolChoice.target, from: editor.protocolChoice)
+        try finish()
+    }
+    func undo() {
+        fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Undo setup change" }!.performClick(nil)
+    }
+    let working = controller.plan
+    let detected = fresh.editSetup()
+    detected.detect.performClick(nil); try finish()
+    guard detected.candidates.map({ $0.code }) == [144,145,208,209], detected.selectedCodes == [145,209],
+          controller.plan == working, defaults.data(forKey: MonitorInputController.preferenceKey) == saved else { throw AppError(message: "Detection committed or lost the working setup before Save") }
+    try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-monitor-fresh-draft.png")
+    detected.save.performClick(nil)
+    guard controller.plan.availableInputs?.count == 4 && controller.plan.inputs.count == 2 && host.pages.last?.title == "Monitor inputs" else { throw AppError(message: "Save did not keep the whole setup and return to the monitor") }
+    undo()
+    guard controller.plan == working else { throw AppError(message: "Undo setup did not restore the previous input list") }
+
+    let beforeTrialData = defaults.data(forKey: MonitorInputController.preferenceKey)
+    let canceled = fresh.editSetup()
+    try chooseProtocol(canceled, 0)
+    canceled.selectedCodes.remove(145)
+    guard controller.plan == working && defaults.data(forKey: MonitorInputController.preferenceKey) == beforeTrialData else { throw AppError(message: "A draft protocol or selection changed persisted settings") }
+    let draftCycle = canceled.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Cycle input now" }!
+    let destinations = canceled.inputList.documentView!.subviews.compactMap { $0 as? NSButton }.filter { $0.title == "Show this input" }
+    guard draftCycle.isHidden && destinations.allSatisfy({ $0.isHidden }) else { throw AppError(message: "Setup editor exposes a switch using its working setup") }
+    host.goBack()
+    guard controller.plan == working && fresh.selectedCodes == [145,209] && host.back.title == "Back" else { throw AppError(message: "Cancel lost the working setup or ordinary monitor state") }
+
+    let accepted = fresh.editSetup()
+    try chooseProtocol(accepted, 0)
+    accepted.save.performClick(nil)
+    guard !controller.plan.alternate && controller.plan.inputs == working.inputs else { throw AppError(message: "Saving a connection changed unrelated selected inputs") }
+    undo()
+    guard controller.plan == working else { throw AppError(message: "Undo did not restore the previous connection") }
+
+    let invalid = fresh.editSetup()
+    invalid.candidates = [.init(code: 0, name: "Invalid fixture")]
+    invalid.selectedCodes = [0]
+    invalid.save.performClick(nil)
+    guard host.pages.last?.title == "Monitor connection & inputs", controller.plan == working,
+          invalid.candidates.first?.code == 0, invalid.status.stringValue.contains("Not saved") else { throw AppError(message: "Rejected Save lost its setup draft or closed the editor") }
+    guard !controller.message.contains("Not saved") else { throw AppError(message: "A draft error replaced the working monitor’s status") }
+    host.goBack()
+
+    let connection = fresh.editSetup()
+    try chooseProtocol(connection, 2)
+    let connectionView = host.pages.last!.view as! MonitorConnectionView
+    let type = connectionView.subviews.compactMap { $0 as? NSPopUpButton }.first!
+    type.selectItem(at: 2); connectionView.updateSelection()
+    let endpoint = connectionView.subviews.compactMap { $0 as? NSTextField }.first { $0.isEditable }!
+    endpoint.stringValue = "192.0.2.10"
+    let check = connectionView.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Check connection" }!
+    let use = connectionView.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use this connection" }!
+    check.performClick(nil); try finish()
+    guard use.isEnabled && controller.plan == working && connection.candidates == working.availableInputs else { throw AppError(message: "Checking a connection saved it or cleared input mappings") }
+    endpoint.stringValue = "192.0.2.11"; use.performClick(nil)
+    guard host.pages.last?.title == "Monitor control connection" && controller.plan == working else { throw AppError(message: "Changed endpoint used an earlier check result") }
+    check.performClick(nil); try finish()
+    use.performClick(nil)
+    guard host.pages.last?.title == "Monitor connection & inputs", controller.plan == working, connection.candidates == working.availableInputs else { throw AppError(message: "Accepting a checked connection bypassed setup Save or lost mappings") }
+    connection.save.performClick(nil)
+    guard controller.plan.controlConnection?.endpoint == "192.0.2.11" && controller.plan.availableInputs == working.availableInputs else { throw AppError(message: "Saved connection differs from the reviewed one") }
+    undo()
+    guard controller.plan == working else { throw AppError(message: "Connection Undo lost previous setup") }
+    var second = MonitorInputPlan(); second.display = "22222222-2222-2222-2222-222222222222"
+    second.inputs = [.init(code:17,name:"Second display HDMI"),.init(code:15,name:"Second display DP")]
+    try controller.save(second)
+    guard controller.savedPlan(for: display.id) == working else { throw AppError(message:"Selecting a second display discarded the first setup") }
+    try controller.save(working)
+    guard controller.savedPlan(for: second.display) == second else { throw AppError(message:"Returning to the first display discarded the second setup") }
     let identify = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Identify input…" }!
     let readCurrent = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Read current input" }!
     backend.reported = 145; readCurrent.performClick(nil)
@@ -234,5 +325,5 @@ func runMonitorDraftTests() throws {
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-identification.png")
     host.goBack()
     host.goBack()
-    print("PASS: immediate checkbox saving retains unchecked inputs; reopening restores selections; restore applies immediately; Undo restores configuration; disposable defaults/mock monitor")
+    print("PASS: ordinary monitor changes save immediately; setup Save/Cancel isolates protocol, mapping and connection drafts; checks do not save; stale checks refused; failed Save retains draft; Undo and per-display storage; mock monitor only")
 }

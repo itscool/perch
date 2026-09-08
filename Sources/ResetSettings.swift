@@ -10,7 +10,7 @@ struct SettingsResetSelection {
     ]
     func removes(_ key: String) -> Bool {
         if all { return true }
-        let deviceKey = key == KeyboardNavigationProfiles.key || key == MonitorInputController.preferenceKey || key.hasPrefix("monitor.confirmed.")
+        let deviceKey = key == KeyboardNavigationProfiles.key || key == MonitorInputController.preferenceKey || key == MonitorInputController.savedPlansKey || key == MonitorGroupController.preferenceKey || key.hasPrefix("monitor.confirmed.")
         if sections.contains("devices") && deviceKey { return true }
         return sections.contains("preferences") && !deviceKey
     }
@@ -57,6 +57,22 @@ enum SettingsReset {
             plan.allowUnconfirmedCycle = false
             defaults.set(try JSONEncoder().encode(plan),forKey:MonitorInputController.preferenceKey)
         }
+        if selection.sections.contains("preferences"), !selection.sections.contains("devices"),
+           let data = defaults.data(forKey: MonitorInputController.savedPlansKey),
+           var plans = try? JSONDecoder().decode([String: MonitorInputPlan].self, from: data) {
+            for key in Array(plans.keys) {
+                plans[key]?.shortcut = MonitorInputPlan().shortcut
+                plans[key]?.allowUnconfirmedCycle = false
+            }
+            defaults.set(try JSONEncoder().encode(plans), forKey: MonitorInputController.savedPlansKey)
+        }
+        if selection.sections.contains("preferences"), !selection.sections.contains("devices"),
+           let data = defaults.data(forKey: MonitorGroupController.preferenceKey),
+           var settings = try? JSONDecoder().decode(MonitorGroupSettings.self, from: data) {
+            settings.activeID = nil
+            for i in settings.groups.indices { settings.groups[i].shortcut.enabled = false }
+            defaults.set(try JSONEncoder().encode(settings), forKey: MonitorGroupController.preferenceKey)
+        }
         guard defaults.synchronize() else { throw AppError(message:"Could not finish writing the preference reset. Perch remains open.") }
     }
     static func stopHelpers() throws {
@@ -65,6 +81,7 @@ enum SettingsReset {
             let state = try SafetyFiles.read(SafetyState.self,from:SafetyFiles.state)
             guard !state.locked && state.disabledJobs.isEmpty else { throw AppError(message:"Resume Agent Kill Switch first, then reset settings. This preserves the record of blocked launch jobs.") }
         }
+        try LidGuardInstall.cleanup()
         for label in [GuardianInstall.label, "local.scott.perch.input"] {
             let service = "gui/\(getuid())/" + label
             if SafetyCommand.run("/bin/launchctl",["print",service]) == "ok" {
@@ -82,7 +99,7 @@ enum SettingsReset {
 
 extension AppDelegate {
     @objc func resetSettingsPage() {
-        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:340))
+        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:160))
         weak var reviewButton: NSButton?
         var boxes: [(String,NSButton)] = []
         for (i,option) in SettingsResetSelection.options.enumerated() {
@@ -90,15 +107,9 @@ extension AppDelegate {
                 reviewButton?.isEnabled = page?.subviews.compactMap { $0 as? NSButton }.contains { $0.state == .on } == true
             }
             box.setButtonType(.switch)
-            box.frame = NSRect(x:0,y:300-i*35,width:572,height:28); box.state = .off
+            box.frame = NSRect(x:0,y:120-i*35,width:572,height:28); box.state = .off
             boxes.append((option.0,box)); page.addSubview(box)
         }
-        let privacy = SettingsActionButton(title:"Reset Perch’s privacy permissions…") { [weak self] in self?.privacyOnlyReset(global:false) }
-        privacy.frame = NSRect(x:0,y:175,width:572,height:30); page.addSubview(privacy)
-        let system = SettingsActionButton(title:"Reset system sleep and audio…") { [weak self] in self?.systemResetPage() }
-        system.frame = NSRect(x:0,y:130,width:572,height:30); page.addSubview(system)
-        let allPrivacy = SettingsActionButton(title:"Reset all apps’ privacy permissions…") { [weak self] in self?.privacyOnlyReset(global:true) }
-        allPrivacy.frame = NSRect(x:0,y:85,width:572,height:30); page.addSubview(allPrivacy)
         let next = SettingsActionButton(title:"Review reset & quit…") { [weak self] in
             let selection = SettingsResetSelection(sections:Set(boxes.filter { $0.1.state == .on }.map { $0.0 }))
             guard !selection.sections.isEmpty else { return }
@@ -106,7 +117,7 @@ extension AppDelegate {
         }
         reviewButton = next; next.isEnabled = false
         next.frame = NSRect(x:260,y:5,width:312,height:32); page.addSubview(next)
-        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Choose what to forget, then review before resetting and quitting. Device setup is detected afresh on next launch; bundled profiles remain. Privacy permissions and system changes are separate explicit actions below.",view:page))
+        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Choose what to forget, then review before resetting and quitting. Device setup is detected afresh on next launch; bundled profiles remain. This forgets Perch’s own saved setup and preferences. Privacy and system permissions are not reset.",view:page))
     }
     func confirmSettingsReset(_ selection: SettingsResetSelection) {
         let page = NSView(frame:NSRect(x:0,y:0,width:572,height:180))

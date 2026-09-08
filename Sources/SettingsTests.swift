@@ -8,6 +8,8 @@ func runSettingsTests() throws {
     try runKeyboardRegistrationUITests()
     try runMonitorInputUITests()
     try runMonitorDraftTests()
+    try runReviewFixTests()
+    try runSetupOverviewTests()
     let host = SettingsWindow.shared
     host.testing = true
     let app = AppDelegate()
@@ -16,8 +18,10 @@ func runSettingsTests() throws {
     app.configureSettings()
     let identity = host.window.windowNumber
     try check(host.pages.count == 1, "Settings root missing")
+    app.appSettings()
     let cpuBox = host.pages.last?.view.subviews.compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == CPUDisplaySettings.key }
     try check(cpuBox != nil && (cpuBox?.state == .on) == CPUDisplaySettings.enabled(), "CPU checkbox missing or disagrees with preference")
+    host.goBack()
     try render("/private/tmp/perch-settings-root-preview.png")
     app.configurePanic()
     try check(host.pages.count == 2 && host.window.windowNumber == identity, "Agent Kill Switch changed windows")
@@ -36,12 +40,12 @@ func runSettingsTests() throws {
     app.inputPermissionsFromSettings()
     try check(app.permissionSetup?.status.window === host.window && host.pages.count == 2, "Input setup changed windows")
     try render("/private/tmp/perch-input-preview.png")
-    app.permissionSetup?.close()
-    try check(host.pages.count == 1 && app.permissionSetup?.timer == nil, "Input Done did not return to parent")
+    host.goBack()
+    try check(host.pages.count == 1 && app.permissionSetup?.timer == nil, "Input Back did not return to parent")
     app.keyboardSettings()
     try check(host.pages.count == 2 && host.pages.last?.title == "Keyboard settings", "Keyboard settings broke navigation")
     let swaps = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.contains("Swap Control") }
-    try check(swaps.isEmpty, "Keyboard settings duplicated the menu’s modifier controls")
+    try check(swaps.count == 2, "Keyboard settings must offer clearly scoped built-in and external controls")
     try render("/private/tmp/perch-keyboard-preview.png")
     host.goBack()
     app.resetSettingsPage()
@@ -69,5 +73,5 @@ func runSettingsTests() throws {
     // close delegate explicitly; AppKit does not resend close for a closed panel.
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     try check(host.pages.isEmpty, "Closing settings retained navigation stack")
-    print("PASS: one-window Settings → Agent Kill Switch → Collector and Back; Input Done returns to root; Advanced navigation; timers stop on leaving")
+    print("PASS: one-window Settings → Agent Kill Switch → Collector and Back; Input Back returns to root; Advanced navigation; timers stop on leaving")
 }

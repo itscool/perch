@@ -27,9 +27,19 @@ enum GuardianInstall {
             guard let data = try? Data(contentsOf: path),
                   let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
                   (job["MachServices"] as? [String: Bool])?[name] == true,
+                  let executable = (job["ProgramArguments"] as? [String])?.first,
+                  buildMatches(executable: URL(fileURLWithPath: executable), appInfo: Bundle.main.infoDictionary ?? [:]),
                   SafetyCommand.run("/bin/launchctl", ["print", "gui/\(getuid())/" + jobLabel]) == "ok" else { return false }
         }
         return true
+    }
+    static func buildMatches(executable: URL, appInfo: [String: Any]) -> Bool {
+        let info = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Info.plist")
+        guard let expectedBuild = appInfo["CFBundleVersion"] as? String, !expectedBuild.isEmpty,
+              let expectedID = appInfo["CFBundleIdentifier"] as? String, !expectedID.isEmpty,
+              let data = try? Data(contentsOf: info),
+              let installed = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return false }
+        return installed["CFBundleVersion"] as? String == expectedBuild && installed["CFBundleIdentifier"] as? String == expectedID
     }
     static func install() throws {
         try SafetyFiles.prepare()

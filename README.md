@@ -2,9 +2,9 @@
 
 A native Mac menu bar app for sleep, sound, input controls, and an emergency stop for local AI agents.
 
-Release notes: [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are assigned to [1.2](V1.2-REVIEW.md).
+Release notes: [1.2 local preview](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are tracked in [the 1.2 review](V1.2-REVIEW.md).
 
-Perch is a local Apple Silicon/macOS 26 app. This repository contains the source and compatibility research; it is not yet a notarized, general-purpose installer or Homebrew package. Building currently requires a local signing certificate as described below.
+Perch is a local Apple Silicon/macOS 26 app. The current [1.2 local preview](RELEASE-1.2.md) includes the grouped Settings, reusable setup overview, multi-monitor switching, and supervised lid grace. The [1.1 release](RELEASE-1.1.md) remains recorded separately. This repository is not yet a notarized, general-purpose installer or Homebrew package. Building currently requires a local signing certificate as described below.
 
 **Keyboard controls** offer independent built-in/external modifier and Fn choices, plus optional external Home/End and Page Up/Down modes. The external heading shows a connected keyboard’s name or a count; absent devices hide their controls and unknown layouts show setup guidance. Twenty-eight bundled layout profiles retain their evidence/confidence labels. Registration does not certify physical event delivery on every device. See [KEYBOARDS.md](KEYBOARDS.md).
 
@@ -21,19 +21,23 @@ This local package targets Apple Silicon and macOS 26+. Building requires Xcode 
 open build/Perch.app
 ```
 
+To prepare a separate candidate without replacing the app in `build/Perch.app`, use `./build.sh --output /absolute/path/to/Perch.app`. This still reserves the next build number. Building does not launch the app; launching updates outdated Perch helpers and can reapply saved input/awake choices.
+
 Perch installs separate launchd process-monitor and input helpers on first launch. The menu app can quit while the watcher continues to run. **Start at login** controls the menu app; background controls and safety tracking start independently at login.
 
 ## Everyday controls
 
-- **Keep awake:** master switch for Perch’s idle-sleep prevention and the lid override. It queries live assertions and the system override. Turning it off first removes the lid override (administrator authorization when needed), then releases Perch’s assertion and stops your active `/usr/bin/caffeinate` sessions. Cancellation stops the operation; unrelated apps’ assertions are untouched.
-- **Including with lid closed:** available while Keep awake is on. Changes macOS’s global `pmset -a disablesleep` override, which persists after quitting. The choice is remembered while the master is off, with the explicit hint “Applies when Keep awake is on.” Re-enabling the master reapplies that preference with authorization. Active lid operation shows “⚠ Keep ventilated”; a result dialog reports actual lid state after changes or cancellation.
+- **Settings → Setup & status:** review setup and missing access in one place, on first use or later when something stops working. Displays, Keyboards, Scrolling, Keep awake, Agent Kill Switch, and App settings each have their own category. Ordinary changes save immediately; editors that commit related changes show Save/Cancel. Back/Close handles navigation without a redundant Done button.
+- **Settings → Displays → Switching groups:** choose one display or several, name destination computers, and map their inputs independently on each display. Current-input checks report fresh observations. Mixed or unknown starting inputs require a destination choice; partial switches report each display's result and offer retry for incomplete members.
+- **Keep awake:** master switch for Perch’s idle-sleep prevention and supervised lid operation. It queries current assertions and the legacy system override. Turning it off removes lid protection first (administrator authorization when needed), then releases Perch’s assertion and stops your active `/usr/bin/caffeinate` sessions. Cancellation stops the operation; unrelated apps’ assertions are untouched.
+- **Including with lid closed:** available while Keep awake is on. Explicit setup with the lid open installs a supervised privileged helper. Closed on external power stays awake; closing on battery or undocking while closed starts 60 seconds to open the lid. If it remains closed on battery, Perch releases the override and requests sleep. New operation does not enable the permanent `pmset disablesleep` setting; an existing legacy override requires explicit removal through the sleep-reset flow. Quitting Perch ends supervised lid operation. Physical sleep, compatibility, and failure acceptance remain open for this local preview.
 - **Turn display off:** turns off the display; moving the mouse or pressing a key wakes it.
 - **Mute audio:** queries current output mute and toggles it without changing the volume.
 - **Reverse trackpad scroll / Reverse mouse wheel:** independently reverses only the vertical axis. Trackpad gesture/momentum phases distinguish ordinary trackpads from wheels; third-party drivers synthesizing gestures may need hardware testing.
 - **Swap Control ↔ Command keys:** separate built-in/external controls, using macOS’s persistent per-keyboard settings. Both sides swap; defaults are unswapped.
 - **Use F1–F12 directly:** independent controls under Built-in keyboard and External keyboards. The built-in control updates macOS while preserving connected external modes; supported external keyboards use a native per-device mode or their own firmware Fn Lock. Current modes are queried before any choice is made. See [KEYBOARDS.md](KEYBOARDS.md) for support and persistence details.
 
-Lid sleep, mute and modifier swaps are system settings. Fn controls use macOS or keyboard firmware; external Apple overrides need Perch running when the keyboard reconnects. Awake/scroll choices are saved and reapplied by the background helper, including after login. Quitting the menu app does not reset them. They cannot keep operating if the helper itself is stopped. The helper does not promise to keep a powered-off Mac awake.
+Mute and modifier swaps are system settings. Fn controls use macOS or keyboard firmware; external Apple overrides need Perch running when the keyboard reconnects. Idle-awake/scroll choices are saved and reapplied by the background input helper, including after login. Quitting the menu app does not reset those choices, but it ends the supervised lid session. A restarted lid helper begins disarmed; a remembered preference alone does not re-enable it.
 
 Scroll reversal requires Accessibility access for Perch's signed helper. External Logitech Fn control uses Input Monitoring for Perch itself; Settings → Keyboard settings provides its drag-to-Settings workflow and shows per-keyboard success or failure. Modifier swapping uses native macOS settings and needs no event tap. Settings → Input controls provides its draggable identity and verifies readiness. Certificate signing preserves the designated requirement across updates; existing input access remained granted during tested updates. The certificate is local signing, not Apple notarization or Developer ID distribution. Checkmarks indicate selected settings; the inactive remembered lid preference is explicitly labeled. Controls requiring missing access are disabled.
 

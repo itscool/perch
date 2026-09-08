@@ -159,7 +159,7 @@ final class AgentGuardian {
                     var matches = processName == target.match
                     if target.match == "claude", process.executable.contains("/.local/share/claude/versions/") { matches = true }
                     if !matches, let script = nodeScript {
-                        matches = (target.match == "codex" && script.contains("/@openai/codex/")) || (target.match == "claude" && script.contains("/@anthropic-ai/claude-code/"))
+                        matches = AgentLaunchIdentity.matches(script: script, target: target.match)
                     }
                     if matches { roots[process.identity] = target.id; break }
                 }
@@ -210,7 +210,7 @@ final class AgentGuardian {
                 }
                 if t.kind == "cli" {
                     if p.path.basenameEquals(t.match) || (t.match == "claude" && p.path.contains("/.local/share/claude/versions/")) { return t.id }
-                    if withArguments && ((t.match == "codex" && event.argumentsContain("/@openai/codex/")) || (t.match == "claude" && event.argumentsContain("/@anthropic-ai/claude-code/"))) { return t.id }
+                    if withArguments && event.scriptMatchesAgent(t.match) { return t.id }
                 }
             }
             return nil

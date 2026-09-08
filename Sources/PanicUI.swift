@@ -16,7 +16,7 @@ extension AppDelegate {
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue
         if issueChanged && SettingsWindow.shared.window.isVisible && !SettingsWindow.shared.modal && SettingsWindow.shared.pages.last?.title == "Perch settings" { configureSettings() }
-        label(safetySettingsItem, "Settings…", hint: issue.map { "⚠ " + $0.title } ?? keyboardModes.attentionHint, hintColor: keyboardModes.warning && issue == nil ? StatusColors.warning : .secondaryLabelColor)
+        label(safetySettingsItem, "Settings…", hint: issue.map { $0.severity == .critical ? "⚠ Repair needed" : "⚠ Review setup" } ?? keyboardModes.attentionHint, hintColor: keyboardModes.warning && issue == nil ? StatusColors.warning : .secondaryLabelColor)
         if let issue, let title = menuTitleSources[safetySettingsItem] {
             let colored = NSMutableAttributedString(attributedString: title)
             let range = (colored.string as NSString).range(of: "⚠")
@@ -29,9 +29,13 @@ extension AppDelegate {
         if let issue, issue.severity == .critical {
             if criticalIssueSince == nil { criticalIssueSince = Date() }
             // One in-app notice per critical condition; no extra permission or popup window.
-            if notifiedCriticalIssue != issue.title && Date().timeIntervalSince(criticalIssueSince!) >= 10 && !SettingsWindow.shared.modal {
+            if notifiedCriticalIssue != issue.title && Date().timeIntervalSince(criticalIssueSince!) >= 10 && !SettingsWindow.shared.modal && !SettingsWindow.shared.authorizing && !SettingsWindow.shared.testing && !SettingsWindow.shared.window.isVisible {
                 notifiedCriticalIssue = issue.title
-                DispatchQueue.main.async { [weak self] in self?.configureSettings(); SettingsWindow.shared.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+                DispatchQueue.main.async { [weak self] in
+                    guard !SettingsWindow.shared.authorizing, !SettingsWindow.shared.modal, !SettingsWindow.shared.window.isVisible,
+                          self?.currentProtectionIssue?.title == issue.title else { self?.notifiedCriticalIssue = nil; return }
+                    self?.configureSettings(); self?.setupOverview(); SettingsWindow.shared.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+                }
             }
         } else { criticalIssueSince = nil; notifiedCriticalIssue = nil }
         guard let state = GuardianInstall.status, state.fresh else {
@@ -107,53 +111,71 @@ extension AppDelegate {
     }
     @objc func configureSettings() {
         if menuOpen { withMenuClosed { [weak self] in self?.configureSettings() }; return }
-        let health = GuardianInstall.status
-        let configuration = SafetyConfiguration.load()
-        let inputWanted = configuration.reverseTrackpad || configuration.reverseWheel || configuration.navigation?.enabled == true
-        let input = InputReadiness.assess(health, config: configuration)
-        let inputReady = input.ready
-        let issueNow = ProtectionIssue.assess(health, config: configuration)
-        var options: [(String,String,Selector)] = [
-            (inputReady ? "✓ Input controls…" : (inputWanted ? "⚠ Input controls…" : "Input controls…"), inputReady || inputWanted ? input.message : "Grant Perch Accessibility access when you want to use scroll reversal.", #selector(inputPermissionsFromSettings)),
-            (issueNow == nil ? "✓ Agent Kill Switch…" : "⚠ Agent Kill Switch…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
-            (keyboardModes.warning ? "⚠ Keyboard settings…" : keyboardModes.working ? "Keyboard settings…" : "✓ Keyboard settings…", keyboardModes.attentionDetail, #selector(keyboardSettings)),
-            ("Monitor inputs…", "Choose a display, inputs to cycle, and a keyboard shortcut.", #selector(monitorInputSettings)),
-            ("Reset settings…", "Reset device setup, Perch preferences, permissions or system sleep/audio.", #selector(resetSettingsPage)),
-            ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
-        let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
-        if let issue {
-            let action: Selector
-            switch issue.route {
-            case "repair": action = #selector(repairWatcher)
-            case "events": action = #selector(processEventSetup)
-            case "input": action = #selector(inputPermissionsFromSettings)
-            default: action = #selector(configurePanic)
-            }
-            options.insert(((issue.severity == .critical ? "⛔ " : "⚠ ") + issue.title + "…", issue.detail, action), at: 0)
-        }
-        chooseSafetyAction(title: "Perch settings", detail: issue.map { $0.title + "\n" + $0.detail } ?? "Permissions Perch needs are under Input controls. Permissions panic revokes are under Agent Kill Switch.", options: options)
+        chooseSafetyAction(title: "Perch settings", detail: "Choose what you want to use or change. Setup & status brings missing steps and recovery together.", options: [
+            ("Setup & status…", setupSnapshot().summary + ". Start here on first use or when something stops working.", #selector(setupOverview)),
+            ("Displays…", "Turn a display off or set up input switching between computers.", #selector(displaySettings)),
+            ("Keyboards…", "Function keys, Control/Command swaps and external navigation keys.", #selector(keyboardSettings)),
+            ("Scrolling…", "Choose the vertical scroll direction for your trackpad and mouse wheel.", #selector(scrollingSettings)),
+            ("Keep awake…", "Review sleep behavior and choose whether to keep the Mac working.", #selector(keepAwakeSettings)),
+            ("Agent Kill Switch…", "Choose agents, emergency actions and a shortcut; preview or test protection.", #selector(configurePanic)),
+            ("App settings…", "Start at login, menu CPU information, maintenance and Perch preferences.", #selector(appSettings))])
     }
+
     @objc func configurePanic() {
         var options: [(String,String,Selector)] = [
             ("Agents, shortcut & panic actions…", "Choose which agents panic terminates, its key combination, and which privacy grants it resets.", #selector(editSafetyConfiguration)),
+            ("Add or remove agents…", "Add a missing app or executable, or forget one custom entry without resetting the others.", #selector(manageAgents)),
+            ("Agent recognition…", "Import definitions and review changes to how agents are identified.", #selector(agentRecognition)),
             (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Process event collection…" : "⚠ Process event collection…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
             ("Preview panic targets…", "Preview the currently tracked processes and recent actions. This does not terminate anything.", #selector(safetyReport)),
-            (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut))]
+            (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut)),
+            ("Stop agents & reset all app permissions…", "Emergency action with confirmation: stops selected agents and resets system privacy permissions, including unrelated apps.", #selector(broadLockdown))]
         if !GuardianInstall.alive {
             options.insert(("Repair background protection…", "The helper is not responding. Reinstall and restart it before relying on panic.", #selector(repairWatcher)), at: 0)
         }
         chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? "✓ Background protection is running." : "⛔ Background protection is unavailable. Repair it below.", options: options)
     }
     @objc func advancedSafetySettings() {
-        chooseSafetyAction(title: "Advanced settings", detail: "These controls are for occasional setup and recovery.", options: [
-            ("Add agent app…", "Include an application missing from the agent selection list.", #selector(addAgentApp)),
-            ("Add agent executable…", "Include a command-line agent and its observed children, using its executable path.", #selector(addAgentExecutable)),
-            ("Import recognition catalog…", "Load updated agent suggestions from a JSON file. New entries default to checked; existing choices are preserved.", #selector(importAgentCatalog)),
-            ("Review recognition updates…", "Review changes to existing agent matching rules before applying them.", #selector(reviewCatalogChanges)),
+        let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
+        let problem = issue.flatMap { $0.route == "repair" ? $0.detail + "\n\n" : nil } ?? ""
+        chooseSafetyAction(title: "Maintenance", detail: problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes.", options: [
+            ("Repair background helpers…", "Install the current Perch build and restart its helpers. Existing feature choices are retained.", #selector(repairWatcher)),
             ("Protect background helper files…", "Require administrator authorization to replace helper files. This does not prevent disabling protection.", #selector(protectWatcher)),
-            ("Stop agents & reset all app permissions…", "Separate immediate action, with confirmation. Includes unrelated apps and Perch; grants may need reapproval.", #selector(broadLockdown))])
+            ("Reset Perch’s privacy permissions…", "Only for repairing Perch’s grants. Review the scope before resetting; existing choices are kept.", #selector(perchPrivacyResetFromSettings))])
+    }
+    @objc func agentRecognition() {
+        chooseSafetyAction(title: "Agent recognition", detail: "Review the scope of new or changed matching rules before applying them.", options: [
+            ("Import recognition catalog…", "Load updated agent suggestions from a JSON file. New entries default to checked; existing choices are preserved.", #selector(importAgentCatalog)),
+            ("Review recognition updates…", "Review changes to existing agent matching rules before applying them.", #selector(reviewCatalogChanges))])
+    }
+    @objc func manageAgents() {
+        let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: max(180, 90 + targets.count * 60)))
+        let addApp = SettingsActionButton(title: "Add app…") { [weak self] in self?.addAgentApp(); self?.manageAgents() }
+        let addExecutable = SettingsActionButton(title: "Add executable…") { [weak self] in self?.addAgentExecutable(); self?.manageAgents() }
+        addApp.frame = NSRect(x: 0, y: view.frame.height-32, width: 278, height: 32)
+        addExecutable.frame = NSRect(x: 288, y: view.frame.height-32, width: 284, height: 32)
+        view.addSubview(addApp); view.addSubview(addExecutable)
+        for (index, target) in targets.enumerated() {
+            let y = view.frame.height - CGFloat(92 + index*60)
+            let label = NSTextField(wrappingLabelWithString: target.name + "\n" + target.match)
+            label.frame = NSRect(x: 0, y: y, width: 410, height: 48); label.font = .systemFont(ofSize: 12)
+            let remove = SettingsActionButton(title: "Forget entry") { [weak self] in
+                do {
+                    var config = SafetyConfiguration.load()
+                    config.targets.removeAll { $0.id == target.id }
+                    try config.save(); self?.manageAgents()
+                } catch { self?.showError(error) }
+            }
+            remove.frame = NSRect(x: 428, y: y+8, width: 144, height: 30)
+            view.addSubview(label); view.addSubview(remove)
+        }
+        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Custom entries are listed below. Forget entry removes only its Perch configuration; the app remains installed and running. Built-in agents can be unchecked in Agents, shortcut & panic actions.", view: view))
     }
     @objc func editSafetyConfiguration() {
+        editSafetyForm(save: { try $0.save() })
+    }
+    func editSafetyForm(save: (SafetyConfiguration) throws -> Void) {
         let current = SafetyConfiguration.load()
         var config = AgentCatalog.available()?.suggestions(for: current) ?? current
         let alert = NSAlert()
@@ -213,15 +235,26 @@ extension AppDelegate {
         alert.accessoryView = view
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
-        guard SettingsWindow.shared.run(alert) == .alertFirstButtonReturn else { return }
-        let mask = modifiers.filter { $0.0.state == .on }.reduce(UInt32(0)) { $0 | $1.1 }
-        guard mask.nonzeroBitCount >= 2 else { showError(AppError(message: "Choose at least two shortcut modifiers.")); return }
-        for index in boxes.indices { config.targets[index].enabled = boxes[index].state == .on }
-        guard config.targets.contains(where: \.enabled) else { showError(AppError(message: "Select at least one agent.")); return }
-        config.shortcut = PanicShortcut(key: PanicShortcut.keys[keys.indexOfSelectedItem].1, modifiers: mask, enabled: enabled.state == .on)
-        config.resetAgentPermissions = reset.indexOfSelectedItem != 0
-        config.resetAllPermissions = reset.indexOfSelectedItem == 2
-        do { try config.save(); SettingsWindow.shared.feedback = "✓ Settings saved." } catch { showError(error) }
+        let validation = NSTextField(wrappingLabelWithString: "")
+        validation.textColor = StatusColors.warning; validation.font = .systemFont(ofSize: 12)
+        validation.frame = NSRect(x: 0, y: 0, width: 465, height: 27); view.addSubview(validation)
+        while SettingsWindow.shared.run(alert) == .alertFirstButtonReturn {
+            let mask = modifiers.filter { $0.0.state == .on }.reduce(UInt32(0)) { $0 | $1.1 }
+            if enabled.state == .on && mask.nonzeroBitCount < 2 {
+                validation.stringValue = "Choose at least two modifiers for the enabled shortcut."; continue
+            }
+            for index in boxes.indices { config.targets[index].enabled = boxes[index].state == .on }
+            guard config.targets.contains(where: \.enabled) else { validation.stringValue = "Select at least one agent to stop."; continue }
+            config.shortcut = PanicShortcut(key: PanicShortcut.keys[keys.indexOfSelectedItem].1, modifiers: mask, enabled: enabled.state == .on)
+            let displayShortcuts = [monitorInputs.plan.shortcut, monitorInputs.groups.active?.shortcut].compactMap { $0 }
+            if config.shortcut.enabled && displayShortcuts.contains(where: { $0.enabled && $0.key == config.shortcut.key && $0.modifiers == config.shortcut.modifiers }) {
+                validation.stringValue = "This shortcut already switches displays. Choose other keys, or change it in Displays."; continue
+            }
+            config.resetAgentPermissions = reset.indexOfSelectedItem != 0
+            config.resetAllPermissions = reset.indexOfSelectedItem == 2
+            do { try save(config); SettingsWindow.shared.feedback = "✓ Settings saved."; return }
+            catch { validation.stringValue = error.localizedDescription }
+        }
     }
     @objc func addAgentApp() { addTarget(app: true) }
     @objc func addAgentExecutable() { addTarget(app: false) }
@@ -306,6 +339,7 @@ extension AppDelegate {
             let cleanup = NSAlert()
             cleanup.messageText = "Ending shortcut test…"
             cleanup.informativeText = "Waiting for background protection to restore your shortcut settings."
+            cleanup.addButton(withTitle: "Waiting…").isEnabled = false
             let expires = Date().addingTimeInterval(5)
             var restored = false
             let poll = Timer(timeInterval: 0.1, repeats: true) { _ in
@@ -315,7 +349,7 @@ extension AppDelegate {
                 } else if Date() >= expires { NSApp.stopModal() }
             }
             RunLoop.main.add(poll, forMode: .modalPanel)
-            SettingsWindow.shared.run(cleanup)
+            SettingsWindow.shared.run(cleanup, allowsCancel: false)
             poll.invalidate()
             if !restored { showError(AppError(message: "Could not confirm test cleanup. Background protection may be unavailable; repair it in Agent Kill Switch before relying on the shortcut.")) }
         } catch { showError(error) }
@@ -328,7 +362,7 @@ extension AppDelegate {
         alert.messageText = "Stop agents and reset all app privacy permissions?"
         alert.informativeText = "This also resets permissions for unrelated apps and Perch. Apps may ask for access again. It does not remove administrator rights, stop remote jobs, or cover every security setting. Agent relaunch blocking remains active."
         alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Reset All")
+        alert.addButton(withTitle: "Stop agents & reset permissions")
         if SettingsWindow.shared.run(alert) == .alertSecondButtonReturn { safetyRequest("lockdown") }
     }
     @objc func safetyReport() {
@@ -354,7 +388,14 @@ extension AppDelegate {
         SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Use Back to return to Agent Kill Switch.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
     }
     @objc func repairWatcher() {
-        do { try GuardianInstall.install(); safetyError = nil } catch { safetyError = error.localizedDescription; showError(error) }
+        do {
+            try GuardianInstall.install(); safetyError = nil
+            let result = NSAlert(); result.messageText = "Helper installation finished"
+            result.informativeText = "Perch’s current helper files and launch jobs are installed. Setup & status will check that the helpers respond and show any access still needed. Your feature choices are retained."
+            result.addButton(withTitle: "Check setup & status")
+            result.addButton(withTitle: "Back")
+            if SettingsWindow.shared.run(result) == .alertFirstButtonReturn { setupOverview() }
+        } catch { safetyError = error.localizedDescription; showError(error) }
     }
     @objc func protectWatcher() {
         let alert = NSAlert()
@@ -363,7 +404,12 @@ extension AppDelegate {
         alert.addButton(withTitle: "Install Protected Copy")
         alert.addButton(withTitle: "Cancel")
         if SettingsWindow.shared.run(alert) == .alertFirstButtonReturn {
-            do { try GuardianInstall.protectExecutable() } catch { showError(error) }
+            do {
+                try GuardianInstall.protectExecutable()
+                let result = NSAlert(); result.messageText = "Helper files protected"
+                result.informativeText = "The administrator-owned copy was installed and the background helpers restarted. Their status is checked in Settings."
+                SettingsWindow.shared.run(result)
+            } catch { showError(error) }
         }
     }
 }

@@ -159,7 +159,7 @@ func runReleaseUITests() throws {
     let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
     try check(!cpu.contains("--%") && cpu.contains("%"), "CPU did not update while tracking an open menu")
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
-    try check(app.lidItem.state == .on && app.lidItem.isEnabled ? lid.contains("⚠ Keep ventilated") : (lid.contains("Currently sleeps on lid close") || lid.contains("Applies when Keep awake is on")), "Lid wording disagrees with current state")
+    try check(app.lidItem.state == .on && app.lidItem.isEnabled ? (lid.contains("Old override") || lid.contains("60s") || lid.contains("Open lid within")) : (lid.contains("Normal lid sleep") || lid.contains("Applies when Keep awake is on")), "Lid wording disagrees with current state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
     try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
@@ -174,7 +174,8 @@ func runReleaseUITests() throws {
     let titles = app.menu.items.map { $0.title }
     try check(headings.contains("Sleep") && headings.contains("Display") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
     let sections = headings.map { $0.hasPrefix("External keyboard") ? "External keyboard" : $0 }
-    try check(sections == ["System","Display","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Agent Kill Switch","Perch"], "Section ordering changed")
+    try check(sections == ["Display","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Agent Kill Switch","Perch","System"], "Common tasks and Settings must precede the system dashboard")
+    try check(app.menu.items.contains { $0.action == #selector(AppDelegate.globalPrivacyReset) }, "System-wide privacy reset was removed from the main menu")
     try check(titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")! && titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")!, "Control outside its section")
     try check(AudioStatus.heading(volume:42,muted:true) == "Audio · 42% · Muted" && AudioStatus.heading(volume:nil,muted:false).contains("unavailable"), "Volume presentation confused muted or unknown with zero")
     try check(AudioStatus.percentage(0.425) == 43 && AudioStatus.percentage(.nan) == nil && AudioStatus.percentage(1.1) == nil, "Invalid volume converted to a percentage")

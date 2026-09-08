@@ -89,6 +89,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         accessState.textColor = receiving ? StatusColors.success : StatusColors.warning
         readyState.textColor = ready ? StatusColors.success : StatusColors.warning
         reveal.isHidden = !installed || ready
+        primary.isHidden = false
         primary.isEnabled = !installing
         if installing { primary.title = "Installing…"; return }
         if !installed || needsRepair {
@@ -103,14 +104,14 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             primary.isEnabled = expired
             guidance.stringValue = expired ? "The collector update finished, but the helper has not acknowledged the new observation session. Retry verification; if it still cannot respond, repair background protection in Settings." : "The collector update finished. Waiting for Perch to start a new observation session before checking readiness."
         } else if ready {
-            primary.title = "Done"
-            guidance.stringValue = "Setup complete. Perch is receiving process events and its health check succeeded. You can close this window.\n\nPanic still performs a fresh sweep and verifies process identities before termination."
+            primary.isHidden = true
+            guidance.stringValue = "Setup complete. Perch is receiving process events and its health check succeeded. Use Back to return, or close this window.\n\nPanic still performs a fresh sweep and verifies process identities before termination."
         } else if let until = retryUntil, until > Date() {
             primary.title = "Checking…"; primary.isEnabled = false
             guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the link below."
         } else if !fresh {
-            primary.title = "Waiting for Perch…"; primary.isEnabled = false
-            guidance.stringValue = "The collector is installed, but Perch’s background helper is not responding. Close this window and use Repair background protection in Settings."
+            primary.title = "Repair background helper…"; primary.isEnabled = true
+            guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Repair it below; this page will recheck collection automatically."
         } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
             primary.title = "Retry health check"
             readyState.stringValue = "⚠  3. Events received, but coverage is degraded"
@@ -132,9 +133,13 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             do { _ = try script("do shell script \"\(escaped)\" with administrator privileges"); try requestNewSession(); installError = nil }
             catch { installError = "Installation did not finish: \(error.localizedDescription). You can try again." }
             installing = false; refresh()
+        } else if GuardianInstall.status?.fresh != true {
+            do { try GuardianInstall.install(); installError = nil }
+            catch { installError = error.localizedDescription }
+            refresh()
         } else if waitingForSession {
             do { try requestNewSession(); refresh() } catch { guidance.stringValue = error.localizedDescription }
-        } else if GuardianInstall.status?.eventCoverage == "Process events active" { SettingsWindow.shared.goBack() }
+        } else if GuardianInstall.status?.eventCoverage == "Process events active" { refresh() }
         else if (GuardianInstall.status?.processEventCount ?? 0) > 0 {
             do { try SafetyFiles.send("check-events"); retryUntil = Date().addingTimeInterval(10); refresh() }
             catch { guidance.stringValue = "Could not request a health check: \(error.localizedDescription)" }

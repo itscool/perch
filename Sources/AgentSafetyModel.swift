@@ -112,6 +112,8 @@ struct SafetyState: Codable, Equatable {
 struct SafetyStatus: Codable {
     var timestamp = Date()
     var watcherPID: Int32 = getpid()
+    var helperBuild: String? = HelperBuild.current
+    var statusProtocol: Int? = HelperBuild.protocolVersion
     var locked: Bool
     var pendingLaunchJobs: Int
     var shortcutActive: Bool
@@ -131,7 +133,8 @@ struct SafetyStatus: Codable {
     var eventDiagnostics: String? = nil
     var eventSessionID: String? = nil
     var maintenance: GuardianMaintenanceCounts? = nil
-    var fresh: Bool { Date().timeIntervalSince(timestamp) < 4 }
+    var compatible: Bool { HelperBuild.compatible(build: helperBuild, protocolVersion: statusProtocol) }
+    var fresh: Bool { compatible && Date().timeIntervalSince(timestamp) < 4 }
 }
 struct SafetyRequest: Codable {
     let id: UUID

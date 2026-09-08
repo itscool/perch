@@ -50,9 +50,12 @@ struct BorrowedProcessEvent {
         return .init(input: input, raw: index == 0 ? args.0 : index == 1 ? args.1 : index == 2 ? args.2 : args.3)
     }
     var usesArguments: Bool { kind == .exec && subject.token.ruid == getuid() && (subject.path.basenameEquals("node") || subject.path.basenameEquals("bun")) }
-    func argumentsContain(_ text: String) -> Bool {
-        for i in 0..<Int(raw.argument_count) where argument(i).contains(text) { return true }
-        return false
+    func scriptMatchesAgent(_ target: String) -> Bool {
+        // Match the same supported runtime launch form as ProcessTable.nodeScript:
+        // argv[1] is the program. argv[0] and later arguments are not identities.
+        // Runtime flags/eval commands are deliberately not inferred as scripts.
+        guard usesArguments, raw.argument_count > 1 else { return false }
+        return AgentLaunchIdentity.matches(script: argument(1).retainedString(), target: target)
     }
     func retained() -> ProcessEvent {
         var arguments: [String] = []

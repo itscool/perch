@@ -19,21 +19,17 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
         panel.contentView?.addSubview(instructions)
         status.frame = NSRect(x: 20, y: 66, width: 480, height: 42)
         panel.contentView?.addSubview(status)
-        for (index, pair) in [("Open Accessibility", #selector(openSettings)), ("Show Helper", #selector(revealHelper)), ("Done", #selector(close))].enumerated() {
-            if index == 1 {
-                let drag = PermissionDragItem(title: "Drag helper → Settings") {
-                    FileManager.default.fileExists(atPath: GuardianInstall.protectedBinary.path) ? GuardianInstall.protectedBinary.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() : SafetyFiles.helperApp
-                }
-                drag.frame = NSRect(x: 174, y: 16, width: 192, height: 38)
-                panel.contentView?.addSubview(drag)
-                continue
-            }
-            let button = NSButton(title: pair.0, target: self, action: pair.1)
-            button.bezelStyle = .rounded
-            button.frame = NSRect(x: index == 2 ? 380 : 20, y: 20, width: index == 2 ? 115 : 150, height: 30)
-            panel.contentView?.addSubview(button)
+        let open = NSButton(title: "Open Accessibility", target: self, action: #selector(openSettings))
+        open.bezelStyle = .rounded
+        open.frame = NSRect(x: 20, y: 20, width: 180, height: 30)
+        panel.contentView?.addSubview(open)
+        let drag = PermissionDragItem(title: "Drag helper → Settings") {
+            FileManager.default.fileExists(atPath: GuardianInstall.protectedBinary.path) ? GuardianInstall.protectedBinary.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() : SafetyFiles.helperApp
         }
+        drag.frame = NSRect(x: 210, y: 16, width: 290, height: 38)
+        panel.contentView?.addSubview(drag)
     }
+
     func show(fromSettings: Bool = false) {
         returnsToSettings = fromSettings
         timer?.invalidate()
@@ -58,7 +54,6 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
         let helper = FileManager.default.fileExists(atPath: GuardianInstall.protectedBinary.path) ? GuardianInstall.protectedBinary.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() : SafetyFiles.helperApp
         NSWorkspace.shared.activateFileViewerSelecting([helper])
     }
-    @objc func close() { SettingsWindow.shared.goBack() }
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil
         if returnsToSettings { returnsToSettings = false; NSApp.stopModal() }

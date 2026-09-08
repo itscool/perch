@@ -21,6 +21,7 @@ final class KeyboardModeMonitor: NSObject {
     private var pending: DispatchWorkItem?
     private var again = false
     private var reapplyExternal = false
+    private var queryOnly = false
     private var port: IONotificationPortRef?
     private var added: io_iterator_t = 0
     private var removed: io_iterator_t = 0
@@ -32,7 +33,7 @@ final class KeyboardModeMonitor: NSObject {
     var attentionDetail: String {
         if let registrationError { return registrationError }
         let unknown = registrations.filter { $0.needsSetup }.map { $0.name }
-        return unknown.isEmpty ? "Function keys and separate Control/Command swaps for built-in and external keyboards." : "Set up \(unknown.joined(separator: ", ")). Unrecognized layouts need registration even when navigation options are off."
+        return unknown.isEmpty ? "Function keys and separate Control/Command swaps for built-in and external keyboards." : "Identify navigation keys on \(unknown.joined(separator: ", ")) if you want to change Home/End or Page Up/Down behavior. Fn and Control/Command settings are independent."
     }
     var needsAccess: Bool { results.contains { $0.needsAccess } }
     func start() {
@@ -79,6 +80,11 @@ final class KeyboardModeMonitor: NSObject {
         onChange?()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: job)
     }
+    func recheck() {
+        guard started, !working else { return }
+        queryOnly = true
+        queue(navigationChanged: true)
+    }
     private func run() {
         pending = nil
         guard !busy else { again = true; return }
@@ -87,6 +93,8 @@ final class KeyboardModeMonitor: NSObject {
         onChange?()
         let known = knownDevices
         let forceExternal = reapplyExternal
+        let readOnly = queryOnly
+        queryOnly = false
         let revision = navigationRevision
         let scanNavigation = revision != appliedNavigationRevision
         reapplyExternal = false
@@ -113,11 +121,11 @@ final class KeyboardModeMonitor: NSObject {
                 var ids = Set(keyboards.map { "\(IOHIDServiceClientGetRegistryID($0.service))" })
                 for keyboard in keyboards {
                     let id = "\(IOHIDServiceClientGetRegistryID(keyboard.service))"
-                    if !known.contains(id), let intent = UserDefaults.standard.object(forKey: NativeModifierKeys.intentKey(keyboard.builtIn)) as? Bool {
+                    if !readOnly, !known.contains(id), let intent = UserDefaults.standard.object(forKey: NativeModifierKeys.intentKey(keyboard.builtIn)) as? Bool {
                         do { try NativeModifierKeys.set(intent, on: keyboard) } catch { failures.append(error.localizedDescription); ids.remove(id) }
                     }
                 }
-                let desired = NativeFunctionKeys.externalIntent()
+                let desired = readOnly ? nil : NativeFunctionKeys.externalIntent()
                 let newNames = Set(keyboards.filter { !$0.builtIn && !known.contains("\(IOHIDServiceClientGetRegistryID($0.service))") }.map { $0.name })
                 let result = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: forceExternal || scanNavigation ? desired : nil)
                     + ExternalKeyboardModes.keyboards(standard: desired, only: forceExternal ? nil : newNames)

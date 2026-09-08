@@ -10,17 +10,26 @@ func runSettingsResetTests() throws {
     try JSONEncoder().encode(config).write(to:base.appendingPathComponent("config.json"))
     defaults.set(true,forKey:"reverseWheel"); defaults.set("keep",forKey:"unrelated")
     defaults.set("mapping",forKey:MonitorInputController.preferenceKey)
+    defaults.set("saved mappings",forKey:MonitorInputController.savedPlansKey)
     defaults.set("learned",forKey:KeyboardNavigationProfiles.key)
     defaults.set("confirmed",forKey:"monitor.confirmed.fixture")
     try Data().write(to:base.appendingPathComponent("requests/old.json"))
     try Data("helper fixture".utf8).write(to:base.appendingPathComponent("Perch Helper.app"))
     try SettingsReset.clear(.init(sections:["devices"]),defaults:defaults,domain:domain,base:base)
     guard defaults.object(forKey:MonitorInputController.preferenceKey) == nil,
+          defaults.object(forKey:MonitorInputController.savedPlansKey) == nil,
           defaults.object(forKey:KeyboardNavigationProfiles.key) == nil,
           defaults.object(forKey:"monitor.confirmed.fixture") == nil,
           defaults.bool(forKey:"reverseWheel"), defaults.string(forKey:"unrelated") == "keep",
           try JSONDecoder().decode(SafetyConfiguration.self,from:Data(contentsOf:base.appendingPathComponent("config.json"))) == config else { throw AppError(message:"Selective reset changed unrelated preferences") }
+    var monitor = MonitorInputPlan()
+    monitor.display = "11111111-1111-1111-1111-111111111111"
+    monitor.inputs = [.init(code:17,name:"HDMI"),.init(code:15,name:"DP")]
+    monitor.shortcut.enabled = true; monitor.allowUnconfirmedCycle = true
+    defaults.set(try JSONEncoder().encode([monitor.display:monitor]), forKey:MonitorInputController.savedPlansKey)
     try SettingsReset.clear(.init(sections:["preferences"]),defaults:defaults,domain:domain,base:base)
+    let preserved = try JSONDecoder().decode([String:MonitorInputPlan].self, from: defaults.data(forKey:MonitorInputController.savedPlansKey)!)[monitor.display]!
+    guard preserved.inputs == monitor.inputs && !preserved.shortcut.enabled && !preserved.allowUnconfirmedCycle else { throw AppError(message:"Preference reset lost saved monitor mappings or retained an old shortcut") }
     let partial = try JSONDecoder().decode(SafetyConfiguration.self,from:Data(contentsOf:base.appendingPathComponent("config.json")))
     guard !partial.reverseWheel && !partial.keepAwake else { throw AppError(message:"Preferences reset retained feature choices") }
     try SettingsReset.clear(.init(sections:Set(SettingsResetSelection.options.map { $0.0 })),defaults:defaults,domain:domain,base:base)

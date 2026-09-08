@@ -100,7 +100,9 @@ func runNavigationProbeUITests() throws {
         try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-navigation-test-\(suffix).png")
     }
     for key in NavigationKey.allCases where key != .home { source.pressAndRelease(key) }
-    try check(page.timer == nil && source.stops == 1 && saved.count == 1 && page.status.stringValue.contains("Layout saved"), "Successful setup lacks visible result, failed to save once, or retained timer")
+    try check(page.timer == nil && source.stops == 1 && saved.isEmpty, "Learning overwrote the old layout before acceptance or retained its timer")
+    page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use this layout" }!.performClick(nil)
+    try check(saved.count == 1 && page.status.stringValue.contains("Layout saved"), "Accepted layout was not saved once")
     page.session.tick()
     try check(saved.count == 1, "Completed setup saved its profile repeatedly")
     let restarted = MockNavigationProbeSource()

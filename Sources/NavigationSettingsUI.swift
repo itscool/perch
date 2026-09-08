@@ -1,6 +1,32 @@
 import AppKit
 
 extension AppDelegate {
+    @objc func navigationSettings() {
+        let page = SettingsTaskPage(title: "Navigation keys", detail: "Change Home/End and Page Up/Down on external keyboards. Built-in Fn+arrows keep their normal behavior. Choices save immediately; unknown keyboard sources pass through unchanged.", height: 458)
+        let home = page.add("Home/End move to line edges", detail: "Move to the start or end of the current line in supported apps.", checkbox: true) { [weak self] in self?.toggleHomeEnd() }
+        let paging = page.add("Page Up/Down move the cursor", detail: "Move the text cursor by a page instead of only scrolling the view.", checkbox: true) { [weak self] in self?.togglePageKeys() }
+        page.add("Learn or manage layouts…", detail: "Choose a connected or saved keyboard. Preview a learned layout before saving it.") { [weak self] in self?.testNavigationKeys() }
+        let setup = page.add("Review Accessibility…", detail: "Restore the helper or its access if navigation controls are unavailable.") { [weak self] in
+            if HelperStatusIPC.inputClient.value?.fresh != true { self?.advancedSafetySettings() }
+            else if HelperStatusIPC.inputClient.value?.trusted != true { self?.inputPermissionsFromSettings() }
+            else { self?.inputPermissionsFromSettings() }
+        }
+        page.add("App exceptions…", detail: "Choose apps that keep their own navigation behavior. Browsers are excluded by default.") { [weak self] in self?.navigationExceptions() }
+        page.update = { [weak self, weak page] in
+            guard let self else { return }
+            let preferences = SafetyConfiguration.load().navigation ?? NavigationPreferences()
+            let input = HelperStatusIPC.inputClient.value
+            let access = input?.fresh == true && input?.trusted == true
+            let profiles = self.keyboardModes.registrations.compactMap { $0.profile }.filter { NavigationEventDevices.mapping($0) != nil }
+            home.state = preferences.homeEnd ? .on : .off; paging.state = preferences.pageUpDown ? .on : .off
+            // An enabled choice can always be turned off, even after losing a device or grant.
+            home.isEnabled = preferences.homeEnd || (access && profiles.contains { $0.hasHomeEnd })
+            paging.isEnabled = preferences.pageUpDown || (access && profiles.contains { $0.hasPageKeys })
+            setup.title = input?.fresh != true ? "Review background helpers…" : !access ? "Set up Accessibility…" : "Review Accessibility…"
+            page?.status.stringValue = input?.fresh != true ? "The input helper is unavailable. Restore it before checking access or enabling navigation." : !access ? "Perch Helper needs Accessibility. Restore access, then return here to choose behavior." : profiles.isEmpty ? "Learn the keys on an external keyboard first. Save the preview, then return here to enable the behavior you want." : input?.navigationUnidentified == true ? "macOS did not identify the source keyboard. Unidentified keys keep their normal behavior; review the layout if needed." : "A supported external layout is available. Choose behavior above; app exceptions can keep individual apps unchanged."
+        }
+        page.show(delegate: self)
+    }
     func refreshNavigationItems() {
         guard homeEndItem != nil else { return }
         let config = SafetyConfiguration.load()
@@ -10,18 +36,20 @@ extension AppDelegate {
         let profiles = keyboardModes.registrations.compactMap { $0.profile }
         for (item, enabled, capable) in [(homeEndItem!, preferences.homeEnd, profiles.contains { $0.hasHomeEnd && NavigationEventDevices.mapping($0) != nil }), (pageKeysItem!, preferences.pageUpDown, profiles.contains { $0.hasPageKeys && NavigationEventDevices.mapping($0) != nil })] {
             item.state = enabled ? .on : .off
-            item.isEnabled = enabled || (available && capable && !keyboardModes.registrationNeedsSetup)
+            item.isEnabled = true
+            let needsSetup = !available || !capable
+            item.action = needsSetup ? #selector(keyboardSettings) : item === homeEndItem ? #selector(toggleHomeEnd) : #selector(togglePageKeys)
+            (item.view as? MenuRowView)?.opensAnotherInterface = { needsSetup }
             let warning: String
             if !available { warning = "⚠ Input setup · Settings" }
-            else if keyboardModes.registrationNeedsSetup { warning = "⚠ Keyboard setup · Settings" }
-            else if !capable { warning = "No supported keys" }
+            else if !capable { warning = "⚠ Keyboard setup · Settings" }
             else if enabled && helper?.active != true { warning = "⚠ Input controls not running" }
             else if enabled && helper?.navigationUnidentified == true { warning = "⚠ Cannot identify keyboard" }
             else if enabled && helper?.navigationDevices == 0 { warning = "⚠ Checking keyboard source" }
             else { warning = "" }
             let hint = warning.isEmpty ? (enabled ? "On · app exceptions apply" : "Off") : warning
             label(item, item === homeEndItem ? "Home/End move to line edges" : "Page Up/Down move the cursor", hint: hint, hintColor: warning.hasPrefix("⚠") ? StatusColors.warning : .secondaryLabelColor)
-            item.toolTip = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboard settings."
+            item.toolTip = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboards → Navigation keys."
         }
         refreshExternalKeyboardSection()
     }
@@ -82,6 +110,6 @@ extension AppDelegate {
             } catch { self?.showError(error) }
         }
         save.frame = NSRect(x: 320,y: 10,width: 250,height: 32); view.addSubview(save)
-        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. The two navigation switches are in Perch’s menu.", view: view))
+        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. Changes are saved together with Save exceptions. Cancel keeps the previous list.", view: view, backTitle: "Cancel"))
     }
 }

@@ -23,11 +23,13 @@ struct MonitorInputPlan: Codable, Equatable {
     var display = ""
     var alternate = false
     var profileName: String? = nil
+    var controlConnection: MonitorConnection? = nil
+    var commandMode: String { controlConnection?.argument ?? (alternate ? "lg" : "standard") }
     var inputs: [MonitorInput] = []
     var allowUnconfirmedCycle = false
     var shortcut = PanicShortcut(key: UInt32(kVK_F8), modifiers: UInt32(controlKey | optionKey), enabled: false)
     var valid: Bool {
-        (display.isEmpty || UUID(uuidString: display) != nil) && inputs.count <= 16 && inputs.allSatisfy { $0.valid } &&
+        (controlConnection?.valid ?? true) && (display.isEmpty || UUID(uuidString: display) != nil) && inputs.count <= 16 && inputs.allSatisfy { $0.valid } &&
         Set(inputs.map { $0.code }).count == inputs.count &&
         (!shortcut.enabled || (!display.isEmpty && inputs.count >= 2 && shortcut.modifiers.nonzeroBitCount >= 2 && PanicShortcut.keys.contains { $0.1 == shortcut.key }))
     }
@@ -94,6 +96,8 @@ enum MonitorCapabilities {
 struct MonitorInspection: Decodable {
     let current: UInt16?
     let capabilities: String?
+    var transportInputs: [MonitorInput]? = nil
+    var transportModel: String? = nil
     var lgIdentity: UInt16? = nil
     var lgExtendedIdentity: UInt16? = nil
     var lgFirmwareModel: String? {
@@ -148,12 +152,12 @@ final class MonitorInputController: NSObject {
     private var pendingPlan: MonitorInputPlan?
     static let connectionAdvice = "If nothing changed, try a direct connection without a dock or USB-C/HDMI adapter. Some adapters pass video but block monitor commands. Also check DDC/CI and the selected input profile."
     private func confirmationKey(_ plan: MonitorInputPlan, _ connection: String) -> String {
-        "monitor.confirmed.v1." + plan.display + "." + connection + "." + String(plan.alternate) + "." + plan.inputs.map { String($0.code) }.joined(separator: "-")
+        "monitor.confirmed.v1." + plan.display + "." + connection + "." + plan.commandMode + "." + plan.inputs.map { String($0.code) }.joined(separator: "-")
     }
     func confirmSwitch(_ worked: Bool) {
         guard !busy, let code = pendingConfirmation, let tested = pendingPlan else { return }
         if worked {
-            if let route = pendingConnection, connected?.connection == route {
+            if let route = pendingConnection, (plan.controlConnection?.argument ?? connected?.connection) == route {
                 let key = confirmationKey(tested, route)
                 var codes = confirmationDefaults.array(forKey: key) as? [Int] ?? []
                 if !codes.contains(Int(code)) { codes.append(Int(code)); confirmationDefaults.set(codes, forKey: key) }
@@ -166,7 +170,7 @@ final class MonitorInputController: NSObject {
         pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil; changed()
     }
     var connected: MonitorDescriptor? { displays.first { $0.id == plan.display } }
-    var canCycle: Bool { !busy && plan.valid && plan.inputs.count >= 2 && connected?.ddcAvailable == true }
+    var canCycle: Bool { !busy && plan.valid && !plan.display.isEmpty && plan.inputs.count >= 2 && (plan.controlConnection != nil || connected?.ddcAvailable == true) }
     var shortcutActive: Bool { hotKey.active }
     init(displays: [MonitorDescriptor] = [], backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) { self.displays = displays; self.backend = backend; self.confirmationDefaults = defaults; super.init() }
     func start() {
@@ -192,15 +196,19 @@ final class MonitorInputController: NSObject {
             case .success(let displays):
                 self.displays = displays
                 if self.warning && self.connected != nil { return } // Preserve the last actionable result during metadata refresh.
-                self.warning = self.plan.shortcut.enabled && (!self.hotKey.active || self.connected == nil)
-                self.message = displays.isEmpty ? "No external monitor connected." : self.warning ? "The configured monitor or shortcut is unavailable." : "\(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected · control not yet checked"
+                self.warning = self.plan.shortcut.enabled && (!self.hotKey.active || (self.connected == nil && self.plan.controlConnection == nil))
+                self.message = displays.isEmpty ? (self.plan.controlConnection == nil ? "No external monitor connected." : "Video input inactive · saved control connection retained") : self.warning ? "The configured monitor or shortcut is unavailable." : "\(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected · control not yet checked"
             case .failure(let error): self.message = error.localizedDescription; self.warning = true
             }
         }
     }
-    func inspect(_ id: String, alternate: Bool, completion: @escaping (Result<MonitorInspection,Error>) -> Void) {
+    func inspect(_ id: String, alternate: Bool, connection: MonitorConnection? = nil, completion: @escaping (Result<MonitorInspection,Error>) -> Void) {
         guard !busy else { return }
-        perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["inspect",id,alternate ? "lg" : "standard"])) }, completion: completion)
+        perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["inspect",id,connection?.argument ?? (alternate ? "lg" : "standard")])) }, completion: completion)
+    }
+    func usbDevices(completion: @escaping (Result<[MonitorUSBDevice],Error>) -> Void) {
+        guard !busy else { return }
+        perform({ [backend] in try JSONDecoder().decode([MonitorUSBDevice].self, from: backend.run(["usb-list"])) }, completion:completion)
     }
     private func perform<T>(_ job: @escaping () throws -> T, completion: @escaping (Result<T,Error>) -> Void) {
         busy = true; changed()
@@ -221,7 +229,7 @@ final class MonitorInputController: NSObject {
         catch { try? hotKey.register(plan.shortcut); throw error }
         let data = try JSONEncoder().encode(value)
         UserDefaults.standard.set(data, forKey: Self.preferenceKey)
-        if value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
+        if value.controlConnection != plan.controlConnection || value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
         plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
     }
     func testInput(_ input: MonitorInput, display: String, alternate: Bool,
@@ -247,22 +255,22 @@ final class MonitorInputController: NSObject {
             message = busy ? "A monitor request is already in progress." : "Open Monitor input settings to choose a connected display and at least two inputs."
             warning = true; changed(); return
         }
-        let plan = self.plan, last = self.lastSent, route = connected?.connection
-        let writeOnly = connected.flatMap { display in
+        let plan = self.plan, last = self.lastSent, route = plan.controlConnection?.argument ?? connected?.connection
+        let writeOnly = plan.controlConnection == nil && connected.flatMap { display in
             MonitorProfiles.entries.first { $0.name == plan.profileName && $0.vendor == display.vendor } ?? MonitorProfiles.match(display)
         }?.readbackUnavailable == true
         pendingConfirmation = nil; pendingPlan = nil
         perform({ [backend] () -> (MonitorInput, UInt16?) in
             let state: MonitorInspection
             if writeOnly { state = MonitorInspection(current:nil, capabilities:nil) }
-            else { state = try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])) }
+            else { state = try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.commandMode])) }
             let next = try plan.next(current: state.current, lastSent: last)
-            let result = try backend.run(["switch",plan.display,plan.alternate ? "lg" : "standard",String(next.code)])
+            let result = try backend.run(["switch",plan.display,plan.commandMode,String(next.code)])
             guard let object = try JSONSerialization.jsonObject(with: result) as? [String:Any], object["sent"] as? Bool == true else { throw AppError(message: "The input command was not accepted.") }
             // A transport acknowledgment is not monitor confirmation. Read back only
             // after explicit user action; failures here leave the result unconfirmed.
             Thread.sleep(forTimeInterval: 0.2)
-            let reply = writeOnly ? nil : try? backend.run(["read",plan.display,plan.alternate ? "lg" : "standard"])
+            let reply = writeOnly ? nil : try? backend.run(["read",plan.display,plan.commandMode])
             let reported = reply.flatMap { try? JSONDecoder().decode(MonitorInspection.self, from: $0) }.flatMap { $0.current }
             return (next, reported)
         }) { [weak self] result in

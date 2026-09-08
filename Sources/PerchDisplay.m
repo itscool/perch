@@ -5,6 +5,7 @@
 @import CoreGraphics;
 #include "ioregistry.h"
 #include "DDCWire.h"
+#import "MonitorTransport.h"
 #include <unistd.h>
 extern IOReturn IOAVServiceReadI2C(IOAVServiceRef, uint32_t, uint32_t, void *, uint32_t);
 extern IOReturn IOAVServiceWriteI2C(IOAVServiceRef, uint32_t, uint32_t, void *, uint32_t);
@@ -58,6 +59,8 @@ int main(int argc, const char **argv) { @autoreleasepool {
     alarm(8); // A wedged driver must not pin Perch's UI/input/guardian process.
     if (argc < 2) return failure(@"Missing display command.");
     NSString *command = @(argv[1]);
+    if ([command isEqual:@"usb-list"] && argc==2) { emit(PerchUSBMonitors()); return 0; }
+    if ([command isEqual:@"transport-self-test"] && argc==2) return PerchTransportSelfTest() ? 0 : 1;
     bool list = [command isEqual:@"list"], inspect = [command isEqual:@"inspect"], read = [command isEqual:@"read"], change = [command isEqual:@"switch"];
     if ((!list && !inspect && !read && !change) || (list && argc != 2) || ((inspect || read) && argc != 4) || (change && argc != 5)) return failure(@"Invalid display command.");
     DisplayInfos displays[MAX_DISPLAYS] = {0};
@@ -75,13 +78,21 @@ int main(int argc, const char **argv) { @autoreleasepool {
     }
     NSString *identifier = @(argv[2]);
     if (![[NSUUID alloc] initWithUUIDString:identifier]) return failure(@"Invalid monitor identity.");
+    NSString *mode = @(argv[3]);
+    if ([mode hasPrefix:@"route:"]) {
+        if(mode.length>2048) return failure(@"Oversized monitor route.");
+        NSData *data=[[NSData alloc] initWithBase64EncodedString:[mode substringFromIndex:6] options:0];
+        NSDictionary *route=data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        unsigned input=0;
+        if(change) { NSScanner *scan=[NSScanner scannerWithString:@(argv[4])]; int n=0; if(![scan scanInt:&n] || !scan.isAtEnd || n<1 || n>65535)return failure(@"Invalid input value.");input=n; }
+        NSDictionary *result=PerchMonitorTransport(route,command,input); emit(result); return result[@"error"] ? 1 : 0;
+    }
     DisplayInfos *selected = NULL;
     for (int i = 0; i < count; i++) if (!CGDisplayIsBuiltin(displays[i].id) && [displays[i].uuid isEqual:identifier]) {
         if (selected) return failure(@"Monitor identity is ambiguous; reconnect and reselect it.");
         selected = &displays[i];
     }
     if (!selected) return failure(@"The selected monitor is not connected to this Mac.");
-    NSString *mode = @(argv[3]);
     bool alternate = [mode isEqual:@"lg"];
     if (![mode isEqual:@"standard"] && !alternate) return failure(@"Invalid input protocol.");
     if (alternate && selected->vendor != 0x1e6d) return failure(@"LG input protocol is only available for LG monitors.");

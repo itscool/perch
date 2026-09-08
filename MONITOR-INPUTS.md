@@ -45,3 +45,15 @@ Update 2026-09-07: the owner subsequently confirmed LG 27UN850-W USB-C switching
 ## 1.1 hardware follow-up
 
 Model & inputs now exposes the embedded model choices. Detect preserves the existing list; exact documented write codes take priority over generic capabilities. Compatibility test is a fallback after the defined method fails: choose one command, test it, confirm the intended input, then save. Back does not save. Connected-input occupancy is unknown unless separately established; Perch does not infer it from capabilities. See [hardware catalog](catalog/HARDWARE-SUPPORT.md).
+
+## USB and NEC connections (1.1)
+
+Open **Perch Settings → Monitor inputs → USB / NEC connection…** in the protocol selector. Associate the selected display with its USB control interface or explicit NEC IPv4/serial address, then check it before saving. No subnet scan runs. USB enumeration reads metadata only; the selected monitor is opened on demand. No keyboard interfaces are opened or seized.
+
+- MSI: USB 1462:3fa4, firmware identity pair checked against 23 bundled input profiles on every operation. Only identity and input-source commands are exposed. Perch input numbers 1–4 translate to MSI wire values 0–3. Unknown firmware and the upstream read-only model are refused.
+- USB MCCS: monitors such as supported Eizo models exposing usage page 0x80 and a scalar input-source feature (0x82/0x60). Ambiguous/shared feature reports are refused to avoid altering other settings. Input labels may require manual setup.
+- NEC: TCP 7142 at an explicitly entered IPv4 address, or a selected /dev/cu. serial device at 9600 baud; monitor IDs 1–26. Reads model C217 and input 0060, changes only input 0060. Replies are bounded and checked for framing, checksum, address, opcode and status. The checked model is saved and rechecked before later operations.
+
+The configured control route can still be used after switching away from this Mac's video input. It is not replaced silently with DDC if unavailable. No extra idle timer is added. Transport success still needs readback or user confirmation. Protocol fixture tests pass; these new transports have **not been physically validated on MSI, Eizo or NEC hardware here**.
+
+Protocol references: https://github.com/couriersud/msigd (identity/input packet facts), https://github.com/NECDisplaySolutions/necpdsdk (NEC protocol), https://www.ddcutil.com/usb/ (USB MCCS). This is a restricted native implementation, not a bundled copy of those utilities.

@@ -165,6 +165,10 @@ func runReleaseUITests() throws {
     try check((app.lidItem.view as! MenuRowView).opensAnotherInterface(), "Lid authorization toggle must close the menu first")
     let headings = app.menu.items.filter { ($0.view as? MenuRowView)?.kind == .section }.map { $0.title }
     try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains("External keyboards") && !headings.contains("Input"), "Keyboard groups were not split")
+    let titles = app.menu.items.map { $0.title }
+    try check(headings.contains("Sleep") && headings.contains("Display") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
+    try check(titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")! && titles.firstIndex(of:"Keep awake with lid closed")! < titles.firstIndex(of:"Display")! && titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")!, "Display action is outside Display section")
+    try check(!titles.contains("Monitor input settings…"), "Monitor settings duplicated in menu")
     // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]
     app.keyboardModes.busy = true // Routine refresh is not a settings transaction.

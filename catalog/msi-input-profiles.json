@@ -1,0 +1,248 @@
+[
+  {
+    "identity": "00;",
+    "version": "V18",
+    "model": "MAG321CURV",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00;",
+    "version": "V43",
+    "model": "MAG321CURV",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00:",
+    "version": "V18",
+    "model": "MAG321CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "00{",
+    "version": "V51",
+    "model": "MAG321QR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "002",
+    "version": "V18",
+    "model": "MAG241C",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "002",
+    "version": "V49",
+    "model": "MAG241C",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "004",
+    "version": "V18",
+    "model": "MAG241CR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "005",
+    "version": "V18",
+    "model": "MAG271CR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "006",
+    "version": "V19",
+    "model": "MAG271CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "00E",
+    "version": "V18",
+    "model": "MAG272CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00E",
+    "version": "V41",
+    "model": "MAG272CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00G",
+    "version": "V18",
+    "model": "MAG272QR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00L",
+    "version": "V18",
+    "model": "MAG272",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00O",
+    "version": "V18",
+    "model": "MAG272QP",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "001",
+    "version": "V18",
+    "model": "MPG27CQ",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort"
+    ]
+  },
+  {
+    "identity": "00[",
+    "version": "V51",
+    "model": "MPG273CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00>",
+    "version": "V09",
+    "model": "MPG341CQR",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00Z",
+    "version": "V41",
+    "model": "MAG274R",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00B",
+    "version": "V18",
+    "model": "MAG251RX",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00e",
+    "version": "V43",
+    "model": "MAG274QRF-QD FW.011",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00e",
+    "version": "V48",
+    "model": "MAG274QRF-QD FW.015/FW.016",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00e",
+    "version": "V56",
+    "model": "MAG274QRF-QD FW.020",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  },
+  {
+    "identity": "00?",
+    "version": "V06",
+    "model": "PS341WU",
+    "inputs": [
+      "HDMI 1",
+      "HDMI 2",
+      "DisplayPort",
+      "USB-C"
+    ]
+  }
+]

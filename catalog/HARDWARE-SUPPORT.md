@@ -157,3 +157,7 @@ Automated fixtures cover malformed/missing replies, saved-map preservation, mode
 LG's public OnScreen Control documentation and the source-linked LG side-channel findings were reviewed. No reliable universal retail-model or connected-input query was established. The proprietary application was not installed or run, and its implementation is not claimed as inspected.
 
 Follow-up: [static LG package inspection](LG-IDENTITY-RESEARCH.md) found proprietary ID reads and a 27UN850 firmware-model entry. The earlier uninspected-app limitation above is superseded; live identification remains unverified.
+
+## Additional control transports
+
+The 23 MSI version/identity input profiles in `msi-input-profiles.json` are separate from the 93 DDC records. A native USB backend checks this allowlist per operation. Native USB MCCS and NEC TCP/serial input control are also implemented, with explicit connection setup. Their physical hardware validation remains outstanding; packet, routing and UI tests use fixtures. See `MONITOR-INPUTS.md`.

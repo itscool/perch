@@ -1,6 +1,6 @@
 {
   "reviewedOn": "2026-09-07",
-  "note": "Research records, not enabled hardware support. Never send these identities as DDC input commands.",
+  "note": "Historical research identities. Executable MSI input profiles are in msi-input-profiles.json; USB MCCS and NEC transports are implemented but await physical hardware validation.",
   "sources": [
     "https://github.com/couriersud/msigd",
     "https://github.com/NECDisplaySolutions/necpdsdk",
@@ -9,22 +9,13 @@
   ],
   "msi": [
     {
-      "model": "ID",
-      "firmware": "Firmware",
-      "version": "Version",
-      "identity": "Special",
-      "upstreamSupport": "Supported",
-      "transport": "msi-usb-hid",
-      "perchControlSupported": false
-    },
-    {
       "model": "MPG27CQ",
       "firmware": "?",
       "version": "V18",
       "identity": "001",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG241C",
@@ -33,7 +24,7 @@
       "identity": "002",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG241C",
@@ -42,7 +33,7 @@
       "identity": "002",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG241CP",
@@ -51,7 +42,7 @@
       "identity": "002",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG241CV",
@@ -60,7 +51,7 @@
       "identity": "002",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG241CR",
@@ -69,7 +60,7 @@
       "identity": "004",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG271CR",
@@ -78,7 +69,7 @@
       "identity": "005",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG271CQR",
@@ -87,7 +78,7 @@
       "identity": "006",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG321CQR",
@@ -96,7 +87,7 @@
       "identity": "00:",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG321CURV",
@@ -105,7 +96,7 @@
       "identity": "00;",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG321CURV",
@@ -114,7 +105,7 @@
       "identity": "00;",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MPG341CQR",
@@ -123,7 +114,7 @@
       "identity": "00>",
       "upstreamSupport": "WIP",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "PS341WU",
@@ -132,7 +123,7 @@
       "identity": "00?",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MPG273CQR",
@@ -150,7 +141,7 @@
       "identity": "00B",
       "upstreamSupport": "WIP",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272CQR",
@@ -159,7 +150,7 @@
       "identity": "00E",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272CQR",
@@ -168,7 +159,7 @@
       "identity": "00E",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272QR",
@@ -177,7 +168,7 @@
       "identity": "00G",
       "upstreamSupport": "Partial 1)",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272",
@@ -186,7 +177,7 @@
       "identity": "00L",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272QP",
@@ -195,7 +186,7 @@
       "identity": "00O",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG274R",
@@ -204,7 +195,7 @@
       "identity": "00Z",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG274QRF-QD",
@@ -213,7 +204,7 @@
       "identity": "00e",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG274QRF-QD",
@@ -222,7 +213,7 @@
       "identity": "00e",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG274QRF-QD",
@@ -231,7 +222,7 @@
       "identity": "00e",
       "upstreamSupport": "Yes",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG274QRX",
@@ -249,7 +240,7 @@
       "identity": "002",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG271CP",
@@ -258,7 +249,7 @@
       "identity": "002",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG271CQP",
@@ -267,7 +258,7 @@
       "identity": "006",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG271CV",
@@ -276,7 +267,7 @@
       "identity": "002",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272C",
@@ -285,7 +276,7 @@
       "identity": "00O",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272CR",
@@ -294,7 +285,7 @@
       "identity": "00O",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272CRX",
@@ -303,7 +294,7 @@
       "identity": "00O",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MAG272R",
@@ -312,7 +303,7 @@
       "identity": "00O",
       "upstreamSupport": "?",
       "transport": "msi-usb-hid",
-      "perchControlSupported": false
+      "perchControlSupported": true
     },
     {
       "model": "MD272QP",
@@ -328,6 +319,6 @@
     "transport": "LAN or RS232",
     "modelQuery": "C217",
     "modelReply": "C317",
-    "perchControlSupported": false
+    "perchControlSupported": true
   }
 }

@@ -82,3 +82,7 @@ Operational monitor profiles are keyed by exact EDID manufacturer/product IDs or
 - BenQ and other DDC brands: exact source records remain the operational authority. Generic USB-C values are not guaranteed across models, as ddcutil explicitly documents: https://www.ddcutil.com/faq/
 
 No universal source was found that translates every manufacturer's firmware into input codes. The database keeps unsupported research distinct from executable profiles. Firmware identity alone does not establish connected-port occupancy, prove a switch succeeded, or authorize firmware/update writes.
+
+### Transport implementation follow-up
+
+MSI USB input control is now implemented for the 23 version/identity combinations in `msi-input-profiles.json`. This executable allowlist is separate from the larger research table: upstream read-only and unhandled non-ASCII identities are excluded. USB MCCS uses the device's input-source feature rather than guessing a USB packet format. NEC model/input commands have native TCP and serial framing. See MONITOR-INPUTS.md for setup, restrictions, and physical-validation limits. No LAN scan or real monitor switching was performed during development of these transports.

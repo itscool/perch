@@ -17,6 +17,8 @@ final class MonitorInputPage: NSObject {
     var save: SettingsActionButton!
     var worked: SettingsActionButton!
     var failed: SettingsActionButton!
+    private var lastDDCIndex = 0
+    private var controlConnection: MonitorConnection?
     private var chosenProfile: String?
     private var listed: [MonitorDescriptor] = []
     private var editedDisplay = ""
@@ -28,7 +30,7 @@ final class MonitorInputPage: NSObject {
             let label = NSTextField(wrappingLabelWithString: text); label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor; label.frame = frame; view.addSubview(label)
         }
         monitors.frame = NSRect(x: 0,y: 452,width: 350,height: 30); monitors.target = self; monitors.action = #selector(selectedMonitor)
-        protocolChoice.addItems(withTitles: ["Standard DDC", "LG alternate input control"])
+        protocolChoice.addItems(withTitles: ["Standard DDC", "LG alternate input control", "USB / NEC connection…"])
         protocolChoice.frame = NSRect(x: 360,y: 452,width: 212,height: 30)
         protocolChoice.target = self; protocolChoice.action = #selector(protocolChanged)
         status.frame = NSRect(x: 4,y: 374,width: 564,height: 73); status.font = .systemFont(ofSize: 12)
@@ -61,11 +63,13 @@ final class MonitorInputPage: NSObject {
         }
         cycle.frame = NSRect(x: 200,y: 12,width: 195,height: 32)
         [monitors,protocolChoice,status,detect,recheck,custom,inputList,blind,enabled,keys,save,cycle].forEach { view.addSubview($0) }
+        lastDDCIndex = controller.plan.alternate ? 1 : 0
+        controlConnection = controller.plan.controlConnection
         chosenProfile = controller.plan.profileName
         editedDisplay = controller.plan.display
         candidates = controller.plan.inputs; selectedCodes = Set(candidates.map { $0.code })
         renderInputs()
-        protocolChoice.selectItem(at: controller.plan.alternate ? 1 : 0)
+        protocolChoice.selectItem(at: controlConnection != nil ? 2 : controller.plan.alternate ? 1 : 0)
         blind.state = controller.plan.allowUnconfirmedCycle ? .on : .off
         enabled.state = controller.plan.shortcut.enabled ? .on : .off
         keys.selectItem(at: PanicShortcut.keys.firstIndex { $0.1 == controller.plan.shortcut.key } ?? 0)
@@ -115,7 +119,7 @@ final class MonitorInputPage: NSObject {
         var pendingProfile = chosenProfile
         var pendingAlternate = protocolChoice.indexOfSelectedItem == 1
         let preset = NSPopUpButton(frame: NSRect(x: 0,y: 443,width: 380,height: 30))
-        let profiles = MonitorProfiles.entries.filter { $0.vendor == listed.first(where: { $0.id == editedDisplay })?.vendor && $0.confidence != "suggested" }
+        let profiles = controlConnection == nil ? MonitorProfiles.entries.filter { $0.vendor == listed.first(where: { $0.id == editedDisplay })?.vendor && $0.confidence != "suggested" } : []
         preset.addItem(withTitle: "Choose your exact model…")
         preset.addItems(withTitles: profiles.map { $0.name })
         if let name = chosenProfile, let index = profiles.firstIndex(where: { $0.name == name }) { preset.selectItem(at: index + 1) }
@@ -134,7 +138,7 @@ final class MonitorInputPage: NSObject {
             do {
                 let values = try Self.parse(text.string)
                 self?.chosenProfile = profiles.first(where: { $0.name == pendingProfile })?.inputs == values ? pendingProfile : nil
-                self?.protocolChoice.selectItem(at: pendingAlternate ? 1 : 0)
+                self?.protocolChoice.selectItem(at: self?.controlConnection != nil ? 2 : pendingAlternate ? 1 : 0)
                 self?.candidates = values; self?.selectedCodes.formIntersection(values.map { $0.code }); self?.renderInputs()
                 SettingsWindow.shared.goBack()
             } catch let failure { error.stringValue = failure.localizedDescription }
@@ -147,6 +151,7 @@ final class MonitorInputPage: NSObject {
                 text.string = Self.lines(values); pendingAlternate = alternate; pendingProfile = nil
             }
         }
+        troubleshoot.isEnabled = controlConnection == nil
         troubleshoot.frame = NSRect(x: 0,y: 5,width: 270,height: 32)
         page.addSubview(troubleshoot)
         apply.frame = NSRect(x: 315,y: 5,width: 257,height: 32)
@@ -240,7 +245,7 @@ final class MonitorInputPage: NSObject {
         autoDetect()
     }
     private func autoDetect() {
-        if shown && !SettingsWindow.shared.testing && !didAutoDetect && candidates.isEmpty && !controller.busy && !editedDisplay.isEmpty {
+        if shown && protocolChoice.indexOfSelectedItem != 2 && !SettingsWindow.shared.testing && !didAutoDetect && candidates.isEmpty && !controller.busy && !editedDisplay.isEmpty {
             didAutoDetect = true
             DispatchQueue.main.async { [weak self] in self?.detectInputs() }
         }
@@ -258,7 +263,7 @@ final class MonitorInputPage: NSObject {
         protocolChoice.item(at: 1)?.isEnabled = selected?.vendor == 0x1e6d
         monitors.isEnabled = !controller.busy
         protocolChoice.isEnabled = !controller.busy
-        detect.isEnabled = !controller.busy && selected?.ddcAvailable == true
+        detect.isEnabled = !controller.busy && (selected?.ddcAvailable == true || controlConnection != nil)
         save.isEnabled = !controller.busy
         worked.isHidden = controller.pendingConfirmation == nil
         failed.isHidden = controller.pendingConfirmation == nil
@@ -271,23 +276,32 @@ final class MonitorInputPage: NSObject {
         guard listed.indices.contains(monitors.indexOfSelectedItem) else { return }
         let id = listed[monitors.indexOfSelectedItem].id
         guard editedDisplay != id else { return }
+        controlConnection = nil
         editedDisplay = id; chosenProfile = nil; candidates = []; selectedCodes = []; renderInputs(); protocolChoice.selectItem(at: MonitorProfiles.match(listed[monitors.indexOfSelectedItem]).map { $0.alternate && $0.confidence != "suggested" } == true ? 1 : 0)
         refresh(); detectInputs()
     }
     @objc private func protocolChanged() {
+        if protocolChoice.indexOfSelectedItem == 2 { connectionSettings(); return }
+        lastDDCIndex = protocolChoice.indexOfSelectedItem
+        controlConnection = nil
         chosenProfile = nil
         candidates = []; selectedCodes = []; renderInputs(); detectInputs()
     }
     private func detectInputs() {
-        guard let display = listed.first(where: { $0.id == editedDisplay }), display.ddcAvailable, !controller.busy else { return }
-        if let profile = MonitorProfiles.match(display), profile.alternate, profile.confidence != "suggested", candidates.isEmpty, !didAutoDetect { protocolChoice.selectItem(at: 1) }
+        guard let display = listed.first(where: { $0.id == editedDisplay }), (display.ddcAvailable || controlConnection != nil), !controller.busy else { return }
+        if controlConnection == nil, let profile = MonitorProfiles.match(display), profile.alternate, profile.confidence != "suggested", candidates.isEmpty, !didAutoDetect { protocolChoice.selectItem(at: 1) }
         let alternate = protocolChoice.indexOfSelectedItem == 1
         let original = candidates
-        controller.inspect(editedDisplay, alternate: alternate) { [weak self] result in
+        controller.inspect(editedDisplay, alternate: alternate, connection: controlConnection) { [weak self] result in
             guard let self, self.shown, self.editedDisplay == display.id,
                   (self.protocolChoice.indexOfSelectedItem == 1) == alternate, self.candidates == original else { return }
             switch result {
             case .success(let inspection):
+                if self.controlConnection != nil {
+                    if let inputs = inspection.transportInputs { self.candidates = MonitorCapabilities.merge(self.candidates, reported: inputs) }
+                    self.controller.message = "✓ Control connection responded. " + (inspection.transportModel ?? "USB MCCS monitor") + ". Choose inputs in Model & inputs if no list is reported."
+                    self.controller.warning = false; self.renderInputs(); self.refresh(); return
+                }
                 let codes = inspection.capabilities.map(MonitorCapabilities.inputs) ?? []
                 let reportedModel = inspection.lgFirmwareModel ?? inspection.capabilities.flatMap(MonitorCapabilities.model)
                 let profile = MonitorProfiles.entries.first { $0.name == self.chosenProfile && $0.vendor == display.vendor }
@@ -329,10 +343,75 @@ final class MonitorInputPage: NSObject {
             self.refresh()
         }
     }
+
+    private func connectionSettings() {
+        let page = MonitorConnectionView(frame:NSRect(x:0,y:0,width:572,height:310))
+        var active = true
+        let selectedDisplay = editedDisplay
+        let kinds = ["msi-usb","mccs-usb","nec-lan","nec-serial"]
+        let type = NSPopUpButton(frame:NSRect(x:0,y:260,width:572,height:30))
+        type.addItems(withTitles:["MSI USB control", "USB MCCS (including supported Eizo models)", "NEC network connection", "NEC serial connection"])
+        if let connection = controlConnection, let i = kinds.firstIndex(of:connection.kind) { type.selectItem(at:i) }
+        let endpoint = NSTextField(frame:NSRect(x:0,y:215,width:572,height:28))
+        endpoint.placeholderString = "USB identity below, IPv4 address, or /dev/cu. device"
+        endpoint.stringValue = controlConnection?.endpoint ?? ""
+        let devices = NSPopUpButton(frame:NSRect(x:0,y:175,width:572,height:28)); devices.addItem(withTitle:"Choose a detected USB monitor")
+        var found: [MonitorUSBDevice] = []
+        let message = NSTextField(wrappingLabelWithString:"USB needs the monitor’s upstream data cable. NEC uses port 7142 or 9600-baud serial. Select the monitor ID (usually 1).")
+        message.frame = NSRect(x:0,y:70,width:572,height:65); message.textColor = .secondaryLabelColor
+        let address = NSPopUpButton(frame:NSRect(x:410,y:138,width:162,height:28)); address.addItems(withTitles:(1...26).map { "Monitor ID \($0)" }); address.selectItem(at:(controlConnection?.address ?? 1)-1)
+        let scan = SettingsActionButton(title:"Find USB monitors") { [weak self] in
+            guard let self, !self.controller.busy, !SettingsWindow.shared.testing else { return }
+            self.controller.usbDevices { result in
+                guard active else { return }
+                switch result {
+                case .success(let values): found = values; devices.removeAllItems(); devices.addItem(withTitle:"Choose a detected USB monitor"); devices.addItems(withTitles:values.map { $0.name + " · " + $0.endpoint }); message.stringValue = values.isEmpty ? "No compatible USB control interface found. Check the upstream USB cable." : "Choose the USB device belonging to this monitor, then check the connection."
+                case .failure(let error): message.stringValue = error.localizedDescription
+                }
+            }
+        }
+        scan.frame = NSRect(x:0,y:138,width:230,height:28)
+        let check = SettingsActionButton(title:"Check connection & use") { [weak self] in
+            guard let self, !self.controller.busy, !SettingsWindow.shared.testing else { return }
+            var route = MonitorConnection(kind:kinds[type.indexOfSelectedItem],endpoint:endpoint.stringValue.trimmingCharacters(in:.whitespacesAndNewlines),address:address.indexOfSelectedItem+1)
+            if type.indexOfSelectedItem < 2, found.indices.contains(devices.indexOfSelectedItem-1) {
+                let device = found[devices.indexOfSelectedItem-1]; route.kind = device.kind; route.endpoint = device.endpoint
+            }
+            guard route.valid else { message.stringValue = "Choose a USB monitor or enter the NEC connection address."; return }
+            self.controller.inspect(selectedDisplay,alternate:false,connection:route) { result in
+                guard active, self.editedDisplay == selectedDisplay else { return }
+                switch result {
+                case .success(let info):
+                    route.model = info.transportModel
+                    self.controlConnection = route; self.chosenProfile = nil; self.candidates = info.transportInputs ?? []; self.selectedCodes = []; self.renderInputs()
+                    self.protocolChoice.selectItem(at:2); self.controller.message = "✓ Connection checked. Select inputs and save to enable it."; self.controller.warning = false
+                    SettingsWindow.shared.goBack(); self.refresh()
+                case .failure(let error): message.stringValue = "⚠ " + error.localizedDescription; message.textColor = StatusColors.warning
+                }
+            }
+        }
+        check.frame = NSRect(x:265,y:15,width:307,height:32)
+        [type,endpoint,devices,address,message,scan,check].forEach { page.addSubview($0) }
+        page.selectionChanged = {
+            let usb = type.indexOfSelectedItem < 2
+            endpoint.isHidden = usb; address.isHidden = usb
+            devices.isHidden = !usb; scan.isHidden = !usb
+            endpoint.placeholderString = type.indexOfSelectedItem == 2 ? "Monitor’s IPv4 address, e.g. 192.168.1.50" : "Serial device, e.g. /dev/cu.usbserial-…"
+            message.stringValue = usb ? "Choose this monitor’s USB control device. Connect its upstream USB cable if it is missing." : "Enter this monitor’s connection address and monitor ID (usually 1)."
+            message.textColor = .secondaryLabelColor
+        }
+        type.target = page; type.action = #selector(MonitorConnectionView.updateSelection)
+        page.updateSelection()
+
+        SettingsWindow.shared.show(.init(title:"Monitor control connection",detail:"Associate this control connection with the selected display. Checking reads identity and current input; it does not switch inputs. Standard DDC remains available in the previous page’s protocol menu.",view:page,leave: { active = false; if self.controlConnection == nil { self.protocolChoice.selectItem(at:self.lastDDCIndex) } }))
+        if type.indexOfSelectedItem < 2 { scan.performClick(nil) }
+    }
+
     @discardableResult private func saveSettings(back: Bool = true) -> Bool {
         do {
             guard UUID(uuidString: editedDisplay) != nil else { throw AppError(message: "Select a connected monitor first.") }
             var plan = MonitorInputPlan()
+            plan.controlConnection = controlConnection
             plan.profileName = chosenProfile
             plan.display = editedDisplay; plan.alternate = protocolChoice.indexOfSelectedItem == 1
             plan.inputs = candidates.filter { selectedCodes.contains($0.code) }; plan.allowUnconfirmedCycle = blind.state == .on
@@ -350,7 +429,7 @@ extension AppDelegate {
     func refreshMonitorInputItem() {
         guard let item = monitorInputItem else { return }
         item.isEnabled = monitorInputs.canCycle
-        let hint = monitorInputs.busy ? "Working…" : monitorInputs.warning ? "⚠ See monitor settings" : monitorInputs.connected == nil ? "Set up in Settings" : monitorInputs.shortcutActive ? monitorInputs.plan.shortcut.title : monitorInputs.plan.inputs.count >= 2 ? "Shortcut off" : "Choose inputs in Settings"
+        let hint = monitorInputs.busy ? "Working…" : monitorInputs.warning ? "⚠ See monitor settings" : monitorInputs.connected == nil && monitorInputs.plan.controlConnection == nil ? "Set up in Settings" : monitorInputs.shortcutActive ? monitorInputs.plan.shortcut.title : monitorInputs.plan.inputs.count >= 2 ? "Shortcut off" : "Choose inputs in Settings"
         label(item, "Cycle monitor input", hint: hint, hintColor: monitorInputs.warning ? StatusColors.warning : .secondaryLabelColor)
         item.toolTip = monitorInputs.message
     }

@@ -81,6 +81,12 @@ func runMonitorInputUITests() throws {
     host.goBack()
     host.goBack()
     guard page.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Cancelled preset selection changed parent settings") }
+    page.protocolChoice.selectItem(at:2)
+    _ = NSApp.sendAction(page.protocolChoice.action!,to:page.protocolChoice.target,from:page.protocolChoice)
+    guard host.pages.last?.title == "Monitor control connection" && mock.commands.count == beforeCommands else { throw AppError(message:"Opening connection setup caused hardware IO") }
+    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-connection.png")
+    host.goBack()
+    guard page.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Connection cancel changed protocol") }
     host.goBack()
     guard host.pages.count == 1 && controller.pageChanged == nil else { throw AppError(message:"Monitor setup did not clean up on Back") }
     host.pages = []
@@ -154,4 +160,25 @@ func runMonitorTransactionTests() throws {
     try finish()
     guard testAccepted && controller.plan == beforeTest else { throw AppError(message:"Single candidate test changed the saved cycle") }
     print("PASS: production monitor transaction failure preserves cycle position; explicit fallback advances only after accepted commands; mock adapter only")
+}
+
+func runMonitorConnectionTests() throws {
+    let old = Data(#"{"display":"11111111-1111-1111-1111-111111111111","alternate":true,"inputs":[],"allowUnconfirmedCycle":false,"shortcut":{"key":100,"modifiers":0,"enabled":false}}"#.utf8)
+    let legacy = try JSONDecoder().decode(MonitorInputPlan.self,from:old)
+    guard legacy.controlConnection == nil && legacy.commandMode == "lg" else { throw AppError(message:"Legacy DDC preferences changed") }
+    var plan = legacy; plan.controlConnection = .init(kind:"msi-usb",endpoint:"fixture:serial:1")
+    plan.inputs = [.init(code:1,name:"HDMI 1"),.init(code:2,name:"HDMI 2")]
+    let roundtrip = try JSONDecoder().decode(MonitorInputPlan.self,from:JSONEncoder().encode(plan))
+    guard roundtrip == plan && plan.commandMode.hasPrefix("route:") else { throw AppError(message:"Control connection not preserved") }
+    var bad = plan; bad.controlConnection?.kind = "arbitrary"; guard !bad.valid else { throw AppError(message:"Unknown transport accepted") }
+    let backend = FakeMonitorBackend(); backend.failWrite = false; backend.reported = 1; backend.reportWritten = true
+    let controller = MonitorInputController(displays:[],backend:backend)
+    controller.plan = plan
+    guard controller.canCycle else { throw AppError(message:"USB route unavailable after video switched away") }
+    controller.cycle()
+    let end = Date().addingTimeInterval(2)
+    while controller.busy && Date()<end { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard !controller.busy && backend.commands.contains(where: { $0.first == "switch" && $0[2] == plan.commandMode && $0.last == "2" }) else { throw AppError(message:"Cycle lost its USB route") }
+    _ = try MonitorDisplayBackend().run(["transport-self-test"])
+    print("PASS: monitor transport packet integrity; backward-compatible preferences; invalid routes rejected; USB cycling after video disappears through mock backend only")
 }

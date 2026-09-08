@@ -4,9 +4,16 @@ import Security
 enum LidGuardInstall {
     static let bundle = "/Library/PrivilegedHelperTools/Perch Lid Helper.app"
     static let binary = bundle + "/Contents/MacOS/Perch"
+    static func cleanupRequiresUpdate(appInfo: [String: Any] = Bundle.main.infoDictionary ?? [:], executable: URL = URL(fileURLWithPath: binary)) -> Bool {
+        !GuardianInstall.buildMatches(executable: executable, appInfo: appInfo)
+    }
     static func cleanup() throws {
         guard LidGuardOwnership.exists else { return }
         guard !SettingsWindow.shared.testing, let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Lid cleanup is unavailable.") }
+        // The verified, root-owned staged bundle performs cleanup before the
+        // installer replaces/restarts the service. An app update must not keep
+        // invoking the older helper's broken cleanup implementation.
+        if cleanupRequiresUpdate() { try install(); return }
         let quote = GuardianInstall.shellQuote
         let command = "/usr/bin/codesign --verify --strict --test-requirement " + quote("=" + requirement) + " " + quote(bundle) + " && (/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true) && " + quote(binary) + " --lid-cleanup && /bin/launchctl bootstrap system /Library/LaunchDaemons/" + LidGuardService.name + ".plist"
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")

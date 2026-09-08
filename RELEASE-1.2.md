@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 43. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 44. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 44 correction
+
+Build 43 passed a task port to `IOPMFindPowerManagement`, which requires the default IOKit port. That prevented enabling and releasing lid protection and blocked cleanup with “macOS power control is unavailable.” Both lid control and sleep requests now share the corrected connection setup. A read-only check reproduced the failed old call and successful corrected call on the affected Mac. The regression suite now exercises the real connection setup and closes it without sending a power command. When cleanup finds an older installed lid helper, it stages the current verified helper and uses that code for cleanup before restarting disarmed, rather than retrying the old binary. Actual sleep/wake and failure acceptance remain open.
+
+Build 44 validation: all 20 isolated suites, production compilation and strict signatures pass. The affected Mac's app and background helpers were updated to build 44; the normal lid-helper repair upgraded the privileged helper, successfully removed the stale session record, and restarted the service and watchdog disarmed. Existing input access remained granted and active. The UI returned to ordinary Keep awake controls. No sleep countdown, privacy reset, panic, or monitor switch was tested.
 
 ## Where to find the changes
 

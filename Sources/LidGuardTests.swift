@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 
 private final class FakeLidHardware: LidGuardHardware {
     var observation = LidObservation(closed: false, power: .external)
@@ -15,6 +16,21 @@ private final class FakeLidHardware: LidGuardHardware {
 
 func runLidGuardTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    // Exercise the production connection setup, which the mutation mocks used
+    // to hide. No power method or sleep request is sent over this connection.
+    let connection = try MacLidGuardHardware.openPowerConnection()
+    try check(IOServiceClose(connection) == KERN_SUCCESS, "Power connection did not close cleanly")
+    let fixture = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-upgrade-" + UUID().uuidString)
+    let contents = fixture.appendingPathComponent("Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let executable = contents.appendingPathComponent("MacOS/Perch")
+    let current: [String: Any] = ["CFBundleIdentifier": "fixture.perch", "CFBundleVersion": "44"]
+    var installed = current; installed["CFBundleVersion"] = "43"
+    try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+    try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Cleanup would retry the older helper instead of upgrading it")
+    try PropertyListSerialization.data(fromPropertyList: current, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Matching helper unnecessarily requires installation for cleanup")
     let closedBattery = LidObservation(closed: true, power: .battery), closedAC = LidObservation(closed: true, power: .external)
     var policy = LidGuardPolicy()
     try check(policy.step(closedAC, now: 0, authorized: true).preventLidSleep, "Closed powered operation failed")
@@ -80,5 +96,5 @@ func runLidGuardTests() throws {
     let parser = Process(); parser.executableURL = URL(fileURLWithPath: "/bin/sh"); parser.arguments = ["-n", script.path]
     try parser.run(); parser.waitUntilExit()
     try check(parser.terminationStatus == 0 && command.contains("'=identifier") && command.contains("/Contents/MacOS/Perch' --lid-cleanup"), "Installer quoting or complete-bundle path is invalid")
-    print("PASS: full 60-second undock/close grace; powered operation; open/power cancellation; flapping; continuous deadlines; late renewals; failed observations/authorization; release-before-sleep and rejected-sleep retry; injected hardware only")
+    print("PASS: real read-only power connection; stale cleanup helper upgrade; full 60-second undock/close grace; powered operation; open/power cancellation; flapping; continuous deadlines; late renewals; failed observations/authorization; release-before-sleep and rejected-sleep retry; all power mutations injected")
 }

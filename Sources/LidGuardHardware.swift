@@ -15,6 +15,13 @@ protocol LidGuardHardware: AnyObject {
 /// It changes the clamshell bit, never the persistent pmset SleepDisabled key.
 /// See Apple XNU IOPMLibDefs.h and RootDomainUserClient::externalMethodDispatched.
 final class MacLidGuardHardware: LidGuardHardware {
+    /// IOPMFindPowerManagement takes the IOKit main port, not a task port.
+    /// Opening/closing this connection alone does not change power settings.
+    static func openPowerConnection() throws -> io_connect_t {
+        let connection = IOPMFindPowerManagement(kIOMainPortDefault)
+        guard connection != 0 else { throw AppError(message: "macOS power control is unavailable.") }
+        return connection
+    }
     func observe() -> LidObservation {
         let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
         var closed: Bool?, allowed: Bool?
@@ -32,8 +39,7 @@ final class MacLidGuardHardware: LidGuardHardware {
     }
     func preventLidSleep(_ enabled: Bool) throws {
         guard geteuid() == 0 else { throw AppError(message: "The authorized lid helper is required.") }
-        let connection = IOPMFindPowerManagement(mach_task_self_)
-        guard connection != 0 else { throw AppError(message: "macOS power control is unavailable.") }
+        let connection = try Self.openPowerConnection()
         defer { IOServiceClose(connection) }
         var value: UInt64 = enabled ? 1 : 0
         let result = IOConnectCallScalarMethod(connection, 12, &value, 1, nil, nil)
@@ -41,8 +47,7 @@ final class MacLidGuardHardware: LidGuardHardware {
         guard !enabled || observe().lidSleepAllowed == false else { throw AppError(message: "macOS did not confirm lid-sleep prevention. This mode is unavailable on this Mac.") }
     }
     func requestSleep() throws {
-        let connection = IOPMFindPowerManagement(mach_task_self_)
-        guard connection != 0 else { throw AppError(message: "Could not connect to macOS to request sleep.") }
+        let connection = try Self.openPowerConnection()
         defer { IOServiceClose(connection) }
         let result = IOPMSleepSystem(connection)
         guard result == kIOReturnSuccess else { throw AppError(message: "macOS rejected the sleep request (\(result)). Open the lid and check the Mac.") }

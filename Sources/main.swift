@@ -164,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
+        setupSafetyMenu()
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
@@ -190,7 +191,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
         lidItem = add("Including with lid closed", #selector(toggleLid))
         lidItem.toolTip = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
-        setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
         safetySettingsItem = add("Settings…", #selector(configureSettings))

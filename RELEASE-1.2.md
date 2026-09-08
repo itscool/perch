@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 52. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 53. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 53: Agent Kill Switch below System
+
+The complete Agent Kill Switch section now appears immediately after System, retaining its red tint, Panic, all-app privacy reset and conditional Resume action. Other sections keep their relative order and compact spacing. Stronger section outlines remain a design preview; this build changes only the section's position.
+
+All 20 isolated suites pass after updating the existing menu-order expectation. Production compilation and strict local signature checks passed. This candidate is prepared separately; no installed app/helper, live permission or hardware setting was changed.
 
 ## Build 52: retain monitor readiness on first show
 

@@ -174,7 +174,7 @@ func runReleaseUITests() throws {
     let titles = app.menu.items.map { $0.title }
     try check(headings.contains("Sleep") && headings.contains("Display") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
     let sections = headings.map { $0.hasPrefix("External keyboard") ? "External keyboard" : $0 }
-    try check(sections == ["System","Display","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Agent Kill Switch","Perch"], "System must appear first")
+    try check(sections == ["System","Agent Kill Switch","Display","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Perch"], "Agent Kill Switch must follow System; remaining sections keep their order")
     try check(app.menu.items.contains { $0.action == #selector(AppDelegate.globalPrivacyReset) }, "System-wide privacy reset was removed from the main menu")
     try check(titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")! && titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")!, "Control outside its section")
     try check(AudioStatus.heading(volume:42,muted:true) == "Audio · 42% · Muted" && AudioStatus.heading(volume:nil,muted:false).contains("unavailable"), "Volume presentation confused muted or unknown with zero")

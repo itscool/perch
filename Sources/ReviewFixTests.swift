@@ -40,10 +40,29 @@ func runReviewFixTests() throws {
     let app = AppDelegate(monitorInputs: MonitorInputController(displays: [])); app.configureSettings(); app.configurePanic(); app.configureSettings()
     try check(host.pages.count == 1 && host.back.title == "Close", "Reopening Settings created a second home")
     let previousLevel = host.window.level
+    let previousFloating = host.window.isFloatingPanel
+    host.window.orderFront(nil) // Isolated panel only; never activate or open OS authorization.
+    try check(host.window.isVisible, "Authorization fixture did not open")
     let restore = host.beginAuthorization()
-    try check(host.authorizing && host.window.level == .normal, "Settings can cover the system authorization prompt")
+    try check(host.authorizing && host.window.level == .normal && !host.window.isFloatingPanel && !host.window.isVisible, "Settings retained a visible floating panel during authorization")
+    var notices = 0
+    host.afterAuthorization { notices += 1 }
+    host.display(host.pages.last!)
+    try check(!host.window.isVisible && notices == 0, "A refresh or notice interrupted authorization")
+    let nestedRestore = host.beginAuthorization()
     restore()
-    try check(!host.authorizing && host.window.level == previousLevel, "Authorization did not restore the settings window")
+    restore() // Duplicate/out-of-order completion must not end another handoff.
+    try check(host.authorizing && !host.window.isVisible, "Nested authorization restored Settings too early")
+    nestedRestore()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    try check(!host.authorizing && host.window.level == previousLevel && host.window.isFloatingPanel == previousFloating && host.window.isVisible && notices == 1 && host.pages.count == 1, "Authorization did not restore the page and pending notice exactly once")
+    let retry = host.beginAuthorization()
+    try check(!host.window.isVisible, "Retry retained the Settings panel")
+    retry()
+    host.window.orderOut(nil)
+    let menuOnly = host.beginAuthorization()
+    menuOnly()
+    try check(!host.window.isVisible, "Menu-only authorization unexpectedly opened Settings")
     let alert = NSAlert()
     alert.messageText = "Review all changes"
     alert.informativeText = (1...35).map { "Agent \($0): changed recognition rule" }.joined(separator: "\n") + "\nApprove every change?"

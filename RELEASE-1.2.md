@@ -1,6 +1,14 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 58. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 59. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 59: system password-prompt handoff
+
+Administrator authorization temporarily withdraws the floating Settings panel while preserving its page, and no longer requests app activation immediately before opening the macOS prompt. Previously open Settings returns after authorization; menu-only actions do not open it. Delayed error and shortcut-test result dialogs wait until authorization ends. Nested or repeated completion cannot restore the panel prematurely.
+
+This addresses source-observed focus competition after the user reported that the first lid-install password prompt on the other Mac would not accept typing, while cancellation and retry worked. The exact affected build and OS focus state were not captured, so the incident's cause and actual first-attempt password entry remain unverified. No password prompt, installed helper, permission or live power operation was exercised in preparing this candidate.
+
+Validation: production compilation and all 20 isolated suites passed. Native panel checks cover withdrawal, page retention, refresh suppression, deferred notices, nested/duplicate completion, immediate retry and menu-only entry. No real OS authorization dialog was opened. The previously tracked BW-01 compiler warning remains.
 
 ## Build 58: reviewed compiler warnings
 

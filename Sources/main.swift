@@ -375,11 +375,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func showError(_ error: Error) {
         withMenuClosed {
+            SettingsWindow.shared.afterAuthorization {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.messageText = "Couldn’t change the setting"
             alert.informativeText = error.localizedDescription
             SettingsWindow.shared.run(alert)
+            }
         }
     }
     @objc func toggleAwake() {

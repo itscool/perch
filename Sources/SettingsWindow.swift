@@ -25,7 +25,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var testing = false
     var modalTestDriver: ((NSAlert) -> NSApplication.ModalResponse)?
     var modal = false
-    var authorizing = false
+    private(set) var authorizing = false
+    private var authorizationDepth = 0
+    private var authorizationRestore: (() -> Void)?
+    private var authorizationCompletions: [() -> Void] = []
     private var modalAllowsCancel = true
     var cancelCode = NSApplication.ModalResponse.abort
     override init() {
@@ -68,11 +71,40 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         detailScroll.reflectScrolledClipView(detailScroll.contentView)
     }
     func beginAuthorization() -> () -> Void {
-        let previousLevel = window.level, previousState = authorizing
-        // Let the system prompt take focus and suppress any delayed setup notice.
-        window.level = .normal; authorizing = true
-        if !testing { NSApp.activate(ignoringOtherApps: true) }
-        return { [weak self] in self?.authorizing = previousState; self?.window.level = previousLevel }
+        if authorizationDepth == 0 {
+            let level = window.level, floating = window.isFloatingPanel
+            let visible = window.isVisible, key = window.isKeyWindow
+            authorizing = true
+            // Lowering a key floating panel is not a keyboard-focus handoff.
+            // Withdraw it, retaining the page/draft, and do not queue activation
+            // that could arrive after macOS has opened its password prompt.
+            window.orderOut(nil); window.isFloatingPanel = false; window.level = .normal
+            authorizationRestore = { [weak self] in
+                guard let self else { return }
+                self.window.isFloatingPanel = floating; self.window.level = level
+                guard visible, !self.pages.isEmpty else { return }
+                self.window.orderFront(nil)
+                if key && NSApp.isActive && !self.testing { self.window.makeKey() }
+            }
+        }
+        authorizationDepth += 1
+        var finished = false
+        return { [weak self] in
+            guard let self, !finished else { return }; finished = true
+            self.authorizationDepth -= 1
+            guard self.authorizationDepth == 0 else { return }
+            self.authorizing = false
+            let restore = self.authorizationRestore; self.authorizationRestore = nil
+            restore?()
+            let pending = self.authorizationCompletions; self.authorizationCompletions.removeAll()
+            for action in pending {
+                DispatchQueue.main.async { [weak self] in self?.afterAuthorization(action) }
+            }
+        }
+    }
+    func afterAuthorization(_ action: @escaping () -> Void) {
+        if authorizing { authorizationCompletions.append(action) }
+        else { action() }
     }
     func display(_ page: Page) {
         heading.stringValue = page.title; detail.stringValue = feedback ?? page.detail

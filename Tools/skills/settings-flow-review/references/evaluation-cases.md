@@ -57,3 +57,9 @@ Use for a settings-set UX review, confusing setup, inconsistent saving/exits, fi
 ## Scrolling works, controls do not
 
 An embedded settings editor scrolls but its checkboxes and popup choices do not respond on a second machine. Existing tests assign checkbox states and invoke validation directly; local screenshots look normal. Require native hit-testing/action dispatch and persistence checks, inspect modal ownership and parent navigation, and keep the second-machine failure unconfirmed until reproduced or retested there. Direct state assignment remains useful for a validation unit test; it does not establish an interactive journey or justify closing the report.
+
+## Password prompt works only on retry
+
+Scenario: the first administrator prompt accepts no typing; cancelling it and retrying works. The app lowers a floating Settings panel, calls app activation immediately before opening the prompt, and has delayed notifications that can activate the app. Tests check only the panel level.
+
+Expected: identify focus competition as a source-supported candidate, trace all entry routes and delayed UI, and test withdrawing/restoring the originating page plus cancellation, retry and nested completion. Preserve drafts and avoid reopening Settings after a menu-only operation. Keep actual OS password entry unverified without affected-machine acceptance; do not read credentials or claim the incident's cause from panel-level assertions. A correctly attached OS sheet need not have its parent hidden.

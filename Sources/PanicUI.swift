@@ -49,12 +49,14 @@ extension AppDelegate {
             if awaitingShortcutTest {
                 awaitingShortcutTest = false
                 DispatchQueue.main.async {
+                    SettingsWindow.shared.afterAuthorization {
                     let alert = NSAlert()
                     alert.messageText = "Shortcut worked"
                     alert.informativeText = "Perch received your shortcut. No agents were stopped and no permissions were changed. Test mode has ended and your previous shortcut settings have been restored."
                     alert.addButton(withTitle: "OK")
                     NSApp.activate(ignoringOtherApps: true)
                     SettingsWindow.shared.run(alert)
+                    }
                 }
             }
         }

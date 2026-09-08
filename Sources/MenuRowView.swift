@@ -5,6 +5,8 @@ import AppKit
 /// cache. NSMenu still owns placement, type selection and outside-click dismissal.
 final class MenuRowView: NSView {
     enum Kind { case toggle, command, information, section }
+    enum PanelPart { case top, middle, bottom }
+    var panelPart: PanelPart? { didSet { needsDisplay = true } }
     weak var item: NSMenuItem?
     let kind: Kind
     var opensAnotherInterface: () -> Bool = { false }
@@ -91,13 +93,13 @@ final class MenuRowView: NSView {
     /// colors intact, including hints; selection and actual disabling are explicit.
     private var sectionTint: NSColor {
         switch item?.title ?? "" {
-        case "System": return .systemBlue
+        case "System": return .systemTeal
         case "Sleep": return .systemIndigo
-        case "Display": return .systemPurple
-        case "Audio": return .systemPink
-        case "Scrolling": return .systemRed
-        case "Built-in keyboard": return .systemOrange
-        case let title where title.hasPrefix("External keyboard"): return .systemYellow
+        case "Display": return .systemBlue
+        case "Audio": return .systemYellow
+        case "Scrolling": return .systemPurple
+        case "Built-in keyboard": return .systemIndigo
+        case let title where title.hasPrefix("External keyboard"): return .systemPurple
         case "Agent Kill Switch": return .systemRed
         case "Perch": return .systemTeal
         default: return .systemPurple
@@ -117,6 +119,20 @@ final class MenuRowView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
+            if let panelPart {
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(rect:bounds).addClip()
+                StatusColors.information.withAlphaComponent(0.10).setFill()
+                var panel = bounds.insetBy(dx:4,dy:0)
+                switch panelPart {
+                case .top: panel.origin.y -= 8; panel.size.height += 8
+                case .bottom: panel.size.height += 8
+                case .middle: break
+                }
+                if panelPart == .middle { panel.fill() }
+                else { NSBezierPath(roundedRect:panel,xRadius:8,yRadius:8).fill() }
+                NSGraphicsContext.restoreGraphicsState()
+            }
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
                 NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 4, yRadius: 4).fill()

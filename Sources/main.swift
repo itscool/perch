@@ -141,10 +141,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     // Kept separate from helper installation so the real menu can be checked safely.
     func buildMenu() {
         menu.delegate = self
-        section("System")
+        let systemHeading = section("System")
+        (systemHeading.view as? MenuRowView)?.panelPart = .top
         for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.view = MenuRowView(item: item, kind: .information)
+            (item.view as? MenuRowView)?.panelPart = title == "Thermal" ? .bottom : .middle
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }

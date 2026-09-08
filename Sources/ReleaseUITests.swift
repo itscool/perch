@@ -188,12 +188,16 @@ func runReleaseUITests() throws {
 
     let visibleItems = app.menu.items.filter { !$0.isHidden }
     let menuWidth = max(430, visibleItems.compactMap { $0.view?.frame.width }.max() ?? 430)
-    let renderedMenu = NSView(frame: NSRect(x: 0, y: 0, width: menuWidth + 16, height: CGFloat(visibleItems.count * 26 + 16)))
+    let rowHeights = visibleItems.map { $0.view?.frame.height ?? 12 }
+    let renderedMenu = NSView(frame: NSRect(x:0,y:0,width:menuWidth + 16,height:rowHeights.reduce(16,+)))
+    var rowTop = renderedMenu.frame.height - 8
     for (index, item) in visibleItems.enumerated() {
-        let frame = NSRect(x: 8, y: renderedMenu.frame.height - CGFloat((index + 1) * 26), width: menuWidth, height: 24)
+        let height = rowHeights[index]; rowTop -= height
+        let frame = NSRect(x:8,y:rowTop,width:menuWidth,height:height)
         if let production = item.view as? MenuRowView {
             // Draw the actual production class with its real text/kind/state.
             let row = MenuRowView(item: item, kind: production.kind, text: production.text)
+            row.panelPart = production.panelPart
             row.frame = frame; renderedMenu.addSubview(row)
         } else if item.isSeparatorItem {
             let line = NSBox(frame: NSRect(x: 14, y: frame.midY, width: menuWidth - 12, height: 1))

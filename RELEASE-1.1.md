@@ -4,7 +4,7 @@ Local feature release, September 2026. About includes the monotonically incremen
 
 ## Included
 
-- One consistent custom menu, live system readings, light/dark-aware colors, rainbow section headings, and the Perch bird with an awake coffee badge.
+- One consistent custom menu, live system readings, light/dark-aware colors, purpose-colored section headings and a subtle System dashboard panel, and the Perch bird with an awake coffee badge.
 - Keep awake as the master switch, with a remembered Including with lid closed preference. Authorization failures preserve actual-state reporting. Sleep and Display are separate sections.
 - Independent built-in/external Control/Command and Fn settings. External controls reflect connected hardware; unknown layouts have a setup route, absent navigation keys are hidden.
 - Optional external Home/End and Page Up/Down modes with registered source matching and app exceptions. Built-in Fn+arrows and unknown sources retain native behavior.

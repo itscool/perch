@@ -112,6 +112,23 @@ struct MonitorInspection: Decodable {
 
 protocol MonitorCommandBackend { func run(_ arguments: [String]) throws -> Data }
 
+/// A cheap WindowServer snapshot, including mirrored displays. This does not
+/// open a monitor transport, read its input, or launch the display adapter.
+enum MonitorDisplayTopology {
+    static func read() -> [String]? {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 64)
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count) == .success,
+              Int(count) < ids.count else { return nil }
+        var result: [String] = []
+        for id in ids.prefix(Int(count)) {
+            guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
+            result.append("\(id):\(CFUUIDCreateString(nil, uuid) as String)")
+        }
+        return result.sorted()
+    }
+}
+
 final class MonitorDisplayBackend: MonitorCommandBackend {
     private var process: Process?
     // Called on the controller's serial worker queue, never on a UI/input thread.
@@ -145,6 +162,9 @@ final class MonitorInputController: NSObject {
     private(set) var checkingDisplays: Bool
     private var discoveringDisplays = false
     private var discoveryFailed = false
+    private let readTopology: () -> [String]?
+    private var displayTopology: [String]?
+    private var discoveryTopology: [String]?
     private var displayGeneration: UInt64 = 0
     var message = "Detecting monitors…"
     var warning = false
@@ -215,8 +235,10 @@ final class MonitorInputController: NSObject {
     var shortcutActive: Bool { hotKey.active }
     // An explicitly supplied snapshot (including an empty one) is already known.
     // Production starts unknown until the first metadata request completes.
-    init(displays: [MonitorDescriptor]? = nil, backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) {
+    init(displays: [MonitorDescriptor]? = nil, backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard,
+         topology: @escaping () -> [String]? = MonitorDisplayTopology.read) {
         self.displays = displays ?? []; checkingDisplays = displays == nil
+        self.readTopology = topology; self.displayTopology = displays == nil ? nil : topology()
         self.backend = backend; self.confirmationDefaults = defaults; super.init()
     }
     func start() {
@@ -251,6 +273,14 @@ final class MonitorInputController: NSObject {
         }, completion: completion)
     }
     @objc private func confirmationExpired() { confirmedCurrent = nil; confirmedAt = nil; changed() }
+    func prepareForMenu() {
+        let topology = readTopology()
+        let expected = discoveringDisplays ? discoveryTopology : displayTopology
+        if topology == nil || topology != expected { screensChanged() }
+        // Startup, screen changes and wake already refresh in the background.
+        // Reopening an unchanged menu must not discard their confirmed result.
+        if checkingDisplays || discoveryFailed { refresh() }
+    }
     @objc func screensChanged() {
         reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil; confirmedAt = nil
         displayGeneration &+= 1; checkingDisplays = true
@@ -269,12 +299,26 @@ final class MonitorInputController: NSObject {
             changed(); return
         }
         let generation = displayGeneration
+        let topology = readTopology()
+        discoveryTopology = topology
         discoveringDisplays = true
         perform({ [backend] in try JSONDecoder().decode([MonitorDescriptor].self, from: backend.run(["list"])) }) { [weak self] result in
             guard let self else { return }
             self.discoveringDisplays = false
             // A screen change can arrive while the helper is reading the old topology.
             guard generation == self.displayGeneration else { self.refreshPending = true; return }
+            // Also catch a topology change before its AppKit notification arrives.
+            if case .success = result {
+                guard let topology, let current = self.readTopology() else {
+                    self.checkingDisplays = false; self.discoveryFailed = true; self.displays = []
+                    self.message = "macOS display availability could not be checked. Reopen the menu or recheck displays in Settings."
+                    self.warning = true; return
+                }
+                guard current == topology else {
+                    self.screensChanged(); self.refreshPending = true; return
+                }
+                self.displayTopology = current
+            }
             self.checkingDisplays = false
             switch result {
             case .success(let displays):

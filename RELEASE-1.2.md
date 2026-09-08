@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 51. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 52. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 52: retain monitor readiness on first show
+
+An unchanged monitor is usable from the menu's first frame after background discovery completes. Build 51 unnecessarily discarded that result on every opening. Startup, display changes and wake still refresh metadata; opening the menu now first compares a small macOS display-identity snapshot with the checked configuration. A changed or unknown configuration triggers discovery, including when the screen-change notification has not arrived. An unavailable configured monitor keeps its Settings route. Failed checks can retry on opening, and results overtaken by a display change never enable stale controls. Setup & status now shares the pending state for individual monitors and groups.
+
+All 20 isolated suites pass, including first show after background checking, repeated opens without another discovery, missing displays, notification delay, same-ID replacement, wake, failed checks/recovery, unreadable macOS metadata, menu-tracking completion, queued work, groups and overview agreement. A separate read-only sample of the macOS identity query on this Mac took about 29 ms on its first call, with a fastest subsequent sample of 0.08 ms; this is not a latency guarantee. Menu opening does not read or switch the monitor's input. Physical switching and the other Mac remain acceptance work. The candidate is prepared separately from the running app.
 
 ## Build 51: monitor availability before menu display
 

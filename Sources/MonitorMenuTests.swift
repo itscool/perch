@@ -33,7 +33,8 @@ func runMonitorMenuTests() throws {
     defer { defaults.removePersistentDomain(forName: suite) }
     let display = MonitorDescriptor(id: UUID().uuidString, displayID: 99, name: "Fixture", vendor: 1, model: 1, ddcAvailable: true)
     let backend = MonitorMenuBackend()
-    let monitor = MonitorInputController(backend: backend, defaults: defaults)
+    var topology: [String]? = ["99:fixture"]
+    let monitor = MonitorInputController(backend: backend, defaults: defaults, topology: { topology })
     monitor.plan.display = display.id
     monitor.plan.inputs = [.init(code: 17, name: "HDMI"), .init(code: 15, name: "DisplayPort")]
     let app = AppDelegate(monitorInputs: monitor)
@@ -55,49 +56,104 @@ func runMonitorMenuTests() throws {
 
     try blocked() // Before startup has had time to check anything.
     try backend.respond([display])
-    app.menuWillOpen(app.menu)
+    monitor.refresh() // Startup discovers monitors before the user opens the menu.
     try blocked()
-    monitor.refresh() // Reopening during discovery shares the in-flight request.
+    monitor.prepareForMenu() // An early open shares the in-flight startup check.
     try wait { backend.commands.count == 1 }
     try finish(in: .eventTracking)
+    app.menuWillOpen(app.menu)
+    app.menu.update()
     try check(backend.commands.count == 1 && item.isEnabled && item.action == #selector(AppDelegate.cycleMonitorInput), "Confirmed metadata did not enable the cycle or discovery was duplicated")
+    try check(!monitor.busy && app.validateMenuItem(item) && row.isAccessibilityEnabled(), "First menu show discarded background readiness")
 
-    // Reopening checks again before the first visible frame, including on a Mac
-    // where the saved monitor is no longer connected.
+    // Repeated openings on the same topology keep the first frame usable.
     app.menuDidClose(app.menu)
+    app.menuWillOpen(app.menu)
+    try check(item.isEnabled && !monitor.busy && !monitor.checkingDisplays && backend.commands.count == 1, "Reopening an unchanged menu disabled a ready monitor")
+
+    // The cheap topology check catches a disconnect even before AppKit delivers
+    // its screen-change notification. An unknown topology still checks first.
+    app.menuDidClose(app.menu)
+    topology = []
     try backend.respond([])
     app.menuWillOpen(app.menu)
     try blocked(); try finish()
     try check(item.isEnabled && item.action == #selector(AppDelegate.monitorInputSettings) && !monitor.canCycle, "Missing monitor did not retain a truthful Settings route")
+    app.menuDidClose(app.menu)
+    let knownMissingCount = backend.commands.count
+    app.menuWillOpen(app.menu)
+    try check(item.isEnabled && item.action == #selector(AppDelegate.monitorInputSettings) && !monitor.busy && backend.commands.count == knownMissingCount, "Known missing monitor was unnecessarily rechecked on first show")
 
     // An old successful reply must never override a newer disconnect signal.
+    topology = ["99:fixture"]
     try backend.respond([display]); monitor.refresh()
-    try wait { backend.commands.count == 3 }
+    try wait { backend.commands.count == knownMissingCount + 1 }
+    topology = []
     monitor.screensChanged()
     publishedEnabled = []
     try backend.respond([]); backend.gate.signal()
-    try wait { backend.commands.count == 4 }
+    try wait { backend.commands.count == knownMissingCount + 2 }
     try check(!publishedEnabled.contains(true), "A superseded reply briefly re-enabled monitor controls")
     try blocked(); try finish()
     try check(monitor.displays.isEmpty && !monitor.canCycle, "Stale topology survived the newer check")
 
     // Debounce itself is unsafe to treat as ready, even before any job is busy.
+    topology = ["99:fixture"]
     try backend.respond([display]); monitor.refresh(); try finish()
     monitor.screensChanged()
     try check(!monitor.busy && !monitor.canCycle, "Screen-change debounce retained stale cycle readiness")
+    try check(app.setupSnapshot().monitorBusy, "Overview disagreed with the menu during display debounce")
     try blocked()
-    monitor.refresh(); try finish() // Menu open bypasses the debounce delay.
+    monitor.prepareForMenu(); try finish() // Menu open bypasses the debounce delay.
+
+    // A wake/configuration notification refreshes in the background even when
+    // macOS retains the same display IDs. Opening afterward is already ready.
+    app.menuDidClose(app.menu)
+    let beforeWake = backend.commands.count
+    monitor.screensChanged()
+    try wait { backend.commands.count == beforeWake + 1 }
+    try finish()
+    app.menuWillOpen(app.menu)
+    try check(item.isEnabled && !monitor.busy && backend.commands.count == beforeWake + 1, "Background wake check did not prime the next menu")
+
+    // A change during the adapter request must be rejected even if the AppKit
+    // notification is delayed. Include changed identity with the same CG ID.
+    let beforeRace = backend.commands.count
+    monitor.refresh(); try wait { backend.commands.count == beforeRace + 1 }
+    topology = ["99:replacement"]
+    publishedEnabled = []
+    backend.gate.signal()
+    try wait { backend.commands.count == beforeRace + 2 }
+    try check(!publishedEnabled.contains(true), "An unannounced topology change published stale readiness")
+    try blocked(); try finish()
 
     // Failure clears previously discovered DDC routes and points to recovery.
     try backend.respond(nil); monitor.refresh(); try finish()
     try check(monitor.displays.isEmpty && !monitor.canCycle && monitor.warning && item.action == #selector(AppDelegate.monitorInputSettings), "Failed discovery retained stale monitor readiness")
 
-    // A menu opened during another operation queues discovery without publishing
-    // an enabled state between that operation and the metadata request.
+    // A transient discovery failure retries on opening; a successful recovery
+    // then remains usable on subsequent openings without another disabled frame.
+    try backend.respond([display]); monitor.prepareForMenu(); try blocked(); try finish()
+    let recoveredCount = backend.commands.count
+    monitor.prepareForMenu()
+    try check(!monitor.warning && item.isEnabled && !monitor.busy && backend.commands.count == recoveredCount, "Discovery recovery did not retain known readiness")
+
+    topology = nil
+    monitor.prepareForMenu(); try blocked(); try finish()
+    try check(monitor.displays.isEmpty && !monitor.canCycle && item.action == #selector(AppDelegate.monitorInputSettings), "Unreadable macOS topology was treated as a usable monitor")
+    topology = ["99:fixture"]
+    monitor.prepareForMenu(); try finish()
+
+    // Opening during a normal operation does not queue unrelated discovery.
+    // If topology changes during that operation, discovery must follow without
+    // publishing an enabled state between the operation and metadata request.
     let operation = DispatchSemaphore(value: 0)
     defer { operation.signal() }
     monitor.perform({ _ = operation.wait(timeout: .now() + 3) }) { _ in }
-    try backend.respond([display]); monitor.refresh(); publishedEnabled = []
+    monitor.prepareForMenu()
+    try check(!monitor.checkingDisplays && !item.isEnabled, "An unchanged menu queued unnecessary discovery behind another operation")
+    topology = ["99:fixture", "100:second"]
+    try backend.respond([display]); monitor.prepareForMenu(); publishedEnabled = []
     let beforeQueued = backend.commands.count
     operation.signal()
     try wait { backend.commands.count == beforeQueued + 1 }
@@ -111,6 +167,8 @@ func runMonitorMenuTests() throws {
     group.destinations = [.init(name: "Laptop", inputs: [display.id: 17]), .init(name: "Desktop", inputs: [display.id: 15])]
     try monitor.groups.save(.init(groups: [group], activeID: group.id))
     try check(monitor.groups.canCycle && item.action == #selector(AppDelegate.cycleMonitorInput), "Ready group was not available")
+    monitor.screensChanged()
+    try check(app.setupSnapshot().monitorBusy && !app.setupSnapshot().monitorAvailable, "Overview retained group availability during discovery debounce")
     try backend.respond([]); monitor.refresh(); try blocked(); try finish()
     try check(!monitor.groups.canCycle && item.action == #selector(AppDelegate.monitorGroupSettings), "Missing group member remained cycle-ready")
 
@@ -119,5 +177,5 @@ func runMonitorMenuTests() throws {
     try monitor.save(route)
     try check(monitor.canCycle && monitor.groups.canCycle, "Inactive video incorrectly removed the independent control route")
     try check(backend.commands.allSatisfy { $0 == ["list"] }, "Opening or validating a menu attempted an input read/write")
-    print("PASS: monitor menu first paint, native/accessible validation, re-entry, discovery coalescing, disconnect debounce, stale replies, failure, queued checks, group availability and inactive-video routes; mock metadata only")
+    print("PASS: monitor menu ready on first show, unchanged/missing re-entry, background wake checks, cheap topology invalidation, native/accessible validation, discovery coalescing, debounce, stale replies, failure/retry, queued checks, overview/group availability and inactive-video routes; mock metadata only")
 }

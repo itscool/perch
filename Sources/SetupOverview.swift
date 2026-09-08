@@ -198,12 +198,12 @@ extension AppDelegate {
         result.navigationNeedsLearning = keyboardModes.registrationNeedsSetup
         result.monitorConfigured = !monitorInputs.plan.display.isEmpty && !(monitorInputs.plan.availableInputs ?? monitorInputs.plan.inputs).isEmpty
         result.monitorAvailable = monitorInputs.canSwitch
-        result.monitorBusy = monitorInputs.busy
+        result.monitorBusy = monitorInputs.checkingDisplays || monitorInputs.busy || monitorInputs.groups.busy
         result.monitorWarning = monitorInputs.warning || (monitorInputs.plan.shortcut.enabled && !monitorInputs.shortcutActive)
         result.monitorDetail = monitorInputs.warning ? monitorInputs.message : monitorInputs.plan.shortcut.enabled && !monitorInputs.shortcutActive ? "The input shortcut is unavailable. Review its keys and the display’s connection." : !monitorInputs.canSwitch ? "The saved display or its control connection is unavailable. Review the connection and inputs." : monitorInputs.currentSummary
         if let group = monitorInputs.groups.active, let destination = group.destinations.first {
             result.monitorConfigured = true
-            result.monitorAvailable = monitorInputs.groups.requests(group, destination: destination).allSatisfy { $0.unavailable == nil }
+            result.monitorAvailable = !result.monitorBusy && monitorInputs.groups.requests(group, destination: destination).allSatisfy { $0.unavailable == nil }
             result.monitorWarning = monitorInputs.groups.hasAttention
             result.monitorDetail = "\(group.name): \(group.members.count) selected displays. " + monitorInputs.groups.message
         }

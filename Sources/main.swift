@@ -237,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true; menuGeneration &+= 1
-        monitorInputs.refresh() // Mark unknown/busy before AppKit paints or validates the row.
+        monitorInputs.prepareForMenu() // Keep confirmed readiness unless macOS reports a change.
         beginMenuKeyboardHandling()
         let generation = menuGeneration
         refreshMenuAppearance()

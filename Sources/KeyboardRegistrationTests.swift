@@ -106,6 +106,18 @@ func runKeyboardRegistrationUITests() throws {
     app.currentProtectionIssue = nil; app.keyboardModes.registrations = []
     app.refreshKeyboardAttention()
     try check(app.keyboardSetupItem.isHidden && app.safetySettingsItem.title == "Settings…", "Resolved or disconnected keyboard left a stale warning")
+    app.nativeKeyboards = []
+    app.refreshKeyboardAttention()
+    try check(app.externalKeyboardSection.title.contains("None connected") && [app.externalSwapItem!,app.externalFnItem!,app.homeEndItem!,app.pageKeysItem!].allSatisfy { $0.isHidden }, "Disconnected keyboard left controls visible")
+    let identity = NavigationKeyboardIdentity(vendor:1234, product:123, version:1, name:"Test keyboard", transport:"USB", usages:NavigationLearning.usages.sorted())
+    let profile = NavigationKeyboardProfile(identity:identity, keys:[0x68,0x69,nil,nil])
+    app.keyboardModes.registrations = [.init(name:"Test keyboard",profile:profile,detail:"Recognized")]
+    app.refreshKeyboardAttention()
+    try check(app.externalKeyboardSection.title.contains("Test keyboard") && !app.externalSwapItem.isHidden && !app.externalFnItem.isHidden && !app.homeEndItem.isHidden && app.pageKeysItem.isHidden, "Reconnect did not restore supported controls")
+    app.keyboardModes.registrations.append(.init(name:"Second keyboard",profile:profile,detail:"Recognized"))
+    app.refreshKeyboardAttention()
+    try check(app.externalKeyboardSection.title.contains("2 keyboards"), "Multiple keyboard count missing")
+    try check(perchStatusImage(awake:true)?.isTemplate == true && perchStatusImage(awake:false) != nil, "Bird status image unavailable")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     print("PASS: unknown keyboard routes to Settings while optional controls are off; warning clears; critical protection priority; shared window and theme rendering")
 }

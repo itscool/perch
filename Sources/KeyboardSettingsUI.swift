@@ -76,10 +76,27 @@ extension AppDelegate {
             label(item, "Set up keyboard…", hint: "⚠ Unrecognized layout", hintColor: StatusColors.warning)
             item.toolTip = keyboardModes.attentionDetail
         }
+        refreshExternalKeyboardSection()
         if currentProtectionIssue == nil, let item = safetySettingsItem {
             label(item, "Settings…", hint: keyboardModes.attentionHint, hintColor: StatusColors.warning)
             item.toolTip = keyboardModes.attentionDetail
         }
+    }
+    func refreshExternalKeyboardSection() {
+        guard let heading = externalKeyboardSection else { return }
+        let registrations = keyboardModes.registrations
+        let names = registrations.isEmpty ? nativeKeyboards.filter { !$0.builtIn }.map { $0.name } : registrations.map { $0.name }
+        let unknown = keyboardModes.registrationNeedsSetup
+        let title = names.count > 1 ? "External keyboards · \(names.count) keyboards" : "External keyboard · " + (names.first ?? (unknown ? "Detection unavailable" : "None connected"))
+        heading.title = title
+        (heading.view as? MenuRowView)?.text = NSAttributedString(string:title, attributes:[.font:NSFont.systemFont(ofSize:11,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
+        let hideControls = names.isEmpty || unknown
+        externalSwapItem.isHidden = hideControls
+        externalFnItem.isHidden = hideControls
+        let profiles = registrations.compactMap { $0.profile }
+        homeEndItem.isHidden = hideControls || !profiles.contains { $0.hasHomeEnd }
+        pageKeysItem.isHidden = hideControls || !profiles.contains { $0.hasPageKeys }
+        keyboardSetupItem.isHidden = !unknown
     }
     @objc func keyboardSettings() {
         nativeKeyboards = NativeModifierKeys.keyboards()

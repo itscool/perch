@@ -11,9 +11,12 @@ final class MenuRowView: NSView {
     var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
     var keyboardHighlight = false { didSet { if keyboardHighlight != oldValue { needsDisplay = true } } }
     var text: NSAttributedString { didSet { resizeForText(); needsDisplay = true } }
+    private let sectionSymbol: NSImage?
     private var commandPending = false
     init(item: NSMenuItem, kind: Kind, text: NSAttributedString? = nil) {
         self.item = item; self.kind = kind
+        let symbols = ["System":"gauge.with.dots.needle.50percent", "Sleep":"moon", "Display":"display", "Audio":"speaker.wave.2", "Scrolling":"computermouse", "Built-in keyboard":"keyboard", "External keyboards":"keyboard", "Agent Kill Switch":"shield", "Perch":"bird"]
+        sectionSymbol = kind == .section ? NSImage(systemSymbolName: symbols[item.title] ?? (item.title.hasPrefix("External keyboard") ? "keyboard" : "circle"), accessibilityDescription: nil) : nil
         self.text = text ?? NSAttributedString(string: item.title, attributes: [
             .font: kind == .section ? NSFont.systemFont(ofSize: 11, weight: .semibold) : NSFont.menuFont(ofSize: 13),
             .foregroundColor: kind == .section ? NSColor.secondaryLabelColor : NSColor.labelColor])
@@ -103,6 +106,15 @@ final class MenuRowView: NSView {
                 let mark = item?.state == .on ? "✓" : item?.state == .mixed ? "−" : ""
                 (mark as NSString).draw(at: NSPoint(x: 7, y: 4), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: color])
             }
+            if let sectionSymbol {
+                let tinted = sectionSymbol.copy() as! NSImage
+                tinted.isTemplate = false
+                tinted.lockFocus()
+                NSColor.secondaryLabelColor.setFill()
+                NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
+                tinted.unlockFocus()
+                tinted.draw(in: NSRect(x: 7, y: 5, width: 12, height: 12))
+            }
             displayedText().draw(at: NSPoint(x: 25, y: 4))
             if let item, !item.keyEquivalent.isEmpty {
                 var shortcut = ""
@@ -116,4 +128,21 @@ final class MenuRowView: NSView {
             }
         }
     }
+}
+
+
+/// A single template image lets macOS provide menu-bar contrast in either theme.
+func perchStatusImage(awake: Bool) -> NSImage? {
+    guard let bird = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch") else { return nil }
+    guard awake else { return bird }
+    let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
+        bird.draw(in: NSRect(x: 0, y: 2, width: 17, height: 16))
+        if let cup = NSImage(systemSymbolName: "cup.and.saucer.fill", accessibilityDescription: nil) {
+            cup.draw(in: NSRect(x: 12, y: 0, width: 10, height: 8))
+        }
+        return true
+    }
+    image.isTemplate = true
+    image.accessibilityDescription = "Perch — keeping Mac awake"
+    return image
 }

@@ -23,6 +23,7 @@ extension AppDelegate {
             label(item, item === homeEndItem ? "Home/End move to line edges" : "Page Up/Down move the cursor", hint: hint, hintColor: warning.hasPrefix("⚠") ? StatusColors.warning : .secondaryLabelColor)
             item.toolTip = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboard settings."
         }
+        refreshExternalKeyboardSection()
     }
     func navigationProfilesForHelper() throws -> [NavigationKeyboardProfile] {
         var profiles = try KeyboardNavigationProfiles.read()

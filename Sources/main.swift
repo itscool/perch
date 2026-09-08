@@ -76,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var trackpadItem: NSMenuItem!
     var wheelItem: NSMenuItem!
     var swapItem: NSMenuItem!
+    var externalKeyboardSection: NSMenuItem!
     var externalSwapItem: NSMenuItem!
     let keyboardModes = KeyboardModeMonitor()
     var nativeKeyboards: [NativeKeyboard] = []
@@ -165,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("Built-in keyboard")
         swapItem = add("Swap Control ↔ Command keys", #selector(toggleModifiers))
         fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys))
-        section("External keyboards")
+        externalKeyboardSection = section("External keyboards")
         externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
         externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys))
         homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd))
@@ -198,11 +199,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(item)
         return item
     }
-    func section(_ title: String) {
+    @discardableResult func section(_ title: String) -> NSMenuItem {
         if !menu.items.isEmpty { menu.addItem(.separator()) }
         let item = NSMenuItem.sectionHeader(title: title)
         item.view = MenuRowView(item: item, kind: .section)
         menu.addItem(item)
+        return item
     }
 
     func label(_ item: NSMenuItem, _ title: String, hint: String = "", hintColor: NSColor = .secondaryLabelColor, hintWeight: NSFont.Weight = .regular) {
@@ -303,10 +305,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
             button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
         }
-        let symbol = awakeItem.state != .off || lidItem.state == .on ? "cup.and.saucer.fill" : "bird"
+        let symbol = awakeItem.state == .on || lidItem.state == .on ? "awake-bird" : "bird"
         if lastStatusSymbol != symbol {
             lastStatusSymbol = symbol
-            status?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Perch")
+            status?.button?.image = perchStatusImage(awake: symbol == "awake-bird")
         }
     }
     func perform(_ action: () throws -> Void) {

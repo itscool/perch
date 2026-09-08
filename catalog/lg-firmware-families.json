@@ -1,0 +1,835 @@
+{
+  "schemaVersion": 1,
+  "source": "LG OnScreen Control macOS 7.20 isFWUpdateSupported:: static lookup",
+  "packageSHA256": "d2891a3b1b5413d1d55ecb9da6182f374e6d2fb2151d3c56a1efcb7d341e68c0",
+  "reviewedOn": "2026-09-07",
+  "notes": "Firmware family identity only. Does not certify retail suffix, input codes or hardware support. Entries require ID flag bit14; bit15 selects extended ID. No LG executable code is redistributed.",
+  "families": [
+    {
+      "extended": false,
+      "id": 1,
+      "name": "32UD99",
+      "inputProfile": "LG 32UD99-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": true,
+      "id": 1,
+      "name": "27UP850-L2",
+      "inputProfile": "LG 27UP850-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": false,
+      "id": 2,
+      "name": "27UP850-L2",
+      "inputProfile": "LG 27UP850-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": true,
+      "id": 2,
+      "name": "27GR83Q"
+    },
+    {
+      "extended": false,
+      "id": 3,
+      "name": "34WK95U"
+    },
+    {
+      "extended": true,
+      "id": 3,
+      "name": "32UN880-L2"
+    },
+    {
+      "extended": false,
+      "id": 4,
+      "name": "32GS95UE"
+    },
+    {
+      "extended": true,
+      "id": 4,
+      "name": "scalarversion"
+    },
+    {
+      "extended": false,
+      "id": 5,
+      "name": "34GK950F"
+    },
+    {
+      "extended": true,
+      "id": 5,
+      "name": "32GQ850"
+    },
+    {
+      "extended": false,
+      "id": 6,
+      "name": "27EP950"
+    },
+    {
+      "extended": true,
+      "id": 6,
+      "name": "49GR85DC"
+    },
+    {
+      "extended": false,
+      "id": 7,
+      "name": "34WK95C"
+    },
+    {
+      "extended": true,
+      "id": 7,
+      "name": "48GQ900"
+    },
+    {
+      "extended": false,
+      "id": 8,
+      "name": "32EQ850"
+    },
+    {
+      "extended": true,
+      "id": 8,
+      "name": "27UK670-27BK67U"
+    },
+    {
+      "extended": false,
+      "id": 10,
+      "name": "27UK850"
+    },
+    {
+      "extended": true,
+      "id": 9,
+      "name": "28MQ780"
+    },
+    {
+      "extended": false,
+      "id": 11,
+      "name": "28MQ780"
+    },
+    {
+      "extended": true,
+      "id": 10,
+      "name": "%02x"
+    },
+    {
+      "extended": false,
+      "id": 13,
+      "name": "32UL750"
+    },
+    {
+      "extended": true,
+      "id": 11,
+      "name": "27BQ75QC"
+    },
+    {
+      "extended": false,
+      "id": 14,
+      "name": "34WP75C"
+    },
+    {
+      "extended": true,
+      "id": 13,
+      "name": "49WL900G"
+    },
+    {
+      "extended": false,
+      "id": 15,
+      "name": "27UL850-27BL85U"
+    },
+    {
+      "extended": true,
+      "id": 14,
+      "name": "27UP850-L2L",
+      "inputProfile": "LG 27UP850-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": false,
+      "id": 16,
+      "name": "27UP850-L2L",
+      "inputProfile": "LG 27UP850-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": true,
+      "id": 15,
+      "name": "Device version: %s \r\n "
+    },
+    {
+      "extended": false,
+      "id": 17,
+      "name": "27UL850-RTK",
+      "inputProfile": "LG 27UN850-W / 27UN850-WY",
+      "inputEvidence": "Local LG 27UN850-W reports EF 0x5124 (27UL850-RTK firmware family); owner confirmed USB-C 209. Family identity is not proof of retail model; preserve manual mappings."
+    },
+    {
+      "extended": true,
+      "id": 16,
+      "name": "27GN95R"
+    },
+    {
+      "extended": false,
+      "id": 18,
+      "name": "HDR Standard"
+    },
+    {
+      "extended": true,
+      "id": 17,
+      "name": "43UN700"
+    },
+    {
+      "extended": false,
+      "id": 20,
+      "name": "27GL850"
+    },
+    {
+      "extended": true,
+      "id": 18,
+      "name": "32UQ890"
+    },
+    {
+      "extended": false,
+      "id": 21,
+      "name": "34WQ75C"
+    },
+    {
+      "extended": true,
+      "id": 19,
+      "name": "27QN880"
+    },
+    {
+      "extended": false,
+      "id": 22,
+      "name": "32UN880"
+    },
+    {
+      "extended": true,
+      "id": 20,
+      "name": "27BN85UN"
+    },
+    {
+      "extended": false,
+      "id": 23,
+      "name": "27BN85UN"
+    },
+    {
+      "extended": true,
+      "id": 21,
+      "name": "Color Weakness"
+    },
+    {
+      "extended": false,
+      "id": 24,
+      "name": "34GN850"
+    },
+    {
+      "extended": true,
+      "id": 22,
+      "name": "32QP880N"
+    },
+    {
+      "extended": false,
+      "id": 26,
+      "name": "32QP880N"
+    },
+    {
+      "extended": true,
+      "id": 23,
+      "name": "38WN95C"
+    },
+    {
+      "extended": false,
+      "id": 27,
+      "name": "27GN950"
+    },
+    {
+      "extended": true,
+      "id": 24,
+      "name": "27EQ850"
+    },
+    {
+      "extended": false,
+      "id": 28,
+      "name": "32GQ850L"
+    },
+    {
+      "extended": true,
+      "id": 25,
+      "name": "HDR Cinema"
+    },
+    {
+      "extended": false,
+      "id": 29,
+      "name": "35WN75C"
+    },
+    {
+      "extended": true,
+      "id": 26,
+      "name": "38BQ85C"
+    },
+    {
+      "extended": false,
+      "id": 32,
+      "name": "38BQ85C"
+    },
+    {
+      "extended": true,
+      "id": 27,
+      "name": "34GN850-L2"
+    },
+    {
+      "extended": false,
+      "id": 33,
+      "name": "35BN75C"
+    },
+    {
+      "extended": true,
+      "id": 28,
+      "name": "32GQ850L"
+    },
+    {
+      "extended": false,
+      "id": 34,
+      "name": "27EQ850"
+    },
+    {
+      "extended": true,
+      "id": 29,
+      "name": "35WN73A"
+    },
+    {
+      "extended": false,
+      "id": 35,
+      "name": "27GL850-L2"
+    },
+    {
+      "extended": true,
+      "id": 30,
+      "name": "27UL850-L2L"
+    },
+    {
+      "extended": false,
+      "id": 36,
+      "name": "27UL850-L2L"
+    },
+    {
+      "extended": true,
+      "id": 31,
+      "name": "32EP950"
+    },
+    {
+      "extended": false,
+      "id": 37,
+      "name": "27EP950"
+    },
+    {
+      "extended": true,
+      "id": 32,
+      "name": "27BQ65UB"
+    },
+    {
+      "extended": false,
+      "id": 38,
+      "name": "reset value----%d"
+    },
+    {
+      "extended": true,
+      "id": 33,
+      "name": "Text"
+    },
+    {
+      "extended": false,
+      "id": 39,
+      "name": "32BN88U"
+    },
+    {
+      "extended": true,
+      "id": 34,
+      "name": "45GR95QE"
+    },
+    {
+      "extended": false,
+      "id": 40,
+      "name": "45GR95QE"
+    },
+    {
+      "extended": true,
+      "id": 35,
+      "name": "27BL85U"
+    },
+    {
+      "extended": false,
+      "id": 41,
+      "name": "27UK670"
+    },
+    {
+      "extended": true,
+      "id": 37,
+      "name": "27GR95QE"
+    },
+    {
+      "extended": false,
+      "id": 42,
+      "name": "BT.2100 PQ2"
+    },
+    {
+      "extended": true,
+      "id": 38,
+      "name": "24QP750"
+    },
+    {
+      "extended": false,
+      "id": 43,
+      "name": "34GN73A"
+    },
+    {
+      "extended": true,
+      "id": 39,
+      "name": "34BQ77QC"
+    },
+    {
+      "extended": false,
+      "id": 44,
+      "name": "45GR75DC"
+    },
+    {
+      "extended": true,
+      "id": 40,
+      "name": "PICTURE_MODE_VIVID"
+    },
+    {
+      "extended": false,
+      "id": 45,
+      "name": "27GP950"
+    },
+    {
+      "extended": true,
+      "id": 42,
+      "name": "27BQ85U"
+    },
+    {
+      "extended": false,
+      "id": 46,
+      "name": "----NXP Slave Device Infor-----"
+    },
+    {
+      "extended": true,
+      "id": 43,
+      "name": "PICTURE_MODE_PATHOLOGY"
+    },
+    {
+      "extended": false,
+      "id": 47,
+      "name": "40WP95C",
+      "inputProfile": "LG 40WP95C-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": true,
+      "id": 44,
+      "name": "27BR650B"
+    },
+    {
+      "extended": false,
+      "id": 48,
+      "name": ".%02x"
+    },
+    {
+      "extended": true,
+      "id": 45,
+      "name": "PICTURE_MODE_FPS"
+    },
+    {
+      "extended": false,
+      "id": 50,
+      "name": "34WP85C"
+    },
+    {
+      "extended": true,
+      "id": 47,
+      "name": "32BP55U"
+    },
+    {
+      "extended": false,
+      "id": 51,
+      "name": "BT.709"
+    },
+    {
+      "extended": true,
+      "id": 48,
+      "name": "45GT99UC"
+    },
+    {
+      "extended": false,
+      "id": 52,
+      "name": "35WN75C-L2"
+    },
+    {
+      "extended": true,
+      "id": 49,
+      "name": "27UR850"
+    },
+    {
+      "extended": false,
+      "id": 53,
+      "name": "27UR850"
+    },
+    {
+      "extended": true,
+      "id": 50,
+      "name": "34WP88C"
+    },
+    {
+      "extended": false,
+      "id": 54,
+      "name": "32BP95E"
+    },
+    {
+      "extended": true,
+      "id": 51,
+      "name": "27UQ750"
+    },
+    {
+      "extended": false,
+      "id": 55,
+      "name": "27UL850-27BL85U"
+    },
+    {
+      "extended": true,
+      "id": 52,
+      "name": "27BP95E"
+    },
+    {
+      "extended": false,
+      "id": 56,
+      "name": "27UP550"
+    },
+    {
+      "extended": true,
+      "id": 53,
+      "name": "27GR95UM"
+    },
+    {
+      "extended": false,
+      "id": 57,
+      "name": "27GR95UM"
+    },
+    {
+      "extended": true,
+      "id": 54,
+      "name": "BT.2100 HLG"
+    },
+    {
+      "extended": false,
+      "id": 58,
+      "name": "24BP750C"
+    },
+    {
+      "extended": true,
+      "id": 56,
+      "name": "27GR83Q"
+    },
+    {
+      "extended": false,
+      "id": 59,
+      "name": "43UD79"
+    },
+    {
+      "extended": true,
+      "id": 57,
+      "name": "27GR95UM"
+    },
+    {
+      "extended": false,
+      "id": 60,
+      "name": "34WP75C"
+    },
+    {
+      "extended": true,
+      "id": 58,
+      "name": "32GR93U"
+    },
+    {
+      "extended": false,
+      "id": 61,
+      "name": "27UK850"
+    },
+    {
+      "extended": true,
+      "id": 59,
+      "name": "27BQ70QC"
+    },
+    {
+      "extended": true,
+      "id": 60,
+      "name": "32UQ850V"
+    },
+    {
+      "extended": true,
+      "id": 61,
+      "name": "Window1 not closed"
+    },
+    {
+      "extended": true,
+      "id": 62,
+      "name": "24HR513C"
+    },
+    {
+      "extended": true,
+      "id": 63,
+      "name": "24HR513C"
+    },
+    {
+      "extended": true,
+      "id": 64,
+      "name": "38WR85QC"
+    },
+    {
+      "extended": true,
+      "id": 66,
+      "name": "34WQ73A"
+    },
+    {
+      "extended": true,
+      "id": 67,
+      "name": "45GR75DC"
+    },
+    {
+      "extended": true,
+      "id": 68,
+      "name": "34BQ77QC"
+    },
+    {
+      "extended": true,
+      "id": 72,
+      "name": "27GP95RP"
+    },
+    {
+      "extended": true,
+      "id": 74,
+      "name": "27GP95RP"
+    },
+    {
+      "extended": true,
+      "id": 75,
+      "name": "34BR55QC"
+    },
+    {
+      "extended": true,
+      "id": 76,
+      "name": "micmstarversion"
+    },
+    {
+      "extended": true,
+      "id": 77,
+      "name": "32GR75Q"
+    },
+    {
+      "extended": true,
+      "id": 78,
+      "name": "32GR75Q"
+    },
+    {
+      "extended": true,
+      "id": 79,
+      "name": "32UQ85RV"
+    },
+    {
+      "extended": true,
+      "id": 80,
+      "name": "32UQ85RV"
+    },
+    {
+      "extended": true,
+      "id": 81,
+      "name": "32BQ85UV"
+    },
+    {
+      "extended": true,
+      "id": 82,
+      "name": "32BQ85UV"
+    },
+    {
+      "extended": true,
+      "id": 83,
+      "name": "27BQ85RV"
+    },
+    {
+      "extended": true,
+      "id": 84,
+      "name": "27BQ85RV"
+    },
+    {
+      "extended": true,
+      "id": 85,
+      "name": "45GS96QB"
+    },
+    {
+      "extended": true,
+      "id": 86,
+      "name": "45GS96QB"
+    },
+    {
+      "extended": true,
+      "id": 87,
+      "name": "34GS95QE"
+    },
+    {
+      "extended": true,
+      "id": 88,
+      "name": "34GS95QE"
+    },
+    {
+      "extended": true,
+      "id": 89,
+      "name": "32GS95UE"
+    },
+    {
+      "extended": true,
+      "id": 90,
+      "name": "32UN880-L2"
+    },
+    {
+      "extended": true,
+      "id": 91,
+      "name": "21HQ613D"
+    },
+    {
+      "extended": true,
+      "id": 92,
+      "name": "32UQ85R"
+    },
+    {
+      "extended": true,
+      "id": 93,
+      "name": "45GR95QE-EMI"
+    },
+    {
+      "extended": true,
+      "id": 94,
+      "name": "45GR95QE-EMI"
+    },
+    {
+      "extended": true,
+      "id": 95,
+      "name": "49GR85DC-EMI"
+    },
+    {
+      "extended": true,
+      "id": 97,
+      "name": "49GR85DC-EMI"
+    },
+    {
+      "extended": true,
+      "id": 98,
+      "name": "32GS85Q"
+    },
+    {
+      "extended": true,
+      "id": 99,
+      "name": "PICTURE_MODE_REC2020"
+    },
+    {
+      "extended": true,
+      "id": 100,
+      "name": "24BR750E"
+    },
+    {
+      "extended": true,
+      "id": 101,
+      "name": "24BR750E"
+    },
+    {
+      "extended": true,
+      "id": 102,
+      "name": "34BA85QE"
+    },
+    {
+      "extended": true,
+      "id": 103,
+      "name": "45GS96QB"
+    },
+    {
+      "extended": true,
+      "id": 104,
+      "name": "27UP83A-RTK"
+    },
+    {
+      "extended": true,
+      "id": 105,
+      "name": "27UP83A-RTK"
+    },
+    {
+      "extended": true,
+      "id": 106,
+      "name": "27GX790A"
+    },
+    {
+      "extended": true,
+      "id": 107,
+      "name": "32BR55U"
+    },
+    {
+      "extended": true,
+      "id": 108,
+      "name": "24BA750"
+    },
+    {
+      "extended": true,
+      "id": 109,
+      "name": "24BA750"
+    },
+    {
+      "extended": true,
+      "id": 110,
+      "name": "27GS93QE"
+    },
+    {
+      "extended": true,
+      "id": 112,
+      "name": "27GS93QE"
+    },
+    {
+      "extended": true,
+      "id": 113,
+      "name": "45GX950A"
+    },
+    {
+      "extended": true,
+      "id": 114,
+      "name": "45GX950A"
+    },
+    {
+      "extended": true,
+      "id": 115,
+      "name": "27G850A"
+    },
+    {
+      "extended": true,
+      "id": 116,
+      "name": "27G850A"
+    },
+    {
+      "extended": true,
+      "id": 117,
+      "name": "32GS95UV"
+    },
+    {
+      "extended": true,
+      "id": 118,
+      "name": "27UP850-L2L",
+      "inputProfile": "LG 27UP850-W",
+      "inputEvidence": "Firmware model family matches the documented model input profile; protocol details and source URLs are in monitor-profiles.json. Retail suffix remains unverified."
+    },
+    {
+      "extended": true,
+      "id": 119,
+      "name": "40WT95UF"
+    },
+    {
+      "extended": true,
+      "id": 120,
+      "name": "40WT95UF"
+    }
+  ]
+}

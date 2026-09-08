@@ -289,8 +289,9 @@ final class MonitorInputPage: NSObject {
             switch result {
             case .success(let inspection):
                 let codes = inspection.capabilities.map(MonitorCapabilities.inputs) ?? []
-                let reportedModel = inspection.capabilities.flatMap(MonitorCapabilities.model)
+                let reportedModel = inspection.lgFirmwareModel ?? inspection.capabilities.flatMap(MonitorCapabilities.model)
                 let profile = MonitorProfiles.entries.first { $0.name == self.chosenProfile && $0.vendor == display.vendor }
+                    ?? (display.vendor == 7789 ? LGFirmwareProfiles.inputs(identity: inspection.lgIdentity, extended: inspection.lgExtendedIdentity) : nil)
                     ?? MonitorProfiles.match(display, reportedModel: reportedModel)
                 let documented = profile.flatMap { $0.confidence != "suggested" && $0.alternate == alternate ? $0 : nil }
                 if self.candidates.isEmpty, let profile, profile.confidence != "suggested", profile.alternate != alternate {
@@ -317,6 +318,9 @@ final class MonitorInputPage: NSObject {
                 }
                 if documented?.readbackUnavailable == true {
                     self.controller.message += " This model has write-only input control; enable cycling from the last command if you want to use it."
+                }
+                if let firmware = inspection.lgFirmwareModel {
+                    self.controller.message += " LG reports firmware family \(firmware); retail suffix unverified."
                 }
                 self.renderInputs()
 

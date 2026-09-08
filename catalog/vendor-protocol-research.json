@@ -1,0 +1,333 @@
+{
+  "reviewedOn": "2026-09-07",
+  "note": "Research records, not enabled hardware support. Never send these identities as DDC input commands.",
+  "sources": [
+    "https://github.com/couriersud/msigd",
+    "https://github.com/NECDisplaySolutions/necpdsdk",
+    "https://www.ddcutil.com/usb/",
+    "https://www.dell.com/support/kbdoc/en-us/000201067/dell-display-and-peripheral-manager-for-macos"
+  ],
+  "msi": [
+    {
+      "model": "ID",
+      "firmware": "Firmware",
+      "version": "Version",
+      "identity": "Special",
+      "upstreamSupport": "Supported",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MPG27CQ",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "001",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG241C",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG241C",
+      "firmware": "?",
+      "version": "V49",
+      "identity": "002",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG241CP",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG241CV",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG241CR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "004",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271CR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "005",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271CQR",
+      "firmware": "?",
+      "version": "V19",
+      "identity": "006",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG321CQR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00:",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG321CURV",
+      "firmware": "FW.009",
+      "version": "V18",
+      "identity": "00;",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG321CURV",
+      "firmware": "FW.011",
+      "version": "V43",
+      "identity": "00;",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MPG341CQR",
+      "firmware": "?",
+      "version": "V09",
+      "identity": "00>",
+      "upstreamSupport": "WIP",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "PS341WU",
+      "firmware": "FW.024",
+      "version": "V06",
+      "identity": "00?",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MPG273CQR",
+      "firmware": "FW.022",
+      "version": "V51",
+      "identity": "00\\[",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG251RX",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00B",
+      "upstreamSupport": "WIP",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272CQR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00E",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272CQR",
+      "firmware": "?",
+      "version": "V41",
+      "identity": "00E",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272QR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00G",
+      "upstreamSupport": "Partial 1)",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00L",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272QP",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00O",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG274R",
+      "firmware": "?",
+      "version": "V41",
+      "identity": "00Z",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG274QRF-QD",
+      "firmware": "FW.011",
+      "version": "V43",
+      "identity": "00e",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG274QRF-QD",
+      "firmware": "FW.015",
+      "version": "V48",
+      "identity": "00e",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG274QRF-QD",
+      "firmware": "FW.020",
+      "version": "V56",
+      "identity": "00e",
+      "upstreamSupport": "Yes",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG274QRX",
+      "firmware": "?",
+      "version": "V53",
+      "identity": "00\\",
+      "upstreamSupport": "Partial 2)",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271C",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271CP",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271CQP",
+      "firmware": "?",
+      "version": "V19",
+      "identity": "006",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG271CV",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "002",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272C",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00O",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272CR",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00O",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272CRX",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00O",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MAG272R",
+      "firmware": "?",
+      "version": "V18",
+      "identity": "00O",
+      "upstreamSupport": "?",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    },
+    {
+      "model": "MD272QP",
+      "firmware": "?",
+      "version": "V51",
+      "identity": "00\\\\x85",
+      "upstreamSupport": "Partial 3)",
+      "transport": "msi-usb-hid",
+      "perchControlSupported": false
+    }
+  ],
+  "nec": {
+    "transport": "LAN or RS232",
+    "modelQuery": "C217",
+    "modelReply": "C317",
+    "perchControlSupported": false
+  }
+}

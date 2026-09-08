@@ -541,6 +541,7 @@ if CommandLine.arguments.contains("--self-test") {
         try runKeyboardModeTests()
         try runNavigationKeyTests()
         try runNavigationRuntimeTests()
+        try runSettingsResetTests()
         try runMonitorInputTests()
         try runMonitorTransactionTests()
         try runNavigationProbeTests()

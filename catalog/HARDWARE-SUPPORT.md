@@ -1,6 +1,6 @@
 # Perch 1.1 hardware catalog
 
-Reviewed 2026-09-07. These are exact identity/layout and input-code records, **not a list of hardware certified in Perch**. There are 84 monitor entries (some are alternate identities of one model) and 28 keyboard profiles (some are layout variants). Catalogs total about 83 KiB on disk, are read once, and add no polling or input-event work.
+Reviewed 2026-09-07. These are exact identity/layout and input-code records, **not a list of hardware certified in Perch**. There are 93 monitor entries (some are alternate identities of one model) and 28 keyboard profiles (some are layout variants). Catalogs are bounded in size, are read once, and add no polling or input-event work.
 
 ## How support is determined
 
@@ -100,6 +100,16 @@ DDCControl inputsource overrides are preferred over their generic capabilities, 
 | LG 38BR85QC | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 209 |
 | LG 40U990A-W | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208 |
 | LG 45GX950A-B | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 209 |
+
+| AOC 24G2 / 24G2U / 24B2XDAM | VGA = 1, DisplayPort = 15, HDMI 1 = 17, HDMI 2 = 18 |
+| Dell P2416D | VGA = 1, DisplayPort = 15, HDMI 1 = 17 |
+| Dell 2408WFP (DVI) | VGA = 1, DVI 1 = 3, DVI 2 = 4, Composite = 5, S-Video = 7, Component = 12 |
+| Dell 2007FP (DVI) | VGA = 1, DVI = 3, Composite = 5, S-Video = 7 |
+| Dell U2410f | VGA = 1, DVI 1 = 3, DVI 2 = 4, Composite = 5, Component = 12, DisplayPort = 15, HDMI = 17 |
+| Dell Ultrasharp u2410 (Rev A02) | VGA = 1, DVI 1 = 3, DVI 2 = 4, DisplayPort = 15, HDMI = 17, Component = 12, Composite = 5 |
+| Dell S2316M (DVI) | VGA = 1, DVI = 3 |
+| ViewSonic VSCBD44 | VGA = 1, HDMI = 17 |
+| LC-Power M34 Curved Gaming Monitor | DisplayPort = 7, HDMI 1 = 5, HDMI 2 = 18, HDMI 3 = 19 |
 
 ## Keyboard records
 

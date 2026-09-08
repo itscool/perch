@@ -117,6 +117,7 @@ extension AppDelegate {
             (issueNow == nil ? "✓ Agent Kill Switch…" : "⚠ Agent Kill Switch…", "Choose agents to terminate, test the immediate shortcut, and choose privacy permissions to revoke on panic.", #selector(configurePanic)),
             (keyboardModes.warning ? "⚠ Keyboard settings…" : keyboardModes.working ? "Keyboard settings…" : "✓ Keyboard settings…", keyboardModes.attentionDetail, #selector(keyboardSettings)),
             ("Monitor inputs…", "Choose a display, inputs to cycle, and a keyboard shortcut.", #selector(monitorInputSettings)),
+            ("Reset settings…", "Forget all or selected Perch preferences and quit.", #selector(resetSettingsPage)),
             ("Advanced…", "Recognition catalog and background-helper maintenance, with explanations.", #selector(advancedSafetySettings))]
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         if let issue {

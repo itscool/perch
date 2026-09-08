@@ -31,3 +31,11 @@ https://gist.github.com/shinyquagsire23/f6b2adef253c6c3ab557a4852bf3abad
 Trace the ordinary (non-updater) ID reader and its transport prerequisites, then implement only bounded, validated identity reads in Perch's restricted display adapter. Keep the raw identity fields separate from EDID IDs and retail names. A known response may identify a firmware family; it must not silently overwrite a user-confirmed input mapping. Unknown, unsupported, ambiguous or malformed responses retain manual model selection. No proprietary library needs to be bundled or run merely to reproduce a understood read protocol.
 
 A live read test through Perch is still needed before claiming identification works on 27UN850-W. No live probe was performed during this investigation.
+
+## Implemented identity lookup (2026-09-07)
+
+The signed Perch display helper performed one authorized read-only inspection on the local 27UN850-W. VCP EF returned 0x5124, decoded by OSC's lookup as 27UL850-RTK. The high-bit extended query was unnecessary. This demonstrates that the firmware family is not necessarily the retail model. The local owner independently confirmed USB-C 209. That evidence now links this identity to the operational 27UN850-W input profile; it is not a claim that OSC itself supplied code 209.
+
+The bundled catalog contains 162 extracted family identifiers. Only families with a corresponding evidenced input profile receive an operational mapping. Remaining identifiers improve the displayed identity but do not invent port codes. Existing saved mappings win. EF/A1 reads occur only during explicit setup inspection, never in idle monitoring.
+
+OSC also exposes firmware/update, calibration and USB-related internals. Those are not evidence of a universal connected-input query and have not been enabled as control commands.

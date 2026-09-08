@@ -2259,6 +2259,270 @@
         "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
       ],
       "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+    },
+    {
+      "name": "AOC 24G2 / 24G2U / 24B2XDAM",
+      "vendor": 1507,
+      "model": 9218,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2402.xml"
+      ]
+    },
+    {
+      "name": "Dell P2416D",
+      "vendor": 4268,
+      "model": 41155,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI 1"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0C3.xml"
+      ]
+    },
+    {
+      "name": "Dell 2408WFP (DVI)",
+      "vendor": 4268,
+      "model": 41002,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 3,
+          "name": "DVI 1"
+        },
+        {
+          "code": 4,
+          "name": "DVI 2"
+        },
+        {
+          "code": 5,
+          "name": "Composite"
+        },
+        {
+          "code": 7,
+          "name": "S-Video"
+        },
+        {
+          "code": 12,
+          "name": "Component"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA02A.xml"
+      ]
+    },
+    {
+      "name": "Dell 2007FP (DVI)",
+      "vendor": 4268,
+      "model": 40993,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 3,
+          "name": "DVI"
+        },
+        {
+          "code": 5,
+          "name": "Composite"
+        },
+        {
+          "code": 7,
+          "name": "S-Video"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA021.xml"
+      ]
+    },
+    {
+      "name": "Dell U2410f",
+      "vendor": 4268,
+      "model": 61462,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 3,
+          "name": "DVI 1"
+        },
+        {
+          "code": 4,
+          "name": "DVI 2"
+        },
+        {
+          "code": 5,
+          "name": "Composite"
+        },
+        {
+          "code": 12,
+          "name": "Component"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF016.xml"
+      ]
+    },
+    {
+      "name": "Dell Ultrasharp u2410 (Rev A02)",
+      "vendor": 4268,
+      "model": 61463,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 3,
+          "name": "DVI 1"
+        },
+        {
+          "code": 4,
+          "name": "DVI 2"
+        },
+        {
+          "code": 15,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        },
+        {
+          "code": 12,
+          "name": "Component"
+        },
+        {
+          "code": 5,
+          "name": "Composite"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF017.xml"
+      ]
+    },
+    {
+      "name": "Dell S2316M (DVI)",
+      "vendor": 4268,
+      "model": 53376,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 3,
+          "name": "DVI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD080.xml"
+      ]
+    },
+    {
+      "name": "ViewSonic VSCBD44",
+      "vendor": 23139,
+      "model": 48452,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 1,
+          "name": "VGA"
+        },
+        {
+          "code": 17,
+          "name": "HDMI"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/VSCBD44.xml"
+      ]
+    },
+    {
+      "name": "LC-Power M34 Curved Gaming Monitor",
+      "vendor": 12547,
+      "model": 13568,
+      "alternate": false,
+      "confidence": "community-documented",
+      "inputs": [
+        {
+          "code": 7,
+          "name": "DisplayPort"
+        },
+        {
+          "code": 5,
+          "name": "HDMI 1"
+        },
+        {
+          "code": 18,
+          "name": "HDMI 2"
+        },
+        {
+          "code": 19,
+          "name": "HDMI 3"
+        }
+      ],
+      "evidence": [
+        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/LHC3500.xml"
+      ]
     }
   ]
 }

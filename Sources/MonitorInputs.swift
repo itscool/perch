@@ -91,7 +91,15 @@ enum MonitorCapabilities {
         return []
     }
 }
-struct MonitorInspection: Decodable { let current: UInt16?; let capabilities: String? }
+struct MonitorInspection: Decodable {
+    let current: UInt16?
+    let capabilities: String?
+    var lgIdentity: UInt16? = nil
+    var lgExtendedIdentity: UInt16? = nil
+    var lgFirmwareModel: String? {
+        LGFirmwareProfiles.family(identity: lgIdentity, extended: lgExtendedIdentity)?.name
+    }
+}
 
 protocol MonitorCommandBackend { func run(_ arguments: [String]) throws -> Data }
 

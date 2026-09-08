@@ -1,4 +1,4 @@
-// Restricted, short-lived DDC adapter. Only input-source operations are exposed.
+// Restricted DDC adapter: input control and bounded read-only monitor identity.
 // IOAV display routing is provided by the MIT-licensed m1ddc adapter in Vendor.
 @import Foundation;
 @import IOKit;
@@ -28,6 +28,14 @@ static NSNumber *current(DDCTransport t, bool alternate) {
         if (query(t, alternate ? 0x50 : 0x51, 0x01, &feature, 1, reply, sizeof(reply)) && perch_ddc_value(reply, sizeof(reply), feature, &value) && value > 0) return @(value);
         usleep(50000);
     }
+    return nil;
+}
+// LG OSC 7.20 uses standard Get VCP identity reads, not firmware mode.
+static NSNumber *lgIdentityValue(DDCTransport t, uint8_t feature) {
+    if (feature != 0xef && feature != 0xa1) return nil;
+    uint8_t reply[12] = {0}; uint16_t value = 0;
+    if (query(t, 0x51, 0x01, &feature, 1, reply, sizeof(reply)) &&
+        perch_ddc_value(reply, sizeof(reply), feature, &value)) return @(value);
     return nil;
 }
 static NSString *capabilities(DDCTransport t) {
@@ -82,7 +90,14 @@ int main(int argc, const char **argv) { @autoreleasepool {
     if (inspect || read) {
         NSNumber *value = current(t, alternate);
         NSString *caps = inspect && !alternate ? capabilities(t) : nil;
-        emit(@{@"current":value ?: (id)[NSNull null], @"capabilities":caps ?: (id)[NSNull null]});
+        NSMutableDictionary *result = [@{@"current":value ?: (id)[NSNull null], @"capabilities":caps ?: (id)[NSNull null]} mutableCopy];
+        if (inspect && selected->vendor == 0x1e6d) {
+            NSNumber *identity = lgIdentityValue(t, 0xef);
+            NSNumber *extended = identity && (identity.unsignedIntValue & 0x8000) ? lgIdentityValue(t, 0xa1) : nil;
+            result[@"lgIdentity"] = identity ?: (id)[NSNull null];
+            result[@"lgExtendedIdentity"] = extended ?: (id)[NSNull null];
+        }
+        emit(result);
         CFRelease(t.service); return 0;
     }
     char *end = NULL; long value = strtol(argv[4], &end, 10);

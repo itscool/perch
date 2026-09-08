@@ -92,7 +92,7 @@ func runSetupOverviewTests() throws {
     let navigationButtons = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }
     try check(navigationButtons.contains { $0.title == "Learn or manage layouts…" && $0.isEnabled }, "Unavailable helper hides saved layout management")
     app.navigationExceptions()
-    try check(host.back.title == "Cancel", "Compound exception editor does not make draft cancellation explicit")
+    try check(host.back.title == "Back" && host.pages.last?.detail.contains("save automatically") == true, "Exception choices do not explain immediate saving and Back navigation")
     host.goBack(); host.goBack()
     app.resetSettingsPage()
     try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title.contains("privacy") || $0.title.contains("system") }, "Perch preference reset contains unrelated system permission controls")

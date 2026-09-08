@@ -5,7 +5,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Navigation keys", detail: "Change Home/End and Page Up/Down on external keyboards. Built-in Fn+arrows keep their normal behavior. Choices save immediately; unknown keyboard sources pass through unchanged.", height: 458)
         let home = page.add("Home/End move to line edges", detail: "Move to the start or end of the current line in supported apps.", checkbox: true) { [weak self] in self?.toggleHomeEnd() }
         let paging = page.add("Page Up/Down move the cursor", detail: "Move the text cursor by a page instead of only scrolling the view.", checkbox: true) { [weak self] in self?.togglePageKeys() }
-        page.add("Learn or manage layouts…", detail: "Choose a connected or saved keyboard. Preview a learned layout before saving it.") { [weak self] in self?.testNavigationKeys() }
+        page.add("Learn or manage layouts…", detail: "Choose a keyboard. A learned layout saves automatically after the last key.") { [weak self] in self?.testNavigationKeys() }
         let setup = page.add("Review Accessibility…", detail: "Restore the helper or its access if navigation controls are unavailable.") { [weak self] in
             if HelperStatusIPC.inputClient.value?.fresh != true { self?.advancedSafetySettings() }
             else if HelperStatusIPC.inputClient.value?.trusted != true { self?.inputPermissionsFromSettings() }
@@ -23,7 +23,7 @@ extension AppDelegate {
             home.isEnabled = preferences.homeEnd || (access && profiles.contains { $0.hasHomeEnd })
             paging.isEnabled = preferences.pageUpDown || (access && profiles.contains { $0.hasPageKeys })
             setup.title = input?.fresh != true ? "Review background helpers…" : !access ? "Set up Accessibility…" : "Review Accessibility…"
-            page?.status.stringValue = input?.fresh != true ? "The input helper is unavailable. Restore it before checking access or enabling navigation." : !access ? "Perch Helper needs Accessibility. Restore access, then return here to choose behavior." : profiles.isEmpty ? "Learn the keys on an external keyboard first. Save the preview, then return here to enable the behavior you want." : input?.navigationUnidentified == true ? "macOS did not identify the source keyboard. Unidentified keys keep their normal behavior; review the layout if needed." : "A supported external layout is available. Choose behavior above; app exceptions can keep individual apps unchanged."
+            page?.status.stringValue = input?.fresh != true ? "The input helper is unavailable. Restore it before checking access or enabling navigation." : !access ? "Perch Helper needs Accessibility. Restore access, then return here to choose behavior." : profiles.isEmpty ? "Learn the keys on an external keyboard first. The layout saves automatically; use Back to return here and choose the behavior you want." : input?.navigationUnidentified == true ? "macOS did not identify the source keyboard. Unidentified keys keep their normal behavior; review the layout if needed." : "A supported external layout is available. Choose behavior above; app exceptions can keep individual apps unchanged."
         }
         page.show(delegate: self)
     }
@@ -83,33 +83,47 @@ extension AppDelegate {
     @objc func toggleHomeEnd() { setNavigation(homeEnd: true) }
     @objc func togglePageKeys() { setNavigation(homeEnd: false) }
     @objc func navigationExceptions() {
+        showNavigationExceptions(load: { SafetyConfiguration.load().navigation ?? NavigationPreferences() }, save: { id, excluded in
+            var latest = SafetyConfiguration.load()
+            var navigation = latest.navigation ?? NavigationPreferences()
+            navigation.excludedApps.removeAll { $0 == id }
+            if excluded { navigation.excludedApps.append(id) }
+            latest.navigation = navigation; try latest.save()
+        })
+    }
+    func showNavigationExceptions(load: @escaping () -> NavigationPreferences, save: @escaping (String, Bool) throws -> Void) {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
-        let config = SafetyConfiguration.load()
-        let current = config.navigation ?? NavigationPreferences()
+        let current = load()
         let names = Dictionary(NavigationPreferences.defaultExceptions.map { ($0.1, $0.0) }, uniquingKeysWith: { first, _ in first })
         let all = Set(names.keys).union(current.excludedApps).sorted { (names[$0] ?? $0) < (names[$1] ?? $1) }
         let scroll = NSScrollView(frame: NSRect(x: 0,y: 70,width: 572,height: 420))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
         let document = NSView(frame: NSRect(x: 0,y: 0,width: 546,height: CGFloat(all.count*29)))
-        var boxes: [NSButton] = []
+        let status = NSTextField(wrappingLabelWithString: "Changes save automatically.")
+        status.font = .systemFont(ofSize: 13); status.textColor = .secondaryLabelColor
+        status.frame = NSRect(x: 8, y: 5, width: 556, height: 56); view.addSubview(status)
         for (index, id) in all.enumerated() {
-            let box = NSButton(checkboxWithTitle: names[id] ?? id, target: nil, action: nil)
+            weak var checkbox: SettingsActionButton?
+            let box = SettingsActionButton(title: names[id] ?? id) {
+                guard let box = checkbox else { return }
+                let previous = load().excludedApps.contains(id)
+                do {
+                    try save(id, box.state == .on)
+                    status.stringValue = "✓ Saved automatically."
+                    status.textColor = StatusColors.success
+                } catch {
+                    box.state = previous ? .on : .off
+                    status.stringValue = "⚠ Not saved. " + error.localizedDescription + " Your previous choice was kept."
+                    status.textColor = StatusColors.warning
+                }
+            }
+            checkbox = box; box.setButtonType(.switch)
             box.state = current.excludedApps.contains(id) ? .on : .off
             box.frame = NSRect(x: 8,y: document.frame.height-CGFloat((index+1)*29),width: 525,height: 28)
-            document.addSubview(box); boxes.append(box)
+            document.addSubview(box)
         }
         scroll.documentView = document; view.addSubview(scroll)
         scroll.contentView.scroll(to: NSPoint(x: 0,y: max(0,document.bounds.height-scroll.contentSize.height))); scroll.reflectScrolledClipView(scroll.contentView)
-        let save = SettingsActionButton(title: "Save exceptions") { [weak self] in
-            do {
-                var latest = SafetyConfiguration.load()
-                var navigation = latest.navigation ?? NavigationPreferences()
-                navigation.excludedApps = zip(all, boxes).filter { $0.1.state == .on }.map { $0.0 }
-                latest.navigation = navigation; try latest.save()
-                SettingsWindow.shared.goBack()
-            } catch { self?.showError(error) }
-        }
-        save.frame = NSRect(x: 320,y: 10,width: 250,height: 32); view.addSubview(save)
-        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. Changes are saved together with Save exceptions. Cancel keeps the previous list.", view: view, backTitle: "Cancel"))
+        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. Changes save automatically.", view: view))
     }
 }

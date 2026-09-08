@@ -83,7 +83,7 @@ func runNavigationProbeUITests() throws {
     func check(_ condition: Bool, _ message: String) throws { if !condition { throw AppError(message: message) } }
     let host = SettingsWindow.shared
     host.testing = true
-    AppDelegate().configureSettings()
+    let app = AppDelegate(); app.configureSettings()
     let identity = host.window.windowNumber
     let knownIdentity = NavigationKeyboardIdentity(vendor: 1133, product: 45915, version: 19, name: "MX Keys", transport: "Bluetooth Low Energy", usages: [74,75,77,78])
     let knownKeyboard = NavigationProbeKeyboard(id: 420, name: knownIdentity.name, transport: knownIdentity.transport, identity: knownIdentity)
@@ -93,36 +93,115 @@ func runNavigationProbeUITests() throws {
     try check(known.instruction.stringValue == "Layout ready — no setup needed." && known.rows.allSatisfy { $0.stringValue.contains("— recognized") }, "Known layout still presents unidentified-key setup")
     try check(!known.permission.stringValue.contains("⚠") && known.permission.stringValue.contains("different layout") && known.timer == nil, "Known layout requires input access or starts listening")
     host.goBack()
-    var saved: [NavigationKeyboardProfile] = []
-    let page = NavigationProbePage(enumerate: { [] }, hasAccess: { true }, saveProfile: { saved.append($0) })
+    let learnedIdentity = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Mock keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
+    let keyboard = NavigationProbeKeyboard(id: 42, name: learnedIdentity.name, transport: learnedIdentity.transport, identity: learnedIdentity)
+    let previous = NavigationKeyboardProfile(identity: learnedIdentity, keys: [0x68,0x69,0x6A,0x6B])
+    var profiles = [previous], saves = 0, failSave = false, now: TimeInterval = 100
+    let page = NavigationProbePage(enumerate: { [keyboard] }, hasAccess: { true }, saveProfile: { profile in
+        saves += 1
+        if failSave { throw AppError(message: "Storage unavailable.") }
+        profiles = [profile]
+    }, readProfiles: { profiles }, now: { now })
     page.show()
+    func visibleButtons() -> [NSButton] { page.view.subviews.compactMap { $0 as? NSButton }.filter { !$0.isHidden } }
     try check(host.pages.count == 2 && host.window.windowNumber == identity && page.timer == nil, "Opening navigation test changed window or began listening")
     let source = MockNavigationProbeSource()
-    page.setupIdentity = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Mock keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
+    page.setupIdentity = learnedIdentity
     page.session.start(deviceID: 42, source: source, guided: true)
-    try check(page.timer != nil, "Active test lacks timeout timer")
+    try check(page.timer != nil && host.back.title == "Back", "Active test lacks timeout or shared Back")
+    try check(visibleButtons().filter { $0.isEnabled }.map { $0.title } == ["I don’t have Home"], "Active learning has ambiguous acceptance/cancellation controls")
     source.pressAndRelease(.home)
-    try check(page.rows[0].stringValue.hasPrefix("✓"), "Received navigation key lacks explicit confirmation")
+    try check(page.rows[0].stringValue.hasPrefix("✓") && saves == 0 && profiles == [previous], "Partial learning changed the saved layout")
     for (appearance, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         host.window.appearance = NSAppearance(named: appearance)
         try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-navigation-test-\(suffix).png")
     }
-    for key in NavigationKey.allCases where key != .home { source.pressAndRelease(key) }
-    try check(page.timer == nil && source.stops == 1 && saved.isEmpty, "Learning overwrote the old layout before acceptance or retained its timer")
-    page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use this layout" }!.performClick(nil)
-    try check(saved.count == 1 && page.status.stringValue.contains("Layout saved"), "Accepted layout was not saved once")
+    source.pressAndRelease(.end); source.pressAndRelease(.pageUp)
+    source.value?(42, 7, NavigationKey.pageDown.rawValue, 1)
+    try check(saves == 0, "Final press saved before its release")
+    source.value?(42, 7, NavigationKey.pageDown.rawValue, 0)
+    try check(page.timer == nil && source.stops == 1 && saves == 1 && profiles[0].keys == [74,77,75,78], "Completed layout did not save automatically once and stop input")
+    try check(page.status.stringValue.contains("saved automatically") && visibleButtons().isEmpty && host.back.title == "Back", "Completed setup has an extra accept/cancel button or unclear save status")
+    try check(host.detail.stringValue.contains("Mock keyboard") && host.detail.stringValue.contains("is saved") && !host.detail.stringValue.contains("Press and release"), "Completed setup retains instructions to keep learning")
+    for (appearance, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+        host.window.appearance = NSAppearance(named: appearance)
+        try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-navigation-saved-\(suffix).png")
+    }
     page.session.tick()
-    try check(saved.count == 1, "Completed setup saved its profile repeatedly")
-    let restarted = MockNavigationProbeSource()
-    page.session.start(deviceID: 42, source: restarted)
-    NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: host.window)
-    try check(restarted.stops == 1 && page.timer == nil, "Leaving test window retained subscription")
-    let final = MockNavigationProbeSource()
-    page.session.start(deviceID: 42, source: final)
+    NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: host.window)
     host.goBack()
-    try check(host.pages.count == 1 && page.timer == nil && final.stops == 1, "Back did not stop test or return to Settings")
-    try check(saved.count == 1, "Cancelled setup replaced saved profile")
+    try check(saves == 1 && profiles[0].keys == [74,77,75,78], "Refresh or Back resaved or discarded a completed layout")
+    let reopened = NavigationProbePage(enumerate: { [keyboard] }, hasAccess: { false }, saveProfile: { _ in saves += 1 }, readProfiles: { profiles })
+    reopened.show()
+    try check(reopened.rows.allSatisfy { $0.stringValue.contains("recognized") } && saves == 1, "Reopening forgot the automatically saved layout")
+    host.goBack()
+
+    page.show()
+    let restarted = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: restarted, guided: true)
+    restarted.pressAndRelease(.home)
+    NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: host.window)
+    try check(restarted.stops == 1 && page.timer == nil && saves == 1, "Focus loss retained input or saved an unfinished replacement")
+    let timeout = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: timeout, guided: true)
+    timeout.pressAndRelease(.home); now += 61; page.session.tick()
+    try check(timeout.stops == 1 && saves == 1 && profiles[0].keys == [74,77,75,78] && page.session.state.phase == .incomplete && page.status.stringValue.contains("kept"), "Timeout saved a partial layout or lost recovery guidance")
+    let interrupted = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: interrupted, guided: true)
+    interrupted.pressAndRelease(.home); host.goBack()
+    try check(host.pages.count == 1 && page.timer == nil && interrupted.stops == 1 && saves == 1, "Back did not stop unfinished setup without saving")
+
+    page.show(); failSave = true
+    let failed = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: failed, guided: true)
+    for usage: UInt32 in [0x68,0x69,0x6A,0x6B] { failed.value?(42,7,usage,1); failed.value?(42,7,usage,0) }
+    try check(saves == 2 && profiles[0].keys == [74,77,75,78] && page.status.stringValue.contains("previous layout is still in use"), "Failed autosave discarded the old layout or claimed success")
+    try check(visibleButtons().map { $0.title } == ["Retry saving"], "Failed save has ambiguous recovery controls")
+    page.session.tick()
+    NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: host.window)
+    try check(saves == 2, "Failed autosave retried on every refresh")
+    failSave = false
+    visibleButtons().first!.performClick(nil)
+    try check(saves == 3 && profiles[0].keys == [0x68,0x69,0x6A,0x6B] && visibleButtons().isEmpty && page.status.stringValue.contains("saved automatically"), "Retry did not recover the completed layout")
+    host.goBack()
+
+    page.show()
+    let absent = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: absent, guided: true)
+    for index in 0..<4 {
+        visibleButtons().first { $0.title.hasPrefix("I don’t have") }!.performClick(nil)
+        try check(saves == (index == 3 ? 4 : 3), "Absent-key setup saved before all four answers")
+    }
+    try check(profiles[0].keys == [nil,nil,nil,nil] && page.timer == nil && absent.stops == 1, "All-absent layout did not save and stop")
+    host.goBack()
+    page.show()
+    let closing = MockNavigationProbeSource()
+    page.session.start(deviceID: 42, source: closing, guided: true)
+    closing.pressAndRelease(.home)
     host.window.appearance = nil
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
-    print("PASS: navigation diagnostic stays in Settings, starts only explicitly, shows receipt, stops on success/focus loss/Back; light/dark rendered with synthetic input")
+    try check(closing.stops == 1 && page.timer == nil && saves == 4, "Window close saved an unfinished layout")
+
+    app.configureSettings()
+    var preferences = NavigationPreferences(), exceptionSaves = 0, rejectException = false
+    preferences.homeEnd = true; preferences.excludedApps = ["test.app", "preserved.app"]
+    app.showNavigationExceptions(load: { preferences }, save: { id, excluded in
+        exceptionSaves += 1
+        if rejectException { throw AppError(message: "Storage unavailable.") }
+        preferences.excludedApps.removeAll { $0 == id }
+        if excluded { preferences.excludedApps.append(id) }
+    })
+    let exceptionsView = host.pages.last!.view
+    let exceptionScroll = exceptionsView.subviews.compactMap { $0 as? NSScrollView }.first!
+    let checkbox = exceptionScroll.documentView!.subviews.compactMap { $0 as? NSButton }.first { $0.title == "test.app" }!
+    checkbox.performClick(nil)
+    try check(exceptionSaves == 1 && !preferences.excludedApps.contains("test.app") && preferences.excludedApps.contains("preserved.app") && preferences.homeEnd, "Exception checkbox did not save its own choice immediately")
+    try check(exceptionsView.subviews.compactMap { $0 as? NSButton }.isEmpty && host.back.title == "Back", "Exception page retains a separate Save/Cancel action")
+    rejectException = true; checkbox.performClick(nil)
+    try check(exceptionSaves == 2 && checkbox.state == .off && !preferences.excludedApps.contains("test.app"), "Failed exception save left an unsaved checkmark")
+    try check(exceptionsView.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Not saved") }, "Failed exception save lacks inline recovery")
+    host.goBack()
+    try check(exceptionSaves == 2, "Back tried to save app exceptions again")
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
+    print("PASS: navigation setup autosaves exactly once after the final release/absence; Back-only completion; previous layout survives partial setup, timeout, focus loss and close; save failure/retry and reopen; light/dark fixture renders")
 }

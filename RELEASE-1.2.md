@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 48. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 50. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 50: automatic keyboard setup saving
+
+Manual navigation setup saves automatically after the final key is released or marked absent. The completed page shows the saved result and Back, with no Done, Use this layout or Cancel setup step. Back, closing, losing focus or timing out during unfinished setup keeps the previous layout. If saving fails, Perch says the previous layout remains in use and offers Retry saving without repeating the lesson. Navigation app-exception checkboxes also save immediately, with an inline error and restored checkbox state if a write fails. The existing automatic recognition of known keyboards remains available.
+
+All 20 isolated suites pass, including final-release/absent-key autosave, one save per completion, incomplete replacement, timeout, focus loss, Back/close, failed save/retry, reopening and immediate app-exception changes. Production compilation and strict local signature verification passed; light/dark completion renders were checked. Build 49 was an intermediate candidate before the updated flow checks and completion wording were finalized. Physical key delivery and the pending live helper upgrade remain separate acceptance work.
 
 ## Build 48: keyboard recognition correction
 

@@ -1,6 +1,7 @@
 import AppKit
 
 func runMonitorInputTests() throws {
+    try runMonitorInputProbeTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let a = MonitorInput(code: 17,name: "HDMI 1"), b = MonitorInput(code: 15,name: "DisplayPort")
     var plan = MonitorInputPlan(); plan.inputs = [a,b]

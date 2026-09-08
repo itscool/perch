@@ -96,7 +96,9 @@ final class LidGuardPipe {
 func runLidGuardWatchdog() -> Never {
     guard geteuid() == 0 else { exit(1) }
     let channel = LidGuardPipe(input: STDIN_FILENO, output: STDOUT_FILENO)
-    let hardware = MacLidGuardHardware(), enforcer = LidGuardEnforcer(MacLidGuardHardware())
+    let activity = LidActivityRecorder(source: "Watchdog")
+    let hardware = MacLidGuardHardware(), enforcer = LidGuardEnforcer(MacLidGuardHardware(), log: { activity.record($0, coalesce: true) })
+    activity.record("Independent lid watchdog started.")
     var state = LidGuardWatchdogState()
     while true {
         let now = LidGuardClock.now
@@ -108,11 +110,12 @@ func runLidGuardWatchdog() -> Never {
         let fresh = !channel.ended && lease.expires > now
         let decision = state.evaluate(observation, now: now, channelAlive: !channel.ended)
         if !decision.preventLidSleep, let token = lease.token {
+            if LidGuardOwnership.token == token { activity.record("Watchdog recovery: \(decision.detail)", coalesce: true) }
             do { try LidGuardOwnership.release(enforcer, sleep: decision.requestSleep, now: now, expectedToken: token) }
-            catch { /* Retain the ownership marker and retry cleanup on every tick. */ }
+            catch { activity.record("Watchdog cleanup failed: \(error.localizedDescription)", coalesce: true) }
         }
         _ = channel.send(LidGuardAck(token: lease.token, time: now, allowed: lease.token == nil ? fresh : decision.preventLidSleep))
-        if channel.ended && (!LidGuardOwnership.exists || LidGuardOwnership.token != lease.token) { exit(0) }
+        if channel.ended && (!LidGuardOwnership.exists || LidGuardOwnership.token != lease.token) { activity.record("Watchdog finished recovery after its supervisor connection ended."); activity.finish(); exit(0) }
         usleep(250_000)
     }
 }
@@ -122,8 +125,12 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
     private let owner: uid_t
     private let listener = NSXPCListener(machServiceName: name)
     private let hardware = MacLidGuardHardware()
+    private let activity = LidActivityRecorder(source: "Lid helper")
+    private var activityTracker = LidActivityTracker()
+    private var powerObserver: LidPowerNotifications?
+    private var lastActivityPrune: Double = 0
     private let idleAwake = Awake()
-    private lazy var enforcer = LidGuardEnforcer(hardware)
+    private lazy var enforcer = LidGuardEnforcer(hardware, log: { [weak self] in self?.activity.record($0, coalesce: true) })
     private var child: Process?
     private var pipes: [Pipe] = []
     private var channel: LidGuardPipe?
@@ -137,6 +144,12 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
     init(owner: uid_t) { self.owner = owner; super.init(); listener.delegate = self }
     func run() -> Never {
         guard geteuid() == 0 else { exit(1) }
+        activity.record("Lid helper started (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")). Previous gaps in observation cannot be reconstructed.")
+        powerObserver = LidPowerNotifications(activity: activity, observe: { [weak self] in
+            guard let self else { return }
+            for message in self.activityTracker.observe(self.hardware.observe(), now: LidGuardClock.now) { self.activity.record(message) }
+        })
+        powerObserver?.start()
         // Launchd restarts begin disarmed; old UI preferences cannot re-arm us.
         do {
             let observation = hardware.observe()
@@ -147,7 +160,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             try process.run(); toChild.fileHandleForReading.closeFile(); fromChild.fileHandleForWriting.closeFile()
             pipes = [toChild, fromChild]; child = process
             channel = LidGuardPipe(input: fromChild.fileHandleForReading.fileDescriptor, output: toChild.fileHandleForWriting.fileDescriptor)
-        } catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription }
+        } catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("Helper startup failed: \(error.localizedDescription)") }
         listener.resume()
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
@@ -157,12 +170,18 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         let now = LidGuardClock.now
         if let channel { for value in channel.receive(LidGuardAck.self) { ack = value } }
         let observation = hardware.observe()
+        for message in activityTracker.observe(observation, now: now) { activity.record(message) }
+        if now - lastActivityPrune >= 60 { activity.prune(); lastActivityPrune = now }
         if token != nil {
             let watched = child?.isRunning == true && channel?.ended == false && ack.map { now >= $0.time && now - $0.time < 2 && ($0.token == token && $0.allowed) } == true
             if let until = startingUntil, !watched, now < until {
                 _ = channel?.send(LidGuardLease(token: token, expires: min(now+3, leaseEnds), deadline: nil)); return
             }
+            if !policy.stopped && (now >= leaseEnds || !watched) {
+                activity.record(now >= leaseEnds ? "App heartbeat expired. Ending lid protection." : "Independent watchdog confirmation was lost. Ending lid protection.")
+            }
             let decision = policy.step(observation, now: now, authorized: now < leaseEnds && watched)
+            for message in activityTracker.decision(decision, observation: observation, deadline: policy.deadline, now: now) { activity.record(message) }
             do {
                 try idleAwake.set(decision.preventLidSleep)
                 if decision.preventLidSleep {
@@ -178,6 +197,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
                 if !decision.preventLidSleep { try LidGuardOwnership.release(enforcer, sleep: decision.requestSleep, now: now); token = nil }
                 snapshot = .init(updatedAt: now, armed: decision.preventLidSleep, remaining: decision.remaining, detail: decision.detail)
             } catch {
+                activity.record("Lid session failed: \(error.localizedDescription)", coalesce: true)
                 token = nil
                 try? idleAwake.set(false)
                 try? enforcer.apply(.init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external, remaining: nil, detail: "Lid control failed"), now: LidGuardClock.now)
@@ -187,10 +207,11 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         } else {
             if LidGuardOwnership.exists {
                 do { try LidGuardOwnership.release(enforcer, sleep: observation.closed != false && observation.power != .external, now: now) }
-                catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription }
+                catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("Lid cleanup failed: \(error.localizedDescription)", coalesce: true) }
             }
             snapshot.updatedAt = now
         }
+        snapshot.activityError = activity.error
         if channel?.send(LidGuardLease(token: token, expires: min(now+3, token == nil ? now+3 : leaseEnds), deadline: policy.deadline)) == false { ack = nil }
     }
     private func encoded() -> Data { (try? JSONEncoder().encode(LidGuardReply(status: snapshot, token: token))) ?? Data() }
@@ -208,10 +229,11 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             let now = LidGuardClock.now, observation = self.hardware.observe()
             do {
                 if enabled && self.token == nil {
+                    self.activity.record("Enable lid protection requested.")
                     guard observation.closed == false && observation.power != .unknown else { throw AppError(message: "Open the lid before enabling protection. Perch must be able to read the power source.") }
                     guard self.child?.isRunning == true, self.channel?.ended == false, let ack = self.ack, now >= ack.time, now - ack.time < 2 else { throw AppError(message: "The lid watchdog is unavailable. Repair the lid helper before relying on this mode.") }
                     guard try !sleepDisabled() else { throw AppError(message: "The old system-wide sleep override is still on. Remove it with Review sleep reset before enabling the 60-second mode.") }
-                    self.policy = LidGuardPolicy(); let token = UUID().uuidString
+                    self.policy = LidGuardPolicy(); self.activityTracker.endSession(); let token = UUID().uuidString
                     self.token = token; self.leaseEnds = now + 5; self.startingUntil = now + 1
                     // Wait for an independent watchdog acknowledgment before
                     // enabling the hardware bit or displaying Ready.
@@ -223,12 +245,14 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
                     }
                     return
                 } else if !enabled {
+                    self.activity.record("Disable lid protection requested.")
                     self.token = nil
                     try self.idleAwake.set(false)
                     try LidGuardOwnership.release(self.enforcer, sleep: observation.closed != false && observation.power != .external, now: now)
                     self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: "Lid protection is off. Normal macOS lid behavior applies.")
+                    self.activityTracker.endSession(); self.activity.record("Lid protection disabled.")
                 }
-            } catch { self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: error.localizedDescription, error: error.localizedDescription) }
+            } catch { self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: error.localizedDescription, error: error.localizedDescription); self.activity.record("Lid setting failed: \(error.localizedDescription)") }
             reply(self.encoded())
         }
     }

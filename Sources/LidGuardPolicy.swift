@@ -76,5 +76,6 @@ struct LidGuardStatus: Codable {
     var remaining: Int?
     var detail: String
     var error: String? = nil
+    var activityError: String? = nil
     var fresh: Bool { let age = LidGuardClock.now - updatedAt; return revision == Self.revision && codeIdentity != nil && codeIdentity == LidGuardIdentity.current && age >= 0 && age < 3 }
 }

@@ -96,6 +96,8 @@ Live helper status stays in memory and is queried asynchronously over authentica
 
 Permission reset command logs: `~/Library/Application Support/Perch/Panic/`.
 
+Lid activity: **Settings → Keep awake → Lid activity**, with live updates and Copy log. The root helper and watchdog share `/var/db/local.scott.perch.lid-activity/events.json`, retaining at most 1,024 events from the last 24 hours. Events describe observed lid/power changes, elapsed countdowns, command outcomes and separate macOS sleep/wake notifications. History remains readable when the helper is offline; gaps in observation and command acknowledgment alone do not prove physical sleep behavior.
+
 To stop the background helper deliberately:
 
 ```sh

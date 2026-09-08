@@ -10,6 +10,7 @@ func runSettingsTests() throws {
     try runMonitorDraftTests()
     try runReviewFixTests()
     try runSetupOverviewTests()
+    try runLidActivityUITests()
     let host = SettingsWindow.shared
     host.testing = true
     let app = AppDelegate()

@@ -155,6 +155,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     // Kept separate from helper installation so the real menu can be checked safely.
     func buildMenu() {
         menu.delegate = self
+        section("System")
+        for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.view = MenuRowView(item: item, kind: .information)
+            label(item, title, hint: "--", hintColor: StatusColors.information)
+            menu.addItem(item); systemItems.append(item)
+        }
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
@@ -189,15 +196,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
         quit.toolTip = "Input controls, ordinary keep-awake and agent protection continue. Monitor shortcuts and supervised lid protection stop. If the lid stays closed on battery, the lid helper requests sleep."
-        let systemHeading = section("System")
-        (systemHeading.view as? MenuRowView)?.panelPart = .top
-        for title in ["Mac", "CPU", "GPU", "Memory", "Thermal"] {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            item.view = MenuRowView(item: item, kind: .information)
-            (item.view as? MenuRowView)?.panelPart = title == "Thermal" ? .bottom : .middle
-            label(item, title, hint: "--", hintColor: StatusColors.information)
-            menu.addItem(item); systemItems.append(item)
-        }
         for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
@@ -206,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self?.lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
         }
         (loginItem.view as? MenuRowView)?.opensAnotherInterface = { SMAppService.mainApp.status == .requiresApproval }
+        styleMenuSections()
         systemMonitor.processCPU.onUpdate = { [weak self] in
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
             self.showSystemReading(self.systemItems[1], self.systemMonitor.cpuReading)
@@ -219,7 +218,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         return item
     }
     @discardableResult func section(_ title: String) -> NSMenuItem {
-        if !menu.items.isEmpty { menu.addItem(.separator()) }
         let item = NSMenuItem.sectionHeader(title: title)
         item.view = MenuRowView(item: item, kind: .section)
         menu.addItem(item)
@@ -339,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
             button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
         }
+        styleMenuSections()
         settingsRefresh?()
         let symbol = awakeItem.state == .on ? "awake-bird" : "bird"
         if lastStatusSymbol != symbol {

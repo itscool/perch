@@ -1,6 +1,16 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 45. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 46. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 46: activity history and menu experiment
+
+**Settings → Keep awake → Lid activity** shows the last 24 hours, capped at 1,024 entries across the helper and watchdog. It records observed lid/power transitions with elapsed times, countdown starts/cancellation/expiry, session failures, command results, and separate macOS sleep-begin/wake-complete notifications. History persists through app/helper restarts in a local root-owned journal and remains readable if the helper is offline. Logging runs away from the power-control loop; unchanged polling does not fill the history. Live updates can be paused, and Copy log copies the displayed history. Missing observations and unconfirmed sleep are explicit. Notifications indicate an OS transition, not a guarantee of how long hardware remained asleep. [Apple notification semantics](https://developer.apple.com/library/archive/qa/qa1340/_index.html).
+
+At the user's request, **System is first** again with a neutral background. Other main-menu sections have faint color backgrounds, no separator lines and three-point gaps. Main-menu actions, including the all-app privacy reset, remain in place.
+
+**Identify this Mac’s input → Find this Mac automatically** tries the selected monitor's known ports and watches that display's own macOS identity, rather than the total screen count. Reconnection suggests a candidate; unchanged connectivity and input readback alone cannot identify the computer. Stop/Back stops further tests and attempts to return to the original input when known. If switching breaks the control connection, restoration can fail and the monitor's Input button is needed. No mapping is saved until the user confirms the picture. Saving this Mac's port no longer creates the confusing 30-second current-state prompt; manual current-input observations remain short-lived and separate from the saved mapping. This experiment still needs user-operated hardware acceptance.
+
+Build 46 preparation: production compilation and strict signatures passed. All 20 isolated suites passed, including journal retention/restart/concurrent writers, elapsed transitions, log navigation, and monitor probe scope/ambiguity/cancellation/return. Light and dark menu, log and identification-page renders were inspected. Physical monitor scanning and closed-lid sleep behavior were not tested.
 
 ## Build 45 correction
 

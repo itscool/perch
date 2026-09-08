@@ -7,6 +7,7 @@ final class MenuRowView: NSView {
     enum Kind { case toggle, command, information, section }
     enum PanelPart { case top, middle, bottom }
     var panelPart: PanelPart? { didSet { needsDisplay = true } }
+    var panelSection: String? { didSet { if oldValue != panelSection { needsDisplay = true } } }
     weak var item: NSMenuItem?
     let kind: Kind
     var opensAnotherInterface: () -> Bool = { false }
@@ -91,8 +92,9 @@ final class MenuRowView: NSView {
     }
     /// Shared by drawing and the appearance regression tests. It keeps dynamic
     /// colors intact, including hints; selection and actual disabling are explicit.
-    private var sectionTint: NSColor {
-        switch item?.title ?? "" {
+    private var sectionTint: NSColor { Self.tint(for: item?.title ?? "") }
+    static func tint(for section: String) -> NSColor {
+        switch section {
         case "System": return .systemTeal
         case "Sleep": return .systemPurple
         case "Display": return .systemOrange
@@ -125,13 +127,13 @@ final class MenuRowView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            if let panelPart {
+            if let panelPart, let panelSection {
                 NSGraphicsContext.saveGraphicsState()
                 NSBezierPath(rect:bounds).addClip()
-                StatusColors.information.withAlphaComponent(0.10).setFill()
+                Self.tint(for: panelSection).withAlphaComponent(0.075).setFill()
                 var panel = bounds.insetBy(dx:4,dy:0)
                 switch panelPart {
-                case .top: panel.origin.y -= 8; panel.size.height += 8
+                case .top: panel.origin.y -= 8; panel.size.height += 5 // three-point gap above each tinted group
                 case .bottom: panel.size.height += 8
                 case .middle: break
                 }
@@ -170,6 +172,32 @@ final class MenuRowView: NSView {
                 title.draw(at: NSPoint(x: bounds.width - title.size().width - 14, y: 4))
             }
         }
+    }
+}
+
+extension AppDelegate {
+    /// Neutral System readings first; faint color groups replace separator rules.
+    /// Re-evaluate visible boundaries when optional keyboard/protection rows change.
+    func styleMenuSections() {
+        var section = "System", rows: [MenuRowView] = []
+        func finish() {
+            for (index, row) in rows.enumerated() {
+                let part: MenuRowView.PanelPart? = section == "System" ? nil : index == 0 ? .top : index == rows.count-1 ? .bottom : .middle
+                if row.panelPart != part { row.panelPart = part }
+                row.panelSection = section == "System" ? nil : section
+                if row.kind == .section {
+                    let height: CGFloat = section == "System" ? 22 : 25
+                    if row.frame.height != height { row.setFrameSize(NSSize(width: row.frame.width, height: height)) }
+                }
+            }
+            rows.removeAll()
+        }
+        for item in menu.items {
+            guard let row = item.view as? MenuRowView else { continue }
+            if row.kind == .section { finish(); section = item.title }
+            if !item.isHidden { rows.append(row) }
+        }
+        finish()
     }
 }
 

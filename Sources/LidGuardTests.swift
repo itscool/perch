@@ -15,6 +15,7 @@ private final class FakeLidHardware: LidGuardHardware {
 }
 
 func runLidGuardTests() throws {
+    try runLidActivityTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     // Exercise the production connection setup, which the mutation mocks used
     // to hide. No power method or sleep request is sent over this connection.

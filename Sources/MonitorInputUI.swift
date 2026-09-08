@@ -210,20 +210,20 @@ final class MonitorInputPage: NSObject {
     }
     private func identifyInput() {
         guard identificationNeeded, !controller.busy, !candidates.isEmpty else { return }
-        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:220))
+        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:470))
         var active = true, tested: UInt16? = nil
+        let cancellation = MonitorProbeCancellation()
         let choose = NSPopUpButton(frame:NSRect(x:0,y:165,width:572,height:30))
         let inputs = candidates; choose.addItems(withTitles:inputs.map { $0.name })
-        let text = NSTextField(wrappingLabelWithString:"Select a known input and test it. Use the built-in screen while testing. If control is lost, return using the monitor’s own buttons.")
+        let text = NSTextField(wrappingLabelWithString:"Or choose an input here and click Test selected input. When the monitor shows this Mac, save it below. This mapping does not expire.")
         text.frame = NSRect(x:0,y:78,width:572,height:75); text.textColor = .secondaryLabelColor
-        let accept = SettingsActionButton(title:"This input is showing this Mac") { [weak self] in
+        let accept = SettingsActionButton(title:"Save as this Mac’s input") { [weak self] in
             guard let self, let code = tested, !self.controller.busy else { return }
             self.blind.state = .on; self.settingChanged()
             var plan = self.controller.plan; plan.macInput = code
             plan.macInputConnection = self.controlConnection?.argument ?? self.controller.connected?.connection
             do { try self.controller.save(plan) } catch { text.stringValue = error.localizedDescription; return }
-            self.controller.useCurrentInput(code)
-            self.message = "✓ Current input confirmed by you: " + (inputs.first { $0.code == code }?.name ?? "input")
+            self.message = "Saved: this Mac uses " + (inputs.first { $0.code == code }?.name ?? "this input") + ". Use Show beside a destination to switch to it; this mapping does not expire."
             self.warning = false; SettingsWindow.shared.goBack(); self.refresh()
         }
         accept.frame = NSRect(x:215,y:15,width:357,height:32); accept.isEnabled = false
@@ -237,8 +237,34 @@ final class MonitorInputPage: NSObject {
             }
         }
         test.frame = NSRect(x:0,y:15,width:205,height:32)
-        [choose,text,accept,test].forEach { page.addSubview($0) }
-        SettingsWindow.shared.show(.init(title:"Identify this Mac’s input",detail:"Automatic current-input detection was unavailable. Each test sends one known input command. Confirmation sets the current session’s starting point; it remembers which input belongs to this Mac without assuming it stays selected.",view:page,leave:{active=false}))
+        let results = NSTextView(frame: NSRect(x:0,y:0,width:548,height:190))
+        results.isEditable = false; results.isSelectable = true; results.font = .systemFont(ofSize:12)
+        results.textContainer?.widthTracksTextView = true; results.autoresizingMask = .width; results.isVerticallyResizable = true
+        results.string = "Ready to try the known inputs. Perch will look for this monitor disconnecting and reconnecting to this Mac. If that does not identify a port, you can confirm the picture yourself."
+        let scroll = NSScrollView(frame:NSRect(x:0,y:208,width:572,height:198))
+        scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder; scroll.documentView = results
+        let stop = SettingsActionButton(title:"Stop test") { cancellation.cancel() }
+        stop.frame = NSRect(x:390,y:426,width:182,height:32); stop.isEnabled = false
+        weak var automatic: SettingsActionButton?
+        let automaticButton = SettingsActionButton(title:"Find this Mac automatically") { [weak self] in
+            guard let self, active, !self.controller.busy, !SettingsWindow.shared.testing else { return }
+            tested = nil; accept.isEnabled = false; test.isEnabled = false; automatic?.isEnabled = false; stop.isEnabled = true
+            self.controller.probeInputs(inputs, display:self.editedDisplay,
+                mode:self.controlConnection?.argument ?? (self.protocolChoice.indexOfSelectedItem == 1 ? "lg" : "standard"),
+                returnInput:self.controller.plan.macInputConnection == (self.controlConnection?.argument ?? self.controller.connected?.connection) ? self.controller.plan.macInput : nil,
+                cancellation:cancellation, progress: { value in if active { results.string = value } }) { result in
+                    guard active else { return }; results.string = result.lines.joined(separator:"\n")
+                    stop.isEnabled = false; test.isEnabled = true
+                    if let input = result.suggested, result.showing?.code == input.code {
+                        choose.selectItem(at:inputs.firstIndex { $0.code == input.code } ?? 0); tested = input.code; accept.isEnabled = true
+                        text.stringValue = "The connection changes suggest " + input.name + ". Confirm below only if this monitor now shows this Mac."
+                    } else { text.stringValue = "The test could not identify a unique input. Choose a port, test it, and confirm the picture. Use the monitor’s Input button to restore this Mac if needed." }
+                }
+        }
+        automatic = automaticButton
+        automaticButton.frame = NSRect(x:0,y:426,width:378,height:32)
+        [choose,text,accept,test,scroll,automaticButton,stop].forEach { page.addSubview($0) }
+        SettingsWindow.shared.show(.init(title:"Identify this Mac’s input",detail:"This briefly changes inputs on the selected monitor. Keep this window on the laptop screen. Perch will try to bring the picture back; the monitor’s Input button is your fallback. Stop or Back ends the test.",view:page,leave:{active=false; cancellation.cancel()}))
     }
     private func renderInputs() {
         let selectedCurrent = currentChoice.selectedItem?.representedObject as? UInt16

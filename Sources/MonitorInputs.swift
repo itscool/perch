@@ -147,7 +147,7 @@ final class MonitorInputController: NSObject {
     var onChange: (() -> Void)?
     var pageChanged: (() -> Void)?
     private let worker = DispatchQueue(label: "local.scott.perch.monitor-input", qos: .utility)
-    private let backend: MonitorCommandBackend
+    let backend: MonitorCommandBackend
     private let hotKey = PanicHotKey(signature: 0x504d4f4e)
     private var pending: DispatchWorkItem?
     private var lastSent: UInt16?
@@ -160,7 +160,7 @@ final class MonitorInputController: NSObject {
         if let reportedCurrent, let checkedAt {
             return "Monitor reported \(name(reportedCurrent)) · checked \(checkedAt.formatted(date: .omitted, time: .standard))"
         }
-        if let confirmedCurrent, let confirmedAt, Date().timeIntervalSince(confirmedAt) < 30 { return "You confirmed \(name(confirmedCurrent)) · use within 30 seconds" }
+        if let confirmedCurrent, let confirmedAt, Date().timeIntervalSince(confirmedAt) < 30 { return "You confirmed \(name(confirmedCurrent)). Choose Cycle input now, or Show a destination." }
         return "Current input unknown" + (lastSent.map { " · last requested \(name($0))" } ?? "")
     }
     private var refreshPending = false
@@ -293,7 +293,7 @@ final class MonitorInputController: NSObject {
         guard !busy else { return }
         perform({ [backend] in try JSONDecoder().decode([MonitorUSBDevice].self, from: backend.run(["usb-list"])) }, completion:completion)
     }
-    private func perform<T>(_ job: @escaping () throws -> T, completion: @escaping (Result<T,Error>) -> Void) {
+    func perform<T>(_ job: @escaping () throws -> T, completion: @escaping (Result<T,Error>) -> Void) {
         busy = true; changed()
         worker.async {
             let result = Result { try job() }

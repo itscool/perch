@@ -30,3 +30,9 @@ void perch_timestamp_copy(const uint8_t *input, PerchJSONText text, PerchEventTi
 #endif
 
 #include "DDCWire.h"
+#include <IOKit/IOMessage.h>
+// IOMessage macros use a form Swift cannot import directly.
+static const uint32_t PerchCanSystemSleep = kIOMessageCanSystemSleep;
+static const uint32_t PerchSystemWillSleep = kIOMessageSystemWillSleep;
+static const uint32_t PerchSystemHasPoweredOn = kIOMessageSystemHasPoweredOn;
+static const uint32_t PerchSystemWillNotSleep = kIOMessageSystemWillNotSleep;

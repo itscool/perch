@@ -125,9 +125,9 @@ final class MenuRowView: NSView {
                 tint.setFill()
                 NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
                 tinted.unlockFocus()
-                tinted.draw(in: NSRect(x: 25 + ceil(text.size().width) + 7, y: 5, width: 12, height: 12))
+                tinted.draw(in: NSRect(x: 25, y: 5, width: 12, height: 12))
             }
-            displayedText().draw(at: NSPoint(x: 25, y: 4))
+            displayedText().draw(at: NSPoint(x: kind == .section ? 44 : 25, y: 4))
             if let item, !item.keyEquivalent.isEmpty {
                 var shortcut = ""
                 if item.keyEquivalentModifierMask.contains(.control) { shortcut += "⌃" }

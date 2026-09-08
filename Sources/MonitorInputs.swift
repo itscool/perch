@@ -142,6 +142,10 @@ final class MonitorInputController: NSObject {
     var plan = MonitorInputPlan()
     private(set) var displays: [MonitorDescriptor] = []
     private(set) var busy = false
+    private(set) var checkingDisplays: Bool
+    private var discoveringDisplays = false
+    private var discoveryFailed = false
+    private var displayGeneration: UInt64 = 0
     var message = "Detecting monitors…"
     var warning = false
     var onChange: (() -> Void)?
@@ -189,7 +193,7 @@ final class MonitorInputController: NSObject {
         pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil; changed()
     }
     var connected: MonitorDescriptor? { displays.first { $0.id == plan.display } }
-    var canSwitch: Bool { !busy && plan.valid && !plan.display.isEmpty && !(plan.availableInputs ?? plan.inputs).isEmpty && (plan.controlConnection != nil || connected?.ddcAvailable == true) }
+    var canSwitch: Bool { !busy && !checkingDisplays && plan.valid && !plan.display.isEmpty && !(plan.availableInputs ?? plan.inputs).isEmpty && (plan.controlConnection != nil || connected?.ddcAvailable == true) }
     var canCycle: Bool { canSwitch && plan.inputs.count >= 2 }
     var readbackUnavailable: Bool {
         plan.controlConnection == nil && connected.flatMap { display in
@@ -209,7 +213,12 @@ final class MonitorInputController: NSObject {
         return plans
     }
     var shortcutActive: Bool { hotKey.active }
-    init(displays: [MonitorDescriptor] = [], backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) { self.displays = displays; self.backend = backend; self.confirmationDefaults = defaults; super.init() }
+    // An explicitly supplied snapshot (including an empty one) is already known.
+    // Production starts unknown until the first metadata request completes.
+    init(displays: [MonitorDescriptor]? = nil, backend: MonitorCommandBackend = MonitorDisplayBackend(), defaults: UserDefaults = .standard) {
+        self.displays = displays ?? []; checkingDisplays = displays == nil
+        self.backend = backend; self.confirmationDefaults = defaults; super.init()
+    }
     func start() {
         if let data = confirmationDefaults.data(forKey: Self.preferenceKey), data.count <= 32768,
            let value = try? JSONDecoder().decode(MonitorInputPlan.self, from: data), value.valid { plan = value }
@@ -242,23 +251,43 @@ final class MonitorInputController: NSObject {
         }, completion: completion)
     }
     @objc private func confirmationExpired() { confirmedCurrent = nil; confirmedAt = nil; changed() }
-    @objc private func screensChanged() {
-        reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil
+    @objc func screensChanged() {
+        reportedCurrent = nil; checkedAt = nil; confirmedCurrent = nil; confirmedAt = nil
+        displayGeneration &+= 1; checkingDisplays = true
+        if busy { refreshPending = true }
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.refresh() }
         pending = job; DispatchQueue.main.asyncAfter(deadline: .now()+0.5, execute: job)
+        changed() // Invalidate the menu immediately, before the debounce expires.
     }
     func refresh() {
-        guard !busy else { refreshPending = true; return }
+        pending?.cancel(); pending = nil
+        checkingDisplays = true
+        guard !busy else {
+            // Menu opens during an existing discovery share that request.
+            if !discoveringDisplays { refreshPending = true }
+            changed(); return
+        }
+        let generation = displayGeneration
+        discoveringDisplays = true
         perform({ [backend] in try JSONDecoder().decode([MonitorDescriptor].self, from: backend.run(["list"])) }) { [weak self] result in
             guard let self else { return }
+            self.discoveringDisplays = false
+            // A screen change can arrive while the helper is reading the old topology.
+            guard generation == self.displayGeneration else { self.refreshPending = true; return }
+            self.checkingDisplays = false
             switch result {
             case .success(let displays):
                 self.displays = displays
-                if self.warning && self.connected != nil { return } // Preserve the last actionable result during metadata refresh.
+                let preserveWarning = self.warning && !self.discoveryFailed && self.connected != nil
+                self.discoveryFailed = false
+                if preserveWarning { return } // Keep switch feedback, but clear a recovered discovery failure.
                 self.warning = self.plan.shortcut.enabled && (!self.hotKey.active || (self.connected == nil && self.plan.controlConnection == nil))
                 self.message = displays.isEmpty ? (self.plan.controlConnection == nil ? "No external monitor connected." : "Video input inactive · saved control connection retained") : self.warning ? "The configured monitor or shortcut is unavailable." : "\(displays.count) external monitor\(displays.count == 1 ? "" : "s") detected · control not yet checked"
-            case .failure(let error): self.message = error.localizedDescription; self.warning = true
+            case .failure(let error):
+                self.discoveryFailed = true
+                self.displays = [] // A failed check must not keep an old DDC route usable.
+                self.message = error.localizedDescription; self.warning = true
             }
         }
     }
@@ -299,8 +328,9 @@ final class MonitorInputController: NSObject {
             let result = Result { try job() }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.busy = false; completion(result); self.changed()
+                self.busy = false; completion(result)
                 if self.refreshPending { self.refreshPending = false; self.refresh() }
+                else { self.changed() }
             }
         }
     }

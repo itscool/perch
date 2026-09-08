@@ -37,7 +37,7 @@ func runReviewFixTests() throws {
     let host = SettingsWindow.shared
     host.testing = true; host.pages = []
     defer { host.modalTestDriver = nil; host.pages = []; host.window.defaultButtonCell = nil }
-    let app = AppDelegate(); app.configureSettings(); app.configurePanic(); app.configureSettings()
+    let app = AppDelegate(monitorInputs: MonitorInputController(displays: [])); app.configureSettings(); app.configurePanic(); app.configureSettings()
     try check(host.pages.count == 1 && host.back.title == "Close", "Reopening Settings created a second home")
     let previousLevel = host.window.level
     let restore = host.beginAuthorization()

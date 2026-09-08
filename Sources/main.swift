@@ -92,7 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var homeEndItem: NSMenuItem!
     var pageKeysItem: NSMenuItem!
     var monitorInputItem: NSMenuItem!
-    let monitorInputs = MonitorInputController()
+    let monitorInputs: MonitorInputController
+    override convenience init() { self.init(monitorInputs: MonitorInputController()) }
+    init(monitorInputs: MonitorInputController) { self.monitorInputs = monitorInputs; super.init() }
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
@@ -167,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
         displayItem.toolTip = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
         monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
+        refreshMonitorInputItem()
         audioSection = section("Audio")
         audioItem = add("Mute audio", #selector(toggleAudio))
         section("Scrolling")
@@ -234,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true; menuGeneration &+= 1
+        monitorInputs.refresh() // Mark unknown/busy before AppKit paints or validates the row.
         beginMenuKeyboardHandling()
         let generation = menuGeneration
         refreshMenuAppearance()
@@ -467,6 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item === monitorInputItem { return monitorInputMenuEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn } }
         if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardSettings) || keyboardModes.results.contains { $0.standard != nil }) }
         if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {

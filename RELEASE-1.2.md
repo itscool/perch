@@ -1,6 +1,14 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 50. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 51. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 51: monitor availability before menu display
+
+Opening the menu starts a read-only monitor metadata check before the first draw. Cycle monitor input stays disabled with “Checking monitors…” until the result arrives, including during native menu validation. Screen changes invalidate readiness immediately; overlapping opens share an in-flight check, stale replies cannot restore a disconnected monitor, and checks queued behind another operation do not briefly enable the row. Failed discovery drops old DDC routes and successful recovery clears the discovery error. Missing setup remains reachable in Settings. Switching groups check their selected members, while saved independent USB/LAN routes are retained when video is inactive.
+
+The menu check does not read or switch the current input. Explicit cycling still reads the current input before selecting a destination. This build also includes the automatic keyboard setup saving and known-keyboard recognition from builds 50 and 48.
+
+All 20 isolated suites pass, including startup and repeated menu opening, native and accessible disabled state, completion during menu tracking, disconnect debounce, superseded replies, failed discovery/recovery, queued checks, group membership and inactive-video routes. Production compilation and strict local signature verification passed. One read-only metadata check using the production adapter on this Mac completed in approximately 0.37 seconds; this is not a latency guarantee or acceptance on the other Mac. No physical input switching was exercised. The candidate was prepared without replacing the running app or installing helpers.
 
 ## Build 50: automatic keyboard setup saving
 

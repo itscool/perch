@@ -108,6 +108,11 @@ final class MonitorGroupController {
     private var lastRequests: [MonitorGroupRequest] = []
     var resultGroupID: String? { lastGroup?.id }
     var active: MonitorGroup? { settings.groups.first { $0.id == settings.activeID } }
+    var canCycle: Bool {
+        guard !busy, !monitor.busy, !monitor.checkingDisplays, let group = active, group.destinations.count >= 2 else { return false }
+        let plans = (try? monitor.savedPlans()) ?? [:]
+        return group.destinations.allSatisfy { requests(group, destination: $0, savedPlans: plans).allSatisfy { $0.unavailable == nil } }
+    }
     var shortcutActive: Bool { hotKey.active }
     var hasAttention: Bool { cycleNeedsChoice || loadError != nil || !results.isEmpty && results.contains { $0.state != .confirmed } || active?.shortcut.enabled == true && !shortcutActive }
     var canRetry: Bool { !busy && !monitor.busy && lastGroup != nil && results.contains { $0.state != .confirmed } }
@@ -141,9 +146,10 @@ final class MonitorGroupController {
         message = "Switching groups saved. Saving does not switch any display."
         onChange?(); monitor.notifyGroupChanged()
     }
-    func requests(_ group: MonitorGroup, destination: MonitorDestination) -> [MonitorGroupRequest] {
-        group.members.map { member in
-            let plan = monitor.plan.display == member.display ? monitor.plan : monitor.savedPlan(for: member.display)
+    func requests(_ group: MonitorGroup, destination: MonitorDestination, savedPlans: [String: MonitorInputPlan]? = nil) -> [MonitorGroupRequest] {
+        let plans = savedPlans ?? (try? monitor.savedPlans()) ?? [:]
+        return group.members.map { member in
+            let plan = monitor.plan.display == member.display ? monitor.plan : plans[member.display]
             let display = monitor.displays.first { $0.id == member.display }
             let input = destination.inputs[member.display] ?? 0
             let unavailable: String?
@@ -191,7 +197,7 @@ final class MonitorGroupController {
         }
     }
     func cycle() {
-        guard let group = active, !busy && !monitor.busy else { return }
+        guard let group = active, !busy && !monitor.busy && !monitor.checkingDisplays else { return }
         guard let first = group.destinations.first else { return }
         busy = true; message = "Checking every display before choosing the next destination…"; onChange?()
         monitor.readGroup(requests(group, destination: first)) { [weak self] result in

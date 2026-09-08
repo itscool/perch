@@ -120,8 +120,8 @@ private func runMenuStatusColorTests() throws {
         app.menu.update()
         for item in app.menu.items where item.action != nil && (item.view as! MenuRowView).kind != .toggle {
             let row = item.view as! MenuRowView
-            if item.isHidden {
-                guard !row.enabled && !row.activate() && color(item) == rgb(.disabledControlTextColor, appearance) else { throw AppError(message: "Hidden setup action remained actionable or styled as enabled") }
+            if item.isHidden || !row.enabled {
+                guard !row.enabled && !row.activate() && color(item) == rgb(.disabledControlTextColor, appearance) else { throw AppError(message: "Unavailable command remained actionable or styled as enabled") }
                 continue
             }
             guard row.kind == .command, color(item) == rgb(.labelColor, appearance) else { throw AppError(message: "Command text differs from other rows: \(item.title)") }

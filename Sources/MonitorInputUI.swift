@@ -697,12 +697,20 @@ final class MonitorInputPage: NSObject {
 }
 
 extension AppDelegate {
+    var monitorInputMenuEnabled: Bool { !monitorInputs.checkingDisplays && !monitorInputs.busy && !monitorInputs.groups.busy }
     func refreshMonitorInputItem() {
         guard let item = monitorInputItem else { return }
-        item.isEnabled = !monitorInputs.busy
+        item.isEnabled = monitorInputMenuEnabled
+        if monitorInputs.checkingDisplays {
+            item.action = #selector(cycleMonitorInput)
+            label(item, "Cycle monitor input", hint: "Checking monitors…")
+            item.toolTip = "Checking connected displays before making monitor controls available. This does not switch inputs."
+            return
+        }
         if let group = monitorInputs.groups.active {
-            item.action = group.destinations.count < 2 || monitorInputs.groups.hasAttention ? #selector(monitorGroupSettings) : #selector(cycleMonitorInput)
-            label(item, "Cycle monitor input", hint: monitorInputs.busy ? "Working…" : "\(group.name) · \(group.members.count) display\(group.members.count == 1 ? "" : "s")", hintColor: monitorInputs.groups.hasAttention ? StatusColors.warning : .secondaryLabelColor)
+            let needsSettings = !monitorInputs.groups.canCycle || monitorInputs.groups.hasAttention
+            item.action = needsSettings ? #selector(monitorGroupSettings) : #selector(cycleMonitorInput)
+            label(item, "Cycle monitor input", hint: monitorInputs.busy || monitorInputs.groups.busy ? "Working…" : needsSettings ? "See display group settings" : "\(group.name) · \(group.members.count) display\(group.members.count == 1 ? "" : "s")", hintColor: monitorInputs.groups.hasAttention ? StatusColors.warning : .secondaryLabelColor)
             item.toolTip = monitorInputs.groups.message
             return
         }

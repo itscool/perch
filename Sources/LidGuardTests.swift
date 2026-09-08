@@ -85,6 +85,11 @@ func runLidGuardTests() throws {
     do { try unavailable.apply(.init(preventLidSleep: true, requestSleep: false, remaining: nil, detail: ""), now: 1); throw AppError(message: "Unsupported control appeared armed") }
     catch { try check(!unavailable.preventing && unsupported.calls == ["prevent lid", "release lid"], "Failed control readback did not attempt cleanup") }
     let now = LidGuardClock.now
+    let failedStart = LidGuardStatus(updatedAt: now, armed: false, detail: "Control rejected", error: "Control rejected")
+    try check(LidGuardClient.controlState(legacyDisabled: false, status: failedStart, recordedSession: false) == .off, "A cleaned-up failed lid start blocks ordinary Keep awake controls")
+    try check(LidGuardClient.controlState(legacyDisabled: false, status: failedStart, recordedSession: true) == .mixed, "An unfinished lid session appeared off")
+    try check(LidGuardClient.controlState(legacyDisabled: nil, status: nil, recordedSession: false) == .mixed, "Unknown legacy override appeared off")
+    try check(LidGuardClient.controlState(legacyDisabled: false, status: .init(updatedAt: now, armed: true, detail: "Enabled"), recordedSession: true) == .on, "A current active session did not appear enabled")
     try check(LidGuardStatus(updatedAt: now, armed: false, detail: "Off").fresh, "The current signed helper identity was not recognized")
     var older = LidGuardStatus(updatedAt: now, armed: true, detail: "Ready"); older.codeIdentity = "older-executable"
     try check(!older.fresh, "An older running lid helper was accepted")

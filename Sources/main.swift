@@ -315,8 +315,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             observedLidDisabled = disabled
             LidGuardClient.shared.refresh()
             let guarded = LidGuardClient.shared.active
-            lidItem.state = disabled || guarded ? .on : LidGuardClient.shared.status?.error != nil || LidGuardOwnership.exists ? .mixed : .off
-            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Open lid within \($0)s" } ?? "Powered, or 60s on battery") : lidItem.state == .mixed ? "Review lid protection" : "Normal lid sleep"
+            lidItem.state = LidGuardClient.controlState(legacyDisabled: disabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.exists)
+            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Open lid within \($0)s" } ?? "Powered, or 60s on battery") : lidItem.state == .mixed || LidGuardClient.shared.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
             label(lidItem, "Including with lid closed", hint: hint, hintColor: disabled ? StatusColors.warning : .secondaryLabelColor)
         } catch { observedLidDisabled = nil; label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
         applyLidSleepPresentation()

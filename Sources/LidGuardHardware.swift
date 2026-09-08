@@ -24,10 +24,9 @@ final class MacLidGuardHardware: LidGuardHardware {
     }
     func observe() -> LidObservation {
         let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
-        var closed: Bool?, allowed: Bool?
+        var closed: Bool?
         if root != 0 {
             closed = IORegistryEntryCreateCFProperty(root, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
-            allowed = IORegistryEntryCreateCFProperty(root, "AppleClamshellCausesSleep" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
             IOObjectRelease(root)
         }
         var power = LidPower.unknown
@@ -35,7 +34,7 @@ final class MacLidGuardHardware: LidGuardHardware {
             if source == kIOPSACPowerValue { power = .external }
             else if source == kIOPSBatteryPowerValue { power = .battery }
         }
-        return .init(closed: closed, power: power, lidSleepAllowed: allowed)
+        return .init(closed: closed, power: power)
     }
     func preventLidSleep(_ enabled: Bool) throws {
         guard geteuid() == 0 else { throw AppError(message: "The authorized lid helper is required.") }
@@ -44,7 +43,10 @@ final class MacLidGuardHardware: LidGuardHardware {
         var value: UInt64 = enabled ? 1 : 0
         let result = IOConnectCallScalarMethod(connection, 12, &value, 1, nil, nil)
         guard result == kIOReturnSuccess else { throw AppError(message: "This Mac did not accept supervised lid control (\(result)). Lid mode is unavailable.") }
-        guard !enabled || observe().lidSleepAllowed == false else { throw AppError(message: "macOS did not confirm lid-sleep prevention. This mode is unavailable on this Mac.") }
+        // AppleClamshellCausesSleep is a cached notification property. XNU's
+        // setter changes its internal mask without refreshing that property.
+        // A successful command is acknowledgment, not physical sleep proof;
+        // the cached property cannot establish success or failure of this call.
     }
     func requestSleep() throws {
         let connection = try Self.openPowerConnection()

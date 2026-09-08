@@ -17,7 +17,6 @@ enum LidPower: String, Codable { case external, battery, unknown }
 struct LidObservation: Equatable {
     var closed: Bool?
     var power: LidPower
-    var lidSleepAllowed: Bool? = nil
 }
 enum LidGuardClock {
     /// Includes time asleep; wall-clock edits cannot extend a battery deadline.
@@ -64,7 +63,7 @@ struct LidGuardPolicy {
         // Power cancels enforcement. Require five stable seconds before clearing
         // the old deadline so repeated brief dock/power flapping cannot extend it.
         return .init(preventLidSleep: true, requestSleep: false, remaining: nil,
-                     detail: observation.closed == true ? "Lid closed on external power. Unplugging gives up to 60 seconds to open it." : "Ready. Closed on external power: stay awake. Closed on battery: 60 seconds to open the lid, then sleep.")
+                     detail: observation.closed == true ? "Lid closed on external power. Unplugging gives up to 60 seconds to open it." : "Enabled. Closed on external power: stay awake. Closed on battery: 60 seconds to open the lid, then sleep.")
     }
 }
 

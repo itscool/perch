@@ -52,6 +52,13 @@ enum LidGuardInstall {
 
 final class LidGuardClient {
     static let shared = LidGuardClient()
+    static func controlState(legacyDisabled: Bool?, status: LidGuardStatus?, recordedSession: Bool) -> NSControl.StateValue {
+        if legacyDisabled == true || (status?.fresh == true && status?.armed == true && status?.error == nil) { return .on }
+        if legacyDisabled == nil || recordedSession { return .mixed }
+        // A rejected start that has already been cleaned up is off. Retain its
+        // error message, but do not turn it into an unknown active override.
+        return .off
+    }
     private var connection: NSXPCConnection?
     private var token: String?
     private var timer: Timer?

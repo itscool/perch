@@ -162,7 +162,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             if let until = startingUntil, !watched, now < until {
                 _ = channel?.send(LidGuardLease(token: token, expires: min(now+3, leaseEnds), deadline: nil)); return
             }
-            let decision = policy.step(observation, now: now, authorized: now < leaseEnds && watched && (!enforcer.preventing || observation.lidSleepAllowed == false))
+            let decision = policy.step(observation, now: now, authorized: now < leaseEnds && watched)
             do {
                 try idleAwake.set(decision.preventLidSleep)
                 if decision.preventLidSleep {

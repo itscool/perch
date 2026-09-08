@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 44. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 45. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 45 correction
+
+Build 44 could reject an accepted lid-control command with “macOS did not confirm lid-sleep prevention.” XNU updates `AppleClamshellCausesSleep` when sending clamshell notifications, but its clamshell-control setter does not refresh that cached property. It is no longer treated as immediate readback or as ongoing session authorization. Command failures, sensor failures, expired leases and watchdog failures still stop the session. Enabled now means the helper is running and macOS accepted the control command; physical sleep behavior is not independently verified. A failed, cleaned-up lid start also no longer disables ordinary Keep awake controls. The shared powerd control bit and actual undocking/sleep behavior remain physical acceptance gates.
+
+Build 45 validation: all 20 isolated suites and the production build pass. The app, input/guardian helpers and privileged lid helper were updated on the affected Mac. With the lid open and external power connected, the normal Settings controls successfully enabled protection, sustained it beyond the client/watchdog lease intervals, disabled it with the session record removed, and enabled it again. Ordinary Keep awake and existing input access remained active. No physical lid closure, undocking, sleep request, privacy reset, panic, or monitor switch was performed.
 
 ## Build 44 correction
 

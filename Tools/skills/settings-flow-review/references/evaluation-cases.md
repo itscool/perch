@@ -53,3 +53,7 @@ Expected: patch the general completion/reopening rule in the same task, add its 
 ## Routing
 
 Use for a settings-set UX review, confusing setup, inconsistent saving/exits, first-use/repair journeys, or a scoped implementation of those corrections. A compiler error in a settings source file, a security-only audit, a color-only adjustment, or a request to install an unrelated skill does not by itself require this full review. When a narrow UX request does apply, review the affected journey and shared component without expanding to the entire product.
+
+## Scrolling works, controls do not
+
+An embedded settings editor scrolls but its checkboxes and popup choices do not respond on a second machine. Existing tests assign checkbox states and invoke validation directly; local screenshots look normal. Require native hit-testing/action dispatch and persistence checks, inspect modal ownership and parent navigation, and keep the second-machine failure unconfirmed until reproduced or retested there. Direct state assignment remains useful for a validation unit test; it does not establish an interactive journey or justify closing the report.

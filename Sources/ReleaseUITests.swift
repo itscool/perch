@@ -204,6 +204,7 @@ func runReleaseUITests() throws {
         if let production = item.view as? MenuRowView {
             // Draw the actual production class with its real text/kind/state.
             let row = MenuRowView(item: item, kind: production.kind, text: production.text)
+            row.shortcutHint = production.shortcutHint
             row.panelPart = production.panelPart
             row.panelSection = production.panelSection
             row.frame = frame; renderedMenu.addSubview(row)

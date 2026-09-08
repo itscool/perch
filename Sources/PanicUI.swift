@@ -10,9 +10,9 @@ extension AppDelegate {
         _ = add("Reset all apps’ privacy permissions…", #selector(globalPrivacyReset))
         safetyResumeItem = add("Resume agent activity…", #selector(resumeAgents))
     }
-    func refreshSafety() {
-        let config = SafetyConfiguration.load()
-        let issue = ProtectionIssue.assess(GuardianInstall.status, config: config)
+    func refreshSafety(status: SafetyStatus? = GuardianInstall.status, config: SafetyConfiguration = SafetyConfiguration.load()) {
+        (safetyItem?.view as? MenuRowView)?.shortcutHint = config.shortcut.enabled ? config.shortcut.menuTitle : ""
+        let issue = ProtectionIssue.assess(status, config: config)
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue
         if issueChanged && SettingsWindow.shared.window.isVisible && !SettingsWindow.shared.modal && SettingsWindow.shared.pages.last?.title == "Perch settings" { configureSettings() }
@@ -38,7 +38,7 @@ extension AppDelegate {
                 }
             }
         } else { criticalIssueSince = nil; notifiedCriticalIssue = nil }
-        guard let state = GuardianInstall.status, state.fresh else {
+        guard let state = status, state.fresh else {
             label(safetyItem, "Panic…", hint: "Watcher offline")
             safetyItem.toolTip = safetyError ?? "Watcher offline — repair before relying on panic"
             safetyResumeItem.isHidden = true
@@ -58,8 +58,7 @@ extension AppDelegate {
                 }
             }
         }
-        let keys = config.shortcut.title.replacingOccurrences(of: "Escape", with: "Esc")
-        let shortcut = state.shortcutActive ? keys + " for Immediate Kill" : "Shortcut off"
+        let shortcut = state.shortcutActive ? "Immediate Kill" : config.shortcut.enabled ? "Shortcut unavailable" : "Shortcut off"
         let activity = state.locked ? "Stopping relaunches" : (state.testUntil != nil ? "Test mode" : shortcut)
         let attention = state.error == nil ? "" : " · Needs attention"
         label(safetyItem, "Panic…", hint: "\(state.trackedCount) tracked\u{2003}\u{2003}\(activity)\(attention)")
@@ -175,86 +174,16 @@ extension AppDelegate {
     @objc func editSafetyConfiguration() {
         editSafetyForm(save: { try $0.save() })
     }
-    func editSafetyForm(save: (SafetyConfiguration) throws -> Void) {
-        let current = SafetyConfiguration.load()
-        var config = AgentCatalog.available()?.suggestions(for: current) ?? current
-        let alert = NSAlert()
-        alert.messageText = "Agent Kill Switch"
-        alert.informativeText = "Panic freezes and force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved agent work can be lost.\n\nThe watcher runs separately from Perch. It cannot stop remote jobs, root processes, or children it never observed."
-        let targetCount = config.targets.count
-        let listHeight = CGFloat(min(targetCount * 27, 162))
-        let height = 225 + listHeight
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 470, height: height))
-        func caption(_ text: String, y: CGFloat) {
-            let label = NSTextField(labelWithString: text)
-            label.font = .systemFont(ofSize: 11, weight: .semibold)
-            label.textColor = .secondaryLabelColor
-            label.frame = NSRect(x: 0, y: y, width: 465, height: 20)
-            view.addSubview(label)
-        }
-        caption("AGENTS TO STOP · \(targetCount) apps / tools · Scroll for more", y: height - 22)
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 196, width: 470, height: listHeight))
-        scroll.hasVerticalScroller = targetCount * 27 > 162
-        scroll.autohidesScrollers = false
-        scroll.scrollerStyle = .legacy
-        scroll.borderType = .bezelBorder
-        scroll.drawsBackground = false
-        let targetList = NSView(frame: NSRect(x: 0, y: 0, width: 450, height: CGFloat(targetCount * 27)))
-        scroll.documentView = targetList
-        view.addSubview(scroll)
-        var boxes: [NSButton] = []
-        for (index, target) in config.targets.enumerated() {
-            let box = NSButton(checkboxWithTitle: target.name, target: nil, action: nil)
-            box.frame = NSRect(x: 0, y: CGFloat((targetCount - index - 1) * 27), width: 448, height: 24)
-            box.state = target.enabled ? .on : .off
-            targetList.addSubview(box)
-            boxes.append(box)
-        }
-        caption("EMERGENCY SHORTCUT", y: 174)
-        let enabled = NSButton(checkboxWithTitle: "Enable shortcut — fires immediately, without confirmation", target: nil, action: nil)
-        enabled.frame = NSRect(x: 0, y: 146, width: 465, height: 24)
-        enabled.state = config.shortcut.enabled ? .on : .off
-        view.addSubview(enabled)
-        var modifiers: [(NSButton, UInt32)] = []
-        for (index, pair) in [("Control",controlKey),("Option",optionKey),("Shift",shiftKey),("Command",cmdKey)].enumerated() {
-            let box = NSButton(checkboxWithTitle: pair.0, target: nil, action: nil)
-            box.frame = NSRect(x: index * 115, y: 114, width: 112, height: 24)
-            box.state = config.shortcut.modifiers & UInt32(pair.1) != 0 ? .on : .off
-            view.addSubview(box)
-            modifiers.append((box, UInt32(pair.1)))
-        }
-        let keys = NSPopUpButton(frame: NSRect(x: 0, y: 75, width: 160, height: 28), pullsDown: false)
-        keys.addItems(withTitles: PanicShortcut.keys.map(\.0))
-        keys.selectItem(at: PanicShortcut.keys.firstIndex { $0.1 == config.shortcut.key } ?? 0)
-        view.addSubview(keys)
-        let reset = NSPopUpButton(frame: NSRect(x: 0, y: 28, width: 465, height: 28), pullsDown: false)
-        reset.addItems(withTitles: ["Privacy reset: None", "Privacy reset: Selected agent apps", "Privacy reset: All apps, including Perch"])
-        reset.selectItem(at: config.resetAgentPermissions ? (config.resetAllPermissions == true ? 2 : 1) : 0)
-        reset.toolTip = "All apps requests a broad macOS privacy reset after stopping agents. You will need to grant permissions again; some protected or managed grants may remain."
-        view.addSubview(reset)
-        alert.accessoryView = view
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        let validation = NSTextField(wrappingLabelWithString: "")
-        validation.textColor = StatusColors.warning; validation.font = .systemFont(ofSize: 12)
-        validation.frame = NSRect(x: 0, y: 0, width: 465, height: 27); view.addSubview(validation)
-        while SettingsWindow.shared.run(alert) == .alertFirstButtonReturn {
-            let mask = modifiers.filter { $0.0.state == .on }.reduce(UInt32(0)) { $0 | $1.1 }
-            if enabled.state == .on && mask.nonzeroBitCount < 2 {
-                validation.stringValue = "Choose at least two modifiers for the enabled shortcut."; continue
-            }
-            for index in boxes.indices { config.targets[index].enabled = boxes[index].state == .on }
-            guard config.targets.contains(where: \.enabled) else { validation.stringValue = "Select at least one agent to stop."; continue }
-            config.shortcut = PanicShortcut(key: PanicShortcut.keys[keys.indexOfSelectedItem].1, modifiers: mask, enabled: enabled.state == .on)
-            let displayShortcuts = [monitorInputs.plan.shortcut, monitorInputs.groups.active?.shortcut].compactMap { $0 }
-            if config.shortcut.enabled && displayShortcuts.contains(where: { $0.enabled && $0.key == config.shortcut.key && $0.modifiers == config.shortcut.modifiers }) {
-                validation.stringValue = "This shortcut already switches displays. Choose other keys, or change it in Displays."; continue
-            }
-            config.resetAgentPermissions = reset.indexOfSelectedItem != 0
-            config.resetAllPermissions = reset.indexOfSelectedItem == 2
-            do { try save(config); SettingsWindow.shared.feedback = "✓ Settings saved."; return }
-            catch { validation.stringValue = error.localizedDescription }
-        }
+    @discardableResult
+    func editSafetyForm(save: @escaping (SafetyConfiguration) throws -> Void) -> AgentSettingsPage {
+        let page = AgentSettingsPage(save: save, conflicts: { [weak self] shortcut in
+            guard let self else { return false }
+            return [self.monitorInputs.plan.shortcut, self.monitorInputs.groups.active?.shortcut].compactMap { $0 }.contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
+        }, didSave: { [weak self] in
+            if self?.safetyItem != nil { self?.refreshSafety() }
+        })
+        page.show()
+        return page
     }
     @objc func addAgentApp() { addTarget(app: true) }
     @objc func addAgentExecutable() { addTarget(app: false) }

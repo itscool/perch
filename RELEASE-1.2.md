@@ -1,6 +1,14 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 53. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 54. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 54: agent settings interactions and menu shortcuts
+
+Agent choices, emergency-shortcut controls and the privacy-reset scope now use a regular settings page with Back and automatic saving. Each edit preserves unrelated settings. Invalid or conflicting shortcut edits retain the saved shortcut, and failed saves offer Retry saving. Changing the privacy-reset scope does not perform a reset. This replaces the nested modal editor used in the reported click failure; interaction on the affected test Mac still needs confirmation.
+
+Enabled, configured Panic and monitor-cycle shortcuts appear on the right edge of their menu rows, aligned like Quit. Display groups show the selected group's shortcut. Readiness and failure hints remain separate, so displaying a configured shortcut does not claim its helper is running. The existing hotkey handlers continue to own activation; the labels do not register competing menu actions. Menu position remains System, Agent Kill Switch, then the other sections. Outline and title-background experiments remain preview-only.
+
+All 20 isolated suites pass, including native hit testing and action dispatch, independent saves, invalid/conflicting shortcuts, failed-save retry, Back/reopen, group shortcut labels and unchanged Quit behavior. Light/dark native renders were inspected. Production compilation and strict signatures passed. Prepared separately from the installed app; no live Panic, privacy reset, monitor switch or hotkey activation was performed.
 
 ## Build 53: Agent Kill Switch below System
 

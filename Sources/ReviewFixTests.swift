@@ -64,27 +64,11 @@ func runReviewFixTests() throws {
     _ = host.run(alert)
     if let renderError { throw renderError }
     try check(readable && keys, "Approval text clipped or Return/Escape lost")
-    var attempts = 0, retained = false, saved: SafetyConfiguration?
-    host.modalTestDriver = { alert in
-        attempts += 1
-        let view = alert.accessoryView!
-        let boxes = view.subviews.compactMap { $0 as? NSButton }
-        let enabled = boxes.first { $0.title.hasPrefix("Enable shortcut") }!
-        let modifiers = boxes.filter { ["Control", "Option", "Shift", "Command"].contains($0.title) }
-        if attempts == 1 {
-            enabled.state = .on; modifiers.forEach { $0.state = .off }
-            return .alertFirstButtonReturn
-        }
-        retained = enabled.state == .on && modifiers.allSatisfy { $0.state == .off } && view.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Choose at least two") }
-        do { try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-review-invalid-draft.png") }
-        catch { renderError = error }
-        enabled.state = .off
-        return attempts == 2 ? .alertFirstButtonReturn : .alertSecondButtonReturn
-    }
-    app.editSafetyForm(save: { saved = $0 })
-    if let renderError { throw renderError }
-    try check(attempts == 2 && retained && saved?.shortcut.enabled == false, "Invalid Save lost the draft or disabled shortcut required modifiers")
     host.modalTestDriver = nil
+    let agentPage = app.editSafetyForm(save: { _ in throw AppError(message: "Unexpected save") })
+    try check(host.pages.last?.view === agentPage.view && !host.modal && host.back.title == "Back", "Agent editor did not use a regular settings page")
+    host.goBack()
+    try runAgentSettingsPageTests()
     app.buildMenu(); app.refreshMonitorInputItem()
     try check(app.monitorInputItem.isEnabled && app.monitorInputItem.action == #selector(AppDelegate.monitorInputSettings), "Monitor setup hint does not navigate")
     app.keyboardModes.results = [.init(name: "Fixture", detail: "Needs setup", verified: false)]
@@ -100,5 +84,5 @@ func runReviewFixTests() throws {
     offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Reset saved layout…" }!.performClick(nil)
     try check(profiles.isEmpty, "Offline keyboard removal did not target the selected saved layout")
     host.goBack()
-    print("PASS: runtime argument identity; helper build migration; stable Settings home; scrollable approvals; Return/Escape; retained invalid draft; disabled shortcut save; setup action routes")
+    print("PASS: runtime argument identity; helper build migration; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
 }

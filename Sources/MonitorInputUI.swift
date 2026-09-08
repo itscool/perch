@@ -700,6 +700,8 @@ extension AppDelegate {
     var monitorInputMenuEnabled: Bool { !monitorInputs.checkingDisplays && !monitorInputs.busy && !monitorInputs.groups.busy }
     func refreshMonitorInputItem() {
         guard let item = monitorInputItem else { return }
+        let shortcut = monitorInputs.groups.active?.shortcut ?? monitorInputs.plan.shortcut
+        (item.view as? MenuRowView)?.shortcutHint = shortcut.enabled ? shortcut.menuTitle : ""
         item.isEnabled = monitorInputMenuEnabled
         if monitorInputs.checkingDisplays {
             item.action = #selector(cycleMonitorInput)
@@ -715,7 +717,7 @@ extension AppDelegate {
             return
         }
         item.action = !monitorInputs.canCycle || monitorInputs.warning ? #selector(monitorInputSettings) : #selector(cycleMonitorInput)
-        let hint = monitorInputs.busy ? "Working…" : monitorInputs.warning ? "⚠ See monitor settings" : monitorInputs.connected == nil && monitorInputs.plan.controlConnection == nil ? "Set up in Settings" : monitorInputs.shortcutActive ? monitorInputs.plan.shortcut.title : monitorInputs.plan.inputs.count >= 2 ? "Shortcut off" : "Choose inputs in Settings"
+        let hint = monitorInputs.busy ? "Working…" : monitorInputs.warning ? "⚠ See monitor settings" : monitorInputs.connected == nil && monitorInputs.plan.controlConnection == nil ? "Set up in Settings" : monitorInputs.shortcutActive ? "" : monitorInputs.plan.inputs.count >= 2 ? (shortcut.enabled ? "Shortcut unavailable" : "Shortcut off") : "Choose inputs in Settings"
         label(item, "Cycle monitor input", hint: hint, hintColor: monitorInputs.warning ? StatusColors.warning : .secondaryLabelColor)
         item.toolTip = monitorInputs.message
     }

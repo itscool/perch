@@ -22,6 +22,8 @@ Use these checks to find concrete failures in the actual product, not as a manda
 
 ## Back, close, focus and asynchronous operations
 
+- Verify controls through their real interaction path: hit testing, enabled state, action dispatch and resulting persistence. Assigning a checkbox's state directly can test validation but cannot prove that a person can click it. When embedding an editor or alert in a shared window, inspect modal-session ownership and control routing; scrolling alone does not establish interactivity. Distinguish isolated control dispatch from physical input on the affected machine.
+
 - Enter the same child from every real parent. Change a value and press Back. Does it return once to the expected parent, preserve selections/scroll/focus, and show fresh status? Titles alone cannot reveal a duplicated navigation stack.
 - Inspect header navigation, footer actions, Escape, Return and window close together. Does a shared alert wrapper insert OK or a second Back/Cancel after the local page already removed Done?
 - In informational results, keep one page navigation exit. Preserve an action such as Retry or Check setup when it is useful. Do not remove a meaningful confirmation just to remove a button.

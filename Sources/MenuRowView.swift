@@ -14,6 +14,18 @@ final class MenuRowView: NSView {
     var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
     var keyboardHighlight = false { didSet { if keyboardHighlight != oldValue { needsDisplay = true } } }
     var text: NSAttributedString { didSet { resizeForText(); needsDisplay = true } }
+    // Display existing global shortcuts without registering a competing menu action.
+    var shortcutHint = "" { didSet { if shortcutHint != oldValue { resizeForText(); needsDisplay = true } } }
+    var displayedShortcut: String {
+        if !shortcutHint.isEmpty { return shortcutHint }
+        guard let item, !item.keyEquivalent.isEmpty else { return "" }
+        var value = ""
+        let flags: [(NSEvent.ModifierFlags, String)] = [(.control,"⌃"),(.option,"⌥"),(.shift,"⇧"),(.command,"⌘")]
+        for (flag, symbol) in flags {
+            if item.keyEquivalentModifierMask.contains(flag) { value += symbol }
+        }
+        return value + item.keyEquivalent.uppercased()
+    }
     private let sectionSymbol: NSImage?
     private var commandPending = false
     init(item: NSMenuItem, kind: Kind, text: NSAttributedString? = nil) {
@@ -37,7 +49,7 @@ final class MenuRowView: NSView {
     }
     var highlighted: Bool { enabled && (hover || keyboardHighlight) }
     private func resizeForText() {
-        let shortcutWidth: CGFloat = item?.keyEquivalent.isEmpty == false ? 40 : 0
+        let shortcutWidth: CGFloat = displayedShortcut.isEmpty ? 0 : ceil((displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width) + 16
         let width = max(430, ceil(text.size().width) + (kind == .section ? 58 : 45) + shortcutWidth)
         // Avoid window/layout invalidation on unchanged periodic status updates.
         if frame.width != width { setFrameSize(NSSize(width: width, height: frame.height)) }
@@ -84,7 +96,10 @@ final class MenuRowView: NSView {
     }
     override func accessibilityPerformPress() -> Bool { activate() }
     override func accessibilityLabel() -> String? { text.string }
-    override func accessibilityHelp() -> String? { item?.toolTip }
+    override func accessibilityHelp() -> String? {
+        let detail = item?.toolTip ?? ""
+        return shortcutHint.isEmpty ? item?.toolTip : detail + "\nConfigured shortcut: " + shortcutHint
+    }
     override func isAccessibilityEnabled() -> Bool { !actionable || enabled }
     override func accessibilityValue() -> Any? {
         guard kind == .toggle else { return nil }
@@ -161,14 +176,8 @@ final class MenuRowView: NSView {
                 tinted.draw(in: NSRect(x: 25, y: 5, width: 12, height: 12))
             }
             displayedText().draw(at: NSPoint(x: kind == .section ? 44 : 25, y: 4))
-            if let item, !item.keyEquivalent.isEmpty {
-                var shortcut = ""
-                if item.keyEquivalentModifierMask.contains(.control) { shortcut += "⌃" }
-                if item.keyEquivalentModifierMask.contains(.option) { shortcut += "⌥" }
-                if item.keyEquivalentModifierMask.contains(.shift) { shortcut += "⇧" }
-                if item.keyEquivalentModifierMask.contains(.command) { shortcut += "⌘" }
-                shortcut += item.keyEquivalent.uppercased()
-                let title = NSAttributedString(string: shortcut, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: color])
+            if !displayedShortcut.isEmpty {
+                let title = NSAttributedString(string: displayedShortcut, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: color])
                 title.draw(at: NSPoint(x: bounds.width - title.size().width - 14, y: 4))
             }
         }

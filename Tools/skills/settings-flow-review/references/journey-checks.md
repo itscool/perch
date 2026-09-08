@@ -49,6 +49,14 @@ Use these checks to find concrete failures in the actual product, not as a manda
 - Menu, overview, details and native/accessibility validation must agree about readiness, ongoing work and failure. Debounce time is still pending time; an old snapshot cannot become ready just because no worker is currently busy.
 - Degraded permission/health states should offer the next needed repair. Avoid continuing a prominent grant-access recipe after readiness is actually confirmed.
 
+## Menu first display and updates
+
+- Inventory every non-excluded row, including conditional actions and category-dependent visibility. A successful check of one monitor row or one shared renderer does not cover all menu options. Record each row's value source, age/pending state, checkmark, label/hint/tooltip, enabled/hidden state, validation and action destination.
+- Trace getter → pending request → reply → UI update. A getter may start a request but return old data; receiving new data does not necessarily repaint the menu. A cold cache is not a confirmed offline device or missing permission. Check first show, unchanged reopening, relevant external changes and updates while tracking remains open.
+- Run the framework's native menu validation after assigning presentation state. A default validator can re-enable a control that the application just disabled. Check the rendered, mouse/keyboard and accessibility decisions against the same readiness rule without activating destructive controls as a test.
+- Verify that each external property has an actual refresh trigger. Repainting cached modifier or firmware state every two seconds does not reread it; a device connection notification may not cover a mode change on that same device. Preserve valid readiness without forcing a disabled frame on every opening, and show honest uncertainty when a required check is pending.
+- Inspect the refresh chain for side effects: a queued discovery worker may also reapply remembered hardware settings. Use an isolated worker when live changes are outside review scope. Include secondary copy and recovery destinations; an updated primary label can coexist with a contradictory old tooltip.
+
 ## Several devices, apps or destinations
 
 - Make the affected scope explicit. Newly discovered devices must not join an action just because they exist. “Both displays to Work computer” is different from independently advancing each display's cycle.

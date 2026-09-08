@@ -10,9 +10,9 @@ Expected: distinguish durable mapping completion from current observation in bot
 
 ## First frame and shared readiness
 
-Scenario: startup and device events already discover availability. Every menu open discards the result and starts another slow check. The overview uses only worker-busy while the menu also accounts for a scheduled check.
+Scenario: startup and device events already discover availability. Every menu open discards the result and starts another slow check. The overview uses only worker-busy while the menu also accounts for a scheduled check. Another row is explicitly disabled but the default native validator returns true; a helper getter returns a cold cache, and its later reply changes only the cache.
 
-Expected: retain valid readiness, invalidate actual changes, keep checking for unknown state and align consumers. Do not make the action always enabled, synchronously block on hardware, or remove external-state reconciliation. Verify repeated opens and a change before its notification.
+Expected: inventory all non-excluded rows; retain valid readiness, invalidate actual changes, keep checking for unknown state and align consumers. Run native validation after presentation and verify how replies reach the UI. Do not make the action always enabled, label an initial pending request offline, synchronously block on hardware, or remove external-state reconciliation. Verify repeated opens, a change before its notification and property changes while the menu stays open.
 
 ## Nested acceptance with a legitimate transaction
 

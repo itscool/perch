@@ -7,7 +7,12 @@ func runMonitorInputTests() throws {
     try check(try plan.next(current: 17,lastSent: nil) == b && plan.next(current: 15,lastSent: nil) == a && plan.next(current: 18,lastSent: nil) == a, "Cycle order/wrap/current-outside-list failed")
     do { _ = try plan.next(current: nil,lastSent: 17); throw AppError(message: "Unknown input silently used a stale position") } catch let e as AppError { try check(!e.message.contains("silently"), e.message) }
     plan.allowUnconfirmedCycle = true
-    try check(try plan.next(current: nil,lastSent: 17) == b && plan.next(current: nil,lastSent: nil) == a, "Explicit unconfirmed cycle fallback failed")
+    try check(try plan.next(current: nil,lastSent: 17) == b, "Explicit unconfirmed cycle fallback failed")
+    do { _ = try plan.next(current:nil,lastSent:nil); throw AppError(message:"Guessed unknown starting input") } catch let e as AppError { try check(!e.message.contains("Guessed"),e.message) }
+    plan.availableInputs = [a,b,.init(code:18,name:"HDMI 2")]
+    let restored = try JSONDecoder().decode(MonitorInputPlan.self,from:JSONEncoder().encode(plan))
+    try check(restored.availableInputs?.count == 3 && restored.inputs.count == 2,"Unchecked input discarded")
+    plan.availableInputs = nil
     plan.inputs = [a,a]; try check(!plan.valid,"Duplicate input codes accepted")
     let preserved = [MonitorInput(code:145,name:"My HDMI"),MonitorInput(code:209,name:"USB-C")]
     try check(MonitorCapabilities.merge(preserved, reported: [.init(code:145,name:"HDMI 2"),.init(code:210,name:"Input 210")]) == preserved + [.init(code:210,name:"Input 210")], "Discovery overwrote a working map")
@@ -51,6 +56,7 @@ func runMonitorInputUITests() throws {
     let app = AppDelegate(); app.buildMenu()
     host.show(.init(title:"Perch settings",detail:"",view:NSView()))
     controller.plan.allowUnconfirmedCycle = true
+    controller.useCurrentInput(210)
     controller.cycle()
     let deadline = Date().addingTimeInterval(2)
     while controller.busy && Date() < deadline { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
@@ -96,12 +102,13 @@ func runMonitorInputUITests() throws {
 
 private final class FakeMonitorBackend: MonitorCommandBackend {
     var commands: [[String]] = []
+    var firmwareIdentity: UInt16? = nil
     var failWrite = true
     var reported: UInt16?
     var reportWritten = false
     func run(_ args: [String]) throws -> Data {
         commands.append(args)
-        if args.first == "read" || args.first == "inspect" { return Data("{\"current\":\(reported.map(String.init) ?? "null"),\"capabilities\":null}".utf8) }
+        if args.first == "read" || args.first == "inspect" { return Data("{\"current\":\(reported.map(String.init) ?? "null"),\"capabilities\":null,\"lgIdentity\":\(firmwareIdentity.map(String.init) ?? "null")}".utf8) }
         if failWrite { throw AppError(message:"Mock disconnected monitor") }
         if reportWritten { reported = args.last.flatMap(UInt16.init) }
         return Data("{\"sent\":true}".utf8)
@@ -122,6 +129,7 @@ func runMonitorTransactionTests() throws {
         while controller.busy && Date() < until { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
         if controller.busy { throw AppError(message:"Mock monitor request did not finish") }
     }
+    controller.useCurrentInput(15)
     controller.cycle(); try finish()
     guard controller.warning else { throw AppError(message:"Failed monitor write wasn't surfaced") }
     backend.failWrite = false
@@ -150,6 +158,7 @@ func runMonitorTransactionTests() throws {
     let writeOnlyBackend = FakeMonitorBackend(); writeOnlyBackend.failWrite = false; writeOnlyBackend.reportWritten = true
     let writeOnly = MonitorInputController(displays:[samsung],backend:writeOnlyBackend,defaults:defaults)
     writeOnly.plan.display = samsung.id; writeOnly.plan.inputs = MonitorProfiles.match(samsung)!.inputs; writeOnly.plan.allowUnconfirmedCycle = true
+    writeOnly.useCurrentInput(writeOnly.plan.inputs.last!.code)
     writeOnly.cycle()
     let done = Date().addingTimeInterval(2)
     while writeOnly.busy && Date() < done { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
@@ -181,4 +190,30 @@ func runMonitorConnectionTests() throws {
     guard !controller.busy && backend.commands.contains(where: { $0.first == "switch" && $0[2] == plan.commandMode && $0.last == "2" }) else { throw AppError(message:"Cycle lost its USB route") }
     _ = try MonitorDisplayBackend().run(["transport-self-test"])
     print("PASS: monitor transport packet integrity; backward-compatible preferences; invalid routes rejected; USB cycling after video disappears through mock backend only")
+}
+
+func runMonitorDraftTests() throws {
+    let host = SettingsWindow.shared; host.testing = true; host.pages = []
+    let suite = "perch-monitor-draft-test." + UUID().uuidString, defaults = UserDefaults(suiteName:suite)!
+    defer { defaults.removePersistentDomain(forName:suite); host.pages = [] }
+    let display = MonitorDescriptor(id:"11111111-1111-1111-1111-111111111111",displayID:99,name:"LG HDR 4K",vendor:7789,model:30470,ddcAvailable:true)
+    let backend = FakeMonitorBackend(); backend.firmwareIdentity = 0x5124
+    let controller = MonitorInputController(displays:[display],backend:backend,defaults:defaults)
+    controller.plan.display = display.id; controller.plan.alternate = true
+    controller.plan.inputs = [.init(code:145,name:"My HDMI"),.init(code:209,name:"My USB"),.init(code:210,name:"Old candidate")]
+    host.show(.init(title:"Perch settings",detail:"",view:NSView()))
+    let page = MonitorInputPage(controller); page.show(); page.selectedCodes.remove(210); page.save.performClick(nil)
+    guard controller.plan.availableInputs?.count == 3 && controller.plan.inputs.count == 2 else { throw AppError(message:"Saving unchecked inputs deleted them") }
+    let saved = defaults.data(forKey:MonitorInputController.preferenceKey)
+    let fresh = MonitorInputPage(controller); fresh.show()
+    guard fresh.candidates.count == 3 && !fresh.selectedCodes.contains(210) && host.back.title == "Cancel" else { throw AppError(message:"Reopening lost unchecked inputs or cancellation label") }
+    fresh.detect.performClick(nil)
+    let end = Date().addingTimeInterval(2)
+    while controller.busy && Date()<end { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard fresh.candidates.map({ $0.code }) == [144,145,208,209], fresh.selectedCodes.isEmpty,
+          defaults.data(forKey:MonitorInputController.preferenceKey) == saved else { throw AppError(message:"Fresh detection did not replace only the draft") }
+    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-fresh-draft.png")
+    host.goBack()
+    guard defaults.data(forKey:MonitorInputController.preferenceKey) == saved else { throw AppError(message:"Cancel saved fresh detection") }
+    print("PASS: actual Save keeps unchecked inputs; reopening restores selections; fresh detection replaces custom draft; Cancel preserves saved configuration; disposable defaults/mock monitor")
 }

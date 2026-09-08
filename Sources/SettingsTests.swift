@@ -7,6 +7,7 @@ func runSettingsTests() throws {
     try runNavigationProbeUITests()
     try runKeyboardRegistrationUITests()
     try runMonitorInputUITests()
+    try runMonitorDraftTests()
     let host = SettingsWindow.shared
     host.testing = true
     let app = AppDelegate()

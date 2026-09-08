@@ -14,6 +14,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let view: NSView
         var leave: (() -> Void)?
         var refresh: (() -> Void)?
+        var backTitle: String? = nil
     }
     var pages: [Page] = []
     var feedback: String?
@@ -46,7 +47,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         container.subviews.forEach { $0.removeFromSuperview() }
         page.view.setFrameOrigin(NSPoint(x: max(0,(container.bounds.width-page.view.frame.width)/2), y: max(0,container.bounds.height-page.view.frame.height)))
         container.addSubview(page.view)
-        back.title = pages.count > 1 ? "Back" : "Close"
+        back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         if !testing && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     }
     func show(_ page: Page) {

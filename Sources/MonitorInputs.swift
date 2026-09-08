@@ -26,10 +26,11 @@ struct MonitorInputPlan: Codable, Equatable {
     var controlConnection: MonitorConnection? = nil
     var commandMode: String { controlConnection?.argument ?? (alternate ? "lg" : "standard") }
     var inputs: [MonitorInput] = []
+    var availableInputs: [MonitorInput]? = nil
     var allowUnconfirmedCycle = false
     var shortcut = PanicShortcut(key: UInt32(kVK_F8), modifiers: UInt32(controlKey | optionKey), enabled: false)
     var valid: Bool {
-        (controlConnection?.valid ?? true) && (display.isEmpty || UUID(uuidString: display) != nil) && inputs.count <= 16 && inputs.allSatisfy { $0.valid } &&
+        (availableInputs.map { list in list.count <= 16 && list.allSatisfy { $0.valid } && Set(list.map { $0.code }).count == list.count && inputs.allSatisfy { list.contains($0) } } ?? true) && (controlConnection?.valid ?? true) && (display.isEmpty || UUID(uuidString: display) != nil) && inputs.count <= 16 && inputs.allSatisfy { $0.valid } &&
         Set(inputs.map { $0.code }).count == inputs.count &&
         (!shortcut.enabled || (!display.isEmpty && inputs.count >= 2 && shortcut.modifiers.nonzeroBitCount >= 2 && PanicShortcut.keys.contains { $0.1 == shortcut.key }))
     }
@@ -38,7 +39,8 @@ struct MonitorInputPlan: Codable, Equatable {
         let current = current == 0 ? nil : current
         let position = current ?? (allowUnconfirmedCycle ? lastSent : nil)
         guard current != nil || allowUnconfirmedCycle else { throw AppError(message: "The monitor did not report its current input. In Monitor input settings, you can explicitly allow cycling from the last command sent.") }
-        if let position, let index = inputs.firstIndex(where: { $0.code == position }) { return inputs[(index+1)%inputs.count] }
+        guard let position else { throw AppError(message: "Current input is unknown. In Settings → Monitor inputs, choose what the monitor is showing before the first cycle.") }
+        if let index = inputs.firstIndex(where: { $0.code == position }) { return inputs[(index+1)%inputs.count] }
         return inputs[0]
     }
 }
@@ -206,6 +208,14 @@ final class MonitorInputController: NSObject {
         guard !busy else { return }
         perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["inspect",id,connection?.argument ?? (alternate ? "lg" : "standard")])) }, completion: completion)
     }
+    func useCurrentInput(_ code: UInt16) {
+        guard plan.inputs.contains(where: { $0.code == code }) || plan.availableInputs?.contains(where: { $0.code == code }) == true else { return }
+        lastSent = code
+    }
+    func readInput(_ id: String, mode: String, completion: @escaping (Result<MonitorInspection,Error>) -> Void) {
+        guard !busy else { return }
+        perform({ [backend] in try JSONDecoder().decode(MonitorInspection.self,from:backend.run(["read",id,mode])) },completion:completion)
+    }
     func usbDevices(completion: @escaping (Result<[MonitorUSBDevice],Error>) -> Void) {
         guard !busy else { return }
         perform({ [backend] in try JSONDecoder().decode([MonitorUSBDevice].self, from: backend.run(["usb-list"])) }, completion:completion)
@@ -228,7 +238,7 @@ final class MonitorInputController: NSObject {
         do { try hotKey.register(value.shortcut) }
         catch { try? hotKey.register(plan.shortcut); throw error }
         let data = try JSONEncoder().encode(value)
-        UserDefaults.standard.set(data, forKey: Self.preferenceKey)
+        confirmationDefaults.set(data, forKey: Self.preferenceKey)
         if value.controlConnection != plan.controlConnection || value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
         plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
     }
@@ -264,7 +274,9 @@ final class MonitorInputController: NSObject {
             let state: MonitorInspection
             if writeOnly { state = MonitorInspection(current:nil, capabilities:nil) }
             else { state = try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read",plan.display,plan.commandMode])) }
-            let next = try plan.next(current: state.current, lastSent: last)
+            let knownInputs = plan.availableInputs ?? plan.inputs
+            let current = state.current.flatMap { code in knownInputs.contains(where: { $0.code == code }) ? code : nil }
+            let next = try plan.next(current: current, lastSent: last)
             let result = try backend.run(["switch",plan.display,plan.commandMode,String(next.code)])
             guard let object = try JSONSerialization.jsonObject(with: result) as? [String:Any], object["sent"] as? Bool == true else { throw AppError(message: "The input command was not accepted.") }
             // A transport acknowledgment is not monitor confirmation. Read back only

@@ -57,3 +57,13 @@ Open **Perch Settings → Monitor inputs → USB / NEC connection…** in the pr
 The configured control route can still be used after switching away from this Mac's video input. It is not replaced silently with DDC if unavailable. No extra idle timer is added. Transport success still needs readback or user confirmation. Protocol fixture tests pass; these new transports have **not been physically validated on MSI, Eizo or NEC hardware here**.
 
 Protocol references: https://github.com/couriersud/msigd (identity/input packet facts), https://github.com/NECDisplaySolutions/necpdsdk (NEC protocol), https://www.ddcutil.com/usb/ (USB MCCS). This is a restricted native implementation, not a bundled copy of those utilities.
+
+## Draft, saved list, and current input
+
+Monitor settings now retain all available inputs separately from the checked cycle subset. Unchecking disables an input in the cycle; it does not delete it. Save changes commits the list/selection and returns. Cancel or window close discards the draft. Save & cycle now explicitly commits before switching.
+
+Detect fresh settings replaces the draft's custom input entries with a reliable detected/profile list and clears the cycle checkboxes for explicit selection. It ignores the old chosen profile while identifying the monitor. If no reliable replacement is returned, the draft is retained. Nothing is persisted until Save.
+
+Read current input uses the configured read protocol on demand. Responses outside the known input list are not accepted as a cycle starting point. When there is no readable current value and no session position, cycling stops with setup guidance instead of selecting the first entry blindly. The current-input picker lets the user declare what is showing; saving seeds only this process's session. It is not persisted as a detected physical state. Last-command cycling remains an explicit fallback and cannot notice arbitrary switches made elsewhere when a monitor has no reliable readback.
+
+Current-input limitations are documented in primary project reports, including https://github.com/waydabber/m1ddc/issues/49 and https://github.com/tyvsmith/streamcontroller-lg-monitor-control . macOS connection metadata is not used to claim which monitor-side HDMI socket is currently selected.

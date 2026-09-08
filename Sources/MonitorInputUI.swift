@@ -5,6 +5,7 @@ final class MonitorInputPage: NSObject {
     let controller: MonitorInputController
     let view = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
     let monitors = NSPopUpButton(), protocolChoice = NSPopUpButton()
+    let currentChoice = NSPopUpButton()
     let status = NSTextField(wrappingLabelWithString: "")
     var candidates: [MonitorInput] = []
     var selectedCodes = Set<UInt16>()
@@ -39,11 +40,14 @@ final class MonitorInputPage: NSObject {
         worked.frame = NSRect(x: 0,y: 345,width: 230,height: 26)
         failed.frame = NSRect(x: 240,y: 345,width: 230,height: 26)
         view.addSubview(worked); view.addSubview(failed)
-        detect = SettingsActionButton(title: "Detect inputs") { [weak self] in self?.detectInputs() }
+        currentChoice.frame = NSRect(x:0,y:345,width:572,height:26)
+        currentChoice.target = self; currentChoice.action = #selector(currentChosen)
+        view.addSubview(currentChoice)
+        detect = SettingsActionButton(title: "Detect fresh settings") { [weak self] in self?.detectInputs(replace:true) }
         detect.frame = NSRect(x: 0,y: 308,width: 175,height: 30)
-        let recheck = SettingsActionButton(title: "Recheck monitors") { [weak controller] in controller?.refresh() }
+        let recheck = SettingsActionButton(title: "Read current input") { [weak self] in self?.readCurrentInput() }
         recheck.frame = NSRect(x: 185,y: 308,width: 180,height: 30)
-        label("Choose at least two inputs. Checked inputs cycle from top to bottom.", NSRect(x: 4,y: 278,width: 564,height: 26))
+        label("Checked inputs cycle in order. Unchecked inputs stay saved.", NSRect(x: 4,y: 278,width: 564,height: 26))
         inputList.hasVerticalScroller = true; inputList.autohidesScrollers = false; inputList.borderType = .bezelBorder
         let custom = SettingsActionButton(title: "Model & inputs…") { [weak self] in self?.editInputs() }
         custom.frame = NSRect(x: 375,y: 308,width: 197,height: 30)
@@ -55,9 +59,9 @@ final class MonitorInputPage: NSObject {
             box.frame = NSRect(x: CGFloat(index*112),y: 55,width: 112,height: 28)
             modifiers.append((box,UInt32(pair.1))); view.addSubview(box)
         }
-        save = SettingsActionButton(title: "Save") { [weak self] in self?.saveSettings() }
+        save = SettingsActionButton(title: "Save changes") { [weak self] in self?.saveSettings() }
         save.frame = NSRect(x: 402,y: 12,width: 170,height: 32)
-        let cycle = SettingsActionButton(title: "Cycle input now") { [weak self] in
+        let cycle = SettingsActionButton(title: "Save & cycle now") { [weak self] in
             guard let self else { return }
             if self.saveSettings(back: false) { self.controller.cycle() }
         }
@@ -67,7 +71,7 @@ final class MonitorInputPage: NSObject {
         controlConnection = controller.plan.controlConnection
         chosenProfile = controller.plan.profileName
         editedDisplay = controller.plan.display
-        candidates = controller.plan.inputs; selectedCodes = Set(candidates.map { $0.code })
+        candidates = controller.plan.availableInputs ?? controller.plan.inputs; selectedCodes = Set(controller.plan.inputs.map { $0.code })
         renderInputs()
         protocolChoice.selectItem(at: controlConnection != nil ? 2 : controller.plan.alternate ? 1 : 0)
         blind.state = controller.plan.allowUnconfirmedCycle ? .on : .off
@@ -77,7 +81,31 @@ final class MonitorInputPage: NSObject {
         controller.pageChanged = { [weak self] in self?.refresh() }
         refresh()
     }
+    @objc private func currentChosen() { if currentChoice.indexOfSelectedItem > 0 { blind.state = .on } }
+    private func readCurrentInput() {
+        guard !editedDisplay.isEmpty, !controller.busy else { return }
+        controller.readInput(editedDisplay,mode:controlConnection?.argument ?? (protocolChoice.indexOfSelectedItem == 1 ? "lg" : "standard")) { [weak self] result in
+            guard let self, self.shown else { return }
+            switch result {
+            case .success(let info):
+                if let code = info.current, code > 0, self.candidates.contains(where: { $0.code == code }) {
+                    self.controller.message = "Current input reported: " + (self.candidates.first { $0.code == code }?.name ?? "code \(code)")
+                    self.controller.warning = false
+                } else {
+                    self.controller.message = "Current input unavailable. Choose what is showing in the current-input list before the first cycle."
+                    self.controller.warning = true
+                }
+            case .failure(let error): self.controller.message = error.localizedDescription; self.controller.warning = true
+            }
+            self.refresh()
+        }
+    }
     private func renderInputs() {
+        let selectedCurrent = currentChoice.selectedItem?.representedObject as? UInt16
+        currentChoice.removeAllItems(); currentChoice.addItem(withTitle:"Current input: detect automatically, or choose what is showing…")
+        for input in candidates { currentChoice.addItem(withTitle:"Currently showing: " + input.name); currentChoice.lastItem?.representedObject = input.code }
+        if let selectedCurrent, let index = candidates.firstIndex(where: { $0.code == selectedCurrent }) { currentChoice.selectItem(at:index+1) }
+
         let document = NSView(frame: NSRect(x: 0,y: 0,width: 548,height: max(118,CGFloat(candidates.count*32))))
         if candidates.isEmpty {
             let label = NSTextField(labelWithString: "Detect inputs to populate this list, or use Edit inputs.")
@@ -241,8 +269,8 @@ final class MonitorInputPage: NSObject {
     }
     func show() {
         shown = true
-        SettingsWindow.shared.show(.init(title: "Monitor inputs", detail: "Cycle a connected monitor to another input using the menu or a shortcut. The Mac’s picture may disappear; use the monitor’s own controls to return if it disconnects. Port lists do not tell us which inputs have another computer connected. Select the inputs you use; inactive ports cannot reliably be skipped automatically.", view: view, leave: { [self] in shown = false; controller.pageChanged = nil }))
-        autoDetect()
+        SettingsWindow.shared.show(.init(title: "Monitor inputs", detail: "Check the inputs to cycle; unchecked inputs remain in your list. Save changes keeps this configuration and returns. Cancel or closing the window discards edits. Detect fresh settings replaces this draft with detected/profile settings; Save applies them. Switching inputs may hide this Mac’s picture.", view: view, leave: { [self] in shown = false; controller.pageChanged = nil },backTitle:"Cancel"))
+        if !candidates.isEmpty && !SettingsWindow.shared.testing { readCurrentInput() } else { autoDetect() }
     }
     private func autoDetect() {
         if shown && protocolChoice.indexOfSelectedItem != 2 && !SettingsWindow.shared.testing && !didAutoDetect && candidates.isEmpty && !controller.busy && !editedDisplay.isEmpty {
@@ -265,6 +293,7 @@ final class MonitorInputPage: NSObject {
         protocolChoice.isEnabled = !controller.busy
         detect.isEnabled = !controller.busy && (selected?.ddcAvailable == true || controlConnection != nil)
         save.isEnabled = !controller.busy
+        currentChoice.isHidden = controller.pendingConfirmation != nil
         worked.isHidden = controller.pendingConfirmation == nil
         failed.isHidden = controller.pendingConfirmation == nil
         worked.isEnabled = !controller.busy; failed.isEnabled = !controller.busy
@@ -287,7 +316,7 @@ final class MonitorInputPage: NSObject {
         chosenProfile = nil
         candidates = []; selectedCodes = []; renderInputs(); detectInputs()
     }
-    private func detectInputs() {
+    private func detectInputs(replace: Bool = false) {
         guard let display = listed.first(where: { $0.id == editedDisplay }), (display.ddcAvailable || controlConnection != nil), !controller.busy else { return }
         if controlConnection == nil, let profile = MonitorProfiles.match(display), profile.alternate, profile.confidence != "suggested", candidates.isEmpty, !didAutoDetect { protocolChoice.selectItem(at: 1) }
         let alternate = protocolChoice.indexOfSelectedItem == 1
@@ -298,15 +327,23 @@ final class MonitorInputPage: NSObject {
             switch result {
             case .success(let inspection):
                 if self.controlConnection != nil {
-                    if let inputs = inspection.transportInputs { self.candidates = MonitorCapabilities.merge(self.candidates, reported: inputs) }
+                    if let inputs = inspection.transportInputs { self.candidates = replace ? inputs : MonitorCapabilities.merge(self.candidates, reported: inputs); if replace { self.selectedCodes = [] } }
                     self.controller.message = "✓ Control connection responded. " + (inspection.transportModel ?? "USB MCCS monitor") + ". Choose inputs in Model & inputs if no list is reported."
                     self.controller.warning = false; self.renderInputs(); self.refresh(); return
                 }
                 let codes = inspection.capabilities.map(MonitorCapabilities.inputs) ?? []
                 let reportedModel = inspection.lgFirmwareModel ?? inspection.capabilities.flatMap(MonitorCapabilities.model)
-                let profile = MonitorProfiles.entries.first { $0.name == self.chosenProfile && $0.vendor == display.vendor }
+                let profile = (replace ? nil : MonitorProfiles.entries.first { $0.name == self.chosenProfile && $0.vendor == display.vendor })
                     ?? (display.vendor == 7789 ? LGFirmwareProfiles.inputs(identity: inspection.lgIdentity, extended: inspection.lgExtendedIdentity) : nil)
                     ?? MonitorProfiles.match(display, reportedModel: reportedModel)
+                if replace {
+                    let fresh = profile.flatMap { $0.confidence != "suggested" ? $0.inputs : nil } ?? (codes.isEmpty ? nil : codes.map { MonitorInput(code:$0,name:MonitorInput.name($0)) })
+                    guard let fresh else { self.controller.message = "No reliable fresh input settings were returned. Your draft is unchanged."; self.controller.warning = true; self.refresh(); return }
+                    self.candidates = fresh; self.selectedCodes = []; self.chosenProfile = profile?.confidence != "suggested" ? profile?.name : nil
+                    if let profile, profile.confidence != "suggested" { self.protocolChoice.selectItem(at:profile.alternate ? 1 : 0) }
+                    self.controller.message = "✓ Fresh settings loaded into this draft. Custom entries removed. Check the inputs to cycle, then Save changes."; self.controller.warning = false
+                    self.renderInputs(); self.currentChoice.selectItem(at:0); self.refresh(); return
+                }
                 let documented = profile.flatMap { $0.confidence != "suggested" && $0.alternate == alternate ? $0 : nil }
                 if self.candidates.isEmpty, let profile, profile.confidence != "suggested", profile.alternate != alternate {
                     self.protocolChoice.selectItem(at: profile.alternate ? 1 : 0)
@@ -412,13 +449,15 @@ final class MonitorInputPage: NSObject {
             guard UUID(uuidString: editedDisplay) != nil else { throw AppError(message: "Select a connected monitor first.") }
             var plan = MonitorInputPlan()
             plan.controlConnection = controlConnection
+            plan.availableInputs = candidates
             plan.profileName = chosenProfile
             plan.display = editedDisplay; plan.alternate = protocolChoice.indexOfSelectedItem == 1
             plan.inputs = candidates.filter { selectedCodes.contains($0.code) }; plan.allowUnconfirmedCycle = blind.state == .on
-            guard plan.inputs.count >= 2 else { throw AppError(message: "Check at least two inputs to cycle between.") }
+            guard plan.inputs.count >= 2 || (enabled.state == .off && back) else { throw AppError(message: "Check at least two inputs to enable cycling.") }
             let mask = modifiers.filter { $0.0.state == .on }.reduce(UInt32(0)) { $0 | $1.1 }
             plan.shortcut = PanicShortcut(key: PanicShortcut.keys[keys.indexOfSelectedItem].1,modifiers: mask,enabled: enabled.state == .on)
             try controller.save(plan)
+            if let code = currentChoice.selectedItem?.representedObject as? UInt16 { controller.useCurrentInput(code) }
             if back { SettingsWindow.shared.goBack() }
             return true
         } catch { status.stringValue = "⚠ " + error.localizedDescription; status.textColor = StatusColors.warning; return false }

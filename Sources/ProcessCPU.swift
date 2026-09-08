@@ -89,8 +89,11 @@ final class ProcessCPUReader {
         let wallTime = Date().timeIntervalSince1970
         let ticks = mach_absolute_time()
         var ours = perchPIDs
-        // Deprecated but still the public read-only API for the job's actual PID.
-        // This avoids spawning launchctl or counting somebody else's eslogger.
+        // Reviewed SDK deprecation: there is no direct replacement for this job
+        // dictionary/PID query; SMAppService.status reports registration, not PID.
+        // Keep the warning visible until collector identity is available through
+        // Perch's own status channel (V1.2-REVIEW.md, BW-01). Do not substitute a
+        // process-name match, which could count somebody else's eslogger as ours.
         if let job = SMJobCopyDictionary(kSMDomainSystemLaunchd, "local.scott.perch.events" as CFString)?.takeRetainedValue() as? [String: Any],
            let pid = (job["PID"] as? NSNumber)?.int32Value, pid > 1 { ours.insert(pid) }
         let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size)))

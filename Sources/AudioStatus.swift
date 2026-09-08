@@ -23,7 +23,7 @@ enum AudioStatus {
         address = AudioObjectPropertyAddress(mSelector:kAudioHardwareServiceDeviceProperty_VirtualMainVolume,mScope:kAudioDevicePropertyScopeOutput,mElement:kAudioObjectPropertyElementMain)
         var scalar: Float32 = 0
         size = UInt32(MemoryLayout<Float32>.size)
-        guard AudioHardwareServiceHasProperty(device,&address), AudioHardwareServiceGetPropertyData(device,&address,0,nil,&size,&scalar) == noErr else { return nil }
+        guard AudioObjectHasProperty(device,&address), AudioObjectGetPropertyData(device,&address,0,nil,&size,&scalar) == noErr else { return nil }
         return percentage(scalar)
     }
     static func muted() throws -> Bool {

@@ -1,6 +1,14 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 57. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 58. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 58: reviewed compiler warnings
+
+The six warning lines in build 57 represented three distinct deprecations, each printed twice. Audio volume now uses `AudioObjectHasProperty` and `AudioObjectGetPropertyData` with the same virtual main-volume property. A read-only comparison across all three audio devices on this Mac matched both API paths: one readable volume control returned the same scalar, and two unsupported controls remained unavailable. No volume, mute or output-device setting was changed.
+
+The remaining `SMJobCopyDictionary` warning is retained and tracked as BW-01 in the review. It supplies the event collector's actual launchd PID for Perch CPU accounting. Apple's SDK explicitly supplies no replacement for this dictionary lookup; `SMAppService.status` reports service registration rather than the running PID. Replacing it safely requires another reliable source of collector identity. No warning was suppressed, and no process-name guess was substituted.
+
+Validation: production compilation and strict app/helper signatures passed, with one remaining distinct compiler warning (BW-01). All 20 isolated regression suites passed. The isolated test copy also emits two unreachable-code diagnostics from its deliberately injected power-operation blockers; those are not production warnings. Prepared separately from the installed app, without live permission, helper or hardware changes.
 
 ## Build 57: lid-session recovery and accurate protection status
 

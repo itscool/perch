@@ -32,6 +32,6 @@ func runLidSettingTests() throws {
         try SleepMasterChange.run(enabled:false,includeLid:true,readLid:{true},writeLid:{_ in},setAwake:{_ in followups += 1},stopCaffeinate:{followups += 1})
         throw AppError(message:"Unverified write was accepted")
     } catch { try check(followups == 0, "Unverified lid write continued master-off") }
-    try check(SettingsResetSelection(sections:["awake"]).removes(SleepMasterChange.lidPreferenceKey), "Awake reset retained lid preference")
+    try check(SettingsResetSelection(sections:["preferences"]).removes(SleepMasterChange.lidPreferenceKey), "Awake reset retained lid preference")
     print("PASS: lid enabled/disabled results, cancellation preserves actual state, ventilation warning follows actual state, unknown state prevents a write; no macOS settings changed")
 }

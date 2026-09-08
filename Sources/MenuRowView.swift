@@ -89,7 +89,25 @@ final class MenuRowView: NSView {
     }
     /// Shared by drawing and the appearance regression tests. It keeps dynamic
     /// colors intact, including hints; selection and actual disabling are explicit.
+    private var sectionTint: NSColor {
+        switch item?.title ?? "" {
+        case "System": return .systemTeal
+        case "Sleep": return .systemIndigo
+        case "Display": return .systemBlue
+        case "Audio": return .systemPink
+        case "Scrolling": return .systemOrange
+        case "Agent Kill Switch": return .systemRed
+        case "Perch": return .systemGreen
+        default: return .systemPurple
+        }
+    }
     func displayedText() -> NSAttributedString {
+        if kind == .section {
+            let result = NSMutableAttributedString(attributedString:text)
+            let tint = sectionTint.blended(withFraction:0.55,of:.labelColor) ?? NSColor.labelColor
+            result.addAttribute(.foregroundColor,value:tint,range:NSRange(location:0,length:result.length))
+            return result
+        }
         guard (actionable && !enabled) || highlighted else { return text }
         let result = NSMutableAttributedString(attributedString: text)
         result.addAttribute(.foregroundColor, value: highlighted ? NSColor.selectedMenuItemTextColor : NSColor.disabledControlTextColor, range: NSRange(location: 0, length: result.length))
@@ -110,18 +128,7 @@ final class MenuRowView: NSView {
                 let tinted = sectionSymbol.copy() as! NSImage
                 tinted.isTemplate = false
                 tinted.lockFocus()
-                let title = item?.title ?? ""
-                let tint: NSColor
-                switch title {
-                case "System": tint = .systemTeal
-                case "Sleep": tint = .systemIndigo
-                case "Display": tint = .systemBlue
-                case "Audio": tint = .systemPink
-                case "Scrolling": tint = .systemOrange
-                case "Agent Kill Switch": tint = .systemRed
-                case "Perch": tint = .systemGreen
-                default: tint = .systemPurple
-                }
+                let tint = sectionTint
                 tint.setFill()
                 NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
                 tinted.unlockFocus()

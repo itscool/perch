@@ -10,15 +10,19 @@ func runSettingsResetTests() throws {
     try JSONEncoder().encode(config).write(to:base.appendingPathComponent("config.json"))
     defaults.set(true,forKey:"reverseWheel"); defaults.set("keep",forKey:"unrelated")
     defaults.set("mapping",forKey:MonitorInputController.preferenceKey)
+    defaults.set("learned",forKey:KeyboardNavigationProfiles.key)
+    defaults.set("confirmed",forKey:"monitor.confirmed.fixture")
     try Data().write(to:base.appendingPathComponent("requests/old.json"))
     try Data("helper fixture".utf8).write(to:base.appendingPathComponent("Perch Helper.app"))
-    try SettingsReset.clear(.init(sections:["monitor"]),defaults:defaults,domain:domain,base:base)
+    try SettingsReset.clear(.init(sections:["devices"]),defaults:defaults,domain:domain,base:base)
     guard defaults.object(forKey:MonitorInputController.preferenceKey) == nil,
+          defaults.object(forKey:KeyboardNavigationProfiles.key) == nil,
+          defaults.object(forKey:"monitor.confirmed.fixture") == nil,
           defaults.bool(forKey:"reverseWheel"), defaults.string(forKey:"unrelated") == "keep",
           try JSONDecoder().decode(SafetyConfiguration.self,from:Data(contentsOf:base.appendingPathComponent("config.json"))) == config else { throw AppError(message:"Selective reset changed unrelated preferences") }
-    try SettingsReset.clear(.init(sections:["input"]),defaults:defaults,domain:domain,base:base)
+    try SettingsReset.clear(.init(sections:["preferences"]),defaults:defaults,domain:domain,base:base)
     let partial = try JSONDecoder().decode(SafetyConfiguration.self,from:Data(contentsOf:base.appendingPathComponent("config.json")))
-    guard !partial.reverseWheel && partial.keepAwake else { throw AppError(message:"Input reset failed to preserve power preference") }
+    guard !partial.reverseWheel && !partial.keepAwake else { throw AppError(message:"Preferences reset retained feature choices") }
     try SettingsReset.clear(.init(sections:Set(SettingsResetSelection.options.map { $0.0 })),defaults:defaults,domain:domain,base:base)
     guard (defaults.persistentDomain(forName:domain) ?? [:]).isEmpty,
           !fm.fileExists(atPath:base.appendingPathComponent("config.json").path),
@@ -34,5 +38,7 @@ func runSettingsResetTests() throws {
     }
     let identities = MonitorProfiles.entries.filter { $0.automatic != false }.map { "\($0.vendor):\($0.model ?? 0)" }
     guard Set(identities).count == identities.count else { throw AppError(message:"Ambiguous automatic monitor profile IDs") }
+    guard PrivacyOnlyReset.arguments(global:false) == ["reset","All","local.scott.perch"],
+          PrivacyOnlyReset.arguments(global:true) == ["reset","All"] else { throw AppError(message:"Privacy-only scope incorrect") }
     print("PASS: selective/full preference reset with disposable files/defaults; settings preserved by section; no services stopped or system settings changed; LG identity-to-input mapping")
 }

@@ -5,29 +5,19 @@ struct SettingsResetSelection {
     var sections: Set<String>
     var all: Bool { sections == Set(Self.options.map { $0.0 }) }
     static let options = [
-        ("input", "Scroll reversal and navigation choices"),
-        ("keyboard", "Keyboard layouts and remembered Fn/modifier choices"),
-        ("monitor", "Monitor inputs, shortcut and confirmations"),
-        ("safety", "Agent choices, panic shortcut, catalog and history"),
-        ("awake", "Perch’s keep-awake preference"),
-        ("display", "CPU display preferences"),
-        ("login", "Start at login")
+        ("devices", "Device setup — detected devices, learned layouts and custom mappings"),
+        ("preferences", "Perch preferences — feature choices, shortcuts and agent settings")
     ]
     func removes(_ key: String) -> Bool {
         if all { return true }
-        if sections.contains("awake") && key == SleepMasterChange.lidPreferenceKey { return true }
-        if sections.contains("input") && ["reverseTrackpad", "reverseWheel", "swapModifiers"].contains(key) { return true }
-        if sections.contains("keyboard") && (key == KeyboardNavigationProfiles.key || key.hasPrefix("modifierSwap.") || key == NativeFunctionKeys.externalIntentKey) { return true }
-        if sections.contains("monitor") && (key == MonitorInputController.preferenceKey || key.hasPrefix("monitor.confirmed.")) { return true }
-        if sections.contains("safety") && key == "panicShortcut" { return true }
-        return sections.contains("display") && key == CPUDisplaySettings.key
+        let deviceKey = key == KeyboardNavigationProfiles.key || key == MonitorInputController.preferenceKey || key.hasPrefix("monitor.confirmed.")
+        if sections.contains("devices") && deviceKey { return true }
+        return sections.contains("preferences") && !deviceKey
     }
     func configuration(_ original: SafetyConfiguration) -> SafetyConfiguration {
-        var c = original
-        if sections.contains("input") { c.reverseTrackpad = false; c.reverseWheel = false; c.swapModifiers = false; c.navigation = nil }
-        if sections.contains("keyboard") { c.navigationProfiles = nil }
-        if sections.contains("awake") { c.keepAwake = false }
-        if sections.contains("safety") { c.targets = AgentTarget.defaults; c.shortcut = PanicShortcut(); c.resetAgentPermissions = true; c.resetAllPermissions = true }
+        var c = sections.contains("preferences") ? SafetyConfiguration() : original
+        if sections.contains("preferences") { c.reverseTrackpad = false; c.reverseWheel = false; c.swapModifiers = false }
+        c.navigationProfiles = sections.contains("devices") ? nil : original.navigationProfiles
         return c
     }
 }
@@ -44,7 +34,7 @@ enum SettingsReset {
             try JSONEncoder().encode(selection.configuration(config)).write(to:configURL,options:.atomic)
         }
         var names: [String] = selection.all ? ["config.json"] : []
-        if selection.sections.contains("safety") { names += ["agents.json","state.json","events.jsonl","events-previous.jsonl","Safety report.txt","shortcut-test-lease.json"] }
+        if selection.sections.contains("preferences") { names += ["agents.json","state.json","events.jsonl","events-previous.jsonl","Safety report.txt","shortcut-test-lease.json"] }
         for name in names {
             let path = base.appendingPathComponent(name)
             if fm.fileExists(atPath:path.path) { try fm.removeItem(at:path) }
@@ -59,6 +49,13 @@ enum SettingsReset {
         if selection.all { defaults.removePersistentDomain(forName:domain) }
         else {
             for key in (defaults.persistentDomain(forName:domain) ?? [:]).keys where selection.removes(key) { defaults.removeObject(forKey:key) }
+        }
+        if selection.sections.contains("preferences"), !selection.sections.contains("devices"),
+           let data = defaults.data(forKey:MonitorInputController.preferenceKey),
+           var plan = try? JSONDecoder().decode(MonitorInputPlan.self,from:data) {
+            plan.shortcut = MonitorInputPlan().shortcut
+            plan.allowUnconfirmedCycle = false
+            defaults.set(try JSONEncoder().encode(plan),forKey:MonitorInputController.preferenceKey)
         }
         guard defaults.synchronize() else { throw AppError(message:"Could not finish writing the preference reset. Perch remains open.") }
     }
@@ -86,29 +83,40 @@ enum SettingsReset {
 extension AppDelegate {
     @objc func resetSettingsPage() {
         let page = NSView(frame:NSRect(x:0,y:0,width:572,height:340))
+        weak var reviewButton: NSButton?
         var boxes: [(String,NSButton)] = []
         for (i,option) in SettingsResetSelection.options.enumerated() {
-            let box = NSButton(checkboxWithTitle:option.1,target:nil,action:nil)
-            box.frame = NSRect(x:0,y:300-i*35,width:572,height:28); box.state = .on
+            let box = SettingsActionButton(title:option.1) { [weak page] in
+                reviewButton?.isEnabled = page?.subviews.compactMap { $0 as? NSButton }.contains { $0.state == .on } == true
+            }
+            box.setButtonType(.switch)
+            box.frame = NSRect(x:0,y:300-i*35,width:572,height:28); box.state = .off
             boxes.append((option.0,box)); page.addSubview(box)
         }
+        let privacy = SettingsActionButton(title:"Reset Perch’s privacy permissions…") { [weak self] in self?.privacyOnlyReset(global:false) }
+        privacy.frame = NSRect(x:0,y:175,width:572,height:30); page.addSubview(privacy)
+        let system = SettingsActionButton(title:"Reset system sleep and audio…") { [weak self] in self?.systemResetPage() }
+        system.frame = NSRect(x:0,y:130,width:572,height:30); page.addSubview(system)
+        let allPrivacy = SettingsActionButton(title:"Reset all apps’ privacy permissions…") { [weak self] in self?.privacyOnlyReset(global:true) }
+        allPrivacy.frame = NSRect(x:0,y:85,width:572,height:30); page.addSubview(allPrivacy)
         let next = SettingsActionButton(title:"Review reset & quit…") { [weak self] in
             let selection = SettingsResetSelection(sections:Set(boxes.filter { $0.1.state == .on }.map { $0.0 }))
             guard !selection.sections.isEmpty else { return }
             self?.confirmSettingsReset(selection)
         }
+        reviewButton = next; next.isEnabled = false
         next.frame = NSRect(x:260,y:5,width:312,height:32); page.addSubview(next)
-        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Select everything for a fresh Perch, or only the sections to forget. Reset stops Perch’s input and protection helpers and quits. Reopening starts them again. macOS permissions, lid-sleep settings, audio, and keyboard firmware/system settings are unchanged; their current state will be queried again. The collector installation remains installed.",view:page))
+        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Choose what to forget, then review before resetting and quitting. Device setup is detected afresh on next launch; bundled profiles remain. Privacy permissions and system changes are separate explicit actions below.",view:page))
     }
     func confirmSettingsReset(_ selection: SettingsResetSelection) {
         let page = NSView(frame:NSRect(x:0,y:0,width:572,height:180))
-        let status = NSTextField(wrappingLabelWithString:"This removes the selected saved choices. Perch’s emergency shortcut and input controls stop until you reopen Perch. A Perch keep-awake assertion is released when its helper stops. Back cancels.")
+        let status = NSTextField(wrappingLabelWithString:"This removes the selected saved choices. Device setup, if selected, returns to an undetected state until next launch. Perch’s emergency shortcut and input controls stop until you reopen Perch. A Perch keep-awake assertion is released when its helper stops. Back cancels.")
         status.frame = NSRect(x:0,y:60,width:572,height:110); status.textColor = StatusColors.warning
         let action = SettingsActionButton(title:selection.all ? "Reset all settings and quit" : "Reset selected settings and quit") { [weak self] in
             guard let self, !SettingsWindow.shared.testing else { return }
             do {
                 try SettingsReset.stopHelpers()
-                if selection.sections.contains("login"), SMAppService.mainApp.status != .notRegistered { try SMAppService.mainApp.unregister() }
+                if selection.sections.contains("preferences"), SMAppService.mainApp.status != .notRegistered { try SMAppService.mainApp.unregister() }
                 try SettingsReset.clear(selection,defaults:.standard,domain:Bundle.main.bundleIdentifier ?? "local.scott.perch",base:SafetyFiles.base)
                 NSApp.terminate(nil)
             } catch {

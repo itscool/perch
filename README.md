@@ -110,3 +110,10 @@ Self-tests use synthetic ancestry and disposable local shell/sleep processes. Th
 `bash Tools/check-release.sh` verifies signing and runs both safe suites. AppKit checks exercise live menu updates during tracking, Settings navigation, light/dark rendering, input-readiness states, and shortcut-test cancellation/success/timeout/cleanup using isolated requests. They do not prove physical keyboard delivery or a real system-wide privacy reset.
 
 See `V1-NOTES.md` for measured performance and validation limits, and `EVENT-COLLECTOR.md` for the collector architecture. `REVIEW.md` is an earlier implementation review. The whole-app review and its resulting changes are assigned to **1.2**; its pending scope is recorded in [V1.2-REVIEW.md](V1.2-REVIEW.md).
+
+
+### Central reset controls
+
+Settings → Reset settings has two in-app groups: Device setup (detected monitor configuration, learned keyboard profiles, mappings and confirmations) and Perch preferences (feature choices, shortcuts and agent settings). Neither is preselected. Device reset quits Perch after forgetting setup; the next launch starts with fresh detection. Bundled profiles remain, and unknown keyboards require setup again. Preferences-only reset preserves device setup.
+
+The same area offers explicit Perch-only privacy reset and system sleep/audio changes. System changes are not claimed as an undo of Perch-owned values: previous keyboard firmware/system values were not recorded and are left alone. All-app privacy reset is also directly available in Agent Kill Switch. It invokes tccutil without calling panic, stopping agents, or disabling launch jobs. Its scope is privacy decisions for the current account, not every permission or system setting. Perch-only reset uses its bundle identity, shared by its helpers; eslogger is a separate system tool and is not reset as part of that scope.

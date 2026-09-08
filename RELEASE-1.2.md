@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 46. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 47. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 47: remote lid setup
+
+A new lid-protection session can start with the lid closed on confirmed external power. This removes Perch's unnecessary open-lid restriction for remote, docked use. Lid and power state must both be readable; starting while closed on battery is still refused. The startup condition is checked again after the watchdog handshake. Helper/watchdog identity, fresh acknowledgments, leases, legacy-override cleanup and the existing 60-second undocking policy remain enforced. A helper restart still begins disarmed and requires an explicit fresh enable request. Setup and recovery wording now describes the actual requirement.
+
+Build 47 source validation: production compilation, strict signatures and all 20 isolated suites passed, including open/closed/power startup combinations and revalidation after a power change. Physical undocking/sleep acceptance remains open.
 
 ## Build 46: activity history and menu experiment
 
@@ -30,7 +36,7 @@ Build 44 validation: all 20 isolated suites, production compilation and strict s
 - **Settings:** one home for Displays, Keyboards, Scrolling, Keep awake, Agent Kill Switch, and App settings. Maintenance and recovery actions sit with the feature they affect. The tuned main-menu layout remains, including the all-app privacy reset.
 - **Settings → Displays → Switching groups:** select one monitor, either monitor, or several together; name destination computers and map each monitor's input independently. Check current inputs, see each monitor's result, and retry incomplete switches. The existing cycle action can use an explicitly selected group.
 - **Monitor settings:** ordinary choices save immediately. Connection/input-list and group editors use explicit Save/Cancel because they commit related changes together. Ordinary pages use shared Back/Close and the window close control; redundant Done buttons are removed.
-- **Settings → Keep awake:** the supervised lid mode stays awake while closed on external power. Closing on battery or undocking while closed starts 60 seconds to open the lid. Remaining closed on battery releases the override and requests sleep. Enabling the new mode requires explicit setup with the lid open; an old global sleep override must be removed explicitly first.
+- **Settings → Keep awake:** the supervised lid mode stays awake while closed on external power. Closing on battery or undocking while closed starts 60 seconds to open the lid. Remaining closed on battery releases the override and requests sleep. Enabling the mode requires explicit setup with the lid open or confirmed external power; an old global sleep override must be removed explicitly first.
 
 ## Functional repairs
 

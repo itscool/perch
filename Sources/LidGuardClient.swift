@@ -67,7 +67,7 @@ final class LidGuardClient {
     private(set) var status: LidGuardStatus?
     private(set) var changing = false
     var active: Bool { status?.fresh == true && status?.armed == true && status?.error == nil }
-    var detail: String { status?.fresh == true ? status!.detail : "Lid protection is not confirmed. Open the lid before setting it up or repairing it." }
+    var detail: String { status?.fresh == true ? status!.detail : "Lid protection is not confirmed. Review the lid helper; setup can run with the lid closed on external power." }
     func start() {
         guard !SettingsWindow.shared.testing, timer == nil else { return }
         timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
@@ -113,7 +113,7 @@ final class LidGuardClient {
                 self.token = enabled ? reply.token : nil; completion(.success(()))
             } else {
                 self.token = nil; self.connection?.invalidate(); self.connection = nil
-                completion(.failure(AppError(message: self.status?.fresh == true ? self.status!.detail : "The lid helper did not confirm the change. Keep the lid open and retry setup.")))
+                completion(.failure(AppError(message: self.status?.fresh == true ? self.status!.detail : "The lid helper did not confirm the change. Review lid protection and retry with the lid open or external power connected.")))
             }
         }
         let remote = proxy { finish(nil) }

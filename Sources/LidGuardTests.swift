@@ -17,6 +17,19 @@ private final class FakeLidHardware: LidGuardHardware {
 func runLidGuardTests() throws {
     try runLidActivityTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    for observation in [LidObservation(closed: true, power: .external), .init(closed: false, power: .external), .init(closed: false, power: .battery)] {
+        try LidGuardStart.validate(observation)
+    }
+    for observation in [LidObservation(closed: true, power: .battery), .init(closed: nil, power: .external), .init(closed: nil, power: .battery), .init(closed: false, power: .unknown), .init(closed: true, power: .unknown), .init(closed: nil, power: .unknown)] {
+        var rejected = false
+        do { try LidGuardStart.validate(observation) } catch { rejected = true }
+        try check(rejected, "A new closed-battery or unknown-state session was accepted")
+    }
+    // Revalidation during the handshake must catch unplugging before activation.
+    try LidGuardStart.validate(.init(closed: true, power: .external))
+    var rejectedAfterUnplugging = false
+    do { try LidGuardStart.validate(.init(closed: true, power: .battery)) } catch { rejectedAfterUnplugging = true }
+    try check(rejectedAfterUnplugging, "A startup power change escaped revalidation")
     // Exercise the production connection setup, which the mutation mocks used
     // to hide. No power method or sleep request is sent over this connection.
     let connection = try MacLidGuardHardware.openPowerConnection()
@@ -102,5 +115,5 @@ func runLidGuardTests() throws {
     let parser = Process(); parser.executableURL = URL(fileURLWithPath: "/bin/sh"); parser.arguments = ["-n", script.path]
     try parser.run(); parser.waitUntilExit()
     try check(parser.terminationStatus == 0 && command.contains("'=identifier") && command.contains("/Contents/MacOS/Perch' --lid-cleanup"), "Installer quoting or complete-bundle path is invalid")
-    print("PASS: real read-only power connection; stale cleanup helper upgrade; full 60-second undock/close grace; powered operation; open/power cancellation; flapping; continuous deadlines; late renewals; failed observations/authorization; release-before-sleep and rejected-sleep retry; all power mutations injected")
+    print("PASS: powered closed-lid startup; rejected closed-battery/unknown startup and power-change revalidation; real read-only power connection; stale cleanup helper upgrade; full 60-second undock/close grace; powered operation; open/power cancellation; flapping; continuous deadlines; late renewals; failed observations/authorization; release-before-sleep and rejected-sleep retry; all power mutations injected")
 }

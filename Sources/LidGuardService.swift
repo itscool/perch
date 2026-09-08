@@ -183,10 +183,13 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             let decision = policy.step(observation, now: now, authorized: now < leaseEnds && watched)
             for message in activityTracker.decision(decision, observation: observation, deadline: policy.deadline, now: now) { activity.record(message) }
             do {
+                // Recheck after the watchdog handshake: the power source or lid
+                // may have changed since the initial enable request.
+                if startingUntil != nil && decision.preventLidSleep { try LidGuardStart.validate(observation) }
                 try idleAwake.set(decision.preventLidSleep)
                 if decision.preventLidSleep {
                     if startingUntil != nil { try LidGuardOwnership.claim(token!) }
-                    guard LidGuardOwnership.token == token else { throw AppError(message: "The watchdog ended this lid session. Open the lid and enable it again.") }
+                    guard LidGuardOwnership.token == token else { throw AppError(message: "The watchdog ended this lid session. Enable it again with the lid open or external power connected.") }
                 }
                 startingUntil = nil
                 try enforcer.apply(decision, now: now)
@@ -230,7 +233,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             do {
                 if enabled && self.token == nil {
                     self.activity.record("Enable lid protection requested.")
-                    guard observation.closed == false && observation.power != .unknown else { throw AppError(message: "Open the lid before enabling protection. Perch must be able to read the power source.") }
+                    try LidGuardStart.validate(observation)
                     guard self.child?.isRunning == true, self.channel?.ended == false, let ack = self.ack, now >= ack.time, now - ack.time < 2 else { throw AppError(message: "The lid watchdog is unavailable. Repair the lid helper before relying on this mode.") }
                     guard try !sleepDisabled() else { throw AppError(message: "The old system-wide sleep override is still on. Remove it with Review sleep reset before enabling the 60-second mode.") }
                     self.policy = LidGuardPolicy(); self.activityTracker.endSession(); let token = UUID().uuidString

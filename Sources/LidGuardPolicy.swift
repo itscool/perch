@@ -18,6 +18,19 @@ struct LidObservation: Equatable {
     var closed: Bool?
     var power: LidPower
 }
+
+enum LidGuardStart {
+    /// A new session may start remotely on a powered, closed Mac. Starting on
+    /// battery still needs an open lid; an existing session keeps its 60s grace.
+    static func validate(_ observation: LidObservation) throws {
+        guard observation.closed != nil, observation.power != .unknown else {
+            throw AppError(message: "Perch could not read the lid and power state. Review lid protection before enabling it.")
+        }
+        guard observation.closed == false || observation.power == .external else {
+            throw AppError(message: "Connect external power or open the lid before starting lid protection.")
+        }
+    }
+}
 enum LidGuardClock {
     /// Includes time asleep; wall-clock edits cannot extend a battery deadline.
     private static let scale: Double = { var timebase = mach_timebase_info_data_t(); mach_timebase_info(&timebase); return Double(timebase.numer) / Double(timebase.denom) / 1_000_000_000 }()
@@ -49,7 +62,7 @@ struct LidGuardPolicy {
         if !known { stopped = true }
         if stopped {
             return .init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external, remaining: nil,
-                         detail: known ? "Lid protection stopped. Open the lid and enable it again." : "Lid or power status is unknown. Sleep protection has been released; check the Mac.")
+                         detail: known ? "Lid protection stopped. Enable it again with the lid open or external power connected." : "Lid or power status is unknown. Sleep protection has been released; check the Mac.")
         }
         if observation.closed == true && observation.power == .battery {
             if deadline == nil { deadline = now + Self.grace }
@@ -63,7 +76,7 @@ struct LidGuardPolicy {
         // Power cancels enforcement. Require five stable seconds before clearing
         // the old deadline so repeated brief dock/power flapping cannot extend it.
         return .init(preventLidSleep: true, requestSleep: false, remaining: nil,
-                     detail: observation.closed == true ? "Lid closed on external power. Unplugging gives up to 60 seconds to open it." : "Enabled. Closed on external power: stay awake. Closed on battery: 60 seconds to open the lid, then sleep.")
+                     detail: observation.closed == true ? "Enabled. Lid closed on external power. Unplugging gives up to 60 seconds to open it." : "Enabled. Closed on external power: stay awake. Closed on battery: 60 seconds to open the lid, then sleep.")
     }
 }
 

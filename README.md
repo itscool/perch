@@ -39,7 +39,9 @@ Scroll reversal requires Accessibility access for Perch's signed helper. Externa
 
 ## System display
 
-The menu shows the chip and macOS version, CPU/GPU activity, memory in GiB with pressure, and macOS thermal pressure.
+The System panel stays at the top with muted, non-actionable labels and live readings for the chip/OS, CPU/GPU activity, memory in GiB with pressure, and macOS thermal pressure.
+
+The Audio heading shows the current output volume while the menu is open, with a separate Muted indicator. Outputs that do not expose a volume control are labeled unavailable; no volume is changed by reading it.
 
 **Settings → Show top process and Perch CPU usage** defaults on. The CPU row adds `top: name percent` and `us: percent`. Perch combines the menu app, both helpers, their completed utilities and the specific eslogger job installed for Perch. If that combined group is largest, the row shows only `top: Perch percent`.
 

@@ -95,17 +95,23 @@ final class MenuRowView: NSView {
         switch item?.title ?? "" {
         case "System": return .systemTeal
         case "Sleep": return .systemIndigo
-        case "Display": return .systemBlue
+        case "Display": return .systemGreen
         case "Audio": return .systemYellow
-        case "Scrolling": return .systemPurple
-        case "Built-in keyboard": return .systemIndigo
+        case "Scrolling": return .systemOrange
+        case "Built-in keyboard": return .systemBlue
         case let title where title.hasPrefix("External keyboard"): return .systemPurple
         case "Agent Kill Switch": return .systemRed
-        case "Perch": return .systemTeal
+        case "Perch": return .systemPink
         default: return .systemPurple
         }
     }
     func displayedText() -> NSAttributedString {
+        if kind == .information {
+            let result = NSMutableAttributedString(attributedString:text)
+            let length = min((item?.title as NSString?)?.length ?? 0, result.length)
+            result.addAttribute(.foregroundColor,value:NSColor.secondaryLabelColor,range:NSRange(location:0,length:length))
+            return result
+        }
         if kind == .section {
             let result = NSMutableAttributedString(attributedString:text)
             let tint = sectionTint.blended(withFraction:0.55,of:.labelColor) ?? NSColor.labelColor

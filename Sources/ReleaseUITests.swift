@@ -130,6 +130,7 @@ func runReleaseUITests() throws {
     commandItem.isEnabled = false
     try check(!command.accessibilityPerformPress(), "Disabled command remained actionable")
     let information = MenuRowView(item: commandItem, kind: .information)
+    try check((information.displayedText().attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor) == NSColor.secondaryLabelColor, "System labels use an actionable text color")
     try check(!information.accessibilityPerformPress() && information.isAccessibilityEnabled(), "Information is actionable or falsely dimmed")
 
     let authorizationMenu = ReleaseTrackingMenu()
@@ -172,7 +173,12 @@ func runReleaseUITests() throws {
     try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains { $0.hasPrefix("External keyboard") } && !headings.contains("Input"), "Keyboard groups were not split")
     let titles = app.menu.items.map { $0.title }
     try check(headings.contains("Sleep") && headings.contains("Display") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
-    try check(titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")! && titles.firstIndex(of:"Including with lid closed")! < titles.firstIndex(of:"Display")! && titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")!, "Display action is outside Display section")
+    let sections = headings.map { $0.hasPrefix("External keyboard") ? "External keyboard" : $0 }
+    try check(sections == ["System","Display","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Agent Kill Switch","Perch"], "Section ordering changed")
+    try check(titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")! && titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")!, "Control outside its section")
+    try check(AudioStatus.heading(volume:42,muted:true) == "Audio · 42% · Muted" && AudioStatus.heading(volume:nil,muted:false).contains("unavailable"), "Volume presentation confused muted or unknown with zero")
+    try check(AudioStatus.percentage(0.425) == 43 && AudioStatus.percentage(.nan) == nil && AudioStatus.percentage(1.1) == nil, "Invalid volume converted to a percentage")
+
     try check(!titles.contains("Monitor input settings…"), "Monitor settings duplicated in menu")
     // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]

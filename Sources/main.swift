@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var awakeItem: NSMenuItem!
     var lidItem: NSMenuItem!
     var audioItem: NSMenuItem!
+    var audioSection: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -150,17 +151,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
-        section("Sleep")
-        awakeItem = add("Keep awake", #selector(toggleAwake))
-        awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
-        lidItem = add("Including with lid closed", #selector(toggleLid))
-        lidItem.toolTip = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
         displayItem.toolTip = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
         monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
-        section("Audio")
+        audioSection = section("Audio")
         audioItem = add("Mute audio", #selector(toggleAudio))
         section("Scrolling")
         trackpadItem = add("Reverse trackpad scroll", #selector(toggleTrackpad))
@@ -175,6 +171,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys))
         keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings))
         keyboardSetupItem.isHidden = true
+        section("Sleep")
+        awakeItem = add("Keep awake", #selector(toggleAwake))
+        awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
+        lidItem = add("Including with lid closed", #selector(toggleLid))
+        lidItem.toolTip = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
         setupSafetyMenu()
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
@@ -302,6 +303,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             audioItem.state = muted ? .on : .off
             label(audioItem, "Mute audio")
         } catch { label(audioItem, "Mute audio", hint: "Unavailable"); audioItem.state = .mixed }
+        if menuOpen {
+            let title = AudioStatus.heading(volume:AudioStatus.volume(),muted:audioItem.state == .mixed ? nil : audioItem.state == .on)
+            (audioSection.view as? MenuRowView)?.text = NSAttributedString(string:title,attributes:[.font:NSFont.systemFont(ofSize:11,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
+        }
         if let button = status?.button {
             let critical = currentProtectionIssue?.severity == .critical
             if lastStatusCritical != critical {

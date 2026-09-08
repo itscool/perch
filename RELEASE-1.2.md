@@ -1,6 +1,16 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 55. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 57. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 57: lid-session recovery and accurate protection status
+
+Lid heartbeats now run on a dedicated serial queue, with responsiveness maintained while a user-requested session is active. A busy menu or Settings thread no longer blocks renewal. A delayed, failed or malformed reply makes status unconfirmed and retries the existing token within a bounded recovery window. It does not silently enable another session or extend the helper's five-second lease. Late callbacks cannot undo recovery, disable/new-session choices, or an acknowledged helper stop.
+
+When macOS announces sleep during an active lid session, Perch stops that session, records the remaining battery interval, and retains an explanatory message after wake. Cleanup releases the request without issuing an additional sleep command from this policy path. Earlier watchdog entries remain important because a watchdog failure can also initiate sleep.
+
+Settings, activity history, the menu and Setup & status now label active lid mode as requested with unverified prevention. Setup & status does not count it as ready or repeatedly direct the user through a repair that cannot verify the kernel flag. The checkbox represents the request. The shared macOS clamshell-flag race remains open: this build does not establish reliable protection across undocking. The 60-second normal policy and shorter fail-safe deadlines are unchanged.
+
+Validation: all 20 isolated suites passed, including recovery, late replies, expiry, explicit disable and a real client heartbeat running while the UI thread was blocked. After shortening the overview status text, the lid and overview suites passed again. Native light/dark overview renders, production compilation and strict app/helper signatures passed. All sleep and enforcement mutations were injected; the build was prepared without installing it or changing live helpers, permissions or hardware settings.
 
 ## Build 55: highlighted section titles with overlines
 

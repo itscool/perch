@@ -92,7 +92,7 @@ extension AppDelegate {
     @objc func keepAwakeSettings() {
         let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 532)
         let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
-        let lid = page.add("Including with the lid closed", detail: "Enable with the lid open or external power connected. Wait for Enabled before relying on protection.", checkbox: true) { [weak self] in self?.toggleLid() }
+        let lid = page.add("Including with the lid closed", detail: "Requests lid control with the lid open or external power connected. macOS can override this request; the checkbox does not verify continued protection.", checkbox: true) { [weak self] in self?.toggleLid() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
         page.add("Repair lid protection…", detail: "Reinstall the helper, then enable protection again. The lid can stay closed while external power is connected.") { [weak self] in
             guard let self else { return }; do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() } catch { self.showError(error) }

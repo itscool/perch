@@ -7,6 +7,9 @@ func runSetupOverviewTests() throws {
     config.keepAwake = false; config.targets = []; config.shortcut.enabled = false
     var snapshot = SetupSnapshot(config: config)
     try check(snapshot.checks.allSatisfy { $0.state == .optional }, "Unused optional features demand setup")
+    snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
+    try check(snapshot.checks.first { $0.id == "awake" }?.state == .unverified && snapshot.summary.contains("1 unverified"), "An accepted lid command was counted as ready or as a repairable missing setup step")
+    snapshot.lidGuard = nil
     snapshot.config.shortcut.enabled = true
     try check(snapshot.checks.first { $0.id == "agents" }?.state == .checking, "An enabled shortcut was ignored when no agents were selected")
     config.reverseWheel = true

@@ -12,7 +12,10 @@ final class LidPowerNotifications {
     private var connection: io_connect_t = 0
     private var sleepBegan: Double?
     private let observe: () -> Void
-    init(activity: LidActivityRecorder, observe: @escaping () -> Void = {}) { self.activity = activity; self.observe = observe }
+    private let sleepBeginning: () -> Void
+    init(activity: LidActivityRecorder, observe: @escaping () -> Void = {}, sleepBeginning: @escaping () -> Void = {}) {
+        self.activity = activity; self.observe = observe; self.sleepBeginning = sleepBeginning
+    }
     func start() {
         connection = IORegisterForSystemPower(Unmanaged.passUnretained(self).toOpaque(), &port, { context, _, type, argument in
             guard let context else { return }
@@ -32,6 +35,7 @@ final class LidPowerNotifications {
             observe()
             sleepBegan = LidGuardClock.now
             activity.record("macOS notification: system sleep is beginning.")
+            sleepBeginning()
             IOAllowPowerChange(connection, Int(bitPattern: argument))
         case UInt32(PerchSystemHasPoweredOn):
             activity.record(sleepBegan.map { "macOS notification: wake completed, \(LidActivityTracker.seconds(LidGuardClock.now - $0)) after sleep began." } ?? "macOS notification: wake completed; the preceding sleep was not observed.")

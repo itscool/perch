@@ -69,7 +69,7 @@ final class LidActivityPage {
             switch result {
             case .success(let entries):
                 self.entries = LidActivityStore.retained(entries, now: Date())
-                self.status.stringValue = helper?.activityError ?? (helper?.fresh == true ? "\(self.entries.count) entries · \(helper!.armed ? "Lid protection enabled" : "Lid protection off")" : "\(self.entries.count) saved entries · The lid helper is not currently confirmed. History may have gaps.")
+                self.status.stringValue = helper?.activityError ?? (helper?.fresh == true ? "\(self.entries.count) entries · \(helper!.armed ? "Lid mode requested; prevention unverified" : "Lid session off")" : "\(self.entries.count) saved entries · The lid helper is not currently confirmed. History may have gaps.")
                 self.status.textColor = helper?.fresh == true && helper?.activityError == nil ? .secondaryLabelColor : StatusColors.warning
             case .failure(let error):
                 self.entries = LidActivityStore.retained(self.entries, now: Date())

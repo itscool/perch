@@ -16,6 +16,7 @@ private final class FakeLidHardware: LidGuardHardware {
 
 func runLidGuardTests() throws {
     try runLidActivityTests()
+    try runLidGuardSessionTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     for observation in [LidObservation(closed: true, power: .external), .init(closed: false, power: .external), .init(closed: false, power: .battery)] {
         try LidGuardStart.validate(observation)
@@ -82,6 +83,18 @@ func runLidGuardTests() throws {
     try check(rejected, "Sleep rejection was not reported")
     hardware.rejectSleep = false; try enforcer.apply(expiry, now: 71)
     try check(hardware.calls.suffix(2) == ["request sleep", "request sleep"], "A failed sleep request suppressed retry")
+    // A macOS sleep transition invalidates the session independently of a
+    // healthy transport. No second sleep command or automatic re-arm on wake.
+    var interrupted = LidGuardPolicy()
+    let interruptedHardware = FakeLidHardware(), interruptedEnforcer = LidGuardEnforcer(interruptedHardware)
+    try interruptedEnforcer.apply(interrupted.step(closedAC, now: 0, authorized: true), now: 0)
+    _ = interrupted.step(closedBattery, now: 1, authorized: true)
+    interrupted.systemSleepBegan()
+    try interruptedEnforcer.apply(interrupted.step(closedBattery, now: 2, authorized: true), now: 2)
+    let afterWake = interrupted.step(closedAC, now: 31.7, authorized: true)
+    try check(!afterWake.preventLidSleep && !afterWake.requestSleep && interrupted.sleepInterruption != nil, "Wake cleared the sleep interruption or revived the session")
+    try check(interruptedHardware.calls == ["prevent lid", "release lid"], "Sleep notification sent another sleep command or retained prevention")
+    try check(LidGuardStatus(updatedAt: LidGuardClock.now, armed: true, detail: "Lid closed on power.").displayDetail.contains("unverified"), "Command acceptance still claims verified sleep prevention")
     let session = UUID().uuidString
     var watcher = LidGuardWatchdogState()
     try check(watcher.receive(.init(token: session, expires: 3, deadline: 60), now: 0), "Valid watchdog lease rejected")

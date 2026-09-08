@@ -318,7 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             LidGuardClient.shared.refresh()
             let guarded = LidGuardClient.shared.active
             lidItem.state = LidGuardClient.controlState(legacyDisabled: disabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.exists)
-            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Open lid within \($0)s" } ?? "Powered, or 60s on battery") : lidItem.state == .mixed || LidGuardClient.shared.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
+            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Requested · \($0)s remaining" } ?? "Requested · unverified") : lidItem.state == .mixed || LidGuardClient.shared.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
             label(lidItem, "Including with lid closed", hint: hint, hintColor: disabled ? StatusColors.warning : .secondaryLabelColor)
         } catch { observedLidDisabled = nil; label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
         applyLidSleepPresentation()
@@ -358,9 +358,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             lidItem.state = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) ? .on : .off
             label(lidItem, "Including with lid closed", hint: "Applies when Keep awake is on")
         }
-        if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid open or closed") }
+        if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid mode requested") }
         awakeItem.toolTip = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
-        lidItem.toolTip = "Stay awake with the lid closed on external power. On battery, you have 60 seconds to open the lid after undocking or closing it. If it stays closed, Perch requests sleep. Set up the authorized helper with the lid open."
+        lidItem.toolTip = "Request closed-lid keep-awake on external power, with 60 seconds to open the lid or reconnect power after undocking. macOS can override this request; continued protection is unverified. Set up with the lid open or external power connected."
     }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }

@@ -148,7 +148,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         powerObserver = LidPowerNotifications(activity: activity, observe: { [weak self] in
             guard let self else { return }
             for message in self.activityTracker.observe(self.hardware.observe(), now: LidGuardClock.now) { self.activity.record(message) }
-        })
+        }, sleepBeginning: { [weak self] in self?.systemSleepBegan() })
         powerObserver?.start()
         // Launchd restarts begin disarmed; old UI preferences cannot re-arm us.
         do {
@@ -165,6 +165,16 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
         withExtendedLifetime(self) { RunLoop.main.run() }; exit(0)
+    }
+    private func systemSleepBegan() {
+        guard token != nil, snapshot.armed, !policy.stopped else { return }
+        let now = LidGuardClock.now
+        let remaining = policy.deadline.map { " Battery deadline had \(LidActivityTracker.seconds($0 - now)) remaining." } ?? " No battery countdown was active."
+        activity.record("Sleep interrupted an active lid session. This helper had not requested sleep in the session; check earlier Watchdog entries too.\(remaining) macOS does not provide the cause in this notification.")
+        policy.systemSleepBegan()
+        snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: policy.sleepInterruption!, error: policy.sleepInterruption)
+        // The next supervised tick releases the command. Never perform power
+        // mutations inside the macOS notification callback.
     }
     private func tick() {
         let now = LidGuardClock.now
@@ -198,7 +208,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
                     throw AppError(message: "The watchdog ended this session before lid control was confirmed.")
                 }
                 if !decision.preventLidSleep { try LidGuardOwnership.release(enforcer, sleep: decision.requestSleep, now: now); token = nil }
-                snapshot = .init(updatedAt: now, armed: decision.preventLidSleep, remaining: decision.remaining, detail: decision.detail)
+                snapshot = .init(updatedAt: now, armed: decision.preventLidSleep, remaining: decision.remaining, detail: decision.detail, error: policy.sleepInterruption)
             } catch {
                 activity.record("Lid session failed: \(error.localizedDescription)", coalesce: true)
                 token = nil

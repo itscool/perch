@@ -5,7 +5,7 @@ enum SetupRoute: String {
 }
 
 struct SetupCheck: Equatable {
-    enum State: String { case ready = "Ready", attention = "Needs attention", optional = "Optional", checking = "Checking" }
+    enum State: String { case ready = "Ready", attention = "Needs attention", optional = "Optional", checking = "Checking", unverified = "Unverified" }
     let id: String
     let title: String
     let state: State
@@ -76,7 +76,7 @@ struct SetupSnapshot {
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
-            add("awake", "Keep awake", .ready, lidGuard!.detail, "Adjust sleep…", .awake)
+            add("awake", "Keep awake", .unverified, "Lid mode is requested. macOS can override it; continued sleep prevention cannot be verified.", "Review sleep…", .awake)
         } else if !config.keepAwake && lidDisabled != true {
             add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
         } else if !guardianReady && config.keepAwake {
@@ -117,7 +117,7 @@ struct SetupSnapshot {
     var summary: String {
         let items = checks
         let count: (SetupCheck.State) -> Int = { state in items.filter { $0.state == state }.count }
-        return "\(count(.attention)) \(count(.attention) == 1 ? "needs" : "need") attention · \(count(.ready)) ready · \(count(.optional)) optional" + (count(.checking) > 0 ? " · \(count(.checking)) checking" : "")
+        return "\(count(.attention)) \(count(.attention) == 1 ? "needs" : "need") attention · \(count(.ready)) ready · \(count(.optional)) optional" + (count(.checking) > 0 ? " · \(count(.checking)) checking" : "") + (count(.unverified) > 0 ? " · \(count(.unverified)) unverified" : "")
     }
 }
 
@@ -174,7 +174,7 @@ final class SetupOverviewPage {
         let snapshot = read(); checks = snapshot.checks; summary.stringValue = snapshot.summary
         summary.textColor = checks.contains { $0.state == .attention } ? StatusColors.warning : .labelColor
         for (index, item) in checks.enumerated() {
-            let color: NSColor = item.state == .attention ? StatusColors.warning : item.state == .ready ? StatusColors.success : .labelColor
+            let color: NSColor = item.state == .attention || item.state == .unverified ? StatusColors.warning : item.state == .ready ? StatusColors.success : .labelColor
             let text = NSMutableAttributedString(string: item.title + " · " + item.state.rawValue + "\n", attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: color])
             text.append(NSAttributedString(string: item.detail, attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
             labels[index].attributedStringValue = text

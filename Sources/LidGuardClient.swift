@@ -59,67 +59,81 @@ final class LidGuardClient {
         // error message, but do not turn it into an unknown active override.
         return .off
     }
+    private let queue = DispatchQueue(label: "local.scott.perch.lid-heartbeat", qos: .userInitiated)
+    private let stateLock = NSLock()
+    private var publishedStatus: LidGuardStatus?
+    private var publishedChanging = false
     private var connection: NSXPCConnection?
-    private var token: String?
-    private var timer: Timer?
-    private var pending = false
-    private var generation = UUID()
-    private(set) var status: LidGuardStatus?
-    private(set) var changing = false
-    var active: Bool { status?.fresh == true && status?.armed == true && status?.error == nil }
-    var detail: String { status?.fresh == true ? status!.detail : "Lid protection is not confirmed. Review the lid helper; setup can run with the lid closed on external power." }
+    private var timer: DispatchSourceTimer?
+    private var responsiveness: NSObjectProtocol?
+    private let injectedTransport: LidGuardSession.Send?
+    init(transport: LidGuardSession.Send? = nil) { injectedTransport = transport }
+    var status: LidGuardStatus? { stateLock.withLock { publishedStatus } }
+    var changing: Bool { stateLock.withLock { publishedChanging } }
+    var active: Bool { let current = status; return current?.fresh == true && current?.armed == true && current?.error == nil }
+    var detail: String { let current = status; return current?.fresh == true ? current!.displayDetail : "Lid protection is not confirmed. Checking the helper connection…" }
+    private lazy var session = LidGuardSession(send: { [weak self] request, reply in
+        guard let self else { reply(nil); return }
+        let complete: (Data?) -> Void = { [weak self] data in self?.queue.async { reply(data) } }
+        if let transport = self.injectedTransport { transport(request, complete); return }
+        guard let remote = self.proxy(failure: { complete(nil) }) else { return }
+        switch request {
+        case .status: remote.status { complete($0) }
+        case .renew(let token): remote.renew(token) { complete($0) }
+        case .change(let enabled): remote.setEnabled(enabled) { complete($0) }
+        }
+    }, schedule: { [weak self] delay, action in
+        self?.queue.asyncAfter(deadline: .now() + delay, execute: action)
+    }, invalidate: { [weak self] in
+        self?.connection?.invalidate(); self?.connection = nil
+    }, publish: { [weak self] status, changing in
+        self?.stateLock.withLock { self?.publishedStatus = status; self?.publishedChanging = changing }
+    }, activity: { [weak self] active in
+        guard let self else { return }
+        if active && self.responsiveness == nil {
+            // Keep this user-requested heartbeat responsive while the menu and
+            // Settings are hidden, without asserting that the Mac cannot sleep.
+            self.responsiveness = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Maintain the user-enabled lid session heartbeat")
+        } else if !active, let activity = self.responsiveness {
+            ProcessInfo.processInfo.endActivity(activity); self.responsiveness = nil
+        }
+    })
     func start() {
-        guard !SettingsWindow.shared.testing, timer == nil else { return }
-        timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
-        RunLoop.main.add(timer!, forMode: .common); refresh()
+        guard !SettingsWindow.shared.testing || injectedTransport != nil else { return }
+        queue.async { [weak self] in
+            guard let self, self.timer == nil else { return }
+            let timer = DispatchSource.makeTimerSource(queue: self.queue)
+            timer.schedule(deadline: .now(), repeating: 1, leeway: .milliseconds(50))
+            timer.setEventHandler { [weak self] in self?.session.refresh() }
+            self.timer = timer; timer.resume()
+        }
     }
     private func proxy(failure: @escaping () -> Void) -> LidGuardProtocol? {
-        guard !SettingsWindow.shared.testing, let requirement = HelperStatusIPC.requirement else { failure(); return nil }
+        guard let requirement = HelperStatusIPC.requirement else { failure(); return nil }
         if connection == nil {
             let new = NSXPCConnection(machServiceName: LidGuardService.name, options: .privileged)
             new.setCodeSigningRequirement(requirement); new.remoteObjectInterface = NSXPCInterface(with: LidGuardProtocol.self)
             new.resume(); connection = new
         }
-        return connection?.remoteObjectProxyWithErrorHandler { _ in DispatchQueue.main.async(execute: failure) } as? LidGuardProtocol
-    }
-    private func received(_ data: Data) -> Bool {
-        guard data.count <= 4096, let reply = try? JSONDecoder().decode(LidGuardReply.self, from: data), reply.status.fresh else { return false }
-        status = reply.status
-        if !reply.status.armed { token = nil }
-        return true
+        return connection?.remoteObjectProxyWithErrorHandler { _ in failure() } as? LidGuardProtocol
     }
     func refresh() {
-        guard !pending, !changing, !SettingsWindow.shared.testing else { return }
-        pending = true; generation = UUID(); let request = generation
-        let finish: (Data?) -> Void = { [weak self] data in
-            guard let self, self.generation == request else { return }; self.pending = false
-            if let data { _ = self.received(data) } else { self.connection?.invalidate(); self.connection = nil; self.token = nil }
-        }
-        let remote = proxy { finish(nil) }
-        let reply: (Data) -> Void = { data in DispatchQueue.main.async { finish(data) } }
-        if let token { remote?.renew(token, reply: reply) } else { remote?.status(reply) }
-        DispatchQueue.main.asyncAfter(deadline: .now()+2) { [weak self] in
-            guard let self, self.pending, self.generation == request else { return }; finish(nil); self.generation = UUID()
-        }
+        guard !SettingsWindow.shared.testing || injectedTransport != nil else { return }
+        queue.async { [weak self] in self?.session.refresh() }
     }
     func change(_ enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
-        guard !changing else { return }
-        changing = true; pending = false; generation = UUID(); let request = generation
-        if !enabled { token = nil }
-        var finished = false
-        let finish: (Data?) -> Void = { [weak self] data in
-            guard let self, !finished, self.generation == request else { return }; finished = true; self.changing = false
-            if let data, self.received(data), let reply = try? JSONDecoder().decode(LidGuardReply.self, from: data), reply.status.error == nil, reply.status.armed == enabled {
-                self.token = enabled ? reply.token : nil; completion(.success(()))
-            } else {
-                self.token = nil; self.connection?.invalidate(); self.connection = nil
-                completion(.failure(AppError(message: self.status?.fresh == true ? self.status!.detail : "The lid helper did not confirm the change. Review lid protection and retry with the lid open or external power connected.")))
-            }
+        guard !SettingsWindow.shared.testing || injectedTransport != nil else {
+            completion(.failure(AppError(message: "Live lid changes are blocked in tests."))); return
         }
-        let remote = proxy { finish(nil) }
-        remote?.setEnabled(enabled) { data in DispatchQueue.main.async { finish(data) } }
-        DispatchQueue.main.asyncAfter(deadline: .now()+3) { finish(nil) }
+        queue.async { [weak self] in
+            self?.session.change(enabled) { result in DispatchQueue.main.async { completion(result) } }
+        }
     }
+    deinit {
+        timer?.cancel(); connection?.invalidate()
+        if let responsiveness { ProcessInfo.processInfo.endActivity(responsiveness) }
+    }
+
 }
 
 extension AppDelegate {

@@ -85,6 +85,14 @@ func runNavigationProbeUITests() throws {
     host.testing = true
     AppDelegate().configureSettings()
     let identity = host.window.windowNumber
+    let knownIdentity = NavigationKeyboardIdentity(vendor: 1133, product: 45915, version: 19, name: "MX Keys", transport: "Bluetooth Low Energy", usages: [74,75,77,78])
+    let knownKeyboard = NavigationProbeKeyboard(id: 420, name: knownIdentity.name, transport: knownIdentity.transport, identity: knownIdentity)
+    let known = NavigationProbePage(enumerate: { [knownKeyboard] }, hasAccess: { false },
+        saveProfile: { _ in throw AppError(message: "Recognized keyboard unexpectedly saved a learned layout") }, readProfiles: { [] })
+    known.show()
+    try check(known.instruction.stringValue == "Layout ready — no setup needed." && known.rows.allSatisfy { $0.stringValue.contains("— recognized") }, "Known layout still presents unidentified-key setup")
+    try check(!known.permission.stringValue.contains("⚠") && known.permission.stringValue.contains("different layout") && known.timer == nil, "Known layout requires input access or starts listening")
+    host.goBack()
     var saved: [NavigationKeyboardProfile] = []
     let page = NavigationProbePage(enumerate: { [] }, hasAccess: { true }, saveProfile: { saved.append($0) })
     page.show()

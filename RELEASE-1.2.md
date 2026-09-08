@@ -1,6 +1,12 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 47. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 48. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 48: keyboard recognition correction
+
+Known external keyboards, including MX Keys, are identified from macOS registry metadata without requiring an HID input client or manual four-key learning. The existing 28-profile catalog still requires exact model/transport and matching navigation usages, and saved custom layouts take precedence. The learning page shows recognized keys as ready; Input Monitoring is needed only for learning a different layout. Home/End and Page Up/Down behavior remain explicit choices. Read-only reproduction confirmed that the previous device path could return no keyboards despite available identity and descriptor data. Clean-Mac and physical key-delivery acceptance remain open.
+
+Build 48 validation: production compilation, strict signature verification and all 20 isolated suites passed. A separate read-only check using the production metadata/registration code and no saved profiles recognized the connected MX Keys and all four navigation usages. This does not claim physical remapping delivery or a completed installation on a second Mac.
 
 ## Build 47: remote lid setup
 

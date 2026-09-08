@@ -3,7 +3,6 @@ import IOKit.hid
 import IOKit.hidsystem
 
 struct NavigationProbeKeyboard {
-    let device: IOHIDDevice
     let id: UInt64
     let name: String
     let transport: String
@@ -17,19 +16,15 @@ struct NavigationProbeKeyboard {
         var result: [NavigationProbeKeyboard] = []
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
-            guard let device = IOHIDDeviceCreate(kCFAllocatorDefault, service), IOHIDDeviceConformsTo(device, 1, 6) else { continue }
+            var properties: Unmanaged<CFMutableDictionary>?
+            guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+                  let properties = properties?.takeRetainedValue() as? [String: Any] else { continue }
             let builtIn = IORegistryEntrySearchCFProperty(service, kIOServicePlane, "Built-In" as CFString, kCFAllocatorDefault,
                 IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)) as? NSNumber
-            let transport = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? ""
-            guard NavigationDeviceScope.isExternal(builtIn: builtIn?.boolValue, transport: transport) else { continue }
+            guard let identity = NavigationKeyboardMetadata.identity(properties, ancestorBuiltIn: builtIn?.boolValue) else { continue }
             var id: UInt64 = 0
             guard IORegistryEntryGetRegistryEntryID(service, &id) == KERN_SUCCESS, id != 0 else { continue }
-            let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "External keyboard"
-            func number(_ key: String) -> Int { (IOHIDDeviceGetProperty(device, key as CFString) as? NSNumber)?.intValue ?? 0 }
-            let elements = IOHIDDeviceCopyMatchingElements(device, [kIOHIDElementUsagePageKey: 7] as CFDictionary, 0) as? [IOHIDElement] ?? []
-            let usages = Set(elements.map { IOHIDElementGetUsage($0) }.filter { NavigationLearning.allowed($0) }).sorted()
-            let identity = NavigationKeyboardIdentity(vendor: number(kIOHIDVendorIDKey), product: number(kIOHIDProductIDKey), version: number(kIOHIDVersionNumberKey), name: name, transport: transport, usages: usages)
-            result.append(.init(device: device, id: id, name: name, transport: transport, identity: identity))
+            result.append(.init(id: id, name: identity.name, transport: identity.transport, identity: identity))
         }
         return result.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
     }
@@ -39,6 +34,7 @@ struct NavigationProbeKeyboard {
 /// tap, exclusive grab, key injection, settings write, or input report callback.
 final class NavigationProbeHID: NavigationProbeSource {
     let keyboard: NavigationProbeKeyboard
+    private var device: IOHIDDevice?
     private var opened = false
     private var value: ((UInt64, UInt32, UInt32, Int) -> Void)?
     private var failed: ((String) -> Void)?
@@ -49,8 +45,15 @@ final class NavigationProbeHID: NavigationProbeSource {
         precondition(Thread.isMainThread)
         guard !opened else { return }
         guard Self.hasAccess else { throw AppError(message: "Enable Input Monitoring for Perch, then start the test again.") }
+        // Create an input client only for an explicit learning session. Resolve
+        // the exact registry identity again so a reconnect cannot change targets.
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IORegistryEntryIDMatching(keyboard.id))
+        guard service != 0 else { throw AppError(message: "Keyboard disconnected. Recheck keyboards before learning its keys.") }
+        defer { IOObjectRelease(service) }
+        guard let device = IOHIDDeviceCreate(kCFAllocatorDefault, service) else {
+            throw AppError(message: "Could not access \(keyboard.name). Review Input Monitoring, then recheck keyboards.")
+        }
         self.value = value; self.failed = failed
-        let device = keyboard.device
         let usages = learning ? NavigationLearning.usages : NavigationKey.allCases.map { $0.rawValue }
         let matches = usages.map { [kIOHIDElementUsagePageKey: 7, kIOHIDElementUsageKey: Int($0)] }
         IOHIDDeviceSetInputValueMatchingMultiple(device, matches as CFArray)
@@ -59,6 +62,7 @@ final class NavigationProbeHID: NavigationProbeSource {
             self.value = nil; self.failed = nil
             throw AppError(message: "Could not observe \(keyboard.name) (\(result)). Wake or reconnect it, then recheck keyboards.")
         }
+        self.device = device
         opened = true
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDDeviceRegisterInputValueCallback(device, { context, result, _, value in
@@ -82,13 +86,13 @@ final class NavigationProbeHID: NavigationProbeSource {
         IOHIDDeviceScheduleWithRunLoop(device, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
     }
     func stop() {
-        guard opened else { return }
+        guard opened, let device else { return }
         opened = false
-        let device = keyboard.device
         IOHIDDeviceUnscheduleFromRunLoop(device, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         IOHIDDeviceRegisterInputValueCallback(device, nil, nil)
         IOHIDDeviceRegisterRemovalCallback(device, nil, nil)
         IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+        self.device = nil
         value = nil; failed = nil
     }
     deinit { stop() }

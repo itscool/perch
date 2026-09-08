@@ -588,13 +588,17 @@ if CommandLine.arguments.contains("--event-self-test") {
     do { try runProcessEventTests(); exit(0) } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
 }
 if CommandLine.arguments.contains("--navigation-device-info") {
-    let devices = NavigationEventDevices.read(profiles: (try? KeyboardNavigationProfiles.read()) ?? [])
+    let connected = NavigationProbeKeyboard.connected()
+    let saved = (try? KeyboardNavigationProfiles.read()) ?? []
+    let registrations = connected.map { KeyboardRegistrationStatus.assess($0.identity, saved: saved) }
+    let devices = NavigationEventDevices.read(profiles: registrations.compactMap { $0.profile })
     let native = NativeModifierKeys.keyboards().map { keyboard -> [String:Any] in
         let result: [String:Any] = ["name":keyboard.name,"vendor":keyboard.vendor,"builtIn":keyboard.builtIn,"id":IOHIDServiceClientGetRegistryID(keyboard.service),"product":IOHIDServiceClientCopyProperty(keyboard.service,"ProductID" as CFString) ?? NSNull(),"transport":IOHIDServiceClientCopyProperty(keyboard.service,"Transport" as CFString) ?? NSNull()]
         return result
     }
-    let physical = NavigationProbeKeyboard.connected().map { ["name":$0.name,"vendor":$0.identity.vendor,"product":$0.identity.product,"transport":$0.transport,"usages":$0.identity.usages] as [String:Any] }
-    let output: [String:Any] = ["native":native,"physical":physical,"profiles":BundledNavigationProfiles.entries.count,"matched":devices.map { ["sender":String($0.key),"keyCount":$0.value.count] as [String:Any] }]
+    let physical = connected.map { ["name":$0.name,"vendor":$0.identity.vendor,"product":$0.identity.product,"transport":$0.transport,"usages":$0.identity.usages] as [String:Any] }
+    let registration = registrations.map { ["name":$0.name,"needsSetup":$0.needsSetup,"detail":$0.detail] as [String:Any] }
+    let output: [String:Any] = ["native":native,"physical":physical,"registration":registration,"profiles":BundledNavigationProfiles.entries.count,"matched":devices.map { ["sender":String($0.key),"keyCount":$0.value.count] as [String:Any] }]
     if let data = try? JSONSerialization.data(withJSONObject: output,options:[.sortedKeys]), let text = String(data:data,encoding:.utf8) { print(text) }
     exit(0)
 }

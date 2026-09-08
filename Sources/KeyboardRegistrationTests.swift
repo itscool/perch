@@ -2,6 +2,35 @@ import AppKit
 
 func runKeyboardRegistrationTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    // A fresh Mac can expose registry metadata while the input client returns
+    // no conformance/elements. Recognition must not depend on that client.
+    let inputKeys: [[String: Any]] = [74, 77, 75, 78, 4, 224].map { ["UsagePage": 7, "Usage": $0, "Type": 2] }
+    let collection: [String: Any] = ["Type": 513, "UsagePage": 1, "Usage": 6, "Elements": inputKeys + [
+        ["UsagePage": 7, "Usage": 104, "Type": 129], // output, not an input key
+        ["UsagePage": 12, "Usage": 105, "Type": 2], // consumer page
+        ["UsagePage": 7, "Usage": -1, "Type": 2]
+    ]]
+    let metadata: [String: Any] = ["Product": "MX Keys", "VendorID": 1133, "ProductID": 45915,
+        "VersionNumber": 19, "Transport": "Bluetooth Low Energy",
+        "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 6]], "Elements": [collection]]
+    guard let freshIdentity = NavigationKeyboardMetadata.identity(metadata) else { throw AppError(message: "Registry keyboard was dropped before registration") }
+    let fresh = KeyboardRegistrationStatus.assess(freshIdentity, saved: [])
+    try check(!fresh.needsSetup && fresh.profile?.keys == [74, 77, 75, 78], "Fresh MX Keys required learning despite its bundled layout")
+    try check(freshIdentity.usages == [74, 75, 77, 78], "Descriptor included typing, output or consumer keys")
+    try check(NavigationEventDevices.mapping(fresh.profile!) == [115:115, 119:119, 116:116, 121:121], "Bundled recognition did not reach runtime navigation mapping")
+    for transport in ["FIFO", "Virtual", "Unknown", ""] {
+        var changed = metadata; changed["Transport"] = transport
+        try check(NavigationKeyboardMetadata.identity(changed) == nil, "Registry metadata admitted an internal/unknown transport")
+    }
+    var builtIn = metadata; builtIn["Built-In"] = true
+    try check(NavigationKeyboardMetadata.identity(builtIn) == nil && NavigationKeyboardMetadata.identity(metadata, ancestorBuiltIn: true) == nil, "Built-in keyboard entered metadata registration")
+    var mouse = metadata; mouse["DeviceUsagePairs"] = [["DeviceUsagePage": 1, "DeviceUsage": 2]]
+    try check(NavigationKeyboardMetadata.identity(mouse) == nil, "Mouse metadata was treated as a keyboard")
+    var missing = metadata; missing.removeValue(forKey: "Elements")
+    try check(KeyboardRegistrationStatus.assess(NavigationKeyboardMetadata.identity(missing)!, saved: []).needsSetup, "Unreadable descriptor silently inherited a layout")
+    try check(NavigationKeyboardMetadata.usages([["Type": 513, "Elements": "bad"]]) == nil, "Malformed element tree was accepted")
+    try check(NavigationKeyboardMetadata.usages(Array(repeating: collection, count: 4097)) == nil, "Oversized descriptor bypassed the work limit")
+    try check(NavigationKeyboardMetadata.usages(inputKeys) == [], "Keys outside a keyboard collection were used")
     func identity(vendor: Int = 1234, product: Int = 123, version: Int = 1, name: String = "Unknown keyboard", transport: String = "USB", usages: [UInt32] = NavigationLearning.usages.sorted()) -> NavigationKeyboardIdentity {
         .init(vendor: vendor, product: product, version: version, name: name, transport: transport, usages: usages)
     }
@@ -79,7 +108,7 @@ func runKeyboardRegistrationTests() throws {
     try check(session.state.phase == .incomplete && next.stops == 1 && session.state.learnedKeys == nil, "Late skip bypassed setup timeout")
     session.markAllAbsent(deviceID: 42)
     try check(session.state.learnedKeys == [nil,nil,nil,nil], "Declaring absent keys requires an input subscription")
-    print("PASS: bundled MX Keys; unknown models always need setup; scoped persistent profiles; overrides, absent keys, corrupt data; guided learning excludes typing; matched release, duplicates, cancellation and timeout; isolated preferences/mock input")
+    print("PASS: fresh-Mac MX Keys from registry metadata without an input client; descriptor bounds/source filtering; bundled profiles; scoped persistence and overrides; guided learning isolation and cleanup")
 }
 
 func runKeyboardRegistrationUITests() throws {

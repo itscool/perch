@@ -76,7 +76,7 @@ extension AppDelegate {
         refreshNavigationItems()
         if let item = keyboardSetupItem {
             item.isHidden = !keyboardModes.registrationNeedsSetup
-            label(item, "Set up keyboard…", hint: "⚠ Unrecognized layout", hintColor: StatusColors.warning)
+            label(item, "Set up keyboard…", hint: "⚠ Review navigation keys", hintColor: StatusColors.warning)
             item.toolTip = keyboardModes.attentionDetail
         }
         refreshExternalKeyboardSection()

@@ -169,14 +169,15 @@ final class NavigationProbePage: NSObject {
         let offline = selected == nil && selectedIdentity != nil
         registration.stringValue = profileReadError.map { "⚠ " + $0 } ?? recognized?.detail ?? "Connect an external keyboard, then recheck."
         registration.textColor = profileReadError == nil && recognized?.needsSetup == false ? StatusColors.success : StatusColors.warning
-        permission.stringValue = offline ? "Saved keyboard · disconnected" : access ? "✓ Input Monitoring granted to Perch" : "⚠ Input Monitoring required to learn a layout"
-        permission.textColor = offline ? .secondaryLabelColor : access ? StatusColors.success : StatusColors.warning
+        let ready = recognized?.needsSetup == false
+        permission.stringValue = offline ? "Saved keyboard · disconnected" : access ? "✓ Input Monitoring granted to Perch" : ready ? "Input Monitoring is only needed to learn a different layout." : "⚠ Input Monitoring required to learn a layout"
+        permission.textColor = offline || (ready && !access) ? .secondaryLabelColor : access ? StatusColors.success : StatusColors.warning
         drag.isHidden = access || profileReadError != nil || offline; open.isHidden = access || offline
         reset.isHidden = !access && profileReadError == nil && !offline
         reset.isEnabled = !active && (!profiles.isEmpty || profileReadError != nil)
         picker.isEnabled = !active && (!keyboards.isEmpty || !disconnected.isEmpty); recheck.isEnabled = !active
         start.isEnabled = !active && access && selected?.identity.canRemember == true && profileReadError == nil
-        start.title = active ? "Setup in progress…" : session.state.phase == .idle ? "Start setup" : "Set up again"
+        start.title = active ? "Setup in progress…" : session.state.phase == .idle ? (ready ? "Learn a different layout" : "Start setup") : "Set up again"
         skip.title = active ? "This key is absent" : "No navigation keys"
         skip.isHidden = session.state.phase == .complete
         accept.isHidden = session.state.phase != .complete
@@ -186,13 +187,18 @@ final class NavigationProbePage: NSObject {
         cancel.isHidden = !active
         for (index, key) in NavigationKey.allCases.enumerated() {
             let state = session.state.keys[index]
-            rows[index].stringValue = state.absent ? "✓ \(key.name) — marked absent" : state.complete ? "✓ \(key.name) — identified" : state.held ? "\(key.name) — pressed; release it" : "\(key.name) — not identified yet"
-            rows[index].textColor = state.complete ? StatusColors.success : state.held ? StatusColors.information : .secondaryLabelColor
+            if session.state.phase == .idle, let profile = recognized?.profile {
+                rows[index].stringValue = profile.keys[index] == nil ? "\(key.name) — marked absent in this layout" : "✓ \(key.name) — recognized"
+                rows[index].textColor = profile.keys[index] == nil ? .secondaryLabelColor : StatusColors.success
+            } else {
+                rows[index].stringValue = state.absent ? "✓ \(key.name) — marked absent" : state.complete ? "✓ \(key.name) — identified" : state.held ? "\(key.name) — pressed; release it" : "\(key.name) — not identified yet"
+                rows[index].textColor = state.complete ? StatusColors.success : state.held ? StatusColors.information : .secondaryLabelColor
+            }
         }
         switch session.state.phase {
         case .idle:
-            instruction.stringValue = "Start setup to identify one key at a time."
-            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : recognized?.needsSetup == false ? "This keyboard is recognized. Learn a replacement only if its navigation keys behave differently." : "Learn a layout if you want to change navigation behavior. Fn and modifier controls work independently. Mark any missing key with “This key is absent.”"
+            instruction.stringValue = ready && !offline ? "Layout ready — no setup needed." : "Start setup to identify one key at a time."
+            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : ready ? "Return to Navigation keys to choose Home/End and Page Up/Down behavior. Learn a different layout only if these keys behave differently." : "Learn a layout if you want to change navigation behavior. Fn and modifier controls work independently. Mark any missing key with “This key is absent.”"
             status.textColor = .secondaryLabelColor
         case .listening:
             let key = session.state.currentKey?.name ?? "next key"

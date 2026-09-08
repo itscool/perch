@@ -1,6 +1,14 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 54. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 55. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 55: highlighted section titles with overlines
+
+The selected menu treatment now highlights only each section title and places a two-point colored line above it. Action rows use the neutral menu background. System remains first and neutral, Agent Kill Switch remains immediately after System, and the existing three-point gaps and row heights are preserved. This implements option B from the title-style comparison. Menu actions and shortcut labels retain their existing behavior.
+
+The user traced the reported missing checkbox, button and list-box outlines on the other Mac to that monitor's contrast. That report is resolved separately from this appearance change. The reported early closed-lid sleep and other open functional findings remain under investigation.
+
+All 20 isolated suites pass. Native menu renders were inspected in light and dark appearances; production compilation, strict signatures and archive integrity passed. Prepared separately from the running app, with no installed helper, permission or hardware change.
 
 ## Build 54: agent settings interactions and menu shortcuts
 

@@ -142,19 +142,14 @@ final class MenuRowView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            if let panelPart, let panelSection {
-                NSGraphicsContext.saveGraphicsState()
-                NSBezierPath(rect:bounds).addClip()
-                Self.tint(for: panelSection).withAlphaComponent(0.075).setFill()
-                var panel = bounds.insetBy(dx:4,dy:0)
-                switch panelPart {
-                case .top: panel.origin.y -= 8; panel.size.height += 5 // three-point gap above each tinted group
-                case .bottom: panel.size.height += 8
-                case .middle: break
-                }
-                if panelPart == .middle { panel.fill() }
-                else { NSBezierPath(roundedRect:panel,xRadius:8,yRadius:8).fill() }
-                NSGraphicsContext.restoreGraphicsState()
+            if kind == .section, let panelSection {
+                // Keep the existing three-point gap; decorate only the title.
+                let title = NSRect(x: 4, y: 0, width: bounds.width - 8, height: bounds.height - 3)
+                let tint = Self.tint(for: panelSection)
+                tint.withAlphaComponent(0.075).setFill()
+                title.fill()
+                (tint.blended(withFraction: 0.25, of: .labelColor) ?? tint).setFill()
+                NSRect(x: title.minX, y: title.maxY - 2, width: title.width, height: 2).fill()
             }
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
@@ -185,7 +180,7 @@ final class MenuRowView: NSView {
 }
 
 extension AppDelegate {
-    /// Neutral System readings first; faint color groups replace separator rules.
+    /// Neutral System readings first; highlighted titles with colored overlines.
     /// Re-evaluate visible boundaries when optional keyboard/protection rows change.
     func styleMenuSections() {
         var section = "System", rows: [MenuRowView] = []

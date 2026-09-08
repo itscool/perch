@@ -15,6 +15,7 @@ struct SettingsResetSelection {
     ]
     func removes(_ key: String) -> Bool {
         if all { return true }
+        if sections.contains("awake") && key == SleepMasterChange.lidPreferenceKey { return true }
         if sections.contains("input") && ["reverseTrackpad", "reverseWheel", "swapModifiers"].contains(key) { return true }
         if sections.contains("keyboard") && (key == KeyboardNavigationProfiles.key || key.hasPrefix("modifierSwap.") || key == NativeFunctionKeys.externalIntentKey) { return true }
         if sections.contains("monitor") && (key == MonitorInputController.preferenceKey || key.hasPrefix("monitor.confirmed.")) { return true }

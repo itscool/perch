@@ -23,8 +23,8 @@ Perch installs separate launchd process-monitor and input helpers on first launc
 
 ## Everyday controls
 
-- **Keep awake:** keeps the Mac awake through the background helper while letting the display sleep. The menu queries live assertions, including external caffeinate sessions. Turning it off releases Perch’s assertion and stops your active `/usr/bin/caffeinate` sessions. It does not terminate unrelated apps holding their own assertions.
-- **Keep awake with lid closed:** queries and changes macOS’s global `pmset -a disablesleep` override. This affects all system sleep and requires administrator authorization. It persists when Perch quits. The menu closes before authorization, and a result dialog always reports the actual setting afterward, including cancellation. When enabled, it repeats “⚠ Keep ventilated”.
+- **Keep awake:** master switch for Perch’s idle-sleep prevention and the lid override. It queries live assertions and the system override. Turning it off first removes the lid override (administrator authorization when needed), then releases Perch’s assertion and stops your active `/usr/bin/caffeinate` sessions. Cancellation stops the operation; unrelated apps’ assertions are untouched.
+- **Including with lid closed:** available while Keep awake is on. Changes macOS’s global `pmset -a disablesleep` override, which persists after quitting. The choice is remembered while the master is off, with the explicit hint “Applies when Keep awake is on.” Re-enabling the master reapplies that preference with authorization. Active lid operation shows “⚠ Keep ventilated”; a result dialog reports actual lid state after changes or cancellation.
 - **Turn display off:** turns off the display; moving the mouse or pressing a key wakes it.
 - **Mute audio:** queries current output mute and toggles it without changing the volume.
 - **Reverse trackpad scroll / Reverse mouse wheel:** independently reverses only the vertical axis. Trackpad gesture/momentum phases distinguish ordinary trackpads from wheels; third-party drivers synthesizing gestures may need hardware testing.

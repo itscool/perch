@@ -35,7 +35,7 @@ final class MenuRowView: NSView {
     var highlighted: Bool { enabled && (hover || keyboardHighlight) }
     private func resizeForText() {
         let shortcutWidth: CGFloat = item?.keyEquivalent.isEmpty == false ? 40 : 0
-        let width = max(430, ceil(text.size().width) + 45 + shortcutWidth)
+        let width = max(430, ceil(text.size().width) + (kind == .section ? 58 : 45) + shortcutWidth)
         // Avoid window/layout invalidation on unchanged periodic status updates.
         if frame.width != width { setFrameSize(NSSize(width: width, height: frame.height)) }
     }
@@ -110,10 +110,22 @@ final class MenuRowView: NSView {
                 let tinted = sectionSymbol.copy() as! NSImage
                 tinted.isTemplate = false
                 tinted.lockFocus()
-                NSColor.secondaryLabelColor.setFill()
+                let title = item?.title ?? ""
+                let tint: NSColor
+                switch title {
+                case "System": tint = .systemTeal
+                case "Sleep": tint = .systemIndigo
+                case "Display": tint = .systemBlue
+                case "Audio": tint = .systemPink
+                case "Scrolling": tint = .systemOrange
+                case "Agent Kill Switch": tint = .systemRed
+                case "Perch": tint = .systemGreen
+                default: tint = .systemPurple
+                }
+                tint.setFill()
                 NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
                 tinted.unlockFocus()
-                tinted.draw(in: NSRect(x: 7, y: 5, width: 12, height: 12))
+                tinted.draw(in: NSRect(x: 25 + ceil(text.size().width) + 7, y: 5, width: 12, height: 12))
             }
             displayedText().draw(at: NSPoint(x: 25, y: 4))
             if let item, !item.keyEquivalent.isEmpty {

@@ -158,16 +158,21 @@ func runReleaseUITests() throws {
     let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
     try check(!cpu.contains("--%") && cpu.contains("%"), "CPU did not update while tracking an open menu")
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
-    try check(app.lidItem.state == .on ? lid.contains("⚠ Keep ventilated") : lid.contains("Currently sleeps on lid close"), "Lid wording disagrees with current state")
+    try check(app.lidItem.state == .on && app.lidItem.isEnabled ? lid.contains("⚠ Keep ventilated") : (lid.contains("Currently sleeps on lid close") || lid.contains("Applies when Keep awake is on")), "Lid wording disagrees with current state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
     try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
     try check((app.lidItem.view as! MenuRowView).opensAnotherInterface(), "Lid authorization toggle must close the menu first")
+    app.lidItem.state = .on; app.applyLidSleepPresentation()
+    try check(app.awakeItem.isEnabled && app.awakeItem.state == .on && app.lidItem.isEnabled, "Lid override did not activate master")
+    app.lidItem.state = .off; app.awakeItem.state = .off; app.applyLidSleepPresentation()
+    try check(app.awakeItem.isEnabled && !app.lidItem.isEnabled && (app.lidItem.view as! MenuRowView).text.string.contains("Applies when Keep awake is on"), "Master off did not explain disabled lid preference")
+    app.refresh()
     let headings = app.menu.items.filter { ($0.view as? MenuRowView)?.kind == .section }.map { $0.title }
     try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains { $0.hasPrefix("External keyboard") } && !headings.contains("Input"), "Keyboard groups were not split")
     let titles = app.menu.items.map { $0.title }
     try check(headings.contains("Sleep") && headings.contains("Display") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
-    try check(titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")! && titles.firstIndex(of:"Keep awake with lid closed")! < titles.firstIndex(of:"Display")! && titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")!, "Display action is outside Display section")
+    try check(titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")! && titles.firstIndex(of:"Including with lid closed")! < titles.firstIndex(of:"Display")! && titles.firstIndex(of:"Display")! < titles.firstIndex(of:"Turn display off")!, "Display action is outside Display section")
     try check(!titles.contains("Monitor input settings…"), "Monitor settings duplicated in menu")
     // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]

@@ -151,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("Sleep")
         awakeItem = add("Keep awake", #selector(toggleAwake))
         awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
-        lidItem = add("Keep awake with lid closed", #selector(toggleLid))
+        lidItem = add("Including with lid closed", #selector(toggleLid))
         lidItem.toolTip = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
@@ -186,6 +186,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
         (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
+        (awakeItem.view as? MenuRowView)?.opensAnotherInterface = { [weak self] in
+            self?.lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+        }
         (loginItem.view as? MenuRowView)?.opensAnotherInterface = { SMAppService.mainApp.status == .requiresApproval }
         systemMonitor.processCPU.onUpdate = { [weak self] in
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
@@ -277,6 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
         do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
         catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable") }
+        awakeItem.isEnabled = true
         do {
             let sleep = try SleepStatus.read()
             awakeItem.state = (sleep.perchActive || sleep.caffeinateActive) ? .on : .off
@@ -288,8 +292,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         do {
             let disabled = try sleepDisabled()
             lidItem.state = disabled ? .on : .off
-            label(lidItem, "Keep awake with lid closed", hint: disabled ? "⚠ Keep ventilated" : "Currently sleeps on lid close", hintColor: disabled ? StatusColors.warning : StatusColors.success, hintWeight: disabled ? .semibold : .regular)
-        } catch { label(lidItem, "Keep awake with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
+            label(lidItem, "Including with lid closed", hint: disabled ? "⚠ Keep ventilated" : "Currently sleeps on lid close", hintColor: disabled ? StatusColors.warning : StatusColors.success, hintWeight: disabled ? .semibold : .regular)
+        } catch { label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
+        applyLidSleepPresentation()
         do {
             let muted = try AudioStatus.muted()
             audioItem.state = muted ? .on : .off
@@ -305,11 +310,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
             button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
         }
-        let symbol = awakeItem.state == .on || lidItem.state == .on ? "awake-bird" : "bird"
+        let symbol = awakeItem.state == .on ? "awake-bird" : "bird"
         if lastStatusSymbol != symbol {
             lastStatusSymbol = symbol
             status?.button?.image = perchStatusImage(awake: symbol == "awake-bird")
         }
+    }
+    func applyLidSleepPresentation() {
+        let actualLid = lidItem.state
+        if actualLid == .on { awakeItem.state = .on }
+        awakeItem.isEnabled = actualLid != .mixed && awakeItem.state != .mixed
+        lidItem.isEnabled = awakeItem.isEnabled && awakeItem.state == .on
+        if !lidItem.isEnabled && actualLid == .off && awakeItem.state == .off {
+            lidItem.state = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) ? .on : .off
+            label(lidItem, "Including with lid closed", hint: "Applies when Keep awake is on")
+        }
+        if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid open or closed") }
+        awakeItem.toolTip = "Master switch for idle-sleep prevention and the lid override. Turning off may require administrator authorization and also stops your active caffeinate sessions."
+        lidItem.toolTip = "Include lid-closed operation while Keep awake is on. This preference is remembered when the master is off. Requires administrator authorization. Keep ventilated while active."
     }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }
@@ -332,31 +350,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func toggleAwake() {
-        perform {
-            let state = try SleepStatus.read()
-            var config = SafetyConfiguration.load()
-            if state.perchActive || state.caffeinateActive || config.keepAwake {
-                config.keepAwake = false
-                try config.save()
-                try state.stopCaffeinate()
-            } else {
-                guard GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
-                config.keepAwake = true
-                try config.save()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
+        let change = { [weak self] in
+            guard let self else { return }
+            do {
+                let state = try SleepStatus.read()
+                let lid = try sleepDisabled()
+                if self.menuOpen && (lid || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)) {
+                    self.withMenuClosed { [weak self] in self?.toggleAwake() }; return
+                }
+                let enabling = !(lid || state.perchActive || state.caffeinateActive)
+                if enabling && !GuardianInstall.alive { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
+                let remembered = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+                try SleepMasterChange.run(enabled: enabling, includeLid: remembered, readLid: sleepDisabled, writeLid: setSleepDisabled, setAwake: { enabled in
+                    var config = SafetyConfiguration.load(); config.keepAwake = enabled; try config.save()
+                }, stopCaffeinate: { try state.stopCaffeinate() })
+                if !enabling && lid { UserDefaults.standard.set(true, forKey: SleepMasterChange.lidPreferenceKey) }
+                self.refresh()
+                if lid || (enabling && remembered) {
+                    let alert = NSAlert()
+                    alert.messageText = enabling ? "Keep awake is on" : "Keep awake is turning off"
+                    alert.informativeText = enabling ? "Including with the lid closed.\n\n⚠ Keep ventilated" : "The lid override is off. The background helper is releasing idle-sleep prevention. Your lid preference is remembered for the next time you enable Keep awake."
+                    SettingsWindow.shared.run(alert)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
+            } catch { self.refresh(); self.showError(error) }
         }
+        if lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) { withMenuClosed(change) }
+        else { change() }
     }
     @objc func toggleLid() {
         withMenuClosed { [weak self] in
-            let result = LidSettingChange.run(read: sleepDisabled, write: setSleepDisabled)
-            self?.refresh()
-            let alert = NSAlert()
-            alert.messageText = result.title
-            alert.informativeText = result.detail
-            alert.addButton(withTitle: "OK")
-            NSApp.activate(ignoringOtherApps: true)
-            SettingsWindow.shared.run(alert)
+            guard let self else { return }
+            do {
+                let state = try SleepStatus.read(), lid = try sleepDisabled()
+                guard lid || state.perchActive || state.caffeinateActive else { self.refresh(); return }
+                guard GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Agent Kill Switch first.") }
+                // Retain ordinary keep-awake when removing the all-sleep override.
+                try SleepMasterChange.run(enabled: true, includeLid: !lid, readLid: sleepDisabled, writeLid: setSleepDisabled, setAwake: { enabled in
+                    var config = SafetyConfiguration.load(); config.keepAwake = enabled; try config.save()
+                }, stopCaffeinate: {})
+                UserDefaults.standard.set(!lid, forKey: SleepMasterChange.lidPreferenceKey)
+                self.refresh()
+                let result = LidSettingResult(enabled: try? sleepDisabled(), error: nil)
+                let alert = NSAlert(); alert.messageText = result.title; alert.informativeText = result.detail
+                SettingsWindow.shared.run(alert)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
+            } catch {
+                self.refresh()
+                let result = LidSettingResult(enabled: try? sleepDisabled(), error: error.localizedDescription)
+                let alert = NSAlert(); alert.messageText = result.title; alert.informativeText = result.detail
+                SettingsWindow.shared.run(alert)
+            }
         }
     }
     @objc func turnDisplayOff() {

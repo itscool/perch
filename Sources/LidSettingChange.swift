@@ -22,3 +22,22 @@ enum LidSettingChange {
         return LidSettingResult(enabled: try? read(), error: failure)
     }
 }
+
+
+/// The lid override is removed before releasing idle-sleep prevention. A denied
+/// or ignored privileged write cannot be presented as a successful master-off.
+enum SleepMasterChange {
+    static let lidPreferenceKey = "sleep.includeLid"
+    static func run(enabled: Bool, includeLid: Bool, readLid: () throws -> Bool,
+                    writeLid: (Bool) throws -> Void, setAwake: (Bool) throws -> Void,
+                    stopCaffeinate: () throws -> Void) throws {
+        let before = try readLid()
+        let desiredLid = enabled && includeLid
+        if before != desiredLid {
+            try writeLid(desiredLid)
+            guard try readLid() == desiredLid else { throw AppError(message: "macOS did not apply the lid setting. Keep awake has not finished changing.") }
+        }
+        try setAwake(enabled)
+        if !enabled { try stopCaffeinate() }
+    }
+}

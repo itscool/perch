@@ -27,6 +27,8 @@ struct MonitorInputPlan: Codable, Equatable {
     var commandMode: String { controlConnection?.argument ?? (alternate ? "lg" : "standard") }
     var inputs: [MonitorInput] = []
     var availableInputs: [MonitorInput]? = nil
+    var macInput: UInt16? = nil
+    var macInputConnection: String? = nil
     var allowUnconfirmedCycle = false
     var shortcut = PanicShortcut(key: UInt32(kVK_F8), modifiers: UInt32(controlKey | optionKey), enabled: false)
     var valid: Bool {
@@ -242,13 +244,13 @@ final class MonitorInputController: NSObject {
         if value.controlConnection != plan.controlConnection || value.display != plan.display || value.alternate != plan.alternate || value.inputs != plan.inputs { lastSent = nil; pendingConfirmation = nil; pendingPlan = nil; pendingConnection = nil }
         plan = value; message = "✓ Monitor input settings saved"; warning = false; changed()
     }
-    func testInput(_ input: MonitorInput, display: String, alternate: Bool,
+    func testInput(_ input: MonitorInput, display: String, alternate: Bool, connection: MonitorConnection? = nil,
                    completion: @escaping (Bool) -> Void) {
-        guard !busy, input.valid, let monitor = displays.first(where: { $0.id == display }), monitor.ddcAvailable,
+        guard !busy, input.valid, let monitor = displays.first(where: { $0.id == display }), (monitor.ddcAvailable || connection != nil),
               !alternate || monitor.vendor == 0x1e6d else { completion(false); return }
         // Explicit, single candidate test; no preference or cycle-position mutation.
         perform({ [backend] () -> Bool in
-            let data = try backend.run(["switch", display, alternate ? "lg" : "standard", String(input.code)])
+            let data = try backend.run(["switch", display, connection?.argument ?? (alternate ? "lg" : "standard"), String(input.code)])
             guard let value = try JSONSerialization.jsonObject(with: data) as? [String:Any], value["sent"] as? Bool == true else {
                 throw AppError(message: "The input command was not accepted.")
             }

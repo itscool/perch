@@ -49,7 +49,10 @@ func runMonitorInputUITests() throws {
     host.testing = true; host.pages = []
     let display = MonitorDescriptor(id: "11111111-1111-1111-1111-111111111111",displayID: 99,name:"LG HDR 4K",vendor:0x1e6d,model:0x7706,ddcAvailable:true)
     let mock = FakeMonitorBackend(); mock.failWrite = false
-    let controller = MonitorInputController(displays:[display],backend:mock)
+    let fixtureSuite = "perch-menu-fixture." + UUID().uuidString
+    let fixtureDefaults = UserDefaults(suiteName:fixtureSuite)!
+    defer { fixtureDefaults.removePersistentDomain(forName:fixtureSuite) }
+    let controller = MonitorInputController(displays:[display],backend:mock,defaults:fixtureDefaults)
     controller.message = "✓ LG HDR 4K detected · choose inputs to cycle"
     controller.plan.inputs = [.init(code:144,name:"HDMI 1"),.init(code:145,name:"HDMI 2"),.init(code:208,name:"DisplayPort"),.init(code:210,name:"USB-C")]
     controller.plan.display = display.id; controller.plan.alternate = true
@@ -202,18 +205,34 @@ func runMonitorDraftTests() throws {
     controller.plan.display = display.id; controller.plan.alternate = true
     controller.plan.inputs = [.init(code:145,name:"My HDMI"),.init(code:209,name:"My USB"),.init(code:210,name:"Old candidate")]
     host.show(.init(title:"Perch settings",detail:"",view:NSView()))
-    let page = MonitorInputPage(controller); page.show(); page.selectedCodes.remove(210); page.save.performClick(nil)
+    let page = MonitorInputPage(controller); page.show(); page.inputList.documentView!.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Old candidate" }!.performClick(nil); page.save.performClick(nil)
     guard controller.plan.availableInputs?.count == 3 && controller.plan.inputs.count == 2 else { throw AppError(message:"Saving unchecked inputs deleted them") }
     let saved = defaults.data(forKey:MonitorInputController.preferenceKey)
     let fresh = MonitorInputPage(controller); fresh.show()
-    guard fresh.candidates.count == 3 && !fresh.selectedCodes.contains(210) && host.back.title == "Cancel" else { throw AppError(message:"Reopening lost unchecked inputs or cancellation label") }
+    guard fresh.candidates.count == 3 && !fresh.selectedCodes.contains(210) && host.back.title == "Done" else { throw AppError(message:"Reopening lost unchecked inputs or cancellation label") }
     fresh.detect.performClick(nil)
     let end = Date().addingTimeInterval(2)
     while controller.busy && Date()<end { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
     guard fresh.candidates.map({ $0.code }) == [144,145,208,209], fresh.selectedCodes.isEmpty,
-          defaults.data(forKey:MonitorInputController.preferenceKey) == saved else { throw AppError(message:"Fresh detection did not replace only the draft") }
+          defaults.data(forKey:MonitorInputController.preferenceKey) != saved else { throw AppError(message:"Restore did not save detected settings immediately") }
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-fresh-draft.png")
+    fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Undo restore" }!.performClick(nil)
+    guard controller.plan.availableInputs?.count == 3 && controller.plan.inputs.count == 2 else { throw AppError(message:"Undo did not restore prior inputs") }
+    let identify = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Identify input…" }!
+    let readCurrent = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Read current input" }!
+    backend.reported = 145; readCurrent.performClick(nil)
+    let readEnd = Date().addingTimeInterval(2)
+    while controller.busy && Date()<readEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard identify.isHidden else { throw AppError(message:"Identification offered despite working automatic detection") }
+    backend.reported = nil; readCurrent.performClick(nil)
+    let unavailableEnd = Date().addingTimeInterval(2)
+    while controller.busy && Date()<unavailableEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
+    guard !identify.isHidden else { throw AppError(message:"Identification unavailable after failed detection") }
+    let beforeIdentification = backend.commands.count
+    identify.performClick(nil)
+    guard host.pages.last?.title == "Identify this Mac’s input", backend.commands.count == beforeIdentification else { throw AppError(message:"Identification opening sent a switch") }
+    try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-identification.png")
     host.goBack()
-    guard defaults.data(forKey:MonitorInputController.preferenceKey) == saved else { throw AppError(message:"Cancel saved fresh detection") }
-    print("PASS: actual Save keeps unchecked inputs; reopening restores selections; fresh detection replaces custom draft; Cancel preserves saved configuration; disposable defaults/mock monitor")
+    host.goBack()
+    print("PASS: immediate checkbox saving retains unchecked inputs; reopening restores selections; restore applies immediately; Undo restores configuration; disposable defaults/mock monitor")
 }

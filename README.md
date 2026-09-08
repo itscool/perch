@@ -1,12 +1,14 @@
-# Perch 1.1 (in development)
+# Perch 1.1
 
 A native Mac menu bar app for sleep, sound, input controls, and an emergency stop for local AI agents.
 
-Stable 1.0 release notes: [RELEASE-1.0.md](RELEASE-1.0.md). The 1.1 keyboard changes and compatibility details are in [KEYBOARDS.md](KEYBOARDS.md).
+Release notes: [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are assigned to [1.2](V1.2-REVIEW.md).
 
-Perch 1.1 build 10 adds separate **Home/End move to line edges** and **Page Up/Down move the cursor** switches under External keyboards, off by default. The input helper transforms only events whose private CoreGraphics sender identity matches a registered external keyboard; built-in and unidentified sources retain native behavior. App exceptions are under Keyboard settings. Registration and source delivery remain separate checks: physical key testing is still needed on the installed build. Eight bundled keyboard profiles distinguish tested delivery from documented layouts.
+Perch is a local Apple Silicon/macOS 26 app. This repository contains the source and compatibility research; it is not yet a notarized, general-purpose installer or Homebrew package. Building currently requires a local signing certificate as described below.
 
-**Monitor input settings** automatically lists connected external monitors, reads advertised inputs where available, and offers a checklist with cycle ordering, manual input-code editing and an optional shortcut. Input controls use a bounded, short-lived native adapter based on m1ddc display routing. Fifteen model profiles supplement detection. Unknown current inputs require explicit fallback; accepted commands are not presented as confirmed switches. The monitor shortcut runs while the Perch menu app is open; keyboard remapping continues in the input helper. See [MONITOR-INPUTS.md](MONITOR-INPUTS.md) and [catalog/DEVICE-PROFILES.md](catalog/DEVICE-PROFILES.md).
+**Keyboard controls** offer independent built-in/external modifier and Fn choices, plus optional external Home/End and Page Up/Down modes. The external heading shows a connected keyboard’s name or a count; absent devices hide their controls and unknown layouts show setup guidance. Twenty-eight bundled layout profiles retain their evidence/confidence labels. Registration does not certify physical event delivery on every device. See [KEYBOARDS.md](KEYBOARDS.md).
+
+**Monitor input switching** lists connected monitors, prefers documented detection, and offers custom inputs, cycle ordering and an optional shortcut. Settings save immediately; unchecked inputs remain available. Restore detected includes Undo. Current-input readback is preferred, with explicit guided identification only when unavailable. The catalog contains 93 monitor profiles, 162 LG firmware-family identities and 23 MSI firmware mappings; these are not claims of universal hardware validation. See [MONITOR-INPUTS.md](MONITOR-INPUTS.md) and [profile provenance](catalog/DEVICE-PROFILES.md).
 
 ## Build and run
 
@@ -33,7 +35,7 @@ Perch installs separate launchd process-monitor and input helpers on first launc
 
 Lid sleep, mute and modifier swaps are system settings. Fn controls use macOS or keyboard firmware; external Apple overrides need Perch running when the keyboard reconnects. Awake/scroll choices are saved and reapplied by the background helper, including after login. Quitting the menu app does not reset them. They cannot keep operating if the helper itself is stopped. The helper does not promise to keep a powered-off Mac awake.
 
-Scroll reversal requires Accessibility access for Perch's signed helper. External Logitech Fn control uses Input Monitoring for Perch itself; Settings → Keyboard settings provides its drag-to-Settings workflow and shows per-keyboard success or failure. Modifier swapping uses native macOS settings and needs no event tap. Settings → Input controls provides its draggable identity and verifies readiness. Certificate signing preserves the designated requirement across updates; existing input access remained granted during tested updates. The certificate is local signing, not Apple notarization or Developer ID distribution. Checkmarks indicate selected settings, and controls requiring missing access are disabled.
+Scroll reversal requires Accessibility access for Perch's signed helper. External Logitech Fn control uses Input Monitoring for Perch itself; Settings → Keyboard settings provides its drag-to-Settings workflow and shows per-keyboard success or failure. Modifier swapping uses native macOS settings and needs no event tap. Settings → Input controls provides its draggable identity and verifies readiness. Certificate signing preserves the designated requirement across updates; existing input access remained granted during tested updates. The certificate is local signing, not Apple notarization or Developer ID distribution. Checkmarks indicate selected settings; the inactive remembered lid preference is explicitly labeled. Controls requiring missing access are disabled.
 
 ## System display
 

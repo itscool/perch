@@ -1,6 +1,6 @@
 # Perch implementation review
 
-Historical notes from the initial implementation. Several details below (polling, signing and menu workflow) have since changed; current behavior and validation are in README.md, EVENT-COLLECTOR.md and V1-NOTES.md. The broad design/performance/memory/usability/clarity/bloat review requested for 1.1 has not yet been performed.
+Historical notes from the initial implementation. Several details below (polling, signing and menu workflow) have since changed; current behavior and validation are in README.md, EVENT-COLLECTOR.md and V1-NOTES.md. The broad design/performance/memory/usability/clarity/bloat review assigned to 1.2 has not yet been performed.
 
 Reviewed the process-selection and termination paths, watcher lifecycle, hotkey state machine, reset ordering, persistent controls and native menu behavior.
 

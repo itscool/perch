@@ -1,3 +1,7 @@
+# Historical performance and implementation notes
+
+These dated checkpoints preserve the investigation, including superseded failures and earlier version plans. They are not a current todo list. Current releases: [1.0](RELEASE-1.0.md), [1.1](RELEASE-1.1.md). The full review and distribution work belong to [1.2](V1.2-REVIEW.md).
+
 ## September 5: Perch 1.0 release
 
 The local 1.0 release is recorded in RELEASE-1.0.md. Final safe regression and app-owned UI/workflow suites pass. Input readiness now requires an active handler when controls are enabled; stale/missing/denied access remains explicit. Shortcut preparation cancel, success, ten-second timeout, cleanup and parent restoration are covered through isolated helper requests. Live menu updates pass in AppKit event-tracking mode. Settings/input/collector/Advanced view renderings were inspected in light and dark themes; native desktop click-through automation remained unavailable.

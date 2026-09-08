@@ -91,13 +91,15 @@ final class MenuRowView: NSView {
     /// colors intact, including hints; selection and actual disabling are explicit.
     private var sectionTint: NSColor {
         switch item?.title ?? "" {
-        case "System": return .systemTeal
+        case "System": return .systemBlue
         case "Sleep": return .systemIndigo
-        case "Display": return .systemBlue
+        case "Display": return .systemPurple
         case "Audio": return .systemPink
-        case "Scrolling": return .systemOrange
+        case "Scrolling": return .systemRed
+        case "Built-in keyboard": return .systemOrange
+        case let title where title.hasPrefix("External keyboard"): return .systemYellow
         case "Agent Kill Switch": return .systemRed
-        case "Perch": return .systemGreen
+        case "Perch": return .systemTeal
         default: return .systemPurple
         }
     }

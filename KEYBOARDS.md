@@ -1,6 +1,6 @@
 # Keyboard controls (1.1)
 
-The menu separates Scrolling, Built-in keyboard, and External keyboards. Each keyboard group has its own Control/Command and F1–F12 controls. Trackpad reversal includes external trackpads, so it stays in Scrolling.
+The menu separates Scrolling, Built-in keyboard, and External keyboards. Each connected keyboard group has its own Control/Command and F1–F12 controls. The external heading names a single keyboard, counts multiple keyboards, or says None connected. No external device means no external controls; unknown layouts show one setup row. Confirmed absent navigation keys hide their corresponding options. Trackpad reversal includes external trackpads, so it stays in Scrolling.
 
 Built-in F1–F12 changes the real macOS function-key preference and immediately restores connected external keyboards’ native Fn modes. A failure to preserve those modes triggers rollback. External Apple keyboards use their native per-service `HIDFKeyMode`; supported Logitech keyboards use their firmware Fn Lock. No F-key events are rewritten. The external checkbox reads confirmed device modes, and shows mixed modes only when known devices actually differ.
 
@@ -35,3 +35,6 @@ The signed 1.1 build received an MX Keys firmware readback confirming F1–F12 d
 Build 4 validated a same-state native property write and unchanged readback on both the built-in keyboard and MX Keys from the signed app. Both remained unswapped and no preferences were written during that diagnostic. This confirms the formerly failing write path; physical modifier delivery still requires a hardware check. The opt-in `--check-modifier-access` diagnostic performs only this same-state check and is excluded from startup and automated safe tests.
 
 Build 6 (2026-09-06) adds independent Fn controls and dismisses the menu before lid authorization, then reports the actual lid setting after every attempt. Safe release checks passed, including simulated keyboard-group isolation/rollback and lid cancellation; light/dark menu renders were inspected. Post-install firmware readback confirmed MX Keys still uses F1–F12 directly; its existing modifier swap remained enabled and the built-in swap remained disabled. Signing, safety configuration, helper binary, and existing helper/collector processes were unchanged. No physical Fn modes or lid settings were toggled during validation; the first real password prompt and physical Fn delivery still need a hands-on check.
+
+
+Home/End and Page Up/Down navigation modes are implemented and off by default. They match registered external source identities; built-in Fn+arrows and unidentified events pass through. Safe tests cover paired key events, repeats, exceptions and disconnect-related state. Physical delivery and secure-input behavior still require validation on each supported hardware/OS combination. [KEYBOARD-NAVIGATION.md](KEYBOARD-NAVIGATION.md) is the historical investigation, not the current implementation status.

@@ -1,4 +1,6 @@
-# Keyboard navigation research (2026-09-06)
+# Keyboard navigation research archive (2026-09-06)
+
+Historical build-by-build investigation. Statements below about unfinished work describe those earlier builds. For current 1.1 behavior and validation limits, read [KEYBOARDS.md](KEYBOARDS.md) and [RELEASE-1.1.md](RELEASE-1.1.md).
 
 Home/End and Page Up/Down support is authorized for 1.1. Implementation must preserve the existing native modifier and Fn settings and the independent scroll controls.
 

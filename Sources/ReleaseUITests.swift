@@ -112,6 +112,20 @@ func runReleaseUITests() throws {
     let toggle = NSMenuItem(title: "Test toggle", action: #selector(ReleaseToggleTarget.toggle(_:)), keyEquivalent: "")
     toggle.target = target
     let row = MenuRowView(item: toggle, kind: .toggle)
+    // AppKit allocates a shared width independently of each row's text width.
+    row.setFrameSize(NSSize(width: 620, height: row.frame.height))
+    row.text = NSAttributedString(attributedString: row.text)
+    try check(row.frame.width == 620, "Unchanged refresh shrank AppKit's allocated row width")
+    row.holdsMenuWidth = true
+    row.hover = true
+    row.text = NSAttributedString(string: String(repeating: "Live status ", count: 24), attributes: [.font: NSFont.menuFont(ofSize: 13)])
+    row.shortcutHint = "⌃⌥⌘F12"
+    try check(row.frame.width == 620 && row.preferredWidth > 620 && row.hover, "Live readings resized an open menu or lost hover")
+    let shortcutWidth = (row.displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width
+    try check(row.textDrawingRect.maxX < row.frame.width - shortcutWidth - 14, "Updated status can overlap the shortcut")
+    row.holdsMenuWidth = false
+    try check(row.frame.width == row.preferredWidth, "Deferred menu width was not restored after dismissal")
+    row.shortcutHint = ""; row.text = NSAttributedString(string: "Test toggle"); row.hover = false
     try check(row.accessibilityPerformPress() && toggle.state == .on && target.presses == 1, "Toggle action/state failed")
     target.allowed = false
     try check(!row.accessibilityPerformPress() && target.presses == 1, "Disabled toggle remained actionable")

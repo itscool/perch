@@ -30,6 +30,7 @@ struct SetupSnapshot {
     var monitorAvailable = false
     var monitorBusy = false
     var monitorWarning = false
+    var monitorNeedsVerification = false
     var monitorDetail = "Connect an external monitor to set up input switching."
     var collectorInstalled = false
     var lidDisabled: Bool?
@@ -67,8 +68,9 @@ struct SetupSnapshot {
         add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
             keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? "Some external controls need Input Monitoring for Perch. Navigation learning is separate and optional." : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
 
-        add("displays", "Display input switching", monitorBusy ? .checking : !monitorConfigured ? .optional : monitorAvailable && !monitorWarning ? .ready : .attention,
-            monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Choose a display and its inputs if you want to switch between computers." : monitorDetail,
+        let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
+        add("displays", "Display input switching", monitorState,
+            monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Choose a display and its inputs if you want to switch between computers." : monitorState == .unverified ? "Your inputs are saved. Current input unknown; read or confirm it in monitor settings before cycling." : monitorDetail,
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
 
         if lidDisabled == true {
@@ -200,8 +202,12 @@ extension AppDelegate {
         result.monitorAvailable = monitorInputs.canSwitch
         result.monitorBusy = monitorInputs.checkingDisplays || monitorInputs.busy || monitorInputs.groups.busy
         result.monitorWarning = monitorInputs.warning || (monitorInputs.plan.shortcut.enabled && !monitorInputs.shortcutActive)
+        result.monitorNeedsVerification = !monitorInputs.currentInputKnown
         result.monitorDetail = monitorInputs.warning ? monitorInputs.message : monitorInputs.plan.shortcut.enabled && !monitorInputs.shortcutActive ? "The input shortcut is unavailable. Review its keys and the display’s connection." : !monitorInputs.canSwitch ? "The saved display or its control connection is unavailable. Review the connection and inputs." : monitorInputs.currentSummary
         if let group = monitorInputs.groups.active, let destination = group.destinations.first {
+            // Named group destinations issue explicit per-display inputs; they
+            // do not infer a next input from a remembered current position.
+            result.monitorNeedsVerification = false
             result.monitorConfigured = true
             result.monitorAvailable = !result.monitorBusy && monitorInputs.groups.requests(group, destination: destination).allSatisfy { $0.unavailable == nil }
             result.monitorWarning = monitorInputs.groups.hasAttention

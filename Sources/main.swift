@@ -248,6 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         keyboardModes.readForPresentation() // Read only; never reapply a saved hardware choice.
         refresh()
         // One quick second interval, then the existing menu refresh cadence.
+        for item in menu.items { (item.view as? MenuRowView)?.holdsMenuWidth = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             guard let self, self.menuOpen, self.menuGeneration == generation else { return }
             self.refreshSystem()
@@ -255,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func menuDidClose(_ menu: NSMenu) {
         menuOpen = false; menuGeneration &+= 1; systemMonitor.menuClosed()
+        for item in menu.items { (item.view as? MenuRowView)?.holdsMenuWidth = false }
         endMenuKeyboardHandling()
     }
     func showSystemReading(_ item: NSMenuItem, _ reading: (String, String, String)) {

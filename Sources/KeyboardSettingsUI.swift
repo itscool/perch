@@ -91,11 +91,11 @@ extension AppDelegate {
         let names = registrations.isEmpty ? nativeKeyboards.filter { !$0.builtIn }.map { $0.name } : registrations.map { $0.name }
         let unknown = keyboardModes.registrationNeedsSetup
         let title = keyboardModes.registrationPending ? "External keyboards · Checking…" : names.count > 1 ? "External keyboards · \(names.count) keyboards" : "External keyboard · " + (names.first ?? (unknown ? "Detection unavailable" : "None connected"))
-        heading.title = title
+        if heading.title != title { heading.title = title }
         (heading.view as? MenuRowView)?.text = NSAttributedString(string:title, attributes:[.font:NSFont.systemFont(ofSize:11,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
         let hideControls = names.isEmpty
-        externalSwapItem.isHidden = hideControls
-        externalFnItem.isHidden = hideControls
+        if externalSwapItem.isHidden != hideControls { externalSwapItem.isHidden = hideControls }
+        if externalFnItem.isHidden != hideControls { externalFnItem.isHidden = hideControls }
         let profiles = registrations.compactMap { $0.profile }
         homeEndItem.isHidden = hideControls || !profiles.contains { $0.hasHomeEnd }
         pageKeysItem.isHidden = hideControls || !profiles.contains { $0.hasPageKeys }

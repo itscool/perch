@@ -23,6 +23,16 @@ func runSetupOverviewTests() throws {
     snapshot.monitorConfigured = true; snapshot.monitorAvailable = false; snapshot.monitorDetail = "Desk display is disconnected. Saved input choices are kept."
     try check(item("scrolling").state == .attention && item("scrolling").route == .inputAccess && item("keyboards").state == .attention && item("events").state == .attention && item("displays").state == .attention, "Reset/disconnection recovery does not identify affected features")
     let recovery = snapshot
+    snapshot.monitorAvailable = true; snapshot.monitorNeedsVerification = true
+    try check(item("displays").state == .unverified && item("displays").detail.contains("inputs are saved"), "Configured display with unknown input was counted as ready before visiting monitor settings")
+    snapshot.monitorBusy = true
+    try check(item("displays").state == .checking, "Pending display check was presented as a settled result")
+    snapshot.monitorBusy = false; snapshot.monitorWarning = true
+    try check(item("displays").state == .attention, "Failed current-input read was hidden by saved setup")
+    snapshot.monitorWarning = false; snapshot.monitorNeedsVerification = false
+    try check(item("displays").state == .ready, "Verified input or explicit named destination still demanded cycling setup")
+    snapshot.monitorAvailable = false
+    try check(item("displays").state == .attention, "Disconnect retained a ready display state")
     snapshot.input = InputHelperStatus(trusted: true, active: true)
     try check(item("scrolling").state == .ready && item("events").state == .attention && item("keyboards").state == .attention, "One restored grant made unrelated features ready")
     snapshot.input?.timestamp = Date().addingTimeInterval(-10)

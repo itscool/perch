@@ -13,7 +13,15 @@ final class MenuRowView: NSView {
     var opensAnotherInterface: () -> Bool = { false }
     var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
     var keyboardHighlight = false { didSet { if keyboardHighlight != oldValue { needsDisplay = true } } }
-    var text: NSAttributedString { didSet { resizeForText(); needsDisplay = true } }
+    var text: NSAttributedString { didSet { if !oldValue.isEqual(to: text) { resizeForText(); needsDisplay = true } } }
+    private(set) var preferredWidth: CGFloat = 430
+    var holdsMenuWidth = false {
+        didSet {
+            if oldValue && !holdsMenuWidth && frame.width != preferredWidth {
+                setFrameSize(NSSize(width: preferredWidth, height: frame.height))
+            }
+        }
+    }
     // Display existing global shortcuts without registering a competing menu action.
     var shortcutHint = "" { didSet { if shortcutHint != oldValue { resizeForText(); needsDisplay = true } } }
     var displayedShortcut: String {
@@ -51,8 +59,17 @@ final class MenuRowView: NSView {
     private func resizeForText() {
         let shortcutWidth: CGFloat = displayedShortcut.isEmpty ? 0 : ceil((displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width) + 16
         let width = max(430, ceil(text.size().width) + (kind == .section ? 58 : 45) + shortcutWidth)
-        // Avoid window/layout invalidation on unchanged periodic status updates.
-        if frame.width != width { setFrameSize(NSSize(width: width, height: frame.height)) }
+        // AppKit stretches every row to the menu's common width. That allocated
+        // width is not the row's preferred width: do not repeatedly shrink it
+        // back on refresh. While tracking, defer size changes until dismissal.
+        guard preferredWidth != width else { return }
+        preferredWidth = width
+        if !holdsMenuWidth && frame.width != width { setFrameSize(NSSize(width: width, height: frame.height)) }
+    }
+    var textDrawingRect: NSRect {
+        let x: CGFloat = kind == .section ? 44 : 25
+        let shortcutWidth: CGFloat = displayedShortcut.isEmpty ? 0 : ceil((displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width) + 16
+        return NSRect(x: x, y: 4, width: max(0, bounds.width - x - 14 - shortcutWidth), height: min(ceil(text.size().height), bounds.height - 4))
     }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
     override func viewDidMoveToWindow() {
@@ -170,7 +187,10 @@ final class MenuRowView: NSView {
                 tinted.unlockFocus()
                 tinted.draw(in: NSRect(x: 25, y: 5, width: 12, height: 12))
             }
-            displayedText().draw(at: NSPoint(x: kind == .section ? 44 : 25, y: 4))
+            let title = NSMutableAttributedString(attributedString: displayedText())
+            let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingTail
+            title.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: title.length))
+            title.draw(in: textDrawingRect)
             if !displayedShortcut.isEmpty {
                 let title = NSAttributedString(string: displayedShortcut, attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: color])
                 title.draw(at: NSPoint(x: bounds.width - title.size().width - 14, y: 4))

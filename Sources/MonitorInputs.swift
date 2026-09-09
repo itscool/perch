@@ -179,6 +179,9 @@ final class MonitorInputController: NSObject {
     private var confirmedAt: Date?
     private(set) var reportedCurrent: UInt16?
     private(set) var checkedAt: Date?
+    var currentInputKnown: Bool {
+        reportedCurrent != nil || (confirmedCurrent != nil && confirmedAt.map { Date().timeIntervalSince($0) < 30 } == true)
+    }
     var currentSummary: String {
         let name: (UInt16) -> String = { code in (self.plan.availableInputs ?? self.plan.inputs).first { $0.code == code }?.name ?? "Input \(code)" }
         if let reportedCurrent, let checkedAt {

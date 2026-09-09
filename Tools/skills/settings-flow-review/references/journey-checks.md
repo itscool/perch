@@ -55,6 +55,8 @@ Use these checks to find concrete failures in the actual product, not as a manda
 
 ## Menu first display and updates
 
+- For custom menu rows, distinguish intrinsic/preferred size from the width allocated by the native menu. Replay periodic updates after the host has stretched rows to a common width; unchanged content must not reset that allocation. Keep an open menu's geometry stable through status updates, preserve hover/focus and shortcut space, and apply deferred width changes on reopening. Native light/dark renders must also retain baseline alignment; a static full-width mockup alone cannot expose live layout churn.
+
 - Inventory every non-excluded row, including conditional actions and category-dependent visibility. A successful check of one monitor row or one shared renderer does not cover all menu options. Record each row's value source, age/pending state, checkmark, label/hint/tooltip, enabled/hidden state, validation and action destination.
 - A status-reply callback must repaint from its snapshot without starting another request through the same getters. Test that replies reach the visible UI and that rendering cannot create a self-sustaining polling loop.
 - Trace getter → pending request → reply → UI update. A getter may start a request but return old data; receiving new data does not necessarily repaint the menu. A cold cache is not a confirmed offline device or missing permission. Check first show, unchanged reopening, relevant external changes and updates while tracking remains open.

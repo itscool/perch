@@ -1,12 +1,32 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 63. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 67. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 67: stable menu geometry during live refresh
+
+Custom menu rows now retain the width allocated by macOS while the menu is open. Unchanged text does not resize a row, and changed status text defers its preferred width until the menu closes. Long updates truncate within the existing row without overlapping shortcut labels; the full text remains accessible. Unchanged external-keyboard headings and visibility assignments no longer trigger redundant menu updates. Section order, colors, overlines, spacing and text alignment are preserved.
+
+The previous renderer reproducibly shrank an AppKit-allocated 620-point row to 430 points on an unchanged text assignment. New regression checks cover allocated-width preservation, changed live text and shortcuts, hover retention and width updates after dismissal. This corrects a source-confirmed cause of periodic menu movement; the user's exact live flashing/glitch symptom still needs checking in the new installed build. Keyboard controls still deliberately withhold actions during pending reads; this change does not conceal that state.
+
+Validation: production and isolated compilation completed with zero compiler warnings; all 20 isolated suites passed. Native light/dark menu renders and strict app/embedded-tool signatures passed inspection. The shortened overview explanation measures 46 points within its 59-point row. Tests and renders used isolated storage with hardware, permission and emergency actions blocked.
+
+Builds 65–66 were intermediate candidates as the live menu report expanded the pass. Build 67 includes the display overview and disconnected-keyboard corrections below. It is prepared separately from the running build 63 and active lid session.
+
+## Build 65: honest first-show display status and disconnected keyboard guidance
+
+Setup & status no longer counts a saved monitor connection as Ready when its current input is unknown. It shows Unverified with a route to read or confirm the input. A failed read or unavailable shortcut/connection still needs attention. Explicit named display groups do not require a current-input observation. Saved connections and input lists are preserved.
+
+Navigation settings now distinguish a disconnected external keyboard, pending discovery, detection failure and a keyboard that actually needs learning. A disconnected keyboard prompts connection and explains automatic recognition, while preserving saved behavior choices.
+
+These changes follow a live, read-only build 63 journey through Setup & status, Displays, Monitor inputs, Switching groups, keyboard/navigation pages, scrolling and completed Accessibility setup, Maintenance, and agent settings. Back navigation and ready access presentation worked. The monitor overview incorrectly changed from Ready to Needs attention only after the monitor page performed its read. No hardware setting, shortcut, panic, permission reset or OS authorization was triggered during this pass.
+
+The main menu design is unchanged. Build 64 was an intermediate layout check; build 65 shortens the new overview explanation to fit its row. This candidate is prepared separately from the active build 63 lid session. Actual password entry, physical lid/monitor/hotkey tests and the existing lid-control defect remain open.
 
 ## Developer testing: visible agent sessions
 
 Live UI testing now uses a separate **AGENT MODE** desktop banner. It remains visible across Perch restarts, uses a nonactivating panel, and offers **Request control**. The agent checks its session before every action batch; control requests, missing banner processes and expired sessions block continuation. This is a cooperative handoff, not an input lock or cancellation of already-issued actions. See `Tools/agent-mode/README.md` and the repository's `AGENTS.md`.
 
-This testing tool does not change the Perch application or its tuned menu. Build 63 remains the installed app version; no app/helper reinstall is needed for the banner.
+This testing tool does not change the Perch application or its tuned menu. The banner itself requires no app/helper reinstall; its addition left the installed app at build 63.
 
 ## Build 63: consistent settings journeys and menu readiness
 

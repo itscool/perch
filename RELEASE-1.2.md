@@ -22,7 +22,9 @@ and live state confirm restoration. Existing overrides are refused, and helper
 updates keep recovery running until cleanup succeeds. The 60-second policy and
 short watchdog leases remain. See [behavior and recovery limits](LID-RECOVERY.md).
 
-Build 69 is prepared separately from the running app. The privileged helper
+Build 69 is installed through build 68's actual Updates page; the new process
+reported successful completion and preserved saved choices. This was an inactive
+lid session with the lid open, not an active-session handoff test. The privileged helper
 requires its separate update; installing only the app does not replace the old
 lid mechanism. Production and isolated compilation completed with zero warnings;
 all 20 isolated suites passed, including a disposable stalled-writer test, durable

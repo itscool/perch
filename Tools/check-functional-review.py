@@ -25,6 +25,7 @@ parser.add_argument('--agent-session', type=Path)
 parser.add_argument('--suite', help='Run one named suite from the existing isolated binary')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
+subprocess.run(['python3', str(repo/'Tools/check-dialog-contract.py')], check=True)
 root = args.output.resolve() if args.output else Path(tempfile.mkdtemp(prefix='perch-functional-review-'))
 def execute_tests():
     if args.agent_session is None:

@@ -98,6 +98,6 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
     }
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil
-        if returnsToSettings { returnsToSettings = false; NSApp.stopModal() }
+        returnsToSettings = false // This retired backing panel does not own a modal session.
     }
 }

@@ -2,6 +2,7 @@ import AppKit
 
 func runSettingsTests() throws {
     try DesktopTestSession.check()
+    try runDialogOwnershipTests()
     try runSleepPresentationTests()
     try runSettingsJourneyFixTests()
     try runLidSettingTests()

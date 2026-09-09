@@ -245,7 +245,7 @@ final class NavigationProbePage: NSObject {
             status.frame.origin.y = complete ? 40 : 48
         }
         let host = SettingsWindow.shared
-        if !host.modal, let page = host.pages.last, page.view === view, resized || page.detail != pageDetail {
+        if !host.interactionBusy, let page = host.pages.last, page.view === view, resized || page.detail != pageDetail {
             let updated = SettingsWindow.Page(title: page.title, detail: pageDetail, view: view, leave: page.leave,
                 refresh: page.refresh, backTitle: page.backTitle, preferredBodyHeight: page.preferredBodyHeight)
             host.pages[host.pages.count - 1] = updated

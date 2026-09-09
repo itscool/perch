@@ -2,6 +2,7 @@
 set -euo pipefail
 export MACOSX_DEPLOYMENT_TARGET=26.0
 cd "$(dirname "$0")"
+python3 Tools/check-dialog-contract.py
 APP="$PWD/build/Perch.app"
 if [[ $# -gt 0 ]]; then
     if [[ $# -ne 2 || "$1" != "--output" || "$2" != *.app ]]; then

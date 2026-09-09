@@ -105,9 +105,6 @@ extension AppDelegate {
         alert.addButton(withTitle: "Resume")
         if SettingsWindow.shared.run(alert) == .alertSecondButtonReturn { safetyRequest("resume") }
     }
-    @objc func settingsChoice(_ sender: NSButton) {
-        NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
-    }
     func chooseSafetyAction(title: String, detail: String, options: [(String, String, Selector)]) {
         SettingsWindow.shared.list(title: title, detail: detail, options: options, delegate: self)
     }
@@ -222,6 +219,7 @@ extension AppDelegate {
     }
     // Explicit dependencies let release tests exercise the dialog without arming the real helper.
     func runShortcutTest(readStatus: @escaping () -> SafetyStatus?, send: (String) throws -> Void, keepAlive: @escaping () throws -> Void) {
+        guard !SettingsWindow.shared.interactionBusy else { return }
         guard readStatus()?.fresh == true else { showError(AppError(message: "Background protection is unavailable. Repair it before testing.")); return }
         let previousResult = readStatus()?.testResultID
         let shortcut = SafetyConfiguration.load().shortcut.title
@@ -248,12 +246,12 @@ extension AppDelegate {
             countdown.stringValue = deadline.map { "\(max(0, Int(ceil($0.timeIntervalSinceNow)))) seconds remaining" } ?? "Preparing — don’t press yet"
             if let result = state?.testResultID, result != previousResult {
                 outcome = "Shortcut worked"
-                NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 2101))
+                SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2101))
             } else if state?.fresh != true {
                 outcome = "Background protection stopped responding"
-                NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 2102))
+                SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2102))
             } else if deadline.map({ Date() >= $0 }) ?? (Date().timeIntervalSince(preparationStarted) >= 5) {
-                NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 2102))
+                SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2102))
             } else if deadline != nil {
                 alert.informativeText = "Press \(shortcut). This test will not terminate processes or reset permissions."
             }
@@ -281,8 +279,8 @@ extension AppDelegate {
             let poll = Timer(timeInterval: 0.1, repeats: true) { _ in
                 if let state = readStatus(), state.fresh, state.testUntil == nil {
                     restored = true
-                    NSApp.stopModal()
-                } else if Date() >= expires { NSApp.stopModal() }
+                    SettingsWindow.shared.finish(cleanup)
+                } else if Date() >= expires { SettingsWindow.shared.finish(cleanup) }
             }
             RunLoop.main.add(poll, forMode: .modalPanel)
             SettingsWindow.shared.run(cleanup, allowsCancel: false)

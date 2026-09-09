@@ -1,0 +1,350 @@
+{
+  "AgentCatalog.swift:importAgentCatalog:picker:1": {
+    "file": "AgentCatalog.swift",
+    "kind": "picker",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "AgentCatalog.swift:importAgentCatalog:alert:1": {
+    "file": "AgentCatalog.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "AgentCatalog.swift:reviewCatalogChanges:alert:1": {
+    "file": "AgentCatalog.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "AgentSettingsPage.swift:show:page:1": {
+    "file": "AgentSettingsPage.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "EventSetup.swift:declaration:panel:1": {
+    "file": "EventSetup.swift",
+    "kind": "panel",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "EventSetup.swift:show:page:1": {
+    "file": "EventSetup.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "KeyboardSettingsUI.swift:text:page:1": {
+    "file": "KeyboardSettingsUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "KeyboardSettingsUI.swift:text:page:2": {
+    "file": "KeyboardSettingsUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "LaunchAccessRecovery.swift:considerKeyboardAccessNotice:alert:1": {
+    "file": "LaunchAccessRecovery.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "LaunchAccessRecovery.swift:keyboardAccessRecovery:task-page:1": {
+    "file": "LaunchAccessRecovery.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "LidActivityUI.swift:show:page:1": {
+    "file": "LidActivityUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorGroupsUI.swift:show:page:1": {
+    "file": "MonitorGroupsUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorGroupsUI.swift:showResults:alert:1": {
+    "file": "MonitorGroupsUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorGroupsUI.swift:button:page:1": {
+    "file": "MonitorGroupsUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorGroupsUI.swift:identify:panel:1": {
+    "file": "MonitorGroupsUI.swift",
+    "kind": "panel",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorInputUI.swift:identifyInput:page:1": {
+    "file": "MonitorInputUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorInputUI.swift:editInputs:page:1": {
+    "file": "MonitorInputUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorInputUI.swift:ready:page:1": {
+    "file": "MonitorInputUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorInputUI.swift:show:page:1": {
+    "file": "MonitorInputUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "MonitorInputUI.swift:proposedConnection:page:1": {
+    "file": "MonitorInputUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "NavigationProbeUI.swift:show:page:1": {
+    "file": "NavigationProbeUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "NavigationProbeUI.swift:resetProfile:alert:1": {
+    "file": "NavigationProbeUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "NavigationSettingsUI.swift:navigationSettings:task-page:1": {
+    "file": "NavigationSettingsUI.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "NavigationSettingsUI.swift:showNavigationExceptions:page:1": {
+    "file": "NavigationSettingsUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:refreshSafety:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:stopAgents:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:resumeAgents:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:chooseSafetyAction:menu-page:1": {
+    "file": "PanicUI.swift",
+    "kind": "menu-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:manageAgents:page:1": {
+    "file": "PanicUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:addTarget:picker:1": {
+    "file": "PanicUI.swift",
+    "kind": "picker",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:runShortcutTest:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:runShortcutTest:alert:2": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:runShortcutTest:alert:3": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:broadLockdown:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:safetyReport:page:1": {
+    "file": "PanicUI.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:repairWatcher:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:protectWatcher:alert:1": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:protectWatcher:alert:2": {
+    "file": "PanicUI.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PermissionSetup.swift:declaration:panel:1": {
+    "file": "PermissionSetup.swift",
+    "kind": "panel",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PermissionSetup.swift:show:page:1": {
+    "file": "PermissionSetup.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "ResetActions.swift:privacyOnlyReset:page:1": {
+    "file": "ResetActions.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "ResetActions.swift:systemResetPage:page:1": {
+    "file": "ResetActions.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "ResetSettings.swift:resetSettingsPage:page:1": {
+    "file": "ResetSettings.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "ResetSettings.swift:confirmSettingsReset:page:1": {
+    "file": "ResetSettings.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsPages.swift:show:page:1": {
+    "file": "SettingsPages.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsPages.swift:displaySettings:task-page:1": {
+    "file": "SettingsPages.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsPages.swift:scrollingSettings:task-page:1": {
+    "file": "SettingsPages.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsPages.swift:presentKeepAwakeSettings:task-page:1": {
+    "file": "SettingsPages.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsPages.swift:presentAppSettings:task-page:1": {
+    "file": "SettingsPages.swift",
+    "kind": "task-page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SettingsWindow.swift:declaration:panel:1": {
+    "file": "SettingsWindow.swift",
+    "kind": "panel",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "SetupOverview.swift:show:page:1": {
+    "file": "SetupOverview.swift",
+    "kind": "page",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "main.swift:applicationDidFinishLaunching:alert:1": {
+    "file": "main.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "main.swift:showError:alert:1": {
+    "file": "main.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "main.swift:about:alert:1": {
+    "file": "main.swift",
+    "kind": "alert",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:configureSettings:menu-entry:1": {
+    "file": "PanicUI.swift",
+    "kind": "menu-entry",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:configurePanic:menu-entry:1": {
+    "file": "PanicUI.swift",
+    "kind": "menu-entry",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:advancedSafetySettings:menu-entry:1": {
+    "file": "PanicUI.swift",
+    "kind": "menu-entry",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  },
+  "PanicUI.swift:agentRecognition:menu-entry:1": {
+    "file": "PanicUI.swift",
+    "kind": "menu-entry",
+    "review": "DIALOG-INTERACTION-REVIEW.md; source routing/owner/lifetime audit",
+    "acceptance": "Native physical input pending unlock; shared hidden dispatch fixtures are not native click proof"
+  }
+}

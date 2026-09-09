@@ -29,7 +29,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var modalTestDriver: ((NSAlert) -> NSApplication.ModalResponse)?
     var pickerTestDriver: ((NSOpenPanel) -> NSApplication.ModalResponse)?
     var externalAppTestDriver: (() -> Bool)?
-    var modal = false
+    private(set) var activeAlert: NSAlert?
+    private var activePicker: NSOpenPanel?
+    private var needsPageDisplay = false
+    private(set) var modalResponseRequested: NSApplication.ModalResponse?
+    private(set) var modal = false
     private(set) var picking = false
     private(set) var externalHandoff = false
     var interactionBusy: Bool { authorizing || modal || picking || externalHandoff }
@@ -120,6 +124,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     private func drainPresentationQueue() {
         guard !interactionBusy else { return }
+        if needsPageDisplay {
+            needsPageDisplay = false
+            if let page = pages.last { render(page) }
+        }
         let pending = authorizationCompletions; authorizationCompletions.removeAll()
         for action in pending {
             DispatchQueue.main.async { [weak self] in self?.afterInteraction(action) }
@@ -144,6 +152,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     func windowDidBecomeKey(_ notification: Notification) { returnedToApp() }
     func display(_ page: Page) {
+        guard !interactionBusy else { needsPageDisplay = true; return }
+        render(page)
+    }
+    /// Only the owner of an active confirmation may replace its controls.
+    private func render(_ page: Page) {
         heading.stringValue = page.title; detail.stringValue = feedback ?? page.detail
         let issue: ProtectionIssue? = nil
         detail.textColor = issue.map { $0.severity == .critical ? StatusColors.critical : StatusColors.warning } ?? (detail.stringValue.hasPrefix("✓") ? StatusColors.success : .secondaryLabelColor)
@@ -199,7 +212,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     @objc func goBack() {
         guard !picking, !authorizing else { return }
-        if modal { if modalAllowsCancel { NSApp.stopModal(withCode: cancelCode) }; return }
+        if modal { if modalAllowsCancel, let activeAlert { finish(activeAlert, response: cancelCode) }; return }
         guard pages.last?.beforeBack?() != false else { return }
         guard pages.count > 1 else { window.close(); return }
         pages.removeLast().leave?()
@@ -232,8 +245,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         // Synchronous confirmations cannot safely be replayed after their caller
         // has continued. Refuse overlap; asynchronous notices use afterInteraction.
         guard !interactionBusy else { return .abort }
-        modal = true
-        defer { modal = false; drainPresentationQueue() }
+        modal = true; activeAlert = alert; modalResponseRequested = nil
+        defer { activeAlert = nil; modalResponseRequested = nil; modal = false; drainPresentationQueue() }
         alert.layout()
         guard window.isVisible || (testing && modalTestDriver != nil) else {
             return testing ? .abort : alert.runModal()
@@ -266,7 +279,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let contentHeight = max(96, accessoryHeight + buttonY + 50)
         view.setFrameSize(NSSize(width: 572, height: contentHeight))
         if let accessory = alert.accessoryView { accessory.frame.origin.y = contentHeight-accessoryHeight }
-        display(Page(title: alert.messageText, detail: alert.informativeText, view: view))
+        render(Page(title: alert.messageText, detail: alert.informativeText, view: view))
         back.title = pages.isEmpty ? "Close" : "Back"
         back.isEnabled = allowsCancel
         let oldAllowsCancel = modalAllowsCancel
@@ -275,7 +288,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.defaultButtonCell = view.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\r" }?.cell as? NSButtonCell
         if testing, let driver = modalTestDriver {
             let result = driver(alert)
-            if let page = pages.last { display(page) }
+            if let page = pages.last { render(page) }
             return result
         }
         let timer = Timer(timeInterval: 0.1,repeats: true) { [weak self, weak alert] _ in
@@ -286,28 +299,51 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         RunLoop.main.add(timer,forMode: .modalPanel)
         let result = NSApp.runModal(for: window)
         timer.invalidate()
-        if let page = pages.last { display(page) }
+        if let page = pages.last { render(page) }
         return result
     }
-    @objc func modalChoice(_ sender: NSButton) { NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag)) }
+    @discardableResult
+    func finish(_ alert: NSAlert, response: NSApplication.ModalResponse = .stop) -> Bool {
+        guard modal, activeAlert === alert, !picking, !authorizing, modalResponseRequested == nil else { return false }
+        // Timers and stale controls must never terminate an unrelated native loop.
+        guard testing || NSApp.modalWindow === window || NSApp.modalWindow === alert.window else { return false }
+        modalResponseRequested = response
+        if !testing { NSApp.stopModal(withCode: response) }
+        return true
+    }
+    @objc func modalChoice(_ sender: NSButton) {
+        guard sender.window === window, sender.isEnabled,
+              sender.isDescendant(of: container), let activeAlert else { return }
+        finish(activeAlert, response: NSApplication.ModalResponse(rawValue: sender.tag))
+    }
     func open(_ panel: NSOpenPanel) -> NSApplication.ModalResponse {
         guard !interactionBusy else { return .cancel }
-        picking = true
+        picking = true; activePicker = panel
         let previousBack = back.isEnabled; back.isEnabled = false
-        defer { back.isEnabled = previousBack; picking = false; drainPresentationQueue() }
+        defer { back.isEnabled = previousBack; activePicker = nil; picking = false; drainPresentationQueue() }
         if testing { return pickerTestDriver?(panel) ?? .cancel }
         guard window.isVisible else { return panel.runModal() }
         var result = NSApplication.ModalResponse.cancel
-        panel.beginSheetModal(for: window) { response in result = response; NSApp.stopModal() }
+        panel.beginSheetModal(for: window) { [weak self, weak panel] response in
+            guard let self, let panel, self.activePicker === panel else { return }
+            result = response
+            if NSApp.modalWindow === self.window { NSApp.stopModal() }
+        }
         NSApp.runModal(for: window)
         return result
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard !picking, !authorizing else { return false }
-        if modal { if modalAllowsCancel { NSApp.stopModal(withCode: cancelCode) }; return false }
+        if modal { if modalAllowsCancel, let activeAlert { finish(activeAlert, response: cancelCode) }; return false }
         return true
     }
-    func windowWillClose(_ notification: Notification) { pages.reversed().forEach { $0.leave?() }; pages.removeAll() }
+    func windowWillClose(_ notification: Notification) {
+        pages.reversed().forEach { $0.leave?() }; pages.removeAll()
+        needsPageDisplay = false
+        // Closing the parent while working in Settings/Finder ends that handoff.
+        // Otherwise a later menu action can remain queued with no window to return to.
+        returnedToApp()
+    }
 }
 
 final class SettingsActionButton: NSButton {

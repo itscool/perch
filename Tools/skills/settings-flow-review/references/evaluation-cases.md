@@ -116,3 +116,18 @@ at the interruption, persist and deduplicate the notice, and show no notice when
 the choice was off. Do not describe a sent request as a verified outcome. Test
 both menu and page through Back/reopen, and keep unknown actual state distinct
 from a known saved choice.
+
+## Dead buttons behind passing dialog tests
+
+Scenario: a user can scroll a dialog and close it with X, but its buttons do
+nothing. Tests pass because a modal driver returns Confirm without clicking a
+rendered control. A timeout calls the application-global stopModal; Settings can
+close during an external-app handoff while its busy flag remains set.
+
+Expected: inventory every dialog/entry route, audit owners, targets, view
+lifetimes, refresh exclusion and close/reopen. Add real target/action and stale-
+completion tests; timers must address their own dialog. Replay actual mouse and
+keyboard events through the native modal loop when possible. A locked desktop
+or simulated callback is not native-click evidence. Record that boundary and
+keep the reported failure open until reproduced or verified on the affected
+route; do not claim all dialogs fixed because one wrapper test passed.

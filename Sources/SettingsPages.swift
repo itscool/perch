@@ -30,7 +30,7 @@ final class SettingsTaskPage {
         return button
     }
     func refresh() {
-        guard SettingsWindow.shared.pages.last?.view === view else { return }
+        guard !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === view else { return }
         update?()
     }
     func show(delegate: AppDelegate? = nil) {

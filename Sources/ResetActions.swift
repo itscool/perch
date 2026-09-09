@@ -83,7 +83,7 @@ extension AppDelegate {
                 status.stringValue = result; status.textColor = StatusColors.warning
                 confirmReference?.title = "Retry privacy reset"
             }
-            if let page, SettingsWindow.shared.pages.last?.view === page {
+            if let page, !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === page {
                 let host = SettingsWindow.shared
                 switch operation.state(global: global) {
                 case .idle: host.heading.stringValue = global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?"

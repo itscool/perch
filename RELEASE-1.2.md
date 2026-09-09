@@ -1,6 +1,28 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 74. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 75. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 75: dialog ownership and whole-set interaction audit
+
+Dialog timers and buttons can finish only their own active confirmation.
+Background page refreshes cannot replace its controls or heading. Closing
+Settings during a Finder/System Settings handoff releases that ownership so
+later Settings actions do not remain queued. Obsolete backing-panel close
+handlers no longer stop unrelated modal loops. Layout and main-menu design are
+unchanged.
+
+The source audit inventories 58 UI construction/entry sites. New hidden tests
+exercise actual NSButton dispatch and hit testing, late/duplicate completion,
+Back/X, picker cancellation and handoff close/reopen. A build gate requires
+review entries for new UI sites and keeps modal control in the shared host.
+The reusable flow skill and a harmless native smoke app capture the distinction
+between simulated responses and actual mouse/keyboard input.
+
+The user’s unidentified dead-button dialog remains an open acceptance item.
+The UI tool reported the Mac locked; no native clicks occurred. Hidden ownership
+tests pass and the full isolated suite compiles, but its visible run is pending.
+Build 75 is prepared separately; the installed build 70 and active lid session
+are preserved. No public release, permission change or hardware action occurred.
 
 ## Build 74: stable sleep state and launch-access recovery
 
@@ -337,3 +359,8 @@ The app uses the existing local signing identity. It is not notarized or publish
 The lid implementation does not await special Apple approval. Native timed assertions with the identified closed-lid/battery options require Apple-internal entitlements; investigating a supported replacement is an optional TODO and may be unnecessary if the supervised implementation is reliable. The current private clamshell interface, real sleep/wake and crash recovery, two-computer/multi-monitor hardware behavior, clean installation/uninstall, performance, and accessibility still require acceptance. Signing and passing simulations do not establish those results.
 
 All 20 isolated functional suites passed for these sources. Production compilation and strict local signature verification passed; the designated signing requirement matches build 41. The runner exercises logic and AppKit flows while blocking live hardware, installation, permission and panic mutations. Build 42 was reserved by an unsuccessful compilation using a relocated module cache; after moving that generated cache aside, build 43 completed. The running build 41 and its helpers were not replaced or restarted while preparing the preview.
+
+Build 75 preparation: production and full isolated compilation completed with
+zero compiler warnings; strict nested/app signature and ZIP integrity/version
+checks passed. Hidden dialog ownership fixtures passed. No visible suite or
+physical-click pass is claimed while the Mac remains locked.

@@ -190,7 +190,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     @objc func showFile() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: "/usr/bin/eslogger")]); return true } }
     func windowWillClose(_ notification: Notification) {
         timer?.invalidate(); timer = nil
-        if fromSettings { fromSettings = false; NSApp.stopModal() }
+        fromSettings = false // This retired backing panel does not own a modal session.
     }
 }
 

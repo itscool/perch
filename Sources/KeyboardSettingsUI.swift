@@ -12,13 +12,13 @@ extension AppDelegate {
             else if modes.allSatisfy({ $0 == false }) { item.state = .off }
             else { item.state = .mixed }
             label(item, "Swap Control ↔ Command keys")
-            item.toolTip = devices.isEmpty ? "No \(builtIn ? "built-in" : "external") keyboard connected. Your choice applies when one connects." : devices.map { $0.name + ": " + ($0.swapped == true ? "swapped" : $0.swapped == false ? "unswapped" : "custom mapping") }.joined(separator: "\n")
+            item.menuHelp = devices.isEmpty ? "No \(builtIn ? "built-in" : "external") keyboard connected. Your choice applies when one connects." : devices.map { $0.name + ": " + ($0.swapped == true ? "swapped" : $0.swapped == false ? "unswapped" : "custom mapping") }.joined(separator: "\n")
         }
     }
     func refreshFunctionKeyItem(_ standard: Bool) {
         fnItem.state = standard ? .on : .off
         label(fnItem, "Use F1–F12 directly", hint: standard ? "Without Fn" : "Hold Fn")
-        fnItem.toolTip = "Changes the real macOS function-key setting while preserving connected external keyboards’ Fn modes."
+        fnItem.menuHelp = "Changes the real macOS function-key setting while preserving connected external keyboards’ Fn modes."
         fnItem.isEnabled = !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn }
         refreshExternalFunctionKeyItem()
     }
@@ -39,7 +39,7 @@ extension AppDelegate {
         item.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (!modes.isEmpty || !failed.isEmpty)
         item.action = failed.isEmpty ? #selector(toggleExternalFunctionKeys) : #selector(keyboardDetails)
         (item.view as? MenuRowView)?.opensAnotherInterface = { !failed.isEmpty }
-        item.toolTip = (keyboardModes.needsAccess ? LaunchAccessRecovery.summary + "\n" : "") + "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
+        item.menuHelp = (keyboardModes.needsAccess ? LaunchAccessRecovery.summary + "\n" : "") + "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
     }
     @objc func toggleExternalFunctionKeys() {
         let desired = externalFnItem.state != .on
@@ -79,12 +79,12 @@ extension AppDelegate {
         if let item = keyboardSetupItem {
             item.isHidden = !keyboardModes.registrationNeedsSetup
             label(item, "Set up keyboard…", hint: "⚠ Review navigation keys", hintColor: StatusColors.warning)
-            item.toolTip = keyboardModes.attentionDetail
+            item.menuHelp = keyboardModes.attentionDetail
         }
         refreshExternalKeyboardSection()
         if currentProtectionIssue == nil, let item = safetySettingsItem {
             label(item, "Settings…", hint: keyboardModes.attentionHint, hintColor: StatusColors.warning)
-            item.toolTip = keyboardModes.attentionDetail
+            item.menuHelp = keyboardModes.attentionDetail
         }
     }
     func refreshExternalKeyboardSection() {

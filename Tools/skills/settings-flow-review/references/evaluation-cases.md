@@ -117,6 +117,20 @@ the choice was off. Do not describe a sent request as a verified outcome. Test
 both menu and page through Back/reopen, and keep unknown actual state distinct
 from a known saved choice.
 
+## Native selection behind a custom menu
+
+Scenario: custom rows draw a pointer highlight, but Return activates the native
+menu's remembered keyboard selection. Help belongs to native items while custom
+rows have different heights; hover refresh removes all tracking areas. A delayed
+command captures its selector before a refresh changes its action or target.
+
+Expected: inspect the shared ownership boundary across all rows, not just the
+reported tooltip. Keep help local to its visible view, preserve foreign tracking
+areas, dispatch to the visible selection and reject stale deferred actions. Test
+keyboard/pointer transitions, hidden/disabled rows, help clearing and renderer
+replacement. Preserve native behavior for ordinary popup items and keep the
+existing layout. Distinguish hidden dispatch from a real native hover replay.
+
 ## Dead buttons behind passing dialog tests
 
 Scenario: a user can scroll a dialog and close it with X, but its buttons do

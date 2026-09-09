@@ -1,6 +1,27 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 75. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 76 candidate. Build 75 is installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 76: menu tooltip and interaction ownership
+
+The user confirmed that flickering is resolved and the discussed physical
+external-keyboard behaviors work. A separate report describes Panic help
+appearing over other menu rows.
+
+Custom menu rows now own their tooltips; native menu items no longer register a
+second tooltip for those rows. Tracking refresh removes only Perch's own hover
+area. Return/Space follows the visible highlight after moving between keyboard
+and mouse navigation, and consumes activation when selection becomes hidden or
+disabled. Deferred commands are discarded if their action or target changes
+before dispatch. Native popup help, shortcut labels, accessibility help and the
+existing menu layout are retained.
+
+Hidden tests pass for help ownership, replacement/clearing, tracking ownership,
+selection and deferred action changes. Production and full isolated compilation
+completed without compiler warnings; strict signature and package checks pass.
+The full visible suite was not rerun. Build 76 is prepared separately, not installed; actual native
+hover acceptance remains open. No live menu action or hardware setting was used
+to test these corrections.
 
 ## Build 75: dialog ownership and whole-set interaction audit
 

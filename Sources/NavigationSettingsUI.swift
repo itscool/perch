@@ -51,7 +51,7 @@ extension AppDelegate {
             else { warning = "" }
             let hint = warning.isEmpty ? (enabled ? "On · app exceptions apply" : "Off") : warning
             label(item, item === homeEndItem ? "Home/End move to line edges" : "Page Up/Down move the cursor", hint: hint, hintColor: warning.hasPrefix("⚠") ? StatusColors.warning : .secondaryLabelColor)
-            item.toolTip = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboards → Navigation keys."
+            item.menuHelp = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboards → Navigation keys."
         }
         refreshExternalKeyboardSection()
     }

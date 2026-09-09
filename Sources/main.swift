@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff))
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
-        displayItem.toolTip = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
+        displayItem.menuHelp = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
         monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
         refreshMonitorInputItem()
         audioSection = section("Audio")
@@ -220,9 +220,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         keyboardSetupItem.isHidden = true
         section("Sleep")
         awakeItem = add("Keep awake", #selector(toggleAwake))
-        awakeItem.toolTip = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
+        awakeItem.menuHelp = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
         lidItem = add("Including with lid closed", #selector(toggleLid))
-        lidItem.toolTip = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
+        lidItem.menuHelp = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
         section("Perch")
         loginItem = add("Start at login", #selector(toggleLogin))
         safetySettingsItem = add("Settings…", #selector(configureSettings))
@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let quit = add("Quit Perch", #selector(quit))
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
-        quit.toolTip = "Input controls, ordinary keep-awake and agent protection continue. Monitor shortcuts and supervised lid protection stop. If the lid stays closed on battery, the lid helper requests sleep."
+        quit.menuHelp = "Input controls, ordinary keep-awake and agent protection continue. Monitor shortcuts and supervised lid protection stop. If the lid stays closed on battery, the lid helper requests sleep."
         for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
@@ -297,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         case .information: color = StatusColors.information
         }
         label(item, reading.title, hint: reading.detail, hintColor: color)
-        item.toolTip = reading.help
+        item.menuHelp = reading.help
     }
     func refreshSystem() {
         guard menuOpen else { return }
@@ -388,8 +388,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         lidItem.state = value.lid; lidItem.isEnabled = value.lidEnabled
         label(awakeItem, "Keep awake", hint: value.awakeHint)
         label(lidItem, "Including with lid closed", hint: value.lidHint, hintColor: observedLidDisabled == true ? StatusColors.warning : .secondaryLabelColor)
-        awakeItem.toolTip = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
-        lidItem.toolTip = "Your saved choice stays checked when a session ends. Review Keep awake settings to resume stopped protection. While active, lid protection blocks manual Sleep and allows 60 seconds to open the lid or reconnect after undocking."
+        awakeItem.menuHelp = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
+        lidItem.menuHelp = "Your saved choice stays checked when a session ends. Review Keep awake settings to resume stopped protection. While active, lid protection blocks manual Sleep and allows 60 seconds to open the lid or reconnect after undocking."
     }
     @objc func resumeLidProtection() {
         withMenuClosed { [weak self] in
@@ -538,7 +538,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             (item.view as? MenuRowView)?.opensAnotherInterface = { !canChange }
             let hint = pending && input == nil ? "Checking input helper…" : !trusted ? "Set up in Settings" : saved && input?.active != true ? "Saved · controls not running" : "Vertical"
             label(item, title, hint: hint, hintColor: trusted && (!saved || input?.active == true) ? .secondaryLabelColor : StatusColors.warning)
-            item.toolTip = saved && !trusted ? "This choice is saved. You can turn it off here, or restore input access in Settings." : "Changes vertical scrolling. Input controls must be running for the saved choice to take effect."
+            item.menuHelp = saved && !trusted ? "This choice is saved. You can turn it off here, or restore input access in Settings." : "Changes vertical scrolling. Input controls must be running for the saved choice to take effect."
         }
     }
     func observeHelperPresentation() {

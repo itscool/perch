@@ -43,6 +43,8 @@ private final class ReleaseToggleTarget: NSObject, NSMenuItemValidation {
 }
 
 func runReleaseUITests() throws {
+    try runMenuTooltipTests()
+    try runMenuBoundaryTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let host = SettingsWindow.shared
     host.testing = true

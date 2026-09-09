@@ -1,5 +1,19 @@
 import AppKit
 
+extension NSMenuItem {
+    /// Custom rows own their hover geometry. Do not also register native-item
+    /// tooltips over a menu whose rows and section heights are custom views.
+    var menuHelp: String? {
+        get { (view as? MenuRowView)?.toolTip ?? toolTip }
+        set {
+            if let row = view as? MenuRowView {
+                if toolTip != nil { toolTip = nil }
+                if row.toolTip != newValue { row.toolTip = newValue }
+            } else if toolTip != newValue { toolTip = newValue }
+        }
+    }
+}
+
 /// One renderer for every menu row. Semantic colors are resolved only inside the
 /// view's drawing appearance; title updates never enter AppKit's attributed-title
 /// cache. NSMenu still owns placement, type selection and outside-click dismissal.
@@ -36,6 +50,7 @@ final class MenuRowView: NSView {
     }
     private let sectionSymbol: NSImage?
     private var commandPending = false
+    private var hoverTrackingArea: NSTrackingArea?
     init(item: NSMenuItem, kind: Kind, text: NSAttributedString? = nil) {
         self.item = item; self.kind = kind
         let symbols = ["System":"gauge.with.dots.needle.50percent", "Sleep":"moon", "Display":"display", "Audio":"speaker.wave.2", "Scrolling":"computermouse", "Built-in keyboard":"keyboard", "External keyboards":"keyboard", "Agent Kill Switch":"shield", "Perch":"bird"]
@@ -45,6 +60,9 @@ final class MenuRowView: NSView {
             .foregroundColor: kind == .section ? NSColor.secondaryLabelColor : NSColor.labelColor])
         super.init(frame: NSRect(x: 0, y: 0, width: 430, height: kind == .section ? 22 : 24))
         autoresizingMask = .width
+        // Preserve help when replacing a command renderer with a toggle renderer.
+        toolTip = item.menuHelp
+        item.toolTip = nil
         setAccessibilityElement(true)
         setAccessibilityRole(kind == .toggle ? .checkBox : kind == .command ? .button : .staticText)
         resizeForText()
@@ -77,12 +95,19 @@ final class MenuRowView: NSView {
         hover = false; keyboardHighlight = false
     }
     override func updateTrackingAreas() {
-        trackingAreas.forEach { removeTrackingArea($0) }
-        if actionable { addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)) }
+        if let hoverTrackingArea { removeTrackingArea(hoverTrackingArea) }
+        hoverTrackingArea = nil
+        if actionable {
+            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+            hoverTrackingArea = area; addTrackingArea(area)
+        }
         super.updateTrackingAreas()
     }
     override func mouseEntered(with event: NSEvent) {
-        for sibling in item?.menu?.items ?? [] { (sibling.view as? MenuRowView)?.keyboardHighlight = false }
+        for sibling in item?.menu?.items ?? [] {
+            (sibling.view as? MenuRowView)?.keyboardHighlight = false
+            (sibling.view as? MenuRowView)?.hover = false
+        }
         hover = true
     }
     override func mouseExited(with event: NSEvent) { hover = false }
@@ -97,13 +122,14 @@ final class MenuRowView: NSView {
     @discardableResult func activate() -> Bool {
         guard enabled, !commandPending, let item, let action = item.action else { return false }
         if kind == .command || opensAnotherInterface() {
+            let target = item.target
             commandPending = true
             item.menu?.cancelTracking()
             // Open a settings/confirmation window only once tracking has ended.
             DispatchQueue.main.async { [self, item] in
                 commandPending = false
-                guard enabled else { return }
-                NSApp.sendAction(action, to: item.target, from: item)
+                guard enabled, item.action == action, item.target === target else { return }
+                NSApp.sendAction(action, to: target, from: item)
             }
         } else {
             NSApp.sendAction(action, to: item.target, from: item)
@@ -114,8 +140,8 @@ final class MenuRowView: NSView {
     override func accessibilityPerformPress() -> Bool { activate() }
     override func accessibilityLabel() -> String? { text.string }
     override func accessibilityHelp() -> String? {
-        let detail = item?.toolTip ?? ""
-        return shortcutHint.isEmpty ? item?.toolTip : detail + "\nConfigured shortcut: " + shortcutHint
+        let detail = toolTip ?? ""
+        return shortcutHint.isEmpty ? toolTip : detail + "\nConfigured shortcut: " + shortcutHint
     }
     override func isAccessibilityEnabled() -> Bool { !actionable || enabled }
     override func accessibilityValue() -> Any? {

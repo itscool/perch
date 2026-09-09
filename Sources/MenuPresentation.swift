@@ -21,6 +21,18 @@ extension AppDelegate {
               let row = item.view as? MenuRowView else { return false }
         return row.activate()
     }
+    func handleMenuActivation(_ event: NSEvent) -> Bool {
+        guard menuOpen, [36, 49, 76].contains(event.keyCode),
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+        // Native highlightedItem may still name the previous keyboard selection
+        // after the mouse enters a custom row. Activate what we actually show.
+        if let row = menu.items.compactMap({ $0.view as? MenuRowView }).first(where: { $0.highlighted }) {
+            _ = row.activate()
+        }
+        // Consume even when the selection disappeared or became disabled: native
+        // fallback must not dispatch the stale selection instead.
+        return true
+    }
 
     func setMenuTitle(_ item: NSMenuItem, _ source: NSAttributedString) {
         guard menuTitleSources[item]?.isEqual(to: source) != true else {
@@ -48,11 +60,7 @@ extension AppDelegate {
         menuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             if self.handleMenuShortcut(event) { return nil }
-            guard self.menuOpen, [36, 49, 76].contains(event.keyCode),
-                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                  let row = self.menu.highlightedItem?.view as? MenuRowView else { return event }
-            _ = row.activate()
-            return nil
+            return self.handleMenuActivation(event) ? nil : event
         }
     }
     func endMenuKeyboardHandling() {

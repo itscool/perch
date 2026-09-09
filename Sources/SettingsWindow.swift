@@ -30,6 +30,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var pickerTestDriver: ((NSOpenPanel) -> NSApplication.ModalResponse)?
     var externalAppTestDriver: (() -> Bool)?
     private(set) var activeAlert: NSAlert?
+    private var alertCompletion: ((NSApplication.ModalResponse) -> Void)?
+    private var alertRefresh: Timer?
+    private var drivingAlertFixture = false
     private var activePicker: NSOpenPanel?
     private var needsPageDisplay = false
     private(set) var modalResponseRequested: NSApplication.ModalResponse?
@@ -218,6 +221,18 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         pages.removeLast().leave?()
         if let page = pages.last { display(page); page.refresh?() }
     }
+    @discardableResult
+    func returnToPage(at index: Int) -> Bool {
+        guard !interactionBusy, pages.indices.contains(index) else { return false }
+        while pages.count > index + 1 {
+            let count = pages.count
+            goBack()
+            // A draft may refuse Back. Preserve its error instead of spinning
+            // on the main thread or silently discarding the user's edits.
+            guard pages.count < count else { return false }
+        }
+        return true
+    }
     func list(title: String, detail: String, options: [(String,String,Selector)], delegate: AppDelegate) {
         let view = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: CGFloat(options.count*68)))
         // Each button retains its own action; parent pages remain usable after navigating back.
@@ -240,17 +255,21 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Agent Kill Switch" ? #selector(AppDelegate.configurePanic) : title == "Maintenance" ? #selector(AppDelegate.advancedSafetySettings) : nil
         show(Page(title: title, detail: detail, view: view, refresh: { [weak delegate] in if let selector { _ = delegate?.perform(selector) } }))
     }
+    /// Synchronous response adapter for existing isolated fixtures only. Product
+    /// dialogs use present and return to the ordinary application event loop.
     @discardableResult
     func run(_ alert: NSAlert, allowsCancel: Bool = true) -> NSApplication.ModalResponse {
-        // Synchronous confirmations cannot safely be replayed after their caller
-        // has continued. Refuse overlap; asynchronous notices use afterInteraction.
-        guard !interactionBusy else { return .abort }
+        guard testing, modalTestDriver != nil else { return .abort }
+        var response = NSApplication.ModalResponse.abort
+        present(alert, allowsCancel: allowsCancel) { response = $0 }
+        return response
+    }
+    func present(_ alert: NSAlert, allowsCancel: Bool = true,
+                 completion: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) {
+        guard !interactionBusy else { completion(.abort); return }
         modal = true; activeAlert = alert; modalResponseRequested = nil
-        defer { activeAlert = nil; modalResponseRequested = nil; modal = false; drainPresentationQueue() }
+        alertCompletion = completion; modalAllowsCancel = allowsCancel
         alert.layout()
-        guard window.isVisible || (testing && modalTestDriver != nil) else {
-            return testing ? .abort : alert.runModal()
-        }
         let view = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
         if let accessory = alert.accessoryView {
             accessory.removeFromSuperview()
@@ -282,34 +301,54 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         render(Page(title: alert.messageText, detail: alert.informativeText, view: view))
         back.title = pages.isEmpty ? "Close" : "Back"
         back.isEnabled = allowsCancel
-        let oldAllowsCancel = modalAllowsCancel
-        modalAllowsCancel = allowsCancel
-        defer { back.isEnabled = true; modalAllowsCancel = oldAllowsCancel }
         window.defaultButtonCell = view.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\r" }?.cell as? NSButtonCell
         if testing, let driver = modalTestDriver {
+            drivingAlertFixture = true
             let result = driver(alert)
-            if let page = pages.last { render(page) }
-            return result
+            drivingAlertFixture = false
+            completeAlert(alert, response: modalResponseRequested ?? result)
+            return
         }
-        let timer = Timer(timeInterval: 0.1,repeats: true) { [weak self, weak alert] _ in
-            guard let self, let alert else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self, weak alert] _ in
+            guard let self, let alert, self.activeAlert === alert else { return }
             self.heading.stringValue = alert.messageText
             if self.detail.stringValue != alert.informativeText { self.detail.stringValue = alert.informativeText; self.layoutDetail() }
         }
-        RunLoop.main.add(timer,forMode: .modalPanel)
-        let result = NSApp.runModal(for: window)
-        timer.invalidate()
-        if let page = pages.last { render(page) }
-        return result
+        alertRefresh = timer
+        RunLoop.main.add(timer, forMode: .common)
+        if !testing {
+            if !window.isVisible { window.center() }
+            window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        }
     }
     @discardableResult
     func finish(_ alert: NSAlert, response: NSApplication.ModalResponse = .stop) -> Bool {
         guard modal, activeAlert === alert, !picking, !authorizing, modalResponseRequested == nil else { return false }
-        // Timers and stale controls must never terminate an unrelated native loop.
-        guard testing || NSApp.modalWindow === window || NSApp.modalWindow === alert.window else { return false }
+        // These are ordinary shared-window pages, never native modal loops.
+        guard testing || NSApp.modalWindow == nil else { return false }
         modalResponseRequested = response
-        if !testing { NSApp.stopModal(withCode: response) }
+        if drivingAlertFixture { return true }
+        if testing { completeAlert(alert, response: response) }
+        else {
+            // Let the initiating button action unwind before displaying a result
+            // or cleanup page in the same window.
+            DispatchQueue.main.async { [weak self] in self?.completeAlert(alert, response: response) }
+        }
         return true
+    }
+    private func completeAlert(_ alert: NSAlert, response: NSApplication.ModalResponse) {
+        guard activeAlert === alert else { return }
+        alertRefresh?.invalidate(); alertRefresh = nil
+        let completion = alertCompletion; alertCompletion = nil
+        activeAlert = nil; modalResponseRequested = nil
+        back.isEnabled = true; modalAllowsCancel = true
+        // Restore before releasing presentation ownership. The completion may
+        // immediately present the next step without a queued refresh replacing it.
+        if let page = pages.last { render(page) }
+        else { window.defaultButtonCell = nil; window.orderOut(nil) }
+        modal = false
+        completion?(response)
+        drainPresentationQueue()
     }
     @objc func modalChoice(_ sender: NSButton) {
         guard sender.window === window, sender.isEnabled,

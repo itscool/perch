@@ -57,9 +57,11 @@ final class MonitorGroupsPage: NSObject {
                 guard let self else { return }
                 let alert = NSAlert(); alert.messageText = "Remove \(group.name)?"; alert.informativeText = "This removes the group and its destination mappings. Individual display setups are kept. No display will switch."
                 alert.addButton(withTitle: "Remove group"); alert.addButton(withTitle: "Cancel")
-                guard SettingsWindow.shared.run(alert) == .alertFirstButtonReturn else { return }
-                var settings = self.monitor.groups.settings; settings.groups.removeAll { $0.id == group.id }; if settings.activeID == group.id { settings.activeID = nil }
-                do { try self.monitor.groups.save(settings); self.reload() } catch { self.status.stringValue = error.localizedDescription }
+                SettingsWindow.shared.present(alert) { response in
+                    guard response == .alertFirstButtonReturn else { return }
+                    var settings = self.monitor.groups.settings; settings.groups.removeAll { $0.id == group.id }; if settings.activeID == group.id { settings.activeID = nil }
+                    do { try self.monitor.groups.save(settings); self.reload() } catch { self.status.stringValue = error.localizedDescription }
+                }
             }
         }
     }

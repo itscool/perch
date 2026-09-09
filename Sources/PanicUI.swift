@@ -58,7 +58,7 @@ extension AppDelegate {
                         alert.informativeText = "Perch received your shortcut. No agents were stopped and no permissions were changed. Test mode has ended and your previous shortcut settings have been restored."
                         alert.addButton(withTitle: "OK")
                         NSApp.activate(ignoringOtherApps: true)
-                        SettingsWindow.shared.run(alert)
+                        SettingsWindow.shared.present(alert)
                     }
                 }
             }
@@ -94,8 +94,9 @@ extension AppDelegate {
         alert.informativeText = detail
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Terminate agents")
-        guard SettingsWindow.shared.run(alert) == .alertSecondButtonReturn else { return }
-        safetyRequest("stop")
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.safetyRequest("stop") }
+        }
     }
     @objc func resumeAgents() {
         let alert = NSAlert()
@@ -103,7 +104,9 @@ extension AppDelegate {
         alert.informativeText = "Perch will stop blocking their relaunch. It won’t reopen apps or restore privacy permissions. Reopen only the agents you want to use."
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Resume")
-        if SettingsWindow.shared.run(alert) == .alertSecondButtonReturn { safetyRequest("resume") }
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.safetyRequest("resume") }
+        }
     }
     func chooseSafetyAction(title: String, detail: String, options: [(String, String, Selector)]) {
         SettingsWindow.shared.list(title: title, detail: detail, options: options, delegate: self)
@@ -218,7 +221,7 @@ extension AppDelegate {
         })
     }
     // Explicit dependencies let release tests exercise the dialog without arming the real helper.
-    func runShortcutTest(readStatus: @escaping () -> SafetyStatus?, send: (String) throws -> Void, keepAlive: @escaping () throws -> Void) {
+    func runShortcutTest(readStatus: @escaping () -> SafetyStatus?, send: @escaping (String) throws -> Void, keepAlive: @escaping () throws -> Void, now: @escaping () -> Date = Date.init) {
         guard !SettingsWindow.shared.interactionBusy else { return }
         guard readStatus()?.fresh == true else { showError(AppError(message: "Background protection is unavailable. Repair it before testing.")); return }
         let previousResult = readStatus()?.testResultID
@@ -227,7 +230,6 @@ extension AppDelegate {
         let heartbeat = Timer(timeInterval: 1, repeats: true) { _ in try? keepAlive() }
         RunLoop.main.add(heartbeat, forMode: .common)
         RunLoop.main.add(heartbeat, forMode: .modalPanel)
-        defer { heartbeat.invalidate() }
         let alert = NSAlert()
         alert.messageText = "Test shortcut"
         alert.informativeText = "Preparing harmless test… Wait before pressing the shortcut."
@@ -235,59 +237,63 @@ extension AppDelegate {
         let countdown = NSTextField(labelWithString: "10 seconds remaining")
         countdown.frame = NSRect(x: 0, y: 0, width: 400, height: 24)
         alert.accessoryView = countdown
-        let preparationStarted = Date()
+        let preparationStarted = now()
         var deadline: Date?
         var outcome = "No shortcut received"
         let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
             let state = readStatus()
             if deadline == nil, let until = state?.testUntil, until > preparationStarted, state?.fresh == true {
-                deadline = Date().addingTimeInterval(10)
+                deadline = now().addingTimeInterval(10)
             }
-            countdown.stringValue = deadline.map { "\(max(0, Int(ceil($0.timeIntervalSinceNow)))) seconds remaining" } ?? "Preparing — don’t press yet"
+            countdown.stringValue = deadline.map { "\(max(0, Int(ceil($0.timeIntervalSince(now()))))) seconds remaining" } ?? "Preparing — don’t press yet"
             if let result = state?.testResultID, result != previousResult {
                 outcome = "Shortcut worked"
                 SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2101))
             } else if state?.fresh != true {
                 outcome = "Background protection stopped responding"
                 SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2102))
-            } else if deadline.map({ Date() >= $0 }) ?? (Date().timeIntervalSince(preparationStarted) >= 5) {
+            } else if deadline.map({ now() >= $0 }) ?? (now().timeIntervalSince(preparationStarted) >= 5) {
                 SettingsWindow.shared.finish(alert, response: NSApplication.ModalResponse(rawValue: 2102))
             } else if deadline != nil {
                 alert.informativeText = "Press \(shortcut). This test will not terminate processes or reset permissions."
             }
         }
         RunLoop.main.add(timer, forMode: .modalPanel)
-        let response = SettingsWindow.shared.run(alert)
-        timer.invalidate()
-        if response != .alertFirstButtonReturn {
+        RunLoop.main.add(timer, forMode: .common)
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            timer.invalidate()
+            let cleanupTest = {
+                do {
+                    try send("finish-test")
+                    let cleanup = NSAlert()
+                    cleanup.messageText = "Ending shortcut test…"
+                    cleanup.informativeText = "Waiting for background protection to restore your shortcut settings."
+                    cleanup.addButton(withTitle: "Waiting…").isEnabled = false
+                    let expires = now().addingTimeInterval(5)
+                    var restored = false
+                    let poll = Timer(timeInterval: 0.1, repeats: true) { _ in
+                        if let state = readStatus(), state.fresh, state.testUntil == nil {
+                            restored = true
+                            SettingsWindow.shared.finish(cleanup)
+                        } else if now() >= expires { SettingsWindow.shared.finish(cleanup) }
+                    }
+                    RunLoop.main.add(poll, forMode: .common)
+                    RunLoop.main.add(poll, forMode: .modalPanel) // Legacy response fixtures only.
+                    SettingsWindow.shared.present(cleanup, allowsCancel: false) { _ in
+                        poll.invalidate(); heartbeat.invalidate()
+                        if !restored { self?.showError(AppError(message: "Could not confirm test cleanup. Background protection may be unavailable; repair it in Agent Kill Switch before relying on the shortcut.")) }
+                    }
+                } catch { heartbeat.invalidate(); self?.showError(error) }
+            }
+            if response == .alertFirstButtonReturn || response == .abort { cleanupTest(); return }
             let result = NSAlert()
             result.messageText = outcome
             result.informativeText = outcome == "Shortcut worked"
                 ? "Perch received the combination. The shortcut is still harmless. Returning to settings ends the test and restores your configured shortcut."
                 : "The test did not succeed. Check the combination and try again. Returning to settings ends the test."
             result.addButton(withTitle: "Back")
-            SettingsWindow.shared.run(result)
+            SettingsWindow.shared.present(result) { _ in cleanupTest() }
         }
-        do {
-            try send("finish-test")
-            let cleanup = NSAlert()
-            cleanup.messageText = "Ending shortcut test…"
-            cleanup.informativeText = "Waiting for background protection to restore your shortcut settings."
-            cleanup.addButton(withTitle: "Waiting…").isEnabled = false
-            let expires = Date().addingTimeInterval(5)
-            var restored = false
-            let poll = Timer(timeInterval: 0.1, repeats: true) { _ in
-                if let state = readStatus(), state.fresh, state.testUntil == nil {
-                    restored = true
-                    SettingsWindow.shared.finish(cleanup)
-                } else if Date() >= expires { SettingsWindow.shared.finish(cleanup) }
-            }
-            RunLoop.main.add(poll, forMode: .modalPanel)
-            SettingsWindow.shared.run(cleanup, allowsCancel: false)
-            poll.invalidate()
-            if !restored { showError(AppError(message: "Could not confirm test cleanup. Background protection may be unavailable; repair it in Agent Kill Switch before relying on the shortcut.")) }
-        } catch { showError(error) }
-        heartbeat.invalidate()
     }
     @objc func finishPanicTest() { safetyRequest("finish-test") }
     @objc func broadLockdown() {
@@ -297,7 +303,9 @@ extension AppDelegate {
         alert.informativeText = "This also resets permissions for unrelated apps and Perch. Apps may ask for access again. It does not remove administrator rights, stop remote jobs, or cover every security setting. Agent relaunch blocking remains active."
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Stop agents & reset permissions")
-        if SettingsWindow.shared.run(alert) == .alertSecondButtonReturn { safetyRequest("lockdown") }
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.safetyRequest("lockdown") }
+        }
     }
     @objc func safetyReport() {
         let started = Date()
@@ -328,7 +336,9 @@ extension AppDelegate {
             result.informativeText = "Perch’s current helper files and launch jobs are installed. Setup & status will check that the helpers respond and show any access still needed. Your feature choices are retained."
             result.addButton(withTitle: "Check setup & status")
             result.addButton(withTitle: "Back")
-            if SettingsWindow.shared.run(result) == .alertFirstButtonReturn { setupOverview() }
+            SettingsWindow.shared.present(result) { [weak self] response in
+                if response == .alertFirstButtonReturn { self?.setupOverview() }
+            }
         } catch { safetyError = error.localizedDescription; showError(error) }
     }
     @objc func protectWatcher() {
@@ -337,13 +347,14 @@ extension AppDelegate {
         alert.informativeText = "Install an administrator-owned copy so ordinary agent commands cannot overwrite the watcher binary. macOS will ask for your password.\n\nThe watcher still runs as your user. Another process with your account’s access can stop or disable it; this is extra protection against accidental changes, not isolation from a hostile agent."
         alert.addButton(withTitle: "Install Protected Copy")
         alert.addButton(withTitle: "Cancel")
-        if SettingsWindow.shared.run(alert) == .alertFirstButtonReturn {
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
             do {
                 try GuardianInstall.protectExecutable()
                 let result = NSAlert(); result.messageText = "Helper files protected"
                 result.informativeText = "The administrator-owned copy was installed and the background helpers restarted. Their status is checked in Settings."
-                SettingsWindow.shared.run(result)
-            } catch { showError(error) }
+                SettingsWindow.shared.present(result)
+            } catch { self.showError(error) }
         }
     }
 }

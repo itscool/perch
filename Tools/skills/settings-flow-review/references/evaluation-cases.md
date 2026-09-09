@@ -138,6 +138,11 @@ nothing. Tests pass because a modal driver returns Confirm without clicking a
 rendered control. A timeout calls the application-global stopModal; Settings can
 close during an external-app handoff while its busy flag remains set.
 
+Variant: Back fails only after a successful or timed-out test. X enters cleanup
+and the parent responds afterward. Both exits call the same completion method.
+Another page refuses Back for an invalid draft while a return-to-overview loop
+keeps trying to pop it.
+
 Expected: inventory every dialog/entry route, audit owners, targets, view
 lifetimes, refresh exclusion and close/reopen. Add real target/action and stale-
 completion tests; timers must address their own dialog. Replay actual mouse and
@@ -145,3 +150,8 @@ keyboard events through the native modal loop when possible. A locked desktop
 or simulated callback is not native-click evidence. Record that boundary and
 keep the reported failure open until reproduced or verified on the affected
 route; do not claim all dialogs fixed because one wrapper test passed.
+For the variant, exercise the real shared Back without a supplied response,
+check its full-root hit target, and audit successive modal loops in the reusable
+host. A callback-based replacement must retain confirmation gates, exclusive
+action ownership and cleanup. Stop parent navigation when Back is refused;
+never bypass validation or discard the draft merely to reach the overview.

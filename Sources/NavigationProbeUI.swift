@@ -144,13 +144,15 @@ final class NavigationProbePage: NSObject {
         alert.messageText = "Reset saved navigation layout?"
         alert.informativeText = "Forget this keyboard’s learned layout, or all saved layouts. Its keys and all Fn/modifier settings keep working as before. Bundled profiles remain available."
         alert.addButton(withTitle: "Reset this keyboard"); alert.addButton(withTitle: "Reset all saved layouts"); alert.addButton(withTitle: "Cancel")
-        let result = SettingsWindow.shared.run(alert)
-        guard result == .alertFirstButtonReturn || result == .alertSecondButtonReturn else { return }
-        do {
-            guard result == .alertSecondButtonReturn || selectedIdentity != nil else { return }
-            try resetProfiles(result == .alertSecondButtonReturn ? nil : selectedIdentity)
-            session.reset(); setupIdentity = nil; reload()
-        } catch { status.stringValue = "⚠ " + error.localizedDescription; status.textColor = StatusColors.warning }
+        let identity = selectedIdentity
+        SettingsWindow.shared.present(alert) { [self] result in
+            guard result == .alertFirstButtonReturn || result == .alertSecondButtonReturn else { return }
+            do {
+                guard result == .alertSecondButtonReturn || identity != nil else { return }
+                try resetProfiles(result == .alertSecondButtonReturn ? nil : identity)
+                session.reset(); setupIdentity = nil; reload()
+            } catch { status.stringValue = "⚠ " + error.localizedDescription; status.textColor = StatusColors.warning }
+        }
     }
     private func tick() {
         if !hasAccess() { session.stop("Input Monitoring became unavailable. Setup stopped; your saved layout was kept.") }

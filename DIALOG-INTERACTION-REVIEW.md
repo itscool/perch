@@ -1,4 +1,70 @@
-# Dialog interaction audit — September 9, build 75 candidate
+# Dialog interaction audit — September 9
+
+## Build 77: result-page Back, whole-set static sweep
+
+The user identified the affected flow on installed build 75: Test shortcut works,
+but Back on both success and timeout results does not respond. X initiates
+Ending shortcut test and returns to the working Agent Kill Switch parent.
+The preparation screen has header Back, not a separate Cancel. Add app and
+Add executable pickers work. These observations supersede the unidentified-route
+status below; no agent-operated physical reproduction is claimed.
+
+**P1, source correction and native acceptance open:** replace repeated native
+modal loops in the shared Settings window with asynchronous alert presentation.
+Back, X, action buttons and timers finish the exact owned alert; completion runs
+after the button action unwinds and may present the next step. The shortcut
+test keeps its harmless heartbeat through result/cleanup, its normal timeout,
+and its bounded cleanup wait. Ordinary menu actions remain disabled while an
+alert owns Settings. File pickers retain their existing native path.
+
+Back and X previously reached the same completion method; hidden target/action
+and full-root hit tests did not reproduce the reported physical-click failure.
+This replaces the fragile nested-loop mechanism rather than claiming a proved
+AppKit event-dispatch cause. The old synchronous `run` is now a testing-only
+adapter, and the source gate rejects its use by product features.
+
+**P2, separately found and fixed:** Setup & status repeatedly called Back until
+reaching an earlier page. An invalid monitor draft can legitimately refuse Back,
+leaving the page count unchanged and hanging the main thread. The shared return
+helper now stops after refusal and preserves the draft's correction/discard UI.
+Hidden refusal/recovery tests pass.
+
+Static sweep covers the existing 58-site inventory:
+
+- All app-owned alerts (shortcut stages; stop/resume/lockdown confirmations;
+  helper protection/install results; catalog import/update results; navigation
+  reset; group removal; wake/access notices; About and errors) use callbacks.
+  Consequential branches still require their explicit acceptance response.
+- Ordinary pages retain the shared header, parent stack, controller lifetimes,
+  leave/refresh hooks and autosave/draft conventions. Both `beforeBack` validators
+  were examined: invalid monitor-input text offers correction/discard; changed
+  checked connection details ask for another check. Refusal is not swallowed in
+  an unbounded parent-navigation loop.
+- Only native picker ownership, administrator handoff, and the bounded shortcut
+  cleanup deliberately withhold Back. No other code assigns the shared Back
+  target/action or disables it. Picker return restores its prior availability.
+
+Verification: `check-shortcut-back.py` compiles the exact production shortcut
+method and shared window, injecting only status/clock/commands. It uses no modal
+response driver: shared Back is dispatched after success and timeout, preparation
+Back cancels, result X follows cleanup, repeated entry works and the parent
+remains usable. No window or native modal session is shown. The general hidden
+ownership tests also hit-test Back against the full window content and cover
+stale/duplicate completion, action responses, picker return and refused Back.
+The harmless dialog lab now uses callbacks too; it was built, not launched.
+
+Fresh configuration already selects Control–Option–Command–Escape; new checks
+preserve that default. Menu spelling is now `⌃⌥⌘Esc`, without changing saved
+combinations or enabling the emergency shortcut automatically.
+
+Build 77 preparation: production and final full isolated compilation completed
+without compiler warnings; hidden ownership, shortcut flow and menu boundary
+checks pass. Strict signature and ZIP integrity/version checks pass. A disposable
+source-gate fixture confirmed that synchronous product alert calls are rejected.
+The installed app remains build 75. No live-click or full visible-suite pass is
+claimed for this static review.
+
+## Historical build 75 audit
 
 User report: another dialog had nonfunctional buttons and required the window X.
 The user later recalled Agent Kill Switch setup while assigning the shortcut,

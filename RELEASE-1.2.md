@@ -1,6 +1,31 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 76 candidate. Build 75 is installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 77 candidate. Build 75 is installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 77: consistent Back through alert results
+
+App-owned alerts return through completion callbacks in the ordinary event loop.
+Shortcut preparation, results and cleanup no longer start successive native
+modal loops in the same Settings window. Back and X share alert ownership;
+the parent restores before the next step. Native file pickers remain unchanged.
+Return to Setup & status stops cleanly when an invalid draft refuses Back,
+instead of repeatedly navigating on the main thread.
+
+New-machine configuration already uses Control–Option–Command–Escape, now covered
+by regression checks. Its main-menu label is `⌃⌥⌘Esc`. Existing combinations and
+enablement are preserved.
+
+Hidden tests dispatch the actual shared Back after shortcut success/timeout,
+preparation cancellation, result X and repeated cleanup/parent transitions,
+without injecting alert responses or opening native windows. The whole-set
+static audit and build gate cover every app-owned alert. Native click acceptance
+remains open; the reported AppKit event failure was not physically reproduced.
+Build 77 is prepared separately, not installed.
+
+Production and final full isolated compilation completed without warnings.
+Hidden ownership, shortcut-Back and menu regression checks pass; the native lab
+compiles. Strict signature and ZIP version/integrity checks pass. The full
+visible suite and physical Back replay were not run during this static pass.
 
 ## Build 76: menu tooltip and interaction ownership
 

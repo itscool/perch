@@ -32,8 +32,8 @@ extension AppDelegate {
                 let alert = NSAlert(); alert.messageText = "Keyboard access is unavailable in this launch"
                 alert.informativeText = LaunchAccessRecovery.summary + " Your saved keyboard choices are unchanged."
                 alert.addButton(withTitle: "Review keyboard access"); alert.addButton(withTitle: "Close")
-                if SettingsWindow.shared.run(alert) == .alertFirstButtonReturn {
-                    self.configureSettings(); self.keyboardAccessRecovery()
+                SettingsWindow.shared.present(alert) { response in
+                    if response == .alertFirstButtonReturn { self.configureSettings(); self.keyboardAccessRecovery() }
                 }
             }
         }

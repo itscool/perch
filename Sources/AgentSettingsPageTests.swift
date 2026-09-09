@@ -7,6 +7,7 @@ func runAgentSettingsPageTests() throws {
     let initialPages = host.pages
     defer { host.pages = initialPages; if let page = host.pages.last { host.display(page) } }
     var stored = SafetyConfiguration(), writes = 0, failWrite = false, conflict = false
+    try check(stored.shortcut.key == UInt32(kVK_Escape) && stored.shortcut.modifiers == UInt32(controlKey | optionKey | cmdKey), "Fresh configuration has the wrong emergency shortcut")
     stored.shortcut.enabled = false
     let makePage = {
         AgentSettingsPage(load: { stored }, save: { value in
@@ -93,14 +94,14 @@ func runShortcutMenuPresentationTests() throws {
     var safetyConfig = SafetyConfiguration()
     safetyConfig.shortcut.enabled = true
     app.refreshSafety(status: nil, config: safetyConfig)
-    try check(row.shortcutHint == "⌃⌥⌘⎋" && row.text.string.contains("Watcher offline"), "Configured Panic shortcut lost offline status")
+    try check(row.shortcutHint == "⌃⌥⌘Esc" && row.text.string.contains("Watcher offline"), "Configured Panic shortcut lost offline status")
     safetyConfig.shortcut.enabled = false
     app.refreshSafety(status: nil, config: safetyConfig)
     try check(row.shortcutHint.isEmpty, "Disabled Panic shortcut remained displayed")
     safetyConfig.shortcut.enabled = true
     app.refreshSafety(status: nil, config: safetyConfig)
     row.text = NSAttributedString(string: "Panic…  12 tracked  Immediate Kill", attributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
-    try check(row.displayedShortcut == "⌃⌥⌘⎋" && app.safetyItem.keyEquivalent.isEmpty && row.accessibilityHelp()?.contains("⌃⌥⌘⎋") == true, "Panic shortcut formatting or accessible label failed")
+    try check(row.displayedShortcut == "⌃⌥⌘Esc" && app.safetyItem.keyEquivalent.isEmpty && row.accessibilityHelp()?.contains("⌃⌥⌘Esc") == true, "Panic shortcut formatting or accessible label failed")
     let required = row.text.size().width + (row.displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width + 45
     try check(row.frame.width > required, "Shortcut overlaps status text")
     let quit = app.menu.items.first { $0.keyEquivalent == "q" }!.view as! MenuRowView

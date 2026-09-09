@@ -232,7 +232,7 @@ extension AppDelegate {
         let host = SettingsWindow.shared
         guard !host.interactionBusy else { host.afterInteraction { [weak self] in self?.setupOverview() }; return }
         if let index = host.pages.firstIndex(where: { $0.title == "Setup & status" }) {
-            while host.pages.count > index + 1 { host.goBack() }
+            guard host.returnToPage(at: index) else { return }
             host.pages.last?.refresh?()
             return
         }

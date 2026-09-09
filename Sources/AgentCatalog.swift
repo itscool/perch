@@ -70,7 +70,7 @@ extension AppDelegate {
             let alert = NSAlert()
             alert.messageText = "Agent catalog updated"
             alert.informativeText = "New candidates are checked by default. Your existing on/off choices are preserved."
-            SettingsWindow.shared.run(alert)
+            SettingsWindow.shared.present(alert)
         } catch { showError(error) }
     }
     @objc func reviewCatalogChanges() {
@@ -85,15 +85,18 @@ extension AppDelegate {
         }.joined(separator: "\n") + "\n\nApply these definitions while preserving your on/off selections?"
         alert.addButton(withTitle: updates.isEmpty ? "OK" : "Cancel")
         if !updates.isEmpty { alert.addButton(withTitle: "Apply Updates") }
-        guard SettingsWindow.shared.run(alert) == .alertSecondButtonReturn else { return }
-        for entry in updates {
-            if let index = config.targets.firstIndex(where: { $0.id == entry.target.id }) {
-                var target = entry.target
-                target.enabled = config.targets[index].enabled
-                config.targets[index] = target
+        SettingsWindow.shared.present(alert) { [weak self] response in
+            guard response == .alertSecondButtonReturn else { return }
+            config = SafetyConfiguration.load()
+            for entry in updates {
+                if let index = config.targets.firstIndex(where: { $0.id == entry.target.id }) {
+                    var target = entry.target
+                    target.enabled = config.targets[index].enabled
+                    config.targets[index] = target
+                }
             }
+            do { try config.save() } catch { self?.showError(error) }
         }
-        do { try config.save() } catch { showError(error) }
     }
 }
 

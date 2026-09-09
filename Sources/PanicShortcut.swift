@@ -13,7 +13,7 @@ struct PanicShortcut: Codable, Equatable {
         }
         return value + (Self.keys.first { $0.1 == key }?.0 ?? "?")
     }
-    var menuTitle: String { title.replacingOccurrences(of: "Escape", with: "⎋") }
+    var menuTitle: String { title.replacingOccurrences(of: "Escape", with: "Esc") }
     static func load() -> PanicShortcut {
         guard let data = UserDefaults.standard.data(forKey: "panicShortcut"), let value = try? JSONDecoder().decode(Self.self, from: data) else { return Self() }
         return value

@@ -154,9 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                     let alert = NSAlert(); alert.messageText = "Your Mac slept with the lid closed"
                     alert.informativeText = detail; alert.alertStyle = .informational
                     alert.addButton(withTitle: "View lid activity"); alert.addButton(withTitle: "Close")
-                    let result = SettingsWindow.shared.run(alert)
-                    acknowledge()
-                    if result == .alertFirstButtonReturn { self.configureSettings(); self.lidActivity() }
+                    SettingsWindow.shared.present(alert) { result in
+                        acknowledge()
+                        if result == .alertFirstButtonReturn { self.configureSettings(); self.lidActivity() }
+                    }
                 }
             }
         }
@@ -420,7 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 let alert = NSAlert()
                 alert.messageText = "Couldn’t change the setting"
                 alert.informativeText = error.localizedDescription
-                SettingsWindow.shared.run(alert)
+                SettingsWindow.shared.present(alert)
             }
         }
     }
@@ -520,6 +521,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func toggleWheel() { setScrollChoice(trackpad: false); refresh() }
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        // App-owned confirmations use the ordinary event loop now. Preserve
+        // their exclusive action scope without a native modal window.
+        if SettingsWindow.shared.modal { return false }
         if item === monitorInputItem { return monitorInputMenuEnabled }
         if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }
@@ -588,7 +592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.messageText = "Perch \(version) · build \(build)"
         alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions.\n\nVersion \(version) (build \(build))"
 
-        SettingsWindow.shared.run(alert)
+        SettingsWindow.shared.present(alert)
     }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

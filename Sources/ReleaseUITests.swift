@@ -72,6 +72,7 @@ func runReleaseUITests() throws {
     // Drive the actual shortcut dialogs with isolated status/requests. No OS key
     // injection, production test lease, target signals, or privacy reset occurs.
     let flowApp = AppDelegate()
+    flowApp.buildMenu()
     flowApp.configureSettings(); flowApp.configurePanic()
     let pageCount = host.pages.count
     for scenario in ["cancel", "success", "timeout"] {
@@ -79,7 +80,9 @@ func runReleaseUITests() throws {
         var actions: [String] = []
         var messages: [String] = []
         var sawReady = false
+        var actionScopeHeld = true
         host.modalTestDriver = { alert in
+            actionScopeHeld = actionScopeHeld && flowApp.menu.items.compactMap { $0.view as? MenuRowView }.filter { $0.actionable }.allSatisfy { !$0.enabled }
             messages.append(alert.messageText)
             if alert.messageText == "Test shortcut" && scenario == "cancel" { return .alertFirstButtonReturn }
             let duration: TimeInterval = alert.messageText == "Test shortcut" && scenario == "timeout" ? 10.4 : 0.35
@@ -100,6 +103,7 @@ func runReleaseUITests() throws {
             if action == "finish-test" { fake.testUntil = nil }
         }, keepAlive: {})
         try check(actions == ["test", "finish-test"] && fake.testUntil == nil && !fake.shortcutActive, "Shortcut test did not restore the original disabled state")
+        try check(actionScopeHeld, "Ordinary event-loop alert allowed conflicting status-menu actions")
         try check(host.pages.count == pageCount && host.pages.last?.title == "Agent Kill Switch", "Shortcut test did not return to Agent Kill Switch")
         try check(messages.contains("Ending shortcut test…"), "Shortcut test skipped cleanup confirmation")
         if scenario == "success" { try check(messages.contains("Shortcut worked"), "Shortcut success was not reported") }

@@ -89,6 +89,13 @@ func runSetupOverviewTests() throws {
     app.advancedSafetySettings(); app.setupOverview()
     try check(host.pages.count == 2, "Returning to setup duplicated its navigation stack")
     try check(!host.detail.stringValue.contains("Welcome"), "Reopened setup did not become a status/recovery page")
+    var canLeave = false, checks = 0
+    let invalidDraft = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 150))
+    host.show(.init(title: "Invalid draft fixture", detail: "Correct or discard the draft.", view: invalidDraft, beforeBack: { checks += 1; return canLeave }))
+    app.setupOverview()
+    try check(checks == 1 && host.pages.last?.view === invalidDraft, "Setup return ignored refused Back or repeatedly invoked validation")
+    canLeave = true; app.setupOverview()
+    try check(host.pages.count == 2 && host.pages.last?.title == "Setup & status", "Setup return did not recover after valid Back")
     host.goBack()
 
     for (name, open) in [("displays", app.displaySettings), ("scrolling", app.scrollingSettings), ("awake", app.keepAwakeSettings), ("app", app.appSettings), ("keyboard", app.keyboardSettings), ("navigation", app.navigationSettings), ("maintenance", app.advancedSafetySettings)] {

@@ -24,6 +24,8 @@ func runDialogOwnershipTests() throws {
         host.modalTestDriver = { current in
             do {
                 try check(host.activeAlert === current && host.modal, "Presented alert has no interaction owner")
+                let rootHit = host.window.contentView?.hitTest(NSPoint(x: host.back.frame.midX, y: host.back.frame.midY))
+                try check(rootHit === host.back || rootHit?.isDescendant(of: host.back) == true, "Shared header Back is covered")
                 try check(!host.finish(NSAlert()), "An unrelated timer completed the active alert")
                 let rendered = host.container.subviews.first!
                 let action = rendered.subviews.compactMap { $0 as? NSButton }.first!
@@ -55,6 +57,11 @@ func runDialogOwnershipTests() throws {
         ordinary.performClick(nil)
     }
     try check(changes == 6, "Parent buttons stopped working after a dialog returned")
+    var valid = false, attempts = 0
+    host.show(.init(title: "Draft fixture", detail: "Correct or discard the invalid draft.", view: NSView(), beforeBack: { attempts += 1; return valid }))
+    try check(!host.returnToPage(at: 0) && attempts == 1 && host.pages.count == 2, "Return-to-parent spun on refused Back or discarded a draft")
+    valid = true
+    try check(host.returnToPage(at: 0) && host.pages.count == 1, "Valid draft could not return to parent")
     host.modalTestDriver = nil
     var pickerPassed = false
     host.pickerTestDriver = { _ in

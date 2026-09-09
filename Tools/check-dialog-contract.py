@@ -23,6 +23,8 @@ for file in sorted((repo/'Sources').glob('*.swift')):
         if match: function = match[1]
         if file.name != 'SettingsWindow.swift' and re.search(r'\b(?:NSApp|NSApplication\.shared)\.(?:stopModal|abortModal|runModal|beginModalSession)\(',line):
             errors.append(f'{file.name}:{number}: modal session control must stay in SettingsWindow')
+        if file.name != 'SettingsWindow.swift' and re.search(r'(?:SettingsWindow\.shared|host)\.run\(',line):
+            errors.append(f'{file.name}:{number}: app-owned alerts must use asynchronous present, not the fixture-only run adapter')
         for kind, pattern in patterns.items():
             if not re.search(pattern,line): continue
             scope = f'{file.name}:{function}:{kind}'

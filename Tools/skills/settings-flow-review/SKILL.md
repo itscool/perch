@@ -15,6 +15,7 @@ Default to a focused settings/setup review. Apply the same principles to related
 - Carry forward previous authorization, rejected alternatives, and protected design choices. Record product-specific preferences with the project; do not convert them into universal rules in this skill.
 - Distinguish review-only from an authorized review-and-fix task. Report prioritized findings before fixes when requested. Reporting those findings is a checkpoint within an already authorized task, not a reason to ask again before every page or repair.
 - Inspect source, product copy, persistence and asynchronous callbacks as well as the rendered interface. Use the relevant UI/browser skill when interacting with an app. Where live operations are restricted, use isolated fixtures or render states with external mutations stubbed. Label source traces, simulated interactions and live observations accurately.
+- When the user and agent share a live desktop, make interaction ownership visible before testing. Use the project's session indicator when available, announce the scope, and check for user handoff requests between short action batches. The indicator must survive app switches/restarts without stealing focus, distinguish active/paused/requested-control states, and end when handing back. Do not imply it locks input or cancels an issued command unless that is actually implemented. Source-only work and isolated tests without desktop interaction need no takeover notice.
 
 ## Map the complete journey before declaring coverage
 

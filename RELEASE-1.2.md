@@ -2,6 +2,12 @@
 
 September 8, 2026, build 63. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
 
+## Developer testing: visible agent sessions
+
+Live UI testing now uses a separate **AGENT MODE** desktop banner. It remains visible across Perch restarts, uses a nonactivating panel, and offers **Request control**. The agent checks its session before every action batch; control requests, missing banner processes and expired sessions block continuation. This is a cooperative handoff, not an input lock or cancellation of already-issued actions. See `Tools/agent-mode/README.md` and the repository's `AGENTS.md`.
+
+This testing tool does not change the Perch application or its tuned menu. Build 63 remains the installed app version; no app/helper reinstall is needed for the banner.
+
 ## Build 63: consistent settings journeys and menu readiness
 
 Privacy resets now keep their running state and result when you leave and return during the current app session. Back no longer claims to cancel an issued command. A failed reset can be retried; simultaneous resets and stale completion callbacks cannot overwrite another operation. After success, starting another reset returns to a proposal before any new command runs.

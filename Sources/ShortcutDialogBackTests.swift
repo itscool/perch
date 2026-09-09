@@ -9,7 +9,7 @@ func runShortcutDialogBackTests() throws {
     host.testing = true; host.modalTestDriver = nil
     guard !host.window.isVisible, !host.interactionBusy else { throw AppError(message: "Shortcut Back tests need a hidden idle host") }
     let defaults = PanicShortcut()
-    try check(defaults.key == UInt32(kVK_Escape) && defaults.modifiers == UInt32(controlKey | optionKey | cmdKey) && defaults.menuTitle == "⌃⌥⌘Esc", "New-machine shortcut or menu spelling changed")
+    try check(defaults.key == UInt32(kVK_Escape) && defaults.modifiers == UInt32(controlKey | optionKey | cmdKey) && defaults.title == "⌃⌥⌘Esc", "New-machine shortcut or shared spelling changed")
     let app = AppDelegate()
     let parent = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 150))
     var parentPresses = 0

@@ -12,7 +12,7 @@ extension AppDelegate {
     }
     func refreshSafety(status: SafetyStatus? = GuardianInstall.status, config: SafetyConfiguration = SafetyConfiguration.load(), checking: Bool? = nil) {
         let checking = checking ?? (status == nil && HelperStatusIPC.guardianClient.initiallyChecking)
-        (safetyItem?.view as? MenuRowView)?.shortcutHint = config.shortcut.enabled ? config.shortcut.menuTitle : ""
+        (safetyItem?.view as? MenuRowView)?.shortcutHint = config.shortcut.enabled ? config.shortcut.title : ""
         let issue = checking ? nil : ProtectionIssue.assess(status, config: config)
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue

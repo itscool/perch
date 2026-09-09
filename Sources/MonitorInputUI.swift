@@ -716,7 +716,7 @@ extension AppDelegate {
     func refreshMonitorInputItem() {
         guard let item = monitorInputItem else { return }
         let shortcut = monitorInputs.groups.active?.shortcut ?? monitorInputs.plan.shortcut
-        (item.view as? MenuRowView)?.shortcutHint = shortcut.enabled ? shortcut.menuTitle : ""
+        (item.view as? MenuRowView)?.shortcutHint = shortcut.enabled ? shortcut.title : ""
         item.isEnabled = monitorInputMenuEnabled
         if monitorInputs.checkingDisplays {
             item.action = #selector(cycleMonitorInput)

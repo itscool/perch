@@ -5,7 +5,7 @@ struct PanicShortcut: Codable, Equatable {
     var key: UInt32 = UInt32(kVK_Escape)
     var modifiers: UInt32 = UInt32(controlKey | optionKey | cmdKey)
     var enabled = false
-    static let keys: [(String, UInt32)] = [("Escape", UInt32(kVK_Escape)), ("F6", UInt32(kVK_F6)), ("F7", UInt32(kVK_F7)), ("F8", UInt32(kVK_F8)), ("F9", UInt32(kVK_F9)), ("F10", UInt32(kVK_F10)), ("F11", UInt32(kVK_F11)), ("F12", UInt32(kVK_F12)), ("P", UInt32(kVK_ANSI_P))]
+    static let keys: [(String, UInt32)] = [("Esc", UInt32(kVK_Escape)), ("F6", UInt32(kVK_F6)), ("F7", UInt32(kVK_F7)), ("F8", UInt32(kVK_F8)), ("F9", UInt32(kVK_F9)), ("F10", UInt32(kVK_F10)), ("F11", UInt32(kVK_F11)), ("F12", UInt32(kVK_F12)), ("P", UInt32(kVK_ANSI_P))]
     var title: String {
         var value = ""
         for (flag, symbol) in [(controlKey,"⌃"),(optionKey,"⌥"),(shiftKey,"⇧"),(cmdKey,"⌘")] {
@@ -13,7 +13,6 @@ struct PanicShortcut: Codable, Equatable {
         }
         return value + (Self.keys.first { $0.1 == key }?.0 ?? "?")
     }
-    var menuTitle: String { title.replacingOccurrences(of: "Escape", with: "Esc") }
     static func load() -> PanicShortcut {
         guard let data = UserDefaults.standard.data(forKey: "panicShortcut"), let value = try? JSONDecoder().decode(Self.self, from: data) else { return Self() }
         return value

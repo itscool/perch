@@ -5,12 +5,10 @@ execution order, not the dates issues were first reported. It supersedes stale
 open-item wording in dated review checkpoints. Functional bugs come first;
 acceptance gaps below are not automatically established defects.
 
-1. **Confirm the build 77 Back fix with native input.** Replay shortcut success
-   and timeout → Back → cleanup → responsive parent, plus repeat entry and X.
-   Exercise sibling alert/result/error routes, external handoff return, and
-   standalone notices. The 58-site static sweep and hidden tests pass; native
-   acceptance is still open. Add app/executable and shortcut detection already
-   have user confirmation.
+1. **Back fix accepted by the user on build 77.** The user confirmed item 1 works.
+   Esc spelling differed between Settings and menu; the follow-up now uses one
+   shared shortcut title and key label. Broader sibling/native-lab coverage stays
+   under item 3, not an unresolved claim about the reported Back defect.
 2. **Confirm native menu interaction corrections.** Hover across rows to check
    Panic help no longer leaks; mix pointer and keyboard selection and activate
    harmless actions with Return/Space. Check conditional/disabled rows and

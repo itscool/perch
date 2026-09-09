@@ -2,6 +2,14 @@
 
 September 9, 2026, build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
 
+## Follow-up in source: one shortcut label
+
+The user confirmed build 77's Back fix works. Shortcut labels now use the same
+shared formatter and Esc key name in Settings, test prompts and menus; the
+menu-only Escape-to-Esc rewrite is removed. This spelling change is not yet in
+the installed build 77. Hidden shortcut-flow tests and the 58-site dialog
+contract check pass.
+
 ## Build 77: consistent Back through alert results
 
 App-owned alerts return through completion callbacks in the ordinary event loop.

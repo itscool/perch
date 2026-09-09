@@ -109,9 +109,9 @@ private func runMenuStatusColorTests() throws {
         }
         var initial: NSColor!, updated: NSColor!
         wrongContext.performAsCurrentDrawingAppearance {
-            app.showSystemReading(reading, ("CPU", "18 cores · --%", ""))
+            app.showSystemReading(reading, .cpu(base: "18 cores · --%", available: true, processes: nil))
             initial = color(reading, last: true)
-            app.showSystemReading(reading, ("CPU", "18 cores · 12%", ""))
+            app.showSystemReading(reading, .cpu(base: "18 cores · 12%", available: true, processes: "top: CriticalWorker 2% · us: Unavailable"))
             updated = color(reading, last: true)
         }
         guard initial == updated, updated == rgb(StatusColors.information, appearance), color(permanent) == rgb(.labelColor, appearance) else {
@@ -141,7 +141,7 @@ private func runMenuStatusColorTests() throws {
             throw AppError(message: "Clearing a warning hid or restyled Settings")
         }
         for (text, expected) in [("Warm · OK · Keep ventilated", StatusColors.warning), ("Critical · Let Mac cool", StatusColors.critical)] {
-            wrongContext.performAsCurrentDrawingAppearance { app.showSystemReading(reading, ("Thermal", text, "")) }
+            wrongContext.performAsCurrentDrawingAppearance { app.showSystemReading(reading, .init(title: "Thermal", detail: text, help: "", level: expected == StatusColors.critical ? .critical : .warning)) }
             guard color(reading, last: true) == rgb(expected, appearance) else { throw AppError(message: "Menu status color lost its theme") }
         }
     }

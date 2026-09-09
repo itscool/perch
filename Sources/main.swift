@@ -264,14 +264,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for item in menu.items { (item.view as? MenuRowView)?.holdsMenuWidth = false }
         endMenuKeyboardHandling()
     }
-    func showSystemReading(_ item: NSMenuItem, _ reading: (String, String, String)) {
+    func showSystemReading(_ item: NSMenuItem, _ reading: SystemReading) {
         let color: NSColor
-        if reading.1.contains("Critical") { color = StatusColors.critical }
-        else if reading.1.contains("Elevated") || reading.1.contains("Warm") || reading.1.contains("High ·") { color = StatusColors.warning }
-        else if reading.1.contains("Unavailable") { color = .secondaryLabelColor }
-        else { color = StatusColors.information }
-        label(item, reading.0, hint: reading.1, hintColor: color)
-        item.toolTip = reading.2
+        switch reading.level {
+        case .critical: color = StatusColors.critical
+        case .warning: color = StatusColors.warning
+        case .unavailable: color = .secondaryLabelColor
+        case .information: color = StatusColors.information
+        }
+        label(item, reading.title, hint: reading.detail, hintColor: color)
+        item.toolTip = reading.help
     }
     func refreshSystem() {
         guard menuOpen else { return }
@@ -535,7 +537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             permissionSetup?.show()
         }
     }
-    @objc func toggleFunctionKeys() { perform { try NativeFunctionKeys.setBuiltIn(!FunctionKeys.standard()); keyboardModes.queue() } }
+    @objc func toggleFunctionKeys() { keyboardModes.setBuiltIn(fnItem.state != .on) }
     @objc func toggleLogin() {
         perform {
             switch SMAppService.mainApp.status {

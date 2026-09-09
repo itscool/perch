@@ -2,6 +2,18 @@ import AppKit
 import IOKit
 import Darwin
 
+struct SystemReading {
+    enum Level { case information, warning, critical, unavailable }
+    var title: String
+    var detail: String
+    var help: String
+    var level: Level = .information
+    static func cpu(base: String, available: Bool, processes: String?) -> Self {
+        .init(title: "CPU", detail: base + (processes.map { " · " + $0 } ?? ""),
+              help: SystemMonitor.cpuExplanation, level: available ? .information : .unavailable)
+    }
+}
+
 final class SystemMonitor {
     static let bytesPerMemoryGB = 1_073_741_824.0
     static func memoryGB(_ bytes: Double) -> Double { bytes / bytesPerMemoryGB }
@@ -15,9 +27,10 @@ final class SystemMonitor {
     let processCPU = ProcessCPUSampler()
     var previous: [UInt32]?
     private var cpuBaseText = "\(ProcessInfo.processInfo.processorCount) cores · --%"
+    private var cpuAvailable = true
     static let cpuExplanation = "System-wide busy time across logical CPUs. All percentages use total CPU capacity (100% = all cores). Top process and combined Perch usage refresh every 10 seconds while this menu is open; the first reading takes about one second. Perch includes the menu app, both helpers, their completed utilities, and its eslogger collector. Top compares live user-space processes; kernel_task and processes that exited between samples are not included. Performance and efficiency cores differ."
-    var cpuReading: (String, String, String) {
-        ("CPU", cpuBaseText + (CPUDisplaySettings.enabled() ? " · " + processCPU.text : ""), Self.cpuExplanation)
+    var cpuReading: SystemReading {
+        .cpu(base: cpuBaseText, available: cpuAvailable, processes: CPUDisplaySettings.enabled() ? processCPU.text : nil)
     }
     func menuClosed() { previous = nil; processCPU.setActive(false) }
     static func usage(_ old: [UInt32], _ new: [UInt32]) -> Double? {
@@ -29,7 +42,7 @@ final class SystemMonitor {
     static func pressure(_ value: Int32) -> String {
         switch value { case 1: return "Normal"; case 2: return "Elevated"; case 4: return "Critical"; default: return "Unavailable" }
     }
-    func read() -> [(String,String,String)] {
+    func read() -> [SystemReading] {
         var cpu = host_cpu_load_info()
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
         let host = mach_host_self()
@@ -41,6 +54,7 @@ final class SystemMonitor {
             if let old = previous, let value = Self.usage(old,now) { cpuText = String(format:"%.0f%%",value) }
             previous = now
         } else { cpuText = "Unavailable" }
+        cpuAvailable = result == KERN_SUCCESS
         cpuText = "\(ProcessInfo.processInfo.processorCount) cores · " + cpuText
         let showProcesses = CPUDisplaySettings.enabled()
         processCPU.setActive(showProcesses)
@@ -78,21 +92,22 @@ final class SystemMonitor {
         var size = MemoryLayout<Int32>.size
         let pressureResult = sysctlbyname("kern.memorystatus_vm_pressure_level", &pressure, &size, nil, 0)
         let thermal: String
+        let thermalLevel: SystemReading.Level
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal: thermal = "Normal"
-        case .fair: thermal = "Warm · OK · Keep ventilated"
-        case .serious: thermal = "High · Reduce heavy work"
-        case .critical: thermal = "Critical · Let Mac cool"
-        @unknown default: thermal = "Unavailable"
+        case .nominal: thermal = "Normal"; thermalLevel = .information
+        case .fair: thermal = "Warm · OK · Keep ventilated"; thermalLevel = .warning
+        case .serious: thermal = "High · Reduce heavy work"; thermalLevel = .warning
+        case .critical: thermal = "Critical · Let Mac cool"; thermalLevel = .critical
+        @unknown default: thermal = "Unavailable"; thermalLevel = .unavailable
         }
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let os = "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
         let hardware = Self.chip + " · " + os
-        return [("Mac", hardware, "Installed processor and macOS version. Total RAM is shown on the Memory line."),
+        return [.init(title: "Mac", detail: hardware, help: "Installed processor and macOS version. Total RAM is shown on the Memory line.", level: Self.chip == "Unavailable" ? .unavailable : .information),
                 cpuReading,
-                ("GPU",gpu,"Driver-reported utilization and allocations, not exclusive resident RAM. Do not add GPU allocations to system memory. CPU/GPU overlap is unavailable."),
-                ("Memory",memory + " · " + (pressureResult == 0 && [1,2,4].contains(pressure) ? Self.pressure(pressure) + " pressure" : "Pressure unavailable"),"Estimated physical memory used, including compressed memory and excluding file cache and purgeable pages. GiB uses 1,073,741,824 bytes, matching installed RAM. Pressure is macOS’s assessment of memory demand, not bandwidth or percentage full."),
-                ("Thermal",thermal,"macOS thermal pressure. Critical does not predict imminent hardware damage. A reliably identified temperature sensor is unavailable. Never put an awake Mac in a bag.")]
+                .init(title: "GPU", detail: gpu, help: "Driver-reported utilization and allocations, not exclusive resident RAM. Do not add GPU allocations to system memory. CPU/GPU overlap is unavailable.", level: gpu.contains("Unavailable") ? .unavailable : .information),
+                .init(title: "Memory", detail: memory + " · " + (pressureResult == 0 && [1,2,4].contains(pressure) ? Self.pressure(pressure) + " pressure" : "Pressure unavailable"), help: "Estimated physical memory used, including compressed memory and excluding file cache and purgeable pages. GiB uses 1,073,741,824 bytes, matching installed RAM. Pressure is macOS’s assessment of memory demand, not bandwidth or percentage full.", level: pressureResult == 0 && pressure == 4 ? .critical : pressureResult == 0 && pressure == 2 ? .warning : vmResult == KERN_SUCCESS ? .information : .unavailable),
+                .init(title: "Thermal", detail: thermal, help: "macOS thermal pressure. Critical does not predict imminent hardware damage. A reliably identified temperature sensor is unavailable. Never put an awake Mac in a bag.", level: thermalLevel)]
     }
 }
 func runSystemTests() throws {

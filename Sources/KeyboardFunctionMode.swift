@@ -2,7 +2,7 @@ import AppKit
 import IOKit.hid
 import IOKit.hidsystem
 
-struct KeyboardModeResult {
+struct KeyboardModeResult: Equatable {
     let name: String
     let detail: String
     let verified: Bool

@@ -1,6 +1,7 @@
 import Foundation
 
 func runKeyboardModeTests() throws {
+    try runKeyboardRefreshTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     // A mock multi-host keyboard. Real hardware and system settings are untouched.
     for standard in [true,false] {

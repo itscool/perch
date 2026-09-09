@@ -13,7 +13,32 @@ final class KeyboardModeMonitor: NSObject {
     private var appliedNavigationRevision = 0
     var busy = false
     private var applying = false
-    var blocksFunctionKeyChanges: Bool { working || applying || reapplyExternal || (started && navigationRevision != appliedNavigationRevision) }
+    private var presentationReadActive = false
+    private var hasSnapshot = false
+    private var desiredBuiltIn: Bool?
+    var blocksFunctionKeyChanges: Bool {
+        applying || reapplyExternal || desiredBuiltIn != nil || registrationPending ||
+        (busy && !presentationReadActive) || (pending != nil && (!queryOnly || !hasSnapshot))
+    }
+    struct Scan {
+        var known: Set<String>
+        var forceExternal: Bool
+        var readOnly: Bool
+        var scanNavigation: Bool
+        var builtIn: Bool?
+    }
+    struct Result {
+        var standard: Bool?
+        var results: [KeyboardModeResult] = []
+        var failures: [String] = []
+        var ids: Set<String> = []
+        var registrations: [KeyboardRegistrationStatus]?
+        var registrationError: String?
+    }
+    private let scan: (Scan) -> Result
+    init(scan: @escaping (Scan) -> Result = KeyboardModeMonitor.scanHardware) {
+        self.scan = scan; super.init()
+    }
     var onChange: (() -> Void)?
     var started = false
     var working: Bool { busy || pending != nil }
@@ -22,7 +47,7 @@ final class KeyboardModeMonitor: NSObject {
     var registrationPending: Bool { started && navigationRevision != appliedNavigationRevision }
     func readForPresentation() {
         guard started, !working, Date().timeIntervalSince(lastPresentationRead) >= 2 else { return }
-        lastPresentationRead = Date(); queryOnly = true; queue()
+        lastPresentationRead = Date(); queue(readOnly: true)
     }
     private var pending: DispatchWorkItem?
     private var again = false
@@ -76,83 +101,94 @@ final class KeyboardModeMonitor: NSObject {
         guard started, lastStandard != standard else { return }
         lastStandard = standard; queue()
     }
-    func queue(reapplyExternal: Bool = false, navigationChanged: Bool = false) {
+    func queue(reapplyExternal: Bool = false, navigationChanged: Bool = false, readOnly: Bool = false) {
         guard started else { return }
-        if navigationChanged { navigationRevision &+= 1; queryOnly = false }
-        if reapplyExternal { queryOnly = false }
+        let wasBlocking = blocksFunctionKeyChanges
+        if navigationChanged { navigationRevision &+= 1 }
+        queryOnly = (pending == nil ? readOnly : queryOnly && readOnly) && !reapplyExternal
         self.reapplyExternal = self.reapplyExternal || reapplyExternal
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.run() }
         pending = job
-        onChange?()
+        if wasBlocking || blocksFunctionKeyChanges { onChange?() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: job)
     }
     func recheck() {
         guard started, !working else { return }
-        queue(navigationChanged: true)
-        queryOnly = true
+        queue(navigationChanged: true, readOnly: true)
+    }
+    func setBuiltIn(_ desired: Bool) {
+        guard started else { return }
+        desiredBuiltIn = desired
+        queue()
     }
     private func run() {
         pending = nil
         guard !busy else { again = true; return }
-        busy = true
-        applying = reapplyExternal || navigationRevision != appliedNavigationRevision
-        onChange?()
-        let known = knownDevices
-        let forceExternal = reapplyExternal
-        let readOnly = queryOnly
-        queryOnly = false
+        let request = Scan(known: knownDevices, forceExternal: reapplyExternal, readOnly: queryOnly,
+                           scanNavigation: navigationRevision != appliedNavigationRevision, builtIn: desiredBuiltIn)
         let revision = navigationRevision
-        let scanNavigation = revision != appliedNavigationRevision
-        reapplyExternal = false
-        // A temporary thread owns the HID reply run loop. It never runs on the
-        // menu thread or the input helper's event-tap thread.
+        let wasBlocking = blocksFunctionKeyChanges
+        busy = true
+        applying = request.forceExternal || request.scanNavigation || request.builtIn != nil
+        presentationReadActive = request.readOnly && hasSnapshot && !applying
+        queryOnly = false; reapplyExternal = false; desiredBuiltIn = nil
+        if wasBlocking || blocksFunctionKeyChanges { onChange?() }
+        let scan = self.scan
+        // Reads and user changes share one worker; a click during a routine
+        // read queues the desired value instead of racing its HID transaction.
         Thread.detachNewThread { [weak self] in
-            autoreleasepool {
-                let standard = try? FunctionKeys.standard()
-                var failures: [String] = []
-                let keyboards = NativeModifierKeys.keyboards()
-                var registrations: [KeyboardRegistrationStatus]?
-                var registrationError: String?
-                if scanNavigation {
-                    let devices = NavigationProbeKeyboard.connected()
-                    do {
-                        let profiles = try KeyboardNavigationProfiles.read()
-                        registrations = devices.map { KeyboardRegistrationStatus.assess($0.identity, saved: profiles) }
-                        let found = Set(devices.map { $0.name })
-                        for keyboard in keyboards where !keyboard.builtIn && !found.contains(keyboard.name) {
-                            registrations?.append(.init(name: keyboard.name, profile: nil, detail: "⚠ Device identity unavailable · review keyboard setup"))
-                        }
-                    } catch { registrationError = error.localizedDescription; registrations = [] }
+            let result = autoreleasepool { scan(request) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let wasBlocking = self.blocksFunctionKeyChanges
+                self.busy = false; self.applying = false; self.presentationReadActive = false
+                if self.again { self.again = false; self.run(); return }
+                let failures = result.failures + (self.connectionError.map { [$0] } ?? [])
+                var changed = self.results != result.results || self.modifierErrors != failures || self.lastStandard != result.standard
+                self.lastStandard = result.standard; self.hasSnapshot = true
+                if !request.readOnly { self.knownDevices = result.ids }
+                self.results = result.results; self.modifierErrors = failures
+                if let registrations = result.registrations, self.navigationRevision == revision {
+                    changed = changed || self.registrations != registrations || self.registrationError != result.registrationError
+                    self.registrations = registrations; self.registrationError = result.registrationError
+                    self.appliedNavigationRevision = revision
                 }
-                var ids = Set(keyboards.map { "\(IOHIDServiceClientGetRegistryID($0.service))" })
-                for keyboard in keyboards {
-                    let id = "\(IOHIDServiceClientGetRegistryID(keyboard.service))"
-                    if !readOnly, !known.contains(id), let intent = UserDefaults.standard.object(forKey: NativeModifierKeys.intentKey(keyboard.builtIn)) as? Bool {
-                        do { try NativeModifierKeys.set(intent, on: keyboard) } catch { failures.append(error.localizedDescription); ids.remove(id) }
-                    }
-                }
-                let desired = readOnly ? nil : NativeFunctionKeys.externalIntent()
-                let newNames = Set(keyboards.filter { !$0.builtIn && !known.contains("\(IOHIDServiceClientGetRegistryID($0.service))") }.map { $0.name })
-                let result = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: forceExternal || scanNavigation ? desired : nil)
-                    + ExternalKeyboardModes.keyboards(standard: desired, only: forceExternal ? nil : newNames)
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.busy = false; self.applying = false
-                    if self.again { self.again = false; self.run(); return }
-                    self.lastStandard = standard
-                    // A read-only preview must not consume the connection event
-                    // that still needs to apply a remembered device choice.
-                    if !readOnly { self.knownDevices = ids }
-                    self.results = result; self.modifierErrors = failures + (self.connectionError.map { [$0] } ?? [])
-                    if let registrations {
-                        self.registrations = registrations; self.registrationError = registrationError
-                        self.appliedNavigationRevision = revision
-                    }
-                    self.onChange?()
-                }
+                if changed || wasBlocking || self.blocksFunctionKeyChanges { self.onChange?() }
             }
         }
+    }
+    static func scanHardware(_ request: Scan) -> Result {
+        var output = Result()
+        if let desired = request.builtIn {
+            do { try NativeFunctionKeys.setBuiltIn(desired) }
+            catch { output.failures.append(error.localizedDescription) }
+        }
+        output.standard = try? FunctionKeys.standard()
+        let keyboards = NativeModifierKeys.keyboards()
+        if request.scanNavigation {
+            let devices = NavigationProbeKeyboard.connected()
+            do {
+                let profiles = try KeyboardNavigationProfiles.read()
+                output.registrations = devices.map { KeyboardRegistrationStatus.assess($0.identity, saved: profiles) }
+                let found = Set(devices.map { $0.name })
+                for keyboard in keyboards where !keyboard.builtIn && !found.contains(keyboard.name) {
+                    output.registrations?.append(.init(name: keyboard.name, profile: nil, detail: "⚠ Device identity unavailable · review keyboard setup"))
+                }
+            } catch { output.registrationError = error.localizedDescription; output.registrations = [] }
+        }
+        output.ids = Set(keyboards.map { "\(IOHIDServiceClientGetRegistryID($0.service))" })
+        for keyboard in keyboards {
+            let id = "\(IOHIDServiceClientGetRegistryID(keyboard.service))"
+            if !request.readOnly, !request.known.contains(id), let intent = UserDefaults.standard.object(forKey: NativeModifierKeys.intentKey(keyboard.builtIn)) as? Bool {
+                do { try NativeModifierKeys.set(intent, on: keyboard) } catch { output.failures.append(error.localizedDescription); output.ids.remove(id) }
+            }
+        }
+        let desired = request.readOnly ? nil : NativeFunctionKeys.externalIntent()
+        let newNames = Set(keyboards.filter { !$0.builtIn && !request.known.contains("\(IOHIDServiceClientGetRegistryID($0.service))") }.map { $0.name })
+        output.results = NativeFunctionKeys.externalAppleModes(keyboards: keyboards, desired: request.forceExternal || request.scanNavigation ? desired : nil)
+            + ExternalKeyboardModes.keyboards(standard: desired, only: request.forceExternal ? nil : newNames)
+        return output
     }
     deinit {
         pending?.cancel()

@@ -1,5 +1,10 @@
 # Monitor input switching (1.1)
 
+**Product direction changed September 8, 2026:** standalone cycling is being
+replaced by a [coordinated Perch KVM experience](KVM-PLAN.md). That replacement is
+planned, not implemented. This document describes the existing implementation
+and transport evidence for possible reuse. Keyboard testing remains in scope.
+
 The Display section offers Cycle monitor input. Settings → Monitor inputs owns setup; the optional shortcut runs while the menu app is open. No destination-device signal is required. The control path is native and on demand, with bounded requests and no new monitor polling timer.
 
 ## Detection and compatibility

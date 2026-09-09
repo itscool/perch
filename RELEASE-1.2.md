@@ -37,8 +37,9 @@ expiry/replay, preparation failure cancellation, unchanged battery/watchdog
 limits, late replies, rollback, invalid paths/signatures, queued/open/busy/error
 states and Back/re-entry. Light/dark Updates renders and strict app/tool signatures
 passed. The exact-hash requirement accepts signed build 68 and rejects build 67.
-Live helper handoff, first password entry and physical sleep/wake acceptance are
-still pending; the shared macOS clamshell-control defect remains unresolved.
+Build 68 and its privileged helper are now installed; the helper journal confirms
+startup. Live session handoff, first-attempt password entry and physical sleep/wake
+acceptance are still pending; the shared macOS clamshell-control defect remains unresolved.
 No public release or privacy reset was performed. The tuned main menu is unchanged.
 
 ## Build 67: stable menu geometry during live refresh

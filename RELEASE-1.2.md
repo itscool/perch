@@ -1,6 +1,26 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 78 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 79 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 79: whole-app review fixes
+
+Launch-job recovery is saved before changing eligibility, and Resume saves its
+release decision before enabling jobs. Failed saves stop the dependent operation;
+uncertain or failed jobs retain recovery records for retry. No live launch jobs
+were changed during verification.
+
+Settings retain keyboard focus and text selection across child dialogs, Back and
+page refreshes. Reviewed editable/repeated controls have scoped accessible names.
+Permission setup offers a keyboard copy-path action alongside dragging. Collector
+setup and Setup & status agree about readiness, including required repair and
+replacement-session waits. Custom executable selection and catalog validation
+share conservative safeguards against general-purpose runtimes.
+
+The final isolated suite passes 21/21. A harmless native lab passed confirmation,
+Escape, informational Back, picker cancellation and parent reuse under AGENT
+MODE. Full keyboard-only/VoiceOver and hardware acceptance remain open. See
+WHOLE-APP-REVIEW-79.md for prioritized findings, coverage and exclusions. Build 79
+includes build 78's tooltip/shared Esc changes. It has not been installed. Production compilation completed without warnings; strict executable/app signatures and ZIP integrity/version checks passed.
 
 ## Build 78: consistent action help
 

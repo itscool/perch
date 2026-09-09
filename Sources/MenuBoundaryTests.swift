@@ -8,6 +8,13 @@ private final class MenuBoundaryTarget: NSObject {
 
 func runMenuBoundaryTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    func drainCommands() throws {
+        var finished = false
+        DispatchQueue.main.async { finished = true }
+        let deadline = Date().addingTimeInterval(1)
+        while !finished && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        try check(finished, "Deferred action queue did not drain within its bound")
+    }
     let app = AppDelegate(), target = MenuBoundaryTarget()
     func row(_ title: String) -> MenuRowView {
         let item = NSMenuItem(title: title, action: #selector(MenuBoundaryTarget.first(_:)), keyEquivalent: "")
@@ -40,10 +47,10 @@ func runMenuBoundaryTests() throws {
     command.view = commandRow; app.menu.addItem(command)
     try check(commandRow.activate(), "Deferred command was rejected")
     command.action = #selector(MenuBoundaryTarget.second(_:))
-    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    try drainCommands()
     try check(target.presses == 11, "Refreshed action dispatched a stale deferred command")
     try check(commandRow.activate(), "Updated command could not be retried")
-    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    try drainCommands()
     try check(target.presses == 21, "Unchanged deferred command did not dispatch exactly once")
     print("PASS: native keyboard/custom pointer selection, disabled/hidden/closed activation and deferred action identity (hidden dispatch)")
 }

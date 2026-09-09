@@ -43,6 +43,18 @@ func runSetupOverviewTests() throws {
     try check(item("events").state == .attention, "Stale collector events prove access")
     guardian.eventLastSeen = Date(); snapshot.guardian = guardian
     try check(item("events").state == .ready && item("agents").detail.contains("physical keys"), "Registration and physical key testing are conflated")
+    snapshot.collectorNeedsRepair = true
+    try check(item("events").state == .attention, "Setup declared a collector requiring repair ready")
+    try check(!EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: true, waitingForSession: false), "Collector page hid its required repair behind Ready")
+    snapshot.collectorNeedsRepair = false; snapshot.collectorWaitingForSession = true
+    try check(item("events").state == .attention, "Setup ignored a pending replacement observation session")
+    snapshot.collectorWaitingForSession = false
+    guardian.eventConnected = false; snapshot.guardian = guardian
+    try check(item("events").state == .attention && !EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Disconnected stream remained ready")
+    guardian.eventConnected = true; guardian.eventLastSeen = Date().addingTimeInterval(-60); snapshot.guardian = guardian
+    try check(!EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Collector page kept stale event readiness")
+    guardian.eventLastSeen = Date(); snapshot.guardian = guardian
+    try check(item("events").state == .ready && EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Recovered collector did not return to Ready")
     guardian.locked = true; snapshot.guardian = guardian
     try check(item("agents").state == .attention, "Blocked agent activity appeared ready for ordinary use")
     snapshot.lidDisabled = true

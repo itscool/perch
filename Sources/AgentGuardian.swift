@@ -47,6 +47,7 @@ final class AgentGuardian {
     var lastStatus = Date.distantPast
     var lastTracking = Date.distantPast
     var statusError: String?
+    var launchRecoveryError: String?
     var message = "Watching selected local agents"
     var testing = false
     var testResultID: String?
@@ -343,7 +344,7 @@ final class AgentGuardian {
             lastSaved = Date()
         }
         if Date().timeIntervalSince(lastStatus) >= 1 || !requests.isEmpty {
-            let status = SafetyStatus(locked: state.locked, pendingLaunchJobs: state.disabledJobs.count, shortcutActive: hotKey.active, inputTrusted: nil, inputActive: false, keepAwakeActive: awake.enabled, trackedCount: tracker.tracked.count, targets: statusTargets, message: message, testResultID: testResultID, testUntil: testUntil, error: statusError ?? (events.healthy ? nil : events.failure), eventCoverage: events.healthy ? "Process events active" : "Degraded — process events unavailable or incomplete", processEventCount: events.eventCount, eventLastSeen: events.lastEvent, eventConnected: events.fd >= 0, eventSessionID: events.sessionID, maintenance: maintenance)
+            let status = SafetyStatus(locked: state.locked, pendingLaunchJobs: state.disabledJobs.count, shortcutActive: hotKey.active, inputTrusted: nil, inputActive: false, keepAwakeActive: awake.enabled, trackedCount: tracker.tracked.count, targets: statusTargets, message: message, testResultID: testResultID, testUntil: testUntil, error: launchRecoveryError ?? statusError ?? (events.healthy ? nil : events.failure), eventCoverage: events.healthy ? "Process events active" : "Degraded — process events unavailable or incomplete", processEventCount: events.eventCount, eventLastSeen: events.lastEvent, eventConnected: events.fd >= 0, eventSessionID: events.sessionID, maintenance: maintenance)
             let diagnostics = events.diagnosticSnapshot
             statusServer?.publishSnapshot {
                 var result = status
@@ -424,18 +425,19 @@ final class AgentGuardian {
         catch { statusError = error.localizedDescription }
     }
     func resume() {
-        state.locked = false
-        // Removed launch jobs remain unloaded; restoring permission to launch does not launch an agent.
-        var stillDisabled: [String] = []
-        for label in state.disabledJobs {
-            let result = SafetyCommand.run("/bin/launchctl", ["enable", "gui/\(getuid())/\(label)"])
-            record("restore launch eligibility", name: label, result: result)
-            if result != "ok" { stillDisabled.append(label); statusError = "Some launch jobs could not be re-enabled. See report." }
+        do {
+            let failed = try AgentJobRecovery.resume(state: &state, persist: { try SafetyFiles.writeRecoveryState($0) }, enable: { label in
+                let result = SafetyCommand.run("/bin/launchctl", ["enable", "gui/\(getuid())/\(label)"])
+                record("restore launch eligibility", name: label, result: result)
+                return result
+            })
+            launchRecoveryError = failed.isEmpty ? nil : "Some launch jobs could not be re-enabled. Retry Resume agent activity; see the report for details."
+            record("resume", result: "relaunch monitoring released; apps and privacy grants were not restored")
+            message = failed.isEmpty ? "Watching selected local agents" : "Agent blocking ended; some launch jobs still need recovery"
+        } catch {
+            launchRecoveryError = state.locked ? "Could not save Resume. Agent activity is still blocked. Retry after resolving the storage error." : "Agent blocking ended, but the recovery list could not be saved. Retry Resume agent activity."
+            record("resume", result: launchRecoveryError! + " " + error.localizedDescription)
         }
-        state.disabledJobs = stillDisabled
-        do { try SafetyFiles.write(state, to: SafetyFiles.state) } catch { statusError = "Could not save resumed state." }
-        record("resume", result: "relaunch monitoring released; apps and privacy grants were not restored")
-        message = "Watching selected local agents"
     }
     func preview() {
         events.drain()
@@ -464,13 +466,20 @@ final class AgentGuardian {
                 let pattern = "\"" + NSRegularExpression.escapedPattern(for: label) + "\"\\s*=>\\s*true"
                 if disabled.range(of: pattern, options: .regularExpression) != nil { continue }
                 guard SafetyCommand.run("/bin/launchctl", ["print", "gui/\(getuid())/\(label)"]) == "ok" else { continue }
-                let result = SafetyCommand.run("/bin/launchctl", ["disable", "gui/\(getuid())/\(label)"])
-                if result == "ok" {
-                    state.disabledJobs.append(label)
-                    try? SafetyFiles.write(state, to: SafetyFiles.state)
+                do {
+                    let result = try AgentJobRecovery.disable(label, state: &state,
+                        persist: { try SafetyFiles.writeRecoveryState($0) },
+                        command: { SafetyCommand.run("/bin/launchctl", ["disable", "gui/\(getuid())/\(label)"]) })
                     record("disable relaunch job", name: label, result: result)
-                    record("unload relaunch job", name: label, result: SafetyCommand.run("/bin/launchctl", ["bootout", "gui/\(getuid())/\(label)"]))
-                } else { record("disable relaunch job", name: label, result: result) }
+                    if result == "ok" {
+                        record("unload relaunch job", name: label, result: SafetyCommand.run("/bin/launchctl", ["bootout", "gui/\(getuid())/\(label)"]))
+                    } else if result != "already recorded" {
+                        launchRecoveryError = "A launch-job change was not confirmed. Its recovery record is kept for Resume; see the report."
+                    }
+                } catch {
+                    launchRecoveryError = "Could not save launch-job recovery. Launch eligibility was left unchanged; process monitoring continues."
+                    record("disable relaunch job", name: label, result: launchRecoveryError! + " " + error.localizedDescription)
+                }
             }
         }
     }

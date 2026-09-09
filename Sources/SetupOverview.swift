@@ -33,6 +33,8 @@ struct SetupSnapshot {
     var monitorNeedsVerification = false
     var monitorDetail = "Connect an external monitor to set up input switching."
     var collectorInstalled = false
+    var collectorNeedsRepair = false
+    var collectorWaitingForSession = false
     var lidDisabled: Bool?
     var lidWanted = false
     var lidGuard: LidGuardStatus?
@@ -112,7 +114,7 @@ struct SetupSnapshot {
             add("events", "Live agent tracking", .optional, "Improves tracking of short-lived agent subprocesses. Setup uses Full Disk Access for Apple’s eslogger.", "Set up tracking…", .events)
         } else if !guardianReady {
             add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Review helpers…", .maintenance)
-        } else if guardian?.eventCoverage == "Process events active" && guardian?.eventConnected == true && guardian?.eventLastSeen.map({ Date().timeIntervalSince($0) < 45 }) == true {
+        } else if EventCollectorSetup.collectionReady(guardian, installed: collectorInstalled, needsRepair: collectorNeedsRepair, waitingForSession: collectorWaitingForSession) {
             add("events", "Live agent tracking", .ready, "Recent events and the live health check confirm that collection is working.", "View status…", .events)
         } else {
             add("events", "Live agent tracking", .attention, "The installed collector’s live access or health is not verified. Review Full Disk Access and the collection checks.", "Restore tracking…", .events)
@@ -217,6 +219,8 @@ extension AppDelegate {
             result.monitorDetail = "\(group.name): \(group.members.count) selected displays. " + monitorInputs.groups.message
         }
         result.collectorInstalled = EventCollectorSetup.shared.installed
+        result.collectorNeedsRepair = EventCollectorSetup.shared.needsRepair
+        result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
         result.lidDisabled = observedLidDisabled
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status

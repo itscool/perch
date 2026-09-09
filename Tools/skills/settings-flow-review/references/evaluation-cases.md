@@ -170,3 +170,18 @@ confirmation from immediate shortcut behavior. Share concept/key-label copy
 across consumers and preserve visible explanations and accessible help. Do not
 add redundant hover text to every heading or hide required instructions in
 hover-only help. A string-presence test alone cannot establish useful wording.
+
+## Recovery ordering and accessible return
+
+Scenario: a restore-dependent action updates the OS, then writes its recovery
+list with errors ignored. Resume changes memory before saving. A correctly
+working Back returns to a page but loses the focused field and selection. An
+icon has an accessible name yet can only be dragged with a mouse. Two identical
+popup values refer to different devices without accessible context.
+
+Expected: distinguish durable restoration from UI completion and test both write
+failure boundaries without live OS changes. Preserve uncertain recovery intent.
+Replay native focus/selection across child and refreshed pages; identify controls
+by stable purpose and device. Provide a real keyboard/accessibility alternative
+to drag with visible instructions. Metadata, a mocked Back response, or successful
+command dispatch alone does not prove any of these flows complete.

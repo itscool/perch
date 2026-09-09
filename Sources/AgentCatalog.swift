@@ -20,7 +20,6 @@ struct AgentCatalog: Codable {
         return value
     }
     func validate() throws {
-        let generic = Set(["sh","bash","zsh","fish","node","python","python3","bun","ruby","osascript","launchd","Perch","PerchGuard"])
         guard schemaVersion == 1, entries.count <= 150, reviewedOn.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil else { throw AppError(message: "Unsupported catalog format.") }
         var ids = Set<String>()
         for entry in entries {
@@ -28,7 +27,7 @@ struct AgentCatalog: Codable {
             guard ids.insert(t.id).inserted, !t.id.isEmpty, t.id.count < 120, !t.name.isEmpty, t.name.count < 100,
                   ["app","cli"].contains(t.kind), !t.match.isEmpty, t.match.count < 160,
                   !t.match.contains("/"), !t.match.contains("*"), !t.match.contains("\n"), !t.match.contains("\0"),
-                  t.match != "local.scott.perch", !generic.contains(t.match),
+                  t.match != "local.scott.perch", !AgentTarget.isGeneralPurposeExecutable(t.match),
                   !entry.sources.isEmpty, entry.sources.allSatisfy({ URL(string: $0)?.scheme == "https" }) else {
                 throw AppError(message: "Invalid catalog entry: \(t.name). Catalogs can contain only named apps/agent executables, never commands or generic runtimes.")
             }
@@ -113,5 +112,15 @@ func runCatalogTests() throws {
     let bad = CatalogEntry(target: .init(id: "bad", name: "Shell", kind: "cli", match: "zsh"), category: "bad", note: "", sources: ["https://example.com"])
     do { try AgentCatalog(schemaVersion: 1, reviewedOn: "2026-09-04", entries: [bad]).validate(); throw AppError(message: "Generic shell catalog entry accepted.") }
     catch let error as AppError { if error.message == "Generic shell catalog entry accepted." { throw error } }
+    for name in ["ruby", "perl", "python3.13", "pythonw3", "nodejs", "lua5.4", "pypy3", "java", "dotnet", "zsh", "Perch"] {
+        guard AgentTarget.isGeneralPurposeExecutable(name) else { throw AppError(message: "Shared runtime accepted: " + name) }
+        let target = CatalogEntry(target: .init(id: "runtime", name: "Runtime", kind: "cli", match: name), category: "fixture", note: "", sources: ["https://example.com"])
+        var rejected = false
+        do { try AgentCatalog(schemaVersion: 1, reviewedOn: "2026-09-09", entries: [target]).validate() } catch { rejected = true }
+        guard rejected else { throw AppError(message: "Runtime catalog entry accepted: " + name) }
+    }
+    for name in ["codex", "claude", "my-agent", "python-agent", "ruby-assistant"] {
+        guard !AgentTarget.isGeneralPurposeExecutable(name) else { throw AppError(message: "Specific agent rejected: " + name) }
+    }
     print("PASS: catalog validation; generic shells rejected; new candidates checked; existing selections preserved")
 }

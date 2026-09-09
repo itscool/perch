@@ -58,6 +58,8 @@ final class AgentSettingsPage: NSObject {
             box.state = config.shortcut.modifiers & UInt32(pair.1) != 0 ? .on : .off
             modifiers.append((box, UInt32(pair.1))); view.addSubview(box)
         }
+        keys.identifier = .init("agent.shortcut.key"); keys.setAccessibilityLabel("Emergency shortcut key")
+        reset.identifier = .init("agent.privacy.scope"); reset.setAccessibilityLabel("Privacy permissions to reset after Panic")
         keys.frame = NSRect(x: 460, y: 200, width: 104, height: 28)
         keys.toolTip = "Choose the key to press with the selected modifiers. Valid combinations save immediately."
         keys.addItems(withTitles: PanicShortcut.keys.map(\.0))

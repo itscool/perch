@@ -9,7 +9,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     let readyState = NSTextField(wrappingLabelWithString: "")
     let guidance = NSTextField(wrappingLabelWithString: "")
     let primary = NSButton()
-    let reveal = NSButton()
     let identityUpdate = NSButton()
     var permissionDrag: PermissionDragItem!
     let intro = NSTextField(wrappingLabelWithString: "")
@@ -67,7 +66,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         primary.bezelStyle = .rounded; primary.target = self; primary.action = #selector(nextStep)
         primary.frame = NSRect(x: 306, y: 26, width: 230, height: 32)
         panel.contentView?.addSubview(primary)
-        let drag = PermissionDragItem(title: "Drag eslogger → Settings") { URL(fileURLWithPath: "/usr/bin/eslogger") }
+        let drag = PermissionDragItem(title: "eslogger · drag / copy path") { URL(fileURLWithPath: "/usr/bin/eslogger") }
         permissionDrag = drag
         drag.frame = NSRect(x: 24, y: 22, width: 245, height: 42)
         panel.contentView?.addSubview(drag)
@@ -95,6 +94,12 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         }
         refresh()
     }
+    static func collectionReady(_ state: SafetyStatus?, installed: Bool, needsRepair: Bool, waitingForSession: Bool, now: Date = Date()) -> Bool {
+        guard installed, !needsRepair, !waitingForSession, state?.fresh == true,
+              state?.eventCoverage == "Process events active", state?.eventConnected == true,
+              let last = state?.eventLastSeen else { return false }
+        return now.timeIntervalSince(last) >= 0 && now.timeIntervalSince(last) < 45
+    }
     func refresh() {
         identityUpdate.isHidden = !identityUpdateAvailable || needsRepair
         identityUpdate.isEnabled = !installing
@@ -102,7 +107,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         let fresh = state?.fresh == true
         if waitingForSession, let session = state?.eventSessionID, session != previousSession { waitingForSession = false }
         let receiving = fresh && state?.eventConnected == true && (state?.eventLastSeen.map { Date().timeIntervalSince($0) < 45 } ?? false)
-        let ready = fresh && !waitingForSession && state?.eventCoverage == "Process events active"
+        let ready = Self.collectionReady(state, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession)
         permissionDrag.isHidden = ready || receiving || !installed
         intro.stringValue = ready ? "Process event collection is ready. No further setup is needed." : "Remember agent subprocesses as they start—even if their parents exit quickly. Complete the missing step below."
         installState.stringValue = needsRepair ? "⚠  1. Collector update needed" : installed ? "✓  1. Collector installed" : "1. Install Apple’s collector"
@@ -111,7 +116,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         installState.textColor = needsRepair ? StatusColors.warning : installed ? StatusColors.success : .labelColor
         accessState.textColor = receiving ? StatusColors.success : StatusColors.warning
         readyState.textColor = ready ? StatusColors.success : StatusColors.warning
-        reveal.isHidden = !installed || ready
         primary.isHidden = false
         primary.isEnabled = !installing
         if installing { primary.title = "Installing…"; return }
@@ -144,7 +148,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             guidance.stringValue = "Full Disk Access is working. Perch is now checking that a known process appears in the event stream. This can take up to 45 seconds; no further clicks are needed."
         } else {
             primary.title = "Open Full Disk Access"
-            guidance.stringValue = "Installation succeeded. Next:\n1. Open Full Disk Access.\n2. Drag the eslogger icon below into that list.\n3. Turn on eslogger’s switch.\n\nLeave this window open. The next two checkmarks appear automatically once events arrive (allow up to 45 seconds). If events still do not arrive after enabling eslogger, macOS may also require Full Disk Access for the Perch collector launcher."
+            guidance.stringValue = "Installation succeeded. Next:\n1. Open Full Disk Access.\n2. Drag the eslogger icon below, or focus it and press Space to copy its path.\n3. For keyboard setup: choose +, press ⌘⇧G, paste, then Open. Enable eslogger.\n\nLeave this window open. The next two checkmarks appear automatically once events arrive (allow up to 45 seconds). If events still do not arrive after enabling eslogger, macOS may also require Full Disk Access for the Perch collector launcher."
         }
     }
     @objc func nextStep() {
@@ -156,7 +160,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             refresh()
         } else if waitingForSession {
             do { try requestNewSession(); refresh() } catch { guidance.stringValue = error.localizedDescription }
-        } else if GuardianInstall.status?.eventCoverage == "Process events active" { refresh() }
+        } else if Self.collectionReady(GuardianInstall.status, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession) { refresh() }
         else if (GuardianInstall.status?.processEventCount ?? 0) > 0 {
             do { try SafetyFiles.send("check-events"); retryUntil = Date().addingTimeInterval(10); refresh() }
             catch { guidance.stringValue = "Could not request a health check: \(error.localizedDescription)" }

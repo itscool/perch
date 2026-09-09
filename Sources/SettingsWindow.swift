@@ -22,6 +22,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         var beforeBack: (() -> Bool)? = nil
         var scrollFromTop: CGFloat = 0
         var focusIdentifier: NSUserInterfaceItemIdentifier? = nil
+        weak var focusView: NSView? = nil
+        var selection: NSRange? = nil
     }
     var pages: [Page] = []
     var feedback: String?
@@ -156,7 +158,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) { returnedToApp() }
     func display(_ page: Page) {
         guard !interactionBusy else { needsPageDisplay = true; return }
-        render(page)
+        if pages.last?.view === page.view, page.view.isDescendant(of: container) {
+            rememberScroll()
+            render(pages.last!)
+        } else { render(page) }
     }
     /// Only the owner of an active confirmation may replace its controls.
     private func render(_ page: Page) {
@@ -178,33 +183,43 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         contentScroll.tile()
         layoutDetail()
         window.defaultButtonCell = nil
-        container.subviews.forEach { $0.removeFromSuperview() }
+        if container.subviews.count != 1 || container.subviews.first !== page.view { container.subviews.forEach { $0.removeFromSuperview() } }
         container.frame = NSRect(x: 0, y: 0, width: contentScroll.contentSize.width, height: max(contentScroll.contentSize.height, page.view.frame.height))
         page.view.setFrameOrigin(NSPoint(x: max(0,(container.bounds.width-page.view.frame.width)/2), y: max(0,container.bounds.height-page.view.frame.height)))
-        container.addSubview(page.view)
+        if page.view.superview !== container { container.addSubview(page.view) }
         contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height-page.scrollFromTop)))
         contentScroll.reflectScrolledClipView(contentScroll.contentView)
-        if let identifier = page.focusIdentifier {
-            func find(_ view: NSView) -> NSView? {
-                if view.identifier == identifier { return view }
-                return view.subviews.lazy.compactMap { find($0) }.first
-            }
-            if let target = find(page.view) { window.makeFirstResponder(target) }
+        func find(_ view: NSView, identifier: NSUserInterfaceItemIdentifier) -> NSView? {
+            if view.identifier == identifier { return view }
+            return view.subviews.lazy.compactMap { find($0, identifier: identifier) }.first
         }
+        let retained = page.focusView.flatMap { $0.isDescendant(of: page.view) ? $0 : nil }
+        let target = retained ?? page.focusIdentifier.flatMap { find(page.view, identifier: $0) }
+        if let target, !target.isHiddenOrHasHiddenAncestor, (target as? NSControl)?.isEnabled != false {
+            window.makeFirstResponder(target)
+            if let selection = page.selection, let editor = (target as? NSTextField)?.currentEditor() as? NSTextView,
+               NSMaxRange(selection) <= (editor.string as NSString).length { editor.setSelectedRange(selection) }
+        } else if let focused = window.firstResponder as? NSView,
+                  focused !== back, !focused.isDescendant(of: page.view) { window.makeFirstResponder(back) }
+        window.recalculateKeyViewLoop()
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     }
     func rememberScroll() {
-        guard !pages.isEmpty else { return }
+        guard let page = pages.last, page.view.isDescendant(of: container), !modal else { return }
         let focused = (window.firstResponder as? NSTextView)?.delegate as? NSView ?? window.firstResponder as? NSView
-        if let focused, focused.isDescendant(of: container) { pages[pages.count-1].focusIdentifier = focused.identifier }
+        if let focused, focused.isDescendant(of: page.view) {
+            pages[pages.count-1].focusIdentifier = focused.identifier
+            pages[pages.count-1].focusView = focused
+            pages[pages.count-1].selection = (window.firstResponder as? NSTextView)?.selectedRange()
+        }
         pages[pages.count-1].scrollFromTop = max(0, container.frame.height-contentScroll.contentSize.height-contentScroll.contentView.bounds.minY)
     }
     func show(_ proposed: Page) {
         var page = proposed
         guard !interactionBusy else { afterInteraction { [weak self] in self?.show(page) }; return }
         rememberScroll()
-        if let previous = pages.last, previous.title == page.title { page.scrollFromTop = previous.scrollFromTop; page.focusIdentifier = previous.focusIdentifier }
+        if let previous = pages.last, previous.title == page.title { page.scrollFromTop = previous.scrollFromTop; page.focusIdentifier = previous.focusIdentifier; page.focusView = previous.focusView; page.selection = previous.selection }
         feedback = nil
         if page.title == "Perch settings" {
             pages.reversed().forEach { $0.leave?() }
@@ -243,6 +258,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 _ = delegate.perform(option.2)
                 if let current = self.pages.last { self.display(current) }
             }
+            button.identifier = .init("settings.action." + NSStringFromSelector(option.2))
             button.toolTip = option.1
             button.setAccessibilityHelp(option.1)
             if option.0.hasPrefix("⛔") || option.0.hasPrefix("⚠") || option.0.hasPrefix("✓") {
@@ -269,6 +285,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     func present(_ alert: NSAlert, allowsCancel: Bool = true,
                  completion: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) {
         guard !interactionBusy else { completion(.abort); return }
+        rememberScroll()
         modal = true; activeAlert = alert; modalResponseRequested = nil
         alertCompletion = completion; modalAllowsCancel = allowsCancel
         alert.layout()

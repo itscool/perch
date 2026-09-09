@@ -1,6 +1,6 @@
 # Current Perch backlog
 
-Reconciled September 9, 2026 after installing build 77. This is the planned
+Reconciled September 9, 2026 after the build 79 review; build 77 remains installed. This is the planned
 execution order, not the dates issues were first reported. It supersedes stale
 open-item wording in dated review checkpoints. Functional bugs come first;
 acceptance gaps below are not automatically established defects.
@@ -14,10 +14,10 @@ acceptance gaps below are not automatically established defects.
    Build 78 adds required help for all 21 action rows, shared explanations and
    state-specific context. Its content changes still need native hover acceptance;
    the original tooltip ownership/selection defect is not being reopened.
-3. **Run the current full isolated functional suite and native dialog lab.**
-   Compilation and targeted hidden tests pass. The full visible run remains
-   outstanding after the callback migration; use AGENT MODE for visible work.
-   Fix any regressions before proceeding to discretionary feature work.
+3. **Full isolated suite and limited native dialog lab completed for build 79.**
+   All 21 suites pass. Real harmless-lab confirmation/Escape, result Back, picker
+   cancellation and parent action passed with AGENT MODE. This closes the pending
+   full-suite run, not native acceptance on every production route. See item 9.
 4. **Accept first-use and access-repair journeys.** Verify the new blocked-access
    startup notice and already-enabled recovery route on the affected launch,
    including scoped Automation errors and correct helper-specific explanations.
@@ -45,12 +45,17 @@ acceptance gaps below are not automatically established defects.
    check Full Disk Access attribution, event delivery, exact CPU accounting,
    collector restart/PID reuse and reboot. Direct-eslogger delivery is supported;
    new native launcher installation/FDA/reboot acceptance is still outstanding.
-9. **Complete the broader whole-app review.** Close remaining first-use, repair,
-   add/remove/relearn and failure journeys; keyboard-only/VoiceOver, contrast and
-   light/dark readability; security/least privilege, helper identity, recovery and
-   feature-bloat review. Review every relevant route, record prioritized findings,
-   fix them and retain evidence. Destructive panic/privacy-reset end-to-end work
-   belongs in a separately authorized disposable environment, not this session.
+9. **Safe whole-app review and resulting fixes completed; finish accessibility acceptance.**
+   WHOLE-APP-REVIEW-79.md records prioritized findings and journey coverage.
+   Fixed launch-job recovery ordering, lost focus/selection, missing scoped
+   accessible names and keyboard permission action, inconsistent collector Ready,
+   and generic-runtime safeguards. Source, 21 isolated suites, rendered pages
+   and limited native-lab checks pass. Full keyboard-only navigation and spoken
+   VoiceOver still need an agreed desktop session: lab Tab behavior was not
+   established, and no system navigation settings were changed. Permission,
+   physical lid/collector and clean-install acceptance remain items 4–8 and 14.
+   Destructive panic/privacy-reset testing requires a separately authorized
+   disposable environment. The review is not a release sign-off.
 10. **Measure current performance and memory.** Idle, open menu, input activity,
     process bursts and recovery; wakeups, event backlog and sustained memory
     growth; honest combined collector CPU attribution. Prior bounded measurements
@@ -61,7 +66,9 @@ acceptance gaps below are not automatically established defects.
     optional same-keyboard host-button detection; one monitor, either/both of two,
     and mixed arrangements. Track observed versus requested monitor input and
     handle concurrency, sleeping peers and partial failure. Replace old cycling
-    UI/settings once ready; migrate useful mappings. Detailed order: KVM-PLAN.md.
+    UI/settings once ready; migrate useful mappings. Replace the legacy dense, nested-scrolling monitor
+    guidance with clear arrangement/status/next-action pages. Detailed order:
+    KVM-PLAN.md.
 12. **Validate KVM and hardware support.** Two real Perch computers, multiple
     display arrangements, split keyboard/mouse hosts, identical keyboard models,
     reconnect and partial failures. Validate reused DDC/USB MCCS/MSI USB/NEC

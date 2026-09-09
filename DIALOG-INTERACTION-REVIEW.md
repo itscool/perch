@@ -1,5 +1,15 @@
 # Dialog interaction audit — September 9
 
+## September 9 whole-app follow-up
+
+Build 79 adds shared focus/selection restoration and explicit accessible names;
+see WHOLE-APP-REVIEW-79.md. The final full isolated run passed 21/21 suites.
+The harmless native lab was operated with AGENT MODE: confirmation/Escape,
+informational Back, native picker cancellation and the parent action worked.
+These observations supersede the dated lab-not-operated/full-suite-pending notes
+below. They do not establish native input on all 58 routes, full Tab navigation
+or spoken VoiceOver. The reported original Back defect remains user-accepted.
+
 ## Build 77: result-page Back, whole-set static sweep
 
 The user identified the affected flow on installed build 75: Test shortcut works,

@@ -21,6 +21,7 @@ final class SettingsTaskPage {
     @discardableResult
     func add(_ title: String, detail: String, checkbox: Bool = false, action: @escaping () -> Void) -> NSButton {
         let button = SettingsActionButton(title: title, action: action)
+        button.identifier = .init("settings.task." + title)
         button.toolTip = detail
         button.setAccessibilityHelp(detail)
         if checkbox { button.setButtonType(.switch); button.allowsMixedState = true }

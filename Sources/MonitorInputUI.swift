@@ -51,6 +51,10 @@ final class MonitorInputPage: NSObject {
         self.controller = controller; self.editingSetup = editingSetup
         originalPlan = controller.plan
         super.init()
+        monitors.identifier = .init("monitor.device"); monitors.setAccessibilityLabel("Monitor to configure")
+        protocolChoice.identifier = .init("monitor.protocol"); protocolChoice.setAccessibilityLabel("Monitor control connection")
+        currentChoice.identifier = .init("monitor.currentInput"); currentChoice.setAccessibilityLabel("Current monitor input")
+        keys.identifier = .init("monitor.shortcut.key"); keys.setAccessibilityLabel("Monitor input shortcut key")
         func label(_ text: String, _ frame: NSRect) {
             let label = NSTextField(wrappingLabelWithString: text); label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor; label.frame = frame; view.addSubview(label)
         }
@@ -212,6 +216,7 @@ final class MonitorInputPage: NSObject {
         var active = true, tested: UInt16? = nil
         var cancellation = MonitorProbeCancellation()
         let choose = NSPopUpButton(frame:NSRect(x:0,y:165,width:572,height:30))
+        choose.setAccessibilityLabel("Input to test for this Mac")
         let inputs = candidates; choose.addItems(withTitles:inputs.map { $0.name })
         let text = NSTextField(wrappingLabelWithString:"Or choose an input here and click Test selected input. When the monitor shows this Mac, save it below. This mapping does not expire.")
         text.frame = NSRect(x:0,y:78,width:572,height:75); text.textColor = .secondaryLabelColor
@@ -319,6 +324,7 @@ final class MonitorInputPage: NSObject {
         guard editingSetup else { return }
         let page = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
         let text = NSTextView(frame: NSRect(x: 0,y: 0,width: 548,height: 360))
+        text.identifier = .init("monitor.inputDefinitions"); text.setAccessibilityLabel("Monitor input names and codes")
         text.isRichText = false; text.font = .monospacedSystemFont(ofSize: 13,weight: .regular)
         text.textColor = .labelColor; text.backgroundColor = .textBackgroundColor
         text.isVerticallyResizable = true; text.isHorizontallyResizable = false; text.textContainer?.widthTracksTextView = true
@@ -330,6 +336,7 @@ final class MonitorInputPage: NSObject {
         var pendingProfile = chosenProfile
         var pendingAlternate = protocolChoice.indexOfSelectedItem == 1
         let preset = SettingsActionPopup(frame: NSRect(x: 0,y: 443,width: 572,height: 30), pullsDown: false)
+        preset.setAccessibilityLabel("Monitor model preset")
         let profiles = controlConnection == nil ? MonitorProfiles.entries.filter { $0.vendor == listed.first(where: { $0.id == editedDisplay })?.vendor && $0.confidence != "suggested" } : []
         preset.addItem(withTitle: "Choose your exact model…")
         preset.addItems(withTitles: profiles.map { $0.name })
@@ -388,6 +395,7 @@ final class MonitorInputPage: NSObject {
             }
         }
         let picker = NSPopUpButton(frame: NSRect(x: 0,y: 261,width: 572,height: 30))
+        picker.setAccessibilityLabel("Alternative monitor control method")
         picker.addItem(withTitle: "Choose one destination and command to test…")
         picker.addItems(withTitles: choices.map { "\($0.input.name) · \($0.alternate ? "LG alternate" : "Standard") · code \($0.input.code)" })
         let result = NSTextField(wrappingLabelWithString: "Start with your exact model preset. If it failed, choose one alternative above. This may remove this Mac’s picture. Return using the monitor’s own input controls; Perch cannot restore a disconnected display automatically.")
@@ -613,16 +621,18 @@ final class MonitorInputPage: NSObject {
         let selectedDisplay = editedDisplay
         let kinds = ["msi-usb","mccs-usb","nec-lan","nec-serial"]
         let type = NSPopUpButton(frame:NSRect(x:0,y:260,width:572,height:30))
+        type.setAccessibilityLabel("USB or NEC connection type")
         type.addItems(withTitles:["MSI USB control", "USB MCCS (including supported Eizo models)", "NEC network connection", "NEC serial connection"])
         if let connection = controlConnection, let i = kinds.firstIndex(of:connection.kind) { type.selectItem(at:i) }
         let endpoint = NSTextField(frame:NSRect(x:0,y:215,width:572,height:28))
+        endpoint.identifier = .init("monitor.endpoint"); endpoint.setAccessibilityLabel("Monitor connection address or device path")
         endpoint.placeholderString = "USB identity below, IPv4 address, or /dev/cu. device"
         endpoint.stringValue = controlConnection?.endpoint ?? ""
-        let devices = NSPopUpButton(frame:NSRect(x:0,y:175,width:572,height:28)); devices.addItem(withTitle:"Choose a detected USB monitor")
+        let devices = NSPopUpButton(frame:NSRect(x:0,y:175,width:572,height:28)); devices.setAccessibilityLabel("Detected USB monitor"); devices.addItem(withTitle:"Choose a detected USB monitor")
         var found: [MonitorUSBDevice] = []
         let message = NSTextField(wrappingLabelWithString:"USB needs the monitor’s upstream data cable. NEC uses port 7142 or 9600-baud serial. Select the monitor ID (usually 1).")
         message.frame = NSRect(x:0,y:70,width:572,height:65); message.textColor = .secondaryLabelColor
-        let address = NSPopUpButton(frame:NSRect(x:410,y:138,width:162,height:28)); address.addItems(withTitles:(1...26).map { "Monitor ID \($0)" }); address.selectItem(at:(controlConnection?.address ?? 1)-1)
+        let address = NSPopUpButton(frame:NSRect(x:410,y:138,width:162,height:28)); address.setAccessibilityLabel("NEC monitor ID"); address.addItems(withTitles:(1...26).map { "Monitor ID \($0)" }); address.selectItem(at:(controlConnection?.address ?? 1)-1)
         let scan = SettingsActionButton(title:"Find USB monitors") { [weak self] in
             guard let self, !self.controller.busy, !SettingsWindow.shared.testing else { return }
             self.controller.usbDevices { result in

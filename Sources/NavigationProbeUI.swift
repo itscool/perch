@@ -44,6 +44,7 @@ final class NavigationProbePage: NSObject {
         self.enumerate = enumerate; self.hasAccess = hasAccess; self.saveProfile = saveProfile
         self.readProfiles = readProfiles; self.resetProfiles = resetProfiles
         super.init()
+        picker.identifier = .init("navigation.keyboard"); picker.setAccessibilityLabel("Keyboard to learn or manage")
         view.addSubview(picker)
         picker.setAccessibilityLabel("External keyboard to set up")
         picker.target = self; picker.action = #selector(selectedKeyboard)

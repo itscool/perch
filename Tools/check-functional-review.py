@@ -84,7 +84,7 @@ if CommandLine.arguments.count == 3 && ["--apply-update", "--complete-update"].c
 }
 SettingsWindow.shared.testing = true
 let suites: [(String, () throws -> Void)] = [
-    ("catalog", runCatalogTests), ("CPU logic", runProcessCPUTests),
+    ("catalog", runCatalogTests), ("launch-job recovery", runAgentJobRecoveryTests), ("CPU logic", runProcessCPUTests),
     ("protection issues", runProtectionIssueTests), ("process events", runProcessEventTests),
     ("helper IPC", runHelperStatusTests), ("housekeeping", runHousekeepingTests),
     ("privacy plan with mock executor", runPanicTests), ("input transforms", runInputTests),

@@ -22,7 +22,7 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
-        instructions.stringValue = "1. Open Accessibility settings.\n2. Drag the Perch Helper icon below into the list and enable it.\n3. If an old entry is enabled but access still fails, remove it and drag the current helper in again.\n\nKeep this window open—it checks the actual helper and will confirm when your controls work."
+        instructions.stringValue = "Open Accessibility, add Perch Helper, and enable its switch. Drag the icon below, or focus it and press Space to copy its path.\n\nKeyboard: choose + in System Settings, press ⌘⇧G, paste, then Open. If an old enabled entry still fails, replace it with this helper. Perch checks access automatically."
         instructions.frame = NSRect(x: 20, y: 115, width: 480, height: 135)
         panel.contentView?.addSubview(instructions)
         status.frame = NSRect(x: 20, y: 66, width: 480, height: 42)
@@ -32,7 +32,7 @@ final class PermissionSetup: NSObject, NSWindowDelegate {
         open.bezelStyle = .rounded
         open.frame = NSRect(x: 20, y: 20, width: 180, height: 30)
         panel.contentView?.addSubview(open)
-        let drag = PermissionDragItem(title: "Drag helper → Settings") {
+        let drag = PermissionDragItem(title: "Perch Helper · drag / copy path") {
             FileManager.default.fileExists(atPath: GuardianInstall.protectedBinary.path) ? GuardianInstall.protectedBinary.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() : SafetyFiles.helperApp
         }
         permissionDrag = drag

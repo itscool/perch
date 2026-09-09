@@ -160,6 +160,7 @@ extension AppDelegate {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: max(180, 90 + targets.count * 60)))
         let addApp = SettingsActionButton(title: "Add app…") { [weak self] in self?.addAgentApp(); self?.manageAgents() }
         let addExecutable = SettingsActionButton(title: "Add executable…") { [weak self] in self?.addAgentExecutable(); self?.manageAgents() }
+        addApp.identifier = .init("agent.addApp"); addExecutable.identifier = .init("agent.addExecutable")
         addApp.frame = NSRect(x: 0, y: view.frame.height-32, width: 278, height: 32)
         addExecutable.frame = NSRect(x: 288, y: view.frame.height-32, width: 284, height: 32)
         view.addSubview(addApp); view.addSubview(addExecutable)
@@ -174,6 +175,8 @@ extension AppDelegate {
                     try config.save(); self?.manageAgents()
                 } catch { self?.showError(error) }
             }
+            remove.identifier = .init("agent.remove." + target.id)
+            remove.setAccessibilityLabel("Forget " + target.name + " entry")
             remove.frame = NSRect(x: 428, y: y+8, width: 144, height: 30)
             view.addSubview(label); view.addSubview(remove)
         }
@@ -210,7 +213,7 @@ extension AppDelegate {
             target = AgentTarget(id: "custom-app:\(id)", name: url.deletingPathExtension().lastPathComponent, kind: "app", match: id)
         } else {
             let path = url.resolvingSymlinksInPath()
-            guard FileManager.default.isExecutableFile(atPath: path.path), !["sh", "bash", "zsh", "fish", "node", "python", "python3", "bun", "Perch", "PerchGuard"].contains(path.lastPathComponent) else { showError(AppError(message: "Choose a specific agent executable, not a shared runtime or Perch.")); return }
+            guard FileManager.default.isExecutableFile(atPath: path.path), !AgentTarget.isGeneralPurposeExecutable(path.lastPathComponent) else { showError(AppError(message: "Choose a specific agent executable, not a shared runtime or Perch.")); return }
             target = AgentTarget(id: "custom-exec:\(path.path)", name: path.lastPathComponent, kind: "executable", match: path.path)
         }
         if !config.targets.contains(where: { $0.id == target.id }) { config.targets.append(target) }

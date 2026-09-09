@@ -34,6 +34,7 @@ final class MonitorGroupsPage: NSObject {
         }
         if let group {
             let choice = NSPopUpButton(frame: NSRect(x: 0, y: y, width: 572, height: 30), pullsDown: false)
+            choice.identifier = .init("group.selection"); choice.setAccessibilityLabel("Display group to review")
             groups.forEach { choice.addItem(withTitle: $0.name); choice.lastItem?.representedObject = $0.id }
             choice.selectItem(at: groups.firstIndex(of: group) ?? 0); choice.target = self; choice.action = #selector(selectGroup(_:))
             view.addSubview(choice); buttons.append(choice); y -= 42
@@ -125,7 +126,7 @@ final class MonitorGroupEditor: NSObject {
             let b = SettingsActionButton(title: text, action: action); b.frame = NSRect(x: 0, y: y, width: 572, height: 28); view.addSubview(b); y -= 36; return b
         }
         label("Group name")
-        groupName = NSTextField(string: draft.name); groupName.identifier = .init("group.name"); groupName.frame = NSRect(x: 8, y: y, width: 556, height: 26); groupName.placeholderString = "For example, Desk displays"; view.addSubview(groupName); y -= 38
+        groupName = NSTextField(string: draft.name); groupName.setAccessibilityLabel("Display group name"); groupName.identifier = .init("group.name"); groupName.frame = NSRect(x: 8, y: y, width: 556, height: 26); groupName.placeholderString = "For example, Desk displays"; view.addSubview(groupName); y -= 38
         label("Displays to include — select exactly the ones you want to switch")
         _ = button("Set up individual display inputs…") { [weak self] in
             guard let self else { return }; self.capture(); MonitorInputPage(self.monitor).show()
@@ -142,20 +143,23 @@ final class MonitorGroupEditor: NSObject {
             }; b.identifier = .init("group.member." + member.display); b.setButtonType(.switch); b.state = draft.members.contains { $0.display == member.display } ? .on : .off
             if let selected = draft.members.first(where: { $0.display == member.display }) {
                 b.frame.size.width = 350
-                let label = NSTextField(string: selected.name); label.placeholderString = "Label, for example Left"
+                let label = NSTextField(string: selected.name); label.identifier = .init("group.label." + member.display); label.setAccessibilityLabel("Display label for " + member.name); label.placeholderString = "Label, for example Left"
                 label.frame = NSRect(x: 356, y: y+36, width: 208, height: 26); view.addSubview(label); displayLabels[member.display] = label
             }
         }
         for destination in draft.destinations {
-            let field = NSTextField(string: destination.name); field.identifier = .init("group.destination." + destination.id); field.placeholderString = "Destination name, for example Mac mini"
+            let field = NSTextField(string: destination.name); field.setAccessibilityLabel("Destination computer name"); field.identifier = .init("group.destination." + destination.id); field.placeholderString = "Destination name, for example Mac mini"
             field.frame = NSRect(x: 8, y: y, width: 420, height: 26); names[destination.id] = field; view.addSubview(field)
             let remove = SettingsActionButton(title: "Remove") { [weak self] in guard let self else { return }; self.capture(); let index = self.draft.destinations.firstIndex { $0.id == destination.id } ?? 0; self.draft.destinations.removeAll { $0.id == destination.id }; self.show(focusDestination: self.draft.destinations.isEmpty ? nil : self.draft.destinations[min(index, self.draft.destinations.count-1)].id) }
+            remove.setAccessibilityLabel("Remove destination " + (destination.name.isEmpty ? "unnamed computer" : destination.name))
+            remove.identifier = .init("group.remove." + destination.id)
             remove.frame = NSRect(x: 440, y: y, width: 125, height: 28); view.addSubview(remove); y -= 38
             for member in draft.members {
                 let title = NSTextField(labelWithString: "\(member.name) · \(member.display.suffix(8))")
                 title.lineBreakMode = .byTruncatingMiddle; title.frame = NSRect(x: 8, y: y+3, width: 270, height: 20); view.addSubview(title)
                 let plan = monitor.plan.display == member.display ? monitor.plan : monitor.savedPlan(for: member.display)
                 let popup = NSPopUpButton(frame: NSRect(x: 280, y: y, width: 284, height: 28), pullsDown: false)
+                popup.setAccessibilityLabel("Input for " + member.name + " on " + (destination.name.isEmpty ? "unnamed destination" : destination.name))
                 popup.addItem(withTitle: "Choose this computer’s input…"); popup.lastItem?.tag = 0
                 for input in plan?.availableInputs ?? plan?.inputs ?? [] { popup.addItem(withTitle: "\(input.name) (\(input.code))"); popup.lastItem?.tag = Int(input.code) }
                 popup.selectItem(withTag: Int(destination.inputs[member.display] ?? 0)); popup.identifier = .init(destination.id + "/" + member.display)
@@ -171,6 +175,7 @@ final class MonitorGroupEditor: NSObject {
             b.state = draft.shortcut.modifiers & flag.1 != 0 ? .on : .off; modifiers.append((b, flag.1)); view.addSubview(b)
         }
         shortcutKey = NSPopUpButton(frame: NSRect(x: 432, y: y, width: 132, height: 28), pullsDown: false)
+        shortcutKey.identifier = .init("group.shortcut.key"); shortcutKey.setAccessibilityLabel("Display group shortcut key")
         for key in PanicShortcut.keys { shortcutKey.addItem(withTitle: key.0); shortcutKey.lastItem?.tag = Int(key.1) }
         shortcutKey.selectItem(withTag: Int(draft.shortcut.key)); view.addSubview(shortcutKey); y -= 38
         label(error.isEmpty ? "Save stores this group without switching displays. Cancel or Close discards this draft." : error, height: 54)

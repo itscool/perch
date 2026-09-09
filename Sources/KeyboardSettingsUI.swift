@@ -131,6 +131,8 @@ extension AppDelegate {
                 else if builtIn { self.toggleFunctionKeys() } else { self.toggleExternalFunctionKeys() }
                 self.keyboardSettingsView(details: details)
             }
+            fn.identifier = .init(builtIn ? "keyboard.builtIn.fn" : "keyboard.external.fn")
+            fn.setAccessibilityLabel(builtIn ? "Built-in keyboard: Use F1–F12 directly" : "External keyboards: Use F1–F12 directly")
             fn.setButtonType(.switch); fn.allowsMixedState = true
             fn.state = builtIn ? nativeMode.map { $0 ? .on : .off } ?? .mixed : externalModes.count > 1 || (externalModes.isEmpty && !keyboardModes.results.isEmpty) ? .mixed : externalModes.first == true ? .on : .off
             fn.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (builtIn ? nativeMode != nil && nativeKeyboards.contains { $0.builtIn } : !externalModes.isEmpty)
@@ -143,6 +145,8 @@ extension AppDelegate {
                 else { self.setModifierGroup(builtIn) }
                 self.keyboardSettingsView(details: details)
             }
+            swap.identifier = .init(builtIn ? "keyboard.builtIn.modifiers" : "keyboard.external.modifiers")
+            swap.setAccessibilityLabel(builtIn ? "Built-in keyboard: Swap Control and Command" : "External keyboards: Swap Control and Command")
             swap.setButtonType(.switch); swap.allowsMixedState = true
             swap.state = devices.isEmpty ? .off : devices.allSatisfy { $0.swapped == true } ? .on : devices.allSatisfy { $0.swapped == false } ? .off : .mixed
             swap.isEnabled = !devices.isEmpty

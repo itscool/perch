@@ -11,6 +11,13 @@ struct AgentTarget: Codable, Equatable {
         if id == "app:chatgpt" && bundleID == "com.openai.codex" { return false }
         return bundleID == match || name == match
     }
+    /// Shared runtime names must not become broad agent roots through either
+    /// catalog import or the custom executable picker. Existing choices are kept.
+    static func isGeneralPurposeExecutable(_ name: String) -> Bool {
+        let name = name.lowercased()
+        let fixed: Set<String> = ["sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "osascript", "launchd", "java", "dotnet", "env", "perch", "perchguard"]
+        return fixed.contains(name) || name.range(of: "^(pythonw?|pypy|ruby|perl|node(js)?|bun|deno|php|lua(jit)?)([0-9]+(\\.[0-9]+)*)?$", options: .regularExpression) != nil
+    }
     static var defaults: [AgentTarget] { [
         .init(id: "app:codex", name: "Codex", kind: "app", match: "com.openai.codex"),
         .init(id: "app:chatgpt", name: "ChatGPT", kind: "app", match: "ChatGPT"),
@@ -166,6 +173,16 @@ enum SafetyFiles {
         try prepare()
         try JSONEncoder().encode(value).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+    static func writeRecoveryState(_ value: SafetyState) throws {
+        try write(value, to: state)
+        let handle = try FileHandle(forWritingTo: state)
+        defer { try? handle.close() }
+        try handle.synchronize()
+        let directory = open(base.path, O_RDONLY)
+        guard directory >= 0 else { throw AppError(message: "Could not open the recovery directory.") }
+        defer { close(directory) }
+        guard fsync(directory) == 0 else { throw AppError(message: "Could not synchronize launch-job recovery.") }
     }
     static func read<T: Decodable>(_ type: T.Type, from url: URL) throws -> T {
         try JSONFileCache.read(type, from: url)

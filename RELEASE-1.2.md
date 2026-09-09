@@ -34,6 +34,15 @@ Keep awake renders were inspected in light and dark appearances. Physical power
 mutation, crash/reboot recovery and sleep/wake acceptance remain open; simulated
 tests do not establish those results. No public release was made.
 
+Subsequent local acceptance with the installed build 69 helper: powered close/
+open, short undock/open and unplugged/open → close → plug → open recorded no
+system sleep and retained the override. A full battery timeout released the
+override and requested sleep at 60 seconds; macOS recorded actual sleep about
+five seconds later. After opening, both override readings were off and ownership
+was cleared. These four runs passed their observed behavior. Explicit disable,
+app/helper failure, reboot recovery and active-session update acceptance remain
+open; this is not a guarantee across all hardware or failure conditions.
+
 ## Build 68: controlled restart and separate lid-helper updates
 
 **App settings → Updates** prepares a newer local signed Perch app and offers

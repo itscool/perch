@@ -40,6 +40,11 @@ passed. The exact-hash requirement accepts signed build 68 and rejects build 67.
 Build 68 and its privileged helper are now installed; the helper journal confirms
 startup. Live session handoff, first-attempt password entry and physical sleep/wake
 acceptance are still pending; the shared macOS clamshell-control defect remains unresolved.
+Physical acceptance: undock then open after 12.2 seconds on battery behaved as
+intended. The next reconnect test reproduced Clamshell Sleep on AC despite the
+user seeing an immediate return. powerd logged clearing prevention before lid
+closure while Perch retained its earlier command state. The P1 enforcement defect
+remains open; the diagnostic collector now includes bounded powerd evidence.
 No public release or privacy reset was performed. The tuned main menu is unchanged.
 
 ## Build 67: stable menu geometry during live refresh

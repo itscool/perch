@@ -22,6 +22,13 @@ entry with Perch's preceding request/failure/deadline messages. A wake entry
 after a helper restart may have no matching observed sleep entry. Do not infer
 that no sleep occurred from an empty or incomplete journal.
 
+The report also includes up to 1,024 time-filtered powerd clamshell messages,
+with explicit truncation and unavailable/error results. These can reveal macOS
+clearing clamshell prevention before an unexpected sleep. Compare them with the
+helper's command and session history; a quick return or absence of a password
+screen does not prove the Mac stayed awake. This collection only reads the
+existing system log; it does not enable logging or change permissions.
+
 The cached `AppleClamshellCausesSleep` property does not verify effective lid
 prevention. A successful command is acknowledgment, not proof the Mac stayed
 awake. Bundle versions are installed-file observations, not running-process

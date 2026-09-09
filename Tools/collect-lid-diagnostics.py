@@ -40,6 +40,17 @@ def sleep_events(text, start, end):
     return kept[-1024:]
 
 
+def clamshell_events(text):
+    if not isinstance(text, str):
+        return text
+    # Keep only powerd's clamshell messages, not the log command's headings.
+    lines = [line.strip() for line in text.splitlines()
+             if re.match(r'^\d{4}-\d\d-\d\d ', line) and 'powerd[' in line
+             and 'clamshell' in line.lower()]
+    return {'entries': [line[:1500] for line in lines[-1024:]],
+            'truncated': len(lines) > 1024 or any(len(line) > 1500 for line in lines)}
+
+
 def collect(app, hours):
     now = datetime.now(timezone.utc)
     start = now - timedelta(hours=hours)
@@ -72,6 +83,7 @@ def collect(app, hours):
             'Bundle versions describe files on disk, not proof of the running process version.',
             'AppleClamshellCausesSleep is cached; it cannot verify continued lid-sleep prevention.',
             'Missing sleep entries are not proof that sleep did not occur. Helper gaps are not reconstructed.',
+            'powerd clamshell messages explain observed OS decisions; missing or redacted messages do not establish effective protection.',
         ],
         'os': command(['/usr/bin/sw_vers']),
         'hardware_model': command(['/usr/sbin/sysctl', '-n', 'hw.model']),
@@ -80,6 +92,11 @@ def collect(app, hours):
         'clamshell_properties': registry,
         'perch_lid_events': events,
         'macos_sleep_events': sleep_events(command(['/usr/bin/pmset', '-g', 'log']), start, now),
+        'macos_clamshell_events': clamshell_events(command([
+            '/usr/bin/log', 'show', '--start', start.astimezone().strftime('%Y-%m-%d %H:%M:%S'),
+            '--end', now.astimezone().strftime('%Y-%m-%d %H:%M:%S'), '--style', 'compact',
+            '--predicate', 'process == "powerd" AND eventMessage CONTAINS[c] "clamshell"',
+        ])),
     }
 
 

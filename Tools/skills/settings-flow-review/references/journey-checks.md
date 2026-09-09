@@ -104,3 +104,21 @@ background availability notices, define per-run versus persistent dismissal,
 defer during active interactions, and keep open-menu structure stable. Test
 partial replacement, disappearance, rollback, repeated detection and restart
 failure; a previous readiness check never replaces validation at execution.
+
+### Keyboard and screen-reader implementation versus acceptance
+
+Check native keyboard behavior with the system's actual keyboard-navigation
+preference; a button can accept explicit focus while the default Tab loop skips
+it. Do not silently change the user's OS preference to pass the test. Verify
+the actual first responder, not only makeFirstResponder's return value: read-only
+labels/scroll containers can refuse focus. Include long explanations, nested
+scroll lists, disabled/hidden controls, ordinary fields and multiline editors.
+Preserve native default Return, OS sheets, text-editing keys and VoiceOver chords;
+provide a discoverable keyboard exit from multiline editing.
+
+Accessible names/roles/values, page identity and meaningful change notifications
+are implementation requirements. Changed status should remain observable, with
+unchanged polling quiet. Verify shared infrastructure and sibling controls, then
+separately record real keyboard input and spoken VoiceOver acceptance. Metadata
+and simulated dispatch do not prove speech order, announcement timing or every
+production journey.

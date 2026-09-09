@@ -1,5 +1,13 @@
 # Dialog interaction audit — September 9
 
+## Build 81 keyboard follow-up
+
+ACCESSIBILITY-REVIEW-81.md records completed shared keyboard/accessibility
+implementation and actual native-lab typing, Tab/Shift-Tab, Space/Return, popup,
+multiline, result Back, picker return, explanation scrolling and default-button
+checks. Those observations supersede the earlier unresolved lab Tab note.
+Spoken VoiceOver and broader production-route acceptance remain release tests.
+
 ## September 9 whole-app follow-up
 
 Build 79 adds shared focus/selection restoration and explicit accessible names;

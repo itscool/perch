@@ -2,355 +2,355 @@
   "AgentCatalog.swift:importAgentCatalog:picker:1": {
     "file": "AgentCatalog.swift",
     "kind": "picker",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "AgentCatalog.swift:importAgentCatalog:alert:1": {
     "file": "AgentCatalog.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "AgentCatalog.swift:reviewCatalogChanges:alert:1": {
     "file": "AgentCatalog.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "AgentSettingsPage.swift:show:page:1": {
     "file": "AgentSettingsPage.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "EventSetup.swift:declaration:panel:1": {
     "file": "EventSetup.swift",
     "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "EventSetup.swift:show:page:1": {
     "file": "EventSetup.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "KeyboardSettingsUI.swift:text:page:1": {
     "file": "KeyboardSettingsUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "KeyboardSettingsUI.swift:text:page:2": {
     "file": "KeyboardSettingsUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "LaunchAccessRecovery.swift:considerKeyboardAccessNotice:alert:1": {
     "file": "LaunchAccessRecovery.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "LaunchAccessRecovery.swift:keyboardAccessRecovery:task-page:1": {
     "file": "LaunchAccessRecovery.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "LidActivityUI.swift:show:page:1": {
     "file": "LidActivityUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorGroupsUI.swift:show:page:1": {
     "file": "MonitorGroupsUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorGroupsUI.swift:showResults:alert:1": {
     "file": "MonitorGroupsUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorGroupsUI.swift:button:page:1": {
     "file": "MonitorGroupsUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorGroupsUI.swift:identify:panel:1": {
     "file": "MonitorGroupsUI.swift",
     "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorInputUI.swift:identifyInput:page:1": {
     "file": "MonitorInputUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorInputUI.swift:editInputs:page:1": {
     "file": "MonitorInputUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorInputUI.swift:ready:page:1": {
     "file": "MonitorInputUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorInputUI.swift:show:page:1": {
     "file": "MonitorInputUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "MonitorInputUI.swift:proposedConnection:page:1": {
     "file": "MonitorInputUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "NavigationProbeUI.swift:show:page:1": {
     "file": "NavigationProbeUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "NavigationProbeUI.swift:resetProfile:alert:1": {
     "file": "NavigationProbeUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "NavigationSettingsUI.swift:navigationSettings:task-page:1": {
     "file": "NavigationSettingsUI.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "NavigationSettingsUI.swift:showNavigationExceptions:page:1": {
     "file": "NavigationSettingsUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:refreshSafety:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:stopAgents:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:resumeAgents:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:chooseSafetyAction:menu-page:1": {
     "file": "PanicUI.swift",
     "kind": "menu-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:manageAgents:page:1": {
     "file": "PanicUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:addTarget:picker:1": {
     "file": "PanicUI.swift",
     "kind": "picker",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:runShortcutTest:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:runShortcutTest:alert:2": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:runShortcutTest:alert:3": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:broadLockdown:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:safetyReport:page:1": {
     "file": "PanicUI.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:repairWatcher:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:protectWatcher:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:protectWatcher:alert:2": {
     "file": "PanicUI.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PermissionSetup.swift:declaration:panel:1": {
     "file": "PermissionSetup.swift",
     "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PermissionSetup.swift:show:page:1": {
     "file": "PermissionSetup.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "ResetActions.swift:privacyOnlyReset:page:1": {
     "file": "ResetActions.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "ResetActions.swift:systemResetPage:page:1": {
     "file": "ResetActions.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "ResetSettings.swift:resetSettingsPage:page:1": {
     "file": "ResetSettings.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "ResetSettings.swift:confirmSettingsReset:page:1": {
     "file": "ResetSettings.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsPages.swift:show:page:1": {
     "file": "SettingsPages.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsPages.swift:displaySettings:task-page:1": {
     "file": "SettingsPages.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsPages.swift:scrollingSettings:task-page:1": {
     "file": "SettingsPages.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsPages.swift:presentKeepAwakeSettings:task-page:1": {
     "file": "SettingsPages.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsPages.swift:presentAppSettings:task-page:1": {
     "file": "SettingsPages.swift",
     "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SettingsWindow.swift:declaration:panel:1": {
     "file": "SettingsWindow.swift",
     "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "SetupOverview.swift:show:page:1": {
     "file": "SetupOverview.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "main.swift:applicationDidFinishLaunching:alert:1": {
     "file": "main.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "main.swift:showError:alert:1": {
     "file": "main.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "main.swift:about:alert:1": {
     "file": "main.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:configureSettings:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:configurePanic:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:advancedSafetySettings:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "PanicUI.swift:agentRecognition:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
-    "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
   "AppReplacement.swift:considerAppReplacementNotice:alert:1": {
     "file": "AppReplacement.swift",
     "kind": "alert",
-    "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route",
-    "acceptance": "Isolated file/notice/menu fixtures; live bundle replacement and active-session restart not exercised"
+    "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   }
 }

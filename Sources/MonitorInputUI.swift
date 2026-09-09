@@ -6,9 +6,9 @@ final class MonitorInputPage: NSObject {
     let view = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
     let monitors = NSPopUpButton(), protocolChoice = NSPopUpButton()
     let currentChoice = NSPopUpButton()
-    let status = NSTextField(wrappingLabelWithString: "")
+    let status = SettingsStatusField(wrappingLabelWithString: "")
     let currentStatus = NSTextField(labelWithString: "Current input unknown")
-    let statusScroll = NSScrollView(frame: NSRect(x: 4,y: 374,width: 564,height: 50))
+    let statusScroll = SettingsExplanationScroll(frame: NSRect(x: 4,y: 374,width: 564,height: 50))
     var candidates: [MonitorInput] = []
     var selectedCodes = Set<UInt16>()
     let inputList = NSScrollView(frame: NSRect(x: 0,y: 155,width: 572,height: 118))
@@ -70,6 +70,8 @@ final class MonitorInputPage: NSObject {
         currentStatus.frame = NSRect(x: 4,y: 425,width: 564,height: 22)
         currentStatus.font = .systemFont(ofSize: 12, weight: .semibold); view.addSubview(currentStatus)
         status.frame = NSRect(x: 4,y: 374,width: 564,height: 50); status.font = .systemFont(ofSize: 12)
+        statusScroll.focusRingType = .exterior
+        statusScroll.setAccessibilityLabel("Monitor status and next steps")
         statusScroll.hasVerticalScroller = true; statusScroll.autohidesScrollers = true; statusScroll.drawsBackground = false
         statusScroll.scrollerStyle = .legacy
         statusScroll.documentView = status
@@ -240,6 +242,7 @@ final class MonitorInputPage: NSObject {
         }
         test.frame = NSRect(x:0,y:15,width:205,height:32)
         let results = NSTextView(frame: NSRect(x:0,y:0,width:548,height:190))
+        results.setAccessibilityLabel("Monitor input identification results")
         results.isEditable = false; results.isSelectable = true; results.font = .systemFont(ofSize:12)
         results.textContainer?.widthTracksTextView = true; results.autoresizingMask = .width; results.isVerticallyResizable = true
         results.string = "Ready to try the known inputs. Perch will look for this monitor disconnecting and reconnecting to this Mac. If that does not identify a port, you can confirm the picture yourself."
@@ -296,6 +299,7 @@ final class MonitorInputPage: NSObject {
             }
             show.frame = NSRect(x: 310,y: y,width: 124,height: 28)
             show.identifier = NSUserInterfaceItemIdentifier("monitor.showInput")
+            show.setAccessibilityLabel("Show " + input.name + " on this monitor")
             show.isEnabled = !editingSetup && controller.canSwitch
             show.isHidden = editingSetup
             show.toolTip = "Show \(input.name). This may hide this Mac; use the monitor’s buttons to return."
@@ -305,6 +309,7 @@ final class MonitorInputPage: NSObject {
                     guard let self, self.candidates.indices.contains(index+delta) else { return }
                     self.candidates.swapAt(index,index+delta); self.renderInputs(); self.settingChanged()
                 }
+                button.setAccessibilityLabel("Move " + input.name + (delta < 0 ? " earlier in the input order" : " later in the input order"))
                 button.frame = NSRect(x: x,y: y,width: 44,height: 28)
                 button.isEnabled = candidates.indices.contains(index+delta); button.toolTip = delta < 0 ? "Move earlier in cycle" : "Move later in cycle"
                 document.addSubview(button)
@@ -324,7 +329,7 @@ final class MonitorInputPage: NSObject {
         guard editingSetup else { return }
         let page = NSView(frame: NSRect(x: 0,y: 0,width: 572,height: 490))
         let text = NSTextView(frame: NSRect(x: 0,y: 0,width: 548,height: 360))
-        text.identifier = .init("monitor.inputDefinitions"); text.setAccessibilityLabel("Monitor input names and codes")
+        text.identifier = .init("monitor.inputDefinitions"); text.setAccessibilityLabel("Monitor input names and codes"); text.setAccessibilityHelp("Edit one input per line. Control-Tab moves to the next control; Control-Shift-Tab moves back.")
         text.isRichText = false; text.font = .monospacedSystemFont(ofSize: 13,weight: .regular)
         text.textColor = .labelColor; text.backgroundColor = .textBackgroundColor
         text.isVerticallyResizable = true; text.isHorizontallyResizable = false; text.textContainer?.widthTracksTextView = true
@@ -351,7 +356,7 @@ final class MonitorInputPage: NSObject {
         }
         preset.isEnabled = !profiles.isEmpty
         page.addSubview(preset)
-        let error = NSTextField(wrappingLabelWithString: ""); error.frame = NSRect(x: 4,y: 48,width: 564,height: 55); error.textColor = StatusColors.warning
+        let error = SettingsStatusField(wrappingLabelWithString: ""); error.frame = NSRect(x: 4,y: 48,width: 564,height: 55); error.textColor = StatusColors.warning
         let discard = SettingsActionButton(title: "Discard these input edits") {
             text.string = originalText; pendingProfile = originalProfile; pendingAlternate = originalAlternate
             SettingsWindow.shared.goBack()
@@ -398,7 +403,7 @@ final class MonitorInputPage: NSObject {
         picker.setAccessibilityLabel("Alternative monitor control method")
         picker.addItem(withTitle: "Choose one destination and command to test…")
         picker.addItems(withTitles: choices.map { "\($0.input.name) · \($0.alternate ? "LG alternate" : "Standard") · code \($0.input.code)" })
-        let result = NSTextField(wrappingLabelWithString: "Start with your exact model preset. If it failed, choose one alternative above. This may remove this Mac’s picture. Return using the monitor’s own input controls; Perch cannot restore a disconnected display automatically.")
+        let result = SettingsStatusField(wrappingLabelWithString: "Start with your exact model preset. If it failed, choose one alternative above. This may remove this Mac’s picture. Return using the monitor’s own input controls; Perch cannot restore a disconnected display automatically.")
         result.frame = NSRect(x: 4,y: 132,width: 564,height: 113); result.textColor = .secondaryLabelColor
         var awaiting: Candidate?
         var active = true

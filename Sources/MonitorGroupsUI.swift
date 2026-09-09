@@ -5,8 +5,8 @@ final class MonitorGroupsPage: NSObject {
     let monitor: MonitorInputController
     private var selected: String?
     private var view = NSView()
-    private let status = NSTextField(wrappingLabelWithString: "")
-    private let results = NSTextField(wrappingLabelWithString: "")
+    private let status = SettingsStatusField(wrappingLabelWithString: "")
+    private let results = SettingsStatusField(wrappingLabelWithString: "")
     private var buttons: [NSControl] = []
     private var retry: NSButton?
     init(_ monitor: MonitorInputController) { self.monitor = monitor; selected = monitor.groups.active?.id }

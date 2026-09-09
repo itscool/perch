@@ -1,6 +1,26 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 80 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 81 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 81: keyboard and accessibility implementation
+
+Settings now support local Tab/Shift-Tab navigation across controls regardless of
+macOS's button-navigation preference. Hidden and disabled controls are skipped;
+Space and Return activate focused buttons while native default Return, text
+editing, popups, VoiceOver chords and OS-owned sheets keep their normal behavior.
+Multiline editors support Control-Tab to leave. Long explanations provide a
+focusable scroll area with arrow, Page Up/Down and Home/End support.
+
+Pages expose their current title and heading, navigation/result announcements,
+and changing status values. Monitor reorder actions and report/result areas have
+clear accessible names. The existing shared Back/focus restoration is retained.
+Actual harmless-lab keyboard checks passed, including typing, checkbox/popup,
+multiline editing, Back/results, picker cancellation, long-text scrolling and
+native default Return. Spoken VoiceOver and broader production-route acceptance
+remain release tests; see ACCESSIBILITY-REVIEW-81.md. No live preferences,
+permissions, helper, hardware or installation changes were made. Build 81 includes
+builds 78–80 and has not been installed. All 22 isolated suites pass; production
+compilation was warning-free, and strict signatures and ZIP checks pass.
 
 ## Build 80: restart into a newer installed copy
 

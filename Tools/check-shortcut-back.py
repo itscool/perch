@@ -35,7 +35,7 @@ NSApp.setActivationPolicy(.prohibited)
 do { try runShortcutDialogBackTests() }
 catch { fputs("FAIL: \\(error)\\n", stderr); exit(1) }
 ''')
-subprocess.run(['xcrun','swiftc',str(repo/'Sources/SettingsWindow.swift'),
+subprocess.run(['xcrun','swiftc',str(repo/'Sources/SettingsWindow.swift'),str(repo/'Sources/SettingsAccessibility.swift'),
                str(repo/'Sources/PanicShortcut.swift'),str(repo/'Sources/ShortcutDialogBackTests.swift'),
                str(root/'main.swift'),'-framework','AppKit','-framework','Carbon',
                '-o',str(root/'shortcut-back')],check=True)

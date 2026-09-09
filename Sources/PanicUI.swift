@@ -317,6 +317,7 @@ extension AppDelegate {
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false
         let text = NSTextView(frame: scroll.bounds)
+        text.setAccessibilityLabel("Agent safety report")
         text.isEditable = false; text.isSelectable = true
         text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         text.textContainerInset = NSSize(width: 10, height: 10)

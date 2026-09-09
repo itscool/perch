@@ -3,12 +3,12 @@ import AppKit
 /// All Perch settings pages share this window. OS authorization and file pickers are the only sheets.
 final class SettingsWindow: NSObject, NSWindowDelegate {
     static let shared = SettingsWindow()
-    let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 700), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+    let window = SettingsPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 700), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     let back = NSButton(title: "Back", target: nil, action: nil)
     let heading = NSTextField(labelWithString: "")
-    let detail = NSTextField(wrappingLabelWithString: "")
+    let detail = SettingsStatusField(wrappingLabelWithString: "")
     let detailHint = NSTextField(labelWithString: "Scroll to review the full message")
-    let detailScroll = NSScrollView(frame: NSRect(x: 24, y: 532, width: 572, height: 108))
+    let detailScroll = SettingsExplanationScroll(frame: NSRect(x: 24, y: 532, width: 572, height: 108))
     let container = NSView(frame: NSRect(x: 24, y: 24, width: 572, height: 490))
     let contentScroll = NSScrollView(frame: NSRect(x: 14, y: 24, width: 592, height: 490))
     struct Page {
@@ -26,6 +26,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         var selection: NSRange? = nil
     }
     var pages: [Page] = []
+    private(set) var announcedPage: String?
     var feedback: String?
     var testing = false
     var modalTestDriver: ((NSAlert) -> NSApplication.ModalResponse)?
@@ -58,12 +59,20 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.delegate = self
+        window.keyboardNavigationAllowed = { [weak self] in
+            guard let self else { return false }
+            return !self.authorizing && !self.picking && !self.externalHandoff
+        }
+        heading.setAccessibilityRole(NSAccessibility.Role(rawValue: "AXHeading")) // macOS 26 heading role; also builds with older SDK overlays.
+        contentScroll.setAccessibilityLabel("Settings controls")
+        detailScroll.setAccessibilityLabel("Page explanation")
         NotificationCenter.default.addObserver(self, selector: #selector(returnedToApp), name: NSApplication.didBecomeActiveNotification, object: nil)
         back.target = self; back.action = #selector(goBack); back.bezelStyle = .rounded
         back.keyEquivalent = "\u{1b}"
         back.frame = NSRect(x: 20, y: 653, width: 75, height: 28)
         heading.font = .systemFont(ofSize: 20, weight: .semibold)
         heading.frame = NSRect(x: 108, y: 652, width: 486, height: 30)
+        detailScroll.focusRingType = .exterior
         detailScroll.hasVerticalScroller = true
         detailScroll.autohidesScrollers = true
         detailScroll.scrollerStyle = .legacy
@@ -165,6 +174,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     /// Only the owner of an active confirmation may replace its controls.
     private func render(_ page: Page) {
+        window.title = page.title + " — Perch"
         heading.stringValue = page.title; detail.stringValue = feedback ?? page.detail
         let issue: ProtectionIssue? = nil
         detail.textColor = issue.map { $0.severity == .critical ? StatusColors.critical : StatusColors.warning } ?? (detail.stringValue.hasPrefix("✓") ? StatusColors.success : .secondaryLabelColor)
@@ -201,9 +211,21 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                NSMaxRange(selection) <= (editor.string as NSString).length { editor.setSelectedRange(selection) }
         } else if let focused = window.firstResponder as? NSView,
                   focused !== back, !focused.isDescendant(of: page.view) { window.makeFirstResponder(back) }
+        if window.firstResponder === window || window.firstResponder == nil { window.makeFirstResponder(back) }
         window.recalculateKeyViewLoop()
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+        notifyAccessibilityPage()
+    }
+    func notifyAccessibilityPage() {
+        let title = heading.stringValue
+        guard announcedPage != title else { return }
+        if !testing {
+            guard window.isVisible, window.isKeyWindow else { return }
+            NSAccessibility.post(element: window, notification: .layoutChanged, userInfo: [.uiElements: [heading, container]])
+            SettingsAccessibility.announce(title + ". " + detail.stringValue)
+        }
+        announcedPage = title
     }
     func rememberScroll() {
         guard let page = pages.last, page.view.isDescendant(of: container), !modal else { return }
@@ -331,13 +353,16 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self, weak alert] _ in
             guard let self, let alert, self.activeAlert === alert else { return }
             self.heading.stringValue = alert.messageText
-            if self.detail.stringValue != alert.informativeText { self.detail.stringValue = alert.informativeText; self.layoutDetail() }
+            self.window.title = alert.messageText + " — Perch"
+            if self.detail.stringValue != alert.informativeText { self.detail.stringValue = alert.informativeText; self.layoutDetail(); if self.window.isKeyWindow && !self.testing { NSAccessibility.post(element: self.detail, notification: .valueChanged) } }
+            self.notifyAccessibilityPage()
         }
         alertRefresh = timer
         RunLoop.main.add(timer, forMode: .common)
         if !testing {
             if !window.isVisible { window.center() }
             window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            notifyAccessibilityPage()
         }
     }
     @discardableResult
@@ -397,6 +422,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     func windowWillClose(_ notification: Notification) {
         pages.reversed().forEach { $0.leave?() }; pages.removeAll()
+        announcedPage = nil
         needsPageDisplay = false
         // Closing the parent while working in Settings/Finder ends that handoff.
         // Otherwise a later menu action can remain queued with no window to return to.

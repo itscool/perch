@@ -5,10 +5,10 @@ final class NavigationProbePage: NSObject {
     let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
     let session: NavigationProbeSession
     let picker = NSPopUpButton(frame: NSRect(x: 8, y: 450, width: 352, height: 30), pullsDown: false)
-    let registration = NSTextField(wrappingLabelWithString: "")
+    let registration = SettingsStatusField(wrappingLabelWithString: "")
     let permission = NSTextField(labelWithString: "")
-    let instruction = NSTextField(wrappingLabelWithString: "")
-    let status = NSTextField(wrappingLabelWithString: "")
+    let instruction = SettingsStatusField(wrappingLabelWithString: "")
+    let status = SettingsStatusField(wrappingLabelWithString: "")
     let rows = NavigationKey.allCases.map { _ in NSTextField(labelWithString: "") }
     private(set) var timer: Timer?
     private var observers: [NSObjectProtocol] = []
@@ -66,6 +66,7 @@ final class NavigationProbePage: NSObject {
         launchRecovery.frame = NSRect(x: 195, y: 5, width: 369, height: 32); view.addSubview(launchRecovery)
         reset = SettingsActionButton(title: "Reset saved layout…") { [weak self] in self?.resetProfile() }
         reset.frame = NSRect(x: 8, y: 333, width: 230, height: 30); view.addSubview(reset)
+        instruction.announcesChanges = true
         instruction.font = .systemFont(ofSize: 16, weight: .semibold); instruction.textColor = .labelColor
         instruction.frame = NSRect(x: 8, y: 265, width: 556, height: 54); view.addSubview(instruction)
         for (index, row) in rows.enumerated() {

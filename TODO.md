@@ -1,6 +1,6 @@
 # Current Perch backlog
 
-Reconciled September 9, 2026 after the build 80 restart-notice work; build 77 remains installed. This is the planned
+Reconciled September 9, 2026 after the build 81 keyboard/accessibility work; build 77 remains installed. This is the planned
 execution order, not the dates issues were first reported. It supersedes stale
 open-item wording in dated review checkpoints. Functional bugs come first;
 acceptance gaps below are not automatically established defects.
@@ -45,17 +45,19 @@ acceptance gaps below are not automatically established defects.
    check Full Disk Access attribution, event delivery, exact CPU accounting,
    collector restart/PID reuse and reboot. Direct-eslogger delivery is supported;
    new native launcher installation/FDA/reboot acceptance is still outstanding.
-9. **Safe whole-app review and resulting fixes completed; finish accessibility acceptance.**
-   WHOLE-APP-REVIEW-79.md records prioritized findings and journey coverage.
-   Fixed launch-job recovery ordering, lost focus/selection, missing scoped
-   accessible names and keyboard permission action, inconsistent collector Ready,
-   and generic-runtime safeguards. Source, 21 isolated suites, rendered pages
-   and limited native-lab checks pass. Full keyboard-only navigation and spoken
-   VoiceOver still need an agreed desktop session: lab Tab behavior was not
-   established, and no system navigation settings were changed. Permission,
-   physical lid/collector and clean-install acceptance remain items 4–8 and 14.
-   Destructive panic/privacy-reset testing requires a separately authorized
-   disposable environment. The review is not a release sign-off.
+9. **Keyboard/accessibility implementation complete for the reviewed settings set; release acceptance remains.**
+   Build 81 supplies local Tab/Shift-Tab navigation even with the system's
+   button-navigation preference off; native default Return, text editing,
+   VoiceOver chords and OS sheets are preserved. Long explanations scroll by
+   keyboard. Page identity, change notifications and remaining scoped labels
+   are implemented. Actual harmless-lab keyboard journeys passed. See
+   ACCESSIBILITY-REVIEW-81.md for coverage and the remaining test checklist:
+   spoken VoiceOver, broader per-route keyboard/dynamic-list acceptance and
+   coordinated external permission/authorization handoffs. No known code work
+   from this pass is deferred; test-discovered defects still require fixes.
+   WHOLE-APP-REVIEW-79.md retains the earlier review findings. Physical lid,
+   collector and clean-install acceptance remain items 4–8 and 14. Destructive
+   panic/privacy testing requires a separately authorized disposable environment.
 10. **Measure current performance and memory.** Idle, open menu, input activity,
     process bursts and recovery; wakeups, event backlog and sustained memory
     growth; honest combined collector CPU attribution. Prior bounded measurements

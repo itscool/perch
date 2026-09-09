@@ -23,3 +23,16 @@ external effects injected. A five-button harness does not prove every page.
 
 Stop only this disposable app, then stop AGENT MODE. Never restart installed
 Perch or change the active lid session to test this harness.
+
+Keyboard/accessibility implementation checks: open Keyboard controls using Tab
+and Return. Edit the named field, Tab/Space the checkbox, Tab/Space/Down/Return
+the popup, and type a literal Tab in the multiline editor. Control-Tab must
+leave that editor; Shift-Tab goes back. Return on the harmless action records a
+result; Escape returns to the parent with its launching button focused. Enter
+Long explanation, Tab to Page explanation, and use Page Down/Home before Escape.
+On a confirmation, Return retains the native default action; Space activates
+the focused Back button. Native sheets keep their own keyboard behavior.
+
+Use `--bundle-id local.perch.unique-lab-name` for a separate test copy when an
+older lab process may still exist. AX roles/names and key dispatch are observable
+here; spoken VoiceOver acceptance still requires VoiceOver itself.

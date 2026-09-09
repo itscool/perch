@@ -3,7 +3,7 @@ import AppKit
 // A modeless setup panel stays available while the user works in System Settings.
 final class PermissionSetup: NSObject, NSWindowDelegate {
     let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 310), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    let status = NSTextField(wrappingLabelWithString: "Checking access…")
+    let status = SettingsStatusField(wrappingLabelWithString: "Checking access…")
     let instructions = NSTextField(wrappingLabelWithString: "")
     var permissionDrag: PermissionDragItem!
     var openButton: NSButton!

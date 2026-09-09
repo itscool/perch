@@ -185,3 +185,16 @@ Replay native focus/selection across child and refreshed pages; identify control
 by stable purpose and device. Provide a real keyboard/accessibility alternative
 to drag with visible instructions. Metadata, a mocked Back response, or successful
 command dispatch alone does not prove any of these flows complete.
+
+## Buttons named but unreachable by keyboard
+
+Scenario: a settings set has accessible labels and passes direct button-dispatch
+tests, but Tab leaves focus on the window with macOS keyboard navigation off.
+A long result uses a read-only label in a scroll area. A custom key handler also
+intercepts Return and Control–Option combinations.
+
+Expected review: distinguish OS policy from missing app navigation, verify real
+focus and native input without changing the OS preference, provide readable
+long-result navigation, preserve default buttons/text editing/VoiceOver chords,
+and retain explicit spoken-VoiceOver acceptance. Do not mark accessibility done
+from labels alone or announce unchanged polling on every refresh.

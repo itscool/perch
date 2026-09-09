@@ -7,7 +7,7 @@ final class SettingsTaskPage {
     let title: String
     let detail: String
     let view: NSView
-    let status = NSTextField(wrappingLabelWithString: "")
+    let status = SettingsStatusField(wrappingLabelWithString: "")
     var update: (() -> Void)?
     private var timer: Timer?
     private var y: CGFloat

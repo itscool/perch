@@ -5,7 +5,7 @@ import Carbon
 /// Each change merges into fresh configuration, preserving unrelated settings.
 final class AgentSettingsPage: NSObject {
     let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 500))
-    let status = NSTextField(wrappingLabelWithString: "")
+    let status = SettingsStatusField(wrappingLabelWithString: "")
     let enabled = NSButton(checkboxWithTitle: "Enable emergency shortcut", target: nil, action: nil)
     let keys = NSPopUpButton(frame: .zero, pullsDown: false)
     let reset = NSPopUpButton(frame: .zero, pullsDown: false)

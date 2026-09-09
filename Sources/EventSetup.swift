@@ -4,10 +4,10 @@ import AppKit
 final class EventCollectorSetup: NSObject, NSWindowDelegate {
     static let shared = EventCollectorSetup()
     let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 410), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    let installState = NSTextField(wrappingLabelWithString: "")
-    let accessState = NSTextField(wrappingLabelWithString: "")
-    let readyState = NSTextField(wrappingLabelWithString: "")
-    let guidance = NSTextField(wrappingLabelWithString: "")
+    let installState = SettingsStatusField(wrappingLabelWithString: "")
+    let accessState = SettingsStatusField(wrappingLabelWithString: "")
+    let readyState = SettingsStatusField(wrappingLabelWithString: "")
+    let guidance = SettingsStatusField(wrappingLabelWithString: "")
     let primary = NSButton()
     let identityUpdate = NSButton()
     var permissionDrag: PermissionDragItem!

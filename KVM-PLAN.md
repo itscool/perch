@@ -71,8 +71,10 @@ with identical model names, simultaneous requests, peer sleep/disconnect,
 reconnection and a display failing partway through a handoff. Verify both the
 visible desktop and the actual recipient of keyboard/mouse input.
 
-**Keyboard testing remains independently open:** built-in/external F1–F12,
-Control/Command mappings, navigation keys, learning/default recognition, physical
-device transitions and safe shortcut tests. Account for physical versus synthetic
-input and active modifier mappings when interpreting automation results. The
-monitor-direction change does not cancel these tests or existing keyboard fixes.
+**Existing keyboard acceptance:** after the physical keyboard checklist was
+explained, the user confirmed those behaviors work on build 75. This is user
+acceptance, not an agent-observed replay of every combination or certification
+of all catalog hardware. Shortcut detection and Add app/executable also have
+user confirmation; build 77's result Back fix still needs native acceptance.
+KVM-specific cross-host identity, focus and physical handoff tests above remain
+open. See [the current ordered backlog](TODO.md).

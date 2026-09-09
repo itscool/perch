@@ -1,6 +1,6 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 77 candidate. Build 75 is installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
 
 ## Build 77: consistent Back through alert results
 
@@ -20,7 +20,10 @@ preparation cancellation, result X and repeated cleanup/parent transitions,
 without injecting alert responses or opening native windows. The whole-set
 static audit and build gate cover every app-owned alert. Native click acceptance
 remains open; the reported AppKit event failure was not physically reproduced.
-Build 77 is prepared separately, not installed.
+Build 77 was installed with user authorization and launched through LaunchServices.
+Saved preferences and shortcut configuration were unchanged; compatible root lid
+helpers were retained. The lid session was inactive, so installation did not
+exercise active-session restart handoff.
 
 Production and final full isolated compilation completed without warnings.
 Hidden ownership, shortcut-Back and menu regression checks pass; the native lab

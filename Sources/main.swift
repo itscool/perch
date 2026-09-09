@@ -119,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var lidItem: NSMenuItem!
     var observedLidDisabled: Bool?
     var settingsRefresh: (() -> Void)?
+    var keyboardActionTestDriver: ((String, Bool) -> Void)?
     var audioItem: NSMenuItem!
     var audioSection: NSMenuItem!
 
@@ -134,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         monitorInputs.onChange = { [weak self] in self?.refreshMonitorInputItem() }
         monitorInputs.start()
         monitorInputs.groups.onNeedsDestination = { [weak self] in self?.monitorGroupSettings() }
+        observeHelperPresentation()
         LidGuardClient.shared.start()
         if !GuardianInstall.messagingInstalled {
             do { try GuardianInstall.install() } catch { safetyError = error.localizedDescription }
@@ -142,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             guard let self else { return }
             if self.menuOpen || Date().timeIntervalSince(self.lastBackgroundRefresh) >= 10 {
                 self.lastBackgroundRefresh = Date()
+                if self.menuOpen { self.nativeKeyboards = NativeModifierKeys.keyboards(); self.keyboardModes.readForPresentation() }
                 self.refresh()
             } else { self.refreshSafety() }
         }
@@ -242,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let generation = menuGeneration
         refreshMenuAppearance()
         nativeKeyboards = NativeModifierKeys.keyboards()
-        keyboardModes.queue() // Read external firmware changes, without imposing a new default.
+        keyboardModes.readForPresentation() // Read only; never reapply a saved hardware choice.
         refresh()
         // One quick second interval, then the existing menu refresh cadence.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -277,13 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel)] {
             item.state = enabled ? .on : .off
         }
-        let scrollReady = GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
-        for (item, title, action) in [(trackpadItem!, "Reverse trackpad scroll", #selector(toggleTrackpad)), (wheelItem!, "Reverse mouse wheel", #selector(toggleWheel))] {
-            item.action = scrollReady ? action : #selector(inputPermissionsFromSettings)
-            item.isEnabled = true
-            (item.view as? MenuRowView)?.opensAnotherInterface = { !scrollReady }
-            label(item, title, hint: scrollReady ? "Vertical" : "Set up in Settings", hintColor: scrollReady ? .secondaryLabelColor : StatusColors.warning)
-        }
+        refreshScrolling(input: HelperStatusIPC.inputClient.value)
         refreshModifierItems()
         if !checkedStartupInputAccess, Date() >= inputStartupGraceEnds,
            let protection = GuardianInstall.status, protection.fresh, protection.inputTrusted != nil {
@@ -316,10 +313,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             let disabled = try sleepDisabled()
             observedLidDisabled = disabled
             LidGuardClient.shared.refresh()
-            let guarded = LidGuardClient.shared.active
-            lidItem.state = LidGuardClient.controlState(legacyDisabled: disabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.exists)
-            let hint = disabled ? "Old override · review sleep settings" : guarded ? (LidGuardClient.shared.status?.remaining.map { "Requested · \($0)s remaining" } ?? "Requested · unverified") : lidItem.state == .mixed || LidGuardClient.shared.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
-            label(lidItem, "Including with lid closed", hint: hint, hintColor: disabled ? StatusColors.warning : .secondaryLabelColor)
+            refreshLidStatus(legacyDisabled: disabled)
         } catch { observedLidDisabled = nil; label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
         applyLidSleepPresentation()
         do {
@@ -348,6 +342,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             lastStatusSymbol = symbol
             status?.button?.image = perchStatusImage(awake: symbol == "awake-bird")
         }
+    }
+    func refreshLidStatus(legacyDisabled: Bool) {
+        let client = LidGuardClient.shared
+        lidItem.state = LidGuardClient.controlState(legacyDisabled: legacyDisabled, status: client.status, recordedSession: LidGuardOwnership.exists)
+        let hint = legacyDisabled ? "Old override · review sleep settings" : client.active ? (client.status?.remaining.map { "Requested · \($0)s remaining" } ?? "Requested · unverified") : lidItem.state == .mixed || client.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
+        label(lidItem, "Including with lid closed", hint: hint, hintColor: legacyDisabled ? StatusColors.warning : .secondaryLabelColor)
     }
     func applyLidSleepPresentation() {
         let actualLid = lidItem.state
@@ -461,7 +461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         } catch { showError(error) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             guard let self else { return }
-            if self.inputs.wanted && GuardianInstall.status?.inputActive != true {
+            if self.inputs.wanted && HelperStatusIPC.inputClient.value?.active != true {
                 self.showInputAccessPrompt()
             }
             self.refresh()
@@ -469,21 +469,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func showInputAccessPrompt() {
         SettingsWindow.shared.afterInteraction { [weak self] in
-            guard let self, self.inputs.wanted, GuardianInstall.status?.inputActive != true else { return }
+            guard let self, self.inputs.wanted, HelperStatusIPC.inputClient.value?.active != true else { return }
             self.inputPermissions()
         }
     }
-    @objc func toggleTrackpad() { inputs.reverseTrackpad.toggle(); updateInputs() }
-    @objc func toggleWheel() { inputs.reverseWheel.toggle(); updateInputs() }
+    @objc func toggleTrackpad() { setScrollChoice(trackpad: true); refresh() }
+    @objc func toggleWheel() { setScrollChoice(trackpad: false); refresh() }
     @objc func toggleModifiers() { setModifierGroup(true) }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item === monitorInputItem { return monitorInputMenuEnabled }
-        if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn } }
+        if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
+        if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }
         if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardSettings) || keyboardModes.results.contains { $0.standard != nil }) }
-        if [#selector(toggleTrackpad), #selector(toggleWheel)].contains(item.action) {
-            return GuardianInstall.status?.fresh == true && GuardianInstall.status?.inputTrusted == true
-        }
+        if item === trackpadItem || item === wheelItem || item === homeEndItem || item === pageKeysItem { return item.isEnabled }
         return true
+    }
+    func refreshScrolling(input: InputHelperStatus?, checking: Bool? = nil) {
+        let pending = checking ?? HelperStatusIPC.inputClient.initiallyChecking
+        let trusted = input?.fresh == true && input?.trusted == true
+        for (item, title, action) in [(trackpadItem!, "Reverse trackpad scroll", #selector(toggleTrackpad)), (wheelItem!, "Reverse mouse wheel", #selector(toggleWheel))] {
+            let saved = item.state == .on
+            let canChange = saved || trusted
+            item.action = canChange ? action : #selector(inputPermissionsFromSettings)
+            item.isEnabled = saved || trusted || !pending
+            (item.view as? MenuRowView)?.opensAnotherInterface = { !canChange }
+            let hint = pending && input == nil ? "Checking input helper…" : !trusted ? "Set up in Settings" : saved && input?.active != true ? "Saved · controls not running" : "Vertical"
+            label(item, title, hint: hint, hintColor: trusted && (!saved || input?.active == true) ? .secondaryLabelColor : StatusColors.warning)
+            item.toolTip = saved && !trusted ? "This choice is saved. You can turn it off here, or restore input access in Settings." : "Changes vertical scrolling. Input controls must be running for the saved choice to take effect."
+        }
+    }
+    func observeHelperPresentation() {
+        let repaint = { [weak self] in
+            guard let self, self.awakeItem != nil else { return }
+            HelperStatusIPC.guardianClient.withCachedValue {
+                HelperStatusIPC.inputClient.withCachedValue {
+                    self.refreshSafety(); self.refreshScrolling(input: HelperStatusIPC.inputClient.value)
+                    self.refreshNavigationItems(); self.settingsRefresh?()
+                }
+            }
+        }
+        HelperStatusIPC.guardianClient.onChange = repaint
+        HelperStatusIPC.inputClient.onChange = repaint
+        LidGuardClient.shared.onChange = { [weak self] in
+            guard let self, let legacy = self.observedLidDisabled else { return }
+            self.refreshLidStatus(legacyDisabled: legacy)
+            self.applyLidSleepPresentation(); self.settingsRefresh?()
+        }
     }
     @objc func inputPermissionsFromSettings() {
         withMenuClosed { [self] in

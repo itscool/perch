@@ -11,8 +11,17 @@ func runHelperStatusTests() throws {
     let server = HelperStatusServer()
     server.publish(Payload(timestamp: Date().addingTimeInterval(-10), number: 1)); server.start()
     let client = HelperStatusClient<Payload>(endpoint: server.listener.endpoint)
-    defer { client.stop(); server.stop() }
+    defer { client.onChange = nil; client.stop(); server.stop() }
+    var publications = 0, shown: Int?
+    client.onChange = {
+        client.withCachedValue { publications += 1; shown = client.value?.number }
+    }
+    try check(client.initiallyChecking, "Cold status cache was not checking")
     try check(until { client.value?.number == 1 }, "XPC status did not arrive")
+    try check(until { shown == 1 } && !client.initiallyChecking, "Reply did not publish its state to the UI")
+    let beforeIdle = publications
+    _ = until({ false }, seconds: 0.2)
+    try check(publications == beforeIdle, "Rendering a reply started a self-sustaining request loop")
     try check(Date().timeIntervalSince(client.value!.timestamp) > 9, "XPC reply refreshed stale helper timestamp")
     server.publish(Payload(timestamp: Date(), number: 2))
     try check(until { client.value?.number == 2 }, "New in-memory status was not delivered")

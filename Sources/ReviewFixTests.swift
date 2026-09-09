@@ -75,7 +75,7 @@ func runReviewFixTests() throws {
         readable = readable && host.detail.visibleRect.maxY >= host.detail.bounds.maxY - 1 && !host.detailHint.isHidden
         host.detailScroll.contentView.scroll(to: .zero)
         let buttons = host.container.subviews.first!.subviews.compactMap { $0 as? NSButton }
-        keys = buttons.contains { $0.title == "Apply Updates" && $0.keyEquivalent == "\r" } && buttons.contains { $0.title == "Cancel" && $0.keyEquivalent == "\u{1b}" }
+        keys = buttons.contains { $0.title == "Apply Updates" && $0.keyEquivalent == "\r" } && !buttons.contains { $0.title == "Cancel" } && host.back.keyEquivalent == "\u{1b}" && host.cancelCode == .alertSecondButtonReturn
         do { try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-review-approval.png") }
         catch { renderError = error }
         return .alertSecondButtonReturn

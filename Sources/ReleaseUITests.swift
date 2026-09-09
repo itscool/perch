@@ -51,7 +51,8 @@ func runReleaseUITests() throws {
     var state = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: true, inputActive: true, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
     let setup = PermissionSetup()
     setup.refresh(state: state, config: config)
-    try check(setup.status.stringValue.hasPrefix("✓"), "Ready input is not confirmed")
+    try check(setup.status.stringValue.hasPrefix("✓") && setup.instructions.isHidden && setup.permissionDrag.isHidden && !setup.reviewButton.isHidden, "Ready input kept asking for permission")
+    try renderReleaseView(setup.panel.contentView!, path: "/private/tmp/perch-input-ready.png")
     state.inputActive = false; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.hasPrefix("⚠") && ProtectionIssue.assess(state, config: config)?.route == "repair", "Granted but inactive input appeared ready")
     config.reverseWheel = false; config.reverseTrackpad = false; config.swapModifiers = false
@@ -59,6 +60,7 @@ func runReleaseUITests() throws {
     config.reverseWheel = true
     state.inputTrusted = false; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.contains("Accessibility access") && setup.status.stringValue.hasPrefix("⚠"), "Missing permission is not explicit")
+    try check(!setup.instructions.isHidden && !setup.permissionDrag.isHidden && setup.reviewButton.isHidden, "Missing access did not restore the repair instructions")
     state.inputTrusted = nil; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.contains("has not been determined"), "Missing helper was misreported as denied permission")
     state.inputTrusted = true; state.timestamp = Date().addingTimeInterval(-10)
@@ -183,11 +185,12 @@ func runReleaseUITests() throws {
     try check(!titles.contains("Monitor input settings…"), "Monitor settings duplicated in menu")
     // Use fixture firmware modes; safe UI tests never change physical keyboard modes.
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: false)]
-    app.keyboardModes.busy = true // Routine refresh is not a settings transaction.
+    app.keyboardModes.busy = true // Pending reads must not present cached modes as current.
     app.refreshFunctionKeyItem(true)
-    try check(app.externalFnItem.isEnabled, "Routine keyboard refresh disabled known external Fn controls")
-    try check(app.fnItem.isEnabled == app.nativeKeyboards.contains { $0.builtIn }, "Routine refresh disabled built-in Fn controls")
+    try check(!app.externalFnItem.isEnabled && app.externalFnItem.state == .mixed, "Pending keyboard read presented an old mode as current and actionable")
+    try check(!app.fnItem.isEnabled, "Built-in Fn can race a pending external-mode read")
     app.keyboardModes.busy = false
+    app.refreshFunctionKeyItem(true)
     try check(app.fnItem.state == .on && app.externalFnItem.state == .off, "Fn checkboxes reflect the same value")
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: true)]
     app.refreshFunctionKeyItem(false)

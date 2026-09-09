@@ -52,6 +52,7 @@ enum LidGuardInstall {
 
 final class LidGuardClient {
     static let shared = LidGuardClient()
+    var onChange: (() -> Void)?
     static func controlState(legacyDisabled: Bool?, status: LidGuardStatus?, recordedSession: Bool) -> NSControl.StateValue {
         if legacyDisabled == true || (status?.fresh == true && status?.armed == true && status?.error == nil) { return .on }
         if legacyDisabled == nil || recordedSession { return .mixed }
@@ -88,6 +89,7 @@ final class LidGuardClient {
         self?.connection?.invalidate(); self?.connection = nil
     }, publish: { [weak self] status, changing in
         self?.stateLock.withLock { self?.publishedStatus = status; self?.publishedChanging = changing }
+        DispatchQueue.main.async { [weak self] in self?.onChange?() }
     }, activity: { [weak self] active in
         guard let self else { return }
         if active && self.responsiveness == nil {

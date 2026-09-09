@@ -69,3 +69,9 @@ Expected: identify focus competition as a source-supported candidate, trace all 
 Scenario: authorization sets a busy flag, but a file-picker sheet and a standalone alert return before that flag is set. A background result checks only authorization. A permission button requests a grant and opens System Settings; the app restores its floating instructions as soon as the URL opener returns.
 
 Expected: enumerate both native and embedded branches, protect their complete lifetimes and parent navigation, defer background UI, and reject overlapping synchronous confirmations without approving them. Treat external-open acceptance separately from user return and retain useful drag instructions. Inspect all sibling entry handlers and label which were replayed with injected OS operations; a single wrapper test does not prove secure text entry or native picker keyboard operation.
+
+## Removing child acceptance without trapping navigation
+
+Scenario: a child input-list editor loses its Apply button and validates on Back. A new device has an empty list; a mistyped line fails validation. A connection check is successful, then its address changes. A saved device mapping also silently enables an unrelated fallback preference.
+
+Expected: unchanged empty drafts can return; invalid changed drafts preserve text and provide correction or explicit discard; changed connection details cannot inherit an old successful check. Valid Back updates only the parent draft and one final Save commits it. Mapping confirmation must not change an independent preference. Replay these routes through controls as well as validation functions.

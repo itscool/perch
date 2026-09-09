@@ -10,9 +10,10 @@ extension AppDelegate {
         _ = add("Reset all apps’ privacy permissions…", #selector(globalPrivacyReset))
         safetyResumeItem = add("Resume agent activity…", #selector(resumeAgents))
     }
-    func refreshSafety(status: SafetyStatus? = GuardianInstall.status, config: SafetyConfiguration = SafetyConfiguration.load()) {
+    func refreshSafety(status: SafetyStatus? = GuardianInstall.status, config: SafetyConfiguration = SafetyConfiguration.load(), checking: Bool? = nil) {
+        let checking = checking ?? (status == nil && HelperStatusIPC.guardianClient.initiallyChecking)
         (safetyItem?.view as? MenuRowView)?.shortcutHint = config.shortcut.enabled ? config.shortcut.menuTitle : ""
-        let issue = ProtectionIssue.assess(status, config: config)
+        let issue = checking ? nil : ProtectionIssue.assess(status, config: config)
         let issueChanged = currentProtectionIssue != issue
         currentProtectionIssue = issue
         if issueChanged && SettingsWindow.shared.window.isVisible && !SettingsWindow.shared.modal && SettingsWindow.shared.pages.last?.title == "Perch settings" { configureSettings() }
@@ -39,9 +40,11 @@ extension AppDelegate {
             }
         } else { criticalIssueSince = nil; notifiedCriticalIssue = nil }
         guard let state = status, state.fresh else {
-            label(safetyItem, "Panic…", hint: "Watcher offline")
-            safetyItem.toolTip = safetyError ?? "Watcher offline — repair before relying on panic"
-            safetyResumeItem.isHidden = true
+            label(safetyItem, "Panic…", hint: checking ? "Checking watcher…" : "Watcher offline")
+            safetyItem.toolTip = checking ? "Waiting for the watcher’s first status reply." : safetyError ?? "Watcher offline — repair before relying on panic"
+            safetyResumeItem.isHidden = !checking
+            safetyResumeItem.isEnabled = !checking
+            label(safetyResumeItem, "Resume agent activity…", hint: checking ? "Checking watcher…" : "")
             return
         }
         if let result = state.testResultID, result != lastTestResultID {
@@ -65,6 +68,8 @@ extension AppDelegate {
         let attention = state.error == nil ? "" : " · Needs attention"
         label(safetyItem, "Panic…", hint: "\(state.trackedCount) tracked\u{2003}\u{2003}\(activity)\(attention)")
         safetyItem.toolTip = state.error ?? (state.testUntil != nil ? state.message : "Immediately stop selected agents and their observed children. \(state.trackedCount) processes currently tracked. Keep stopping relaunches until you resume.")
+        safetyResumeItem.isEnabled = true
+        label(safetyResumeItem, "Resume agent activity…")
         safetyResumeItem.isHidden = !state.locked && state.pendingLaunchJobs == 0
     }
     func safetyRequest(_ action: String) {

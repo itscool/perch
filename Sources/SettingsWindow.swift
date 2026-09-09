@@ -19,6 +19,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         var refresh: (() -> Void)?
         var backTitle: String? = nil
         var preferredBodyHeight: CGFloat = 490
+        var beforeBack: (() -> Bool)? = nil
+        var scrollFromTop: CGFloat = 0
+        var focusIdentifier: NSUserInterfaceItemIdentifier? = nil
     }
     var pages: [Page] = []
     var feedback: String?
@@ -48,6 +51,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(returnedToApp), name: NSApplication.didBecomeActiveNotification, object: nil)
         back.target = self; back.action = #selector(goBack); back.bezelStyle = .rounded
+        back.keyEquivalent = "\u{1b}"
         back.frame = NSRect(x: 20, y: 653, width: 75, height: 28)
         heading.font = .systemFont(ofSize: 20, weight: .semibold)
         heading.frame = NSRect(x: 108, y: 652, width: 486, height: 30)
@@ -162,13 +166,29 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         container.frame = NSRect(x: 0, y: 0, width: contentScroll.contentSize.width, height: max(contentScroll.contentSize.height, page.view.frame.height))
         page.view.setFrameOrigin(NSPoint(x: max(0,(container.bounds.width-page.view.frame.width)/2), y: max(0,container.bounds.height-page.view.frame.height)))
         container.addSubview(page.view)
-        contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height)))
+        contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height-page.scrollFromTop)))
         contentScroll.reflectScrolledClipView(contentScroll.contentView)
+        if let identifier = page.focusIdentifier {
+            func find(_ view: NSView) -> NSView? {
+                if view.identifier == identifier { return view }
+                return view.subviews.lazy.compactMap { find($0) }.first
+            }
+            if let target = find(page.view) { window.makeFirstResponder(target) }
+        }
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     }
-    func show(_ page: Page) {
+    func rememberScroll() {
+        guard !pages.isEmpty else { return }
+        let focused = (window.firstResponder as? NSTextView)?.delegate as? NSView ?? window.firstResponder as? NSView
+        if let focused, focused.isDescendant(of: container) { pages[pages.count-1].focusIdentifier = focused.identifier }
+        pages[pages.count-1].scrollFromTop = max(0, container.frame.height-contentScroll.contentSize.height-contentScroll.contentView.bounds.minY)
+    }
+    func show(_ proposed: Page) {
+        var page = proposed
         guard !interactionBusy else { afterInteraction { [weak self] in self?.show(page) }; return }
+        rememberScroll()
+        if let previous = pages.last, previous.title == page.title { page.scrollFromTop = previous.scrollFromTop; page.focusIdentifier = previous.focusIdentifier }
         feedback = nil
         if page.title == "Perch settings" {
             pages.reversed().forEach { $0.leave?() }
@@ -180,6 +200,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     @objc func goBack() {
         guard !picking, !authorizing else { return }
         if modal { if modalAllowsCancel { NSApp.stopModal(withCode: cancelCode) }; return }
+        guard pages.last?.beforeBack?() != false else { return }
         guard pages.count > 1 else { window.close(); return }
         pages.removeLast().leave?()
         if let page = pages.last { display(page); page.refresh?() }
@@ -223,8 +244,12 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             accessory.setFrameOrigin(NSPoint(x: max(0,(572-accessory.frame.width)/2),y: 490-accessory.frame.height))
             view.addSubview(accessory)
         }
+        let navigationTitles = ["Cancel", "Back", "Close"]
+        let exitIndex = alert.buttons.firstIndex { navigationTitles.contains($0.title) || (alert.buttons.count == 1 && $0.title == "OK") }
+        cancelCode = exitIndex.map { NSApplication.ModalResponse(rawValue: 1000 + $0) } ?? .abort
         var buttonX: CGFloat = 572, buttonY: CGFloat = 0
         for (index, original) in alert.buttons.enumerated() {
+            if allowsCancel && index == exitIndex { continue }
             let button = NSButton(title: original.title,target: self,action: #selector(modalChoice(_:)))
             button.bezelStyle = .rounded; button.tag = 1000+index
             button.keyEquivalent = original.keyEquivalent
@@ -241,8 +266,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let contentHeight = max(96, accessoryHeight + buttonY + 50)
         view.setFrameSize(NSSize(width: 572, height: contentHeight))
         if let accessory = alert.accessoryView { accessory.frame.origin.y = contentHeight-accessoryHeight }
-        cancelCode = NSApplication.ModalResponse(rawValue: 1000 + (alert.buttons.firstIndex(where: { $0.title == "Cancel" }) ?? max(0,alert.buttons.count-1)))
         display(Page(title: alert.messageText, detail: alert.informativeText, view: view))
+        back.title = pages.isEmpty ? "Close" : "Back"
         back.isEnabled = allowsCancel
         let oldAllowsCancel = modalAllowsCancel
         modalAllowsCancel = allowsCancel
@@ -294,4 +319,14 @@ final class SettingsActionButton: NSButton {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc func invoke() { callback() }
+}
+
+final class SettingsActionPopup: NSPopUpButton {
+    var callback: (() -> Void)?
+    override init(frame: NSRect, pullsDown: Bool) {
+        super.init(frame: frame, pullsDown: pullsDown)
+        target = self; action = #selector(changed)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    @objc private func changed() { callback?() }
 }

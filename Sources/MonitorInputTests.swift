@@ -79,14 +79,13 @@ func runMonitorInputUITests() throws {
     let scanEnd = Date().addingTimeInterval(2)
     while controller.busy && Date() < scanEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
     guard setup.candidates == original && setup.selectedCodes == selected else { throw AppError(message:"Detect replaced saved input codes or selection") }
-    let before = setup.protocolChoice.indexOfSelectedItem
     let edit = setup.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Model & inputs…" }!
     edit.performClick(nil)
     let child = host.pages.last!.view
     let presets = child.subviews.compactMap { $0 as? NSPopUpButton }.first!
     guard presets.itemTitles.contains("LG 27UN850-W / 27UN850-WY") else { throw AppError(message:"Embedded retail presets absent from settings") }
     presets.selectItem(withTitle: "LG 27UN850-W / 27UN850-WY")
-    child.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use preset" }!.performClick(nil)
+    _ = NSApp.sendAction(presets.action!, to: presets.target, from: presets)
     let compatibility = child.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Compatibility test…" }!
     let beforeCommands = mock.commands.count
     compatibility.performClick(nil)
@@ -96,13 +95,14 @@ func runMonitorInputUITests() throws {
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-compatibility.png")
     host.goBack()
     host.goBack()
-    guard setup.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Cancelled preset selection changed parent settings") }
+    guard setup.candidates == MonitorProfiles.entries.first(where: { $0.name == "LG 27UN850-W / 27UN850-WY" })?.inputs && controller.plan.inputs == original else { throw AppError(message:"Back did not retain preset in draft while preserving saved settings") }
+    let beforeConnection = setup.protocolChoice.indexOfSelectedItem
     setup.protocolChoice.selectItem(at:2)
     _ = NSApp.sendAction(setup.protocolChoice.action!,to:setup.protocolChoice.target,from:setup.protocolChoice)
     guard host.pages.last?.title == "Monitor control connection" && mock.commands.count == beforeCommands else { throw AppError(message:"Opening connection setup caused hardware IO") }
     try renderReleaseView(host.window.contentView!,path:"/private/tmp/perch-monitor-connection.png")
     host.goBack()
-    guard setup.protocolChoice.indexOfSelectedItem == before else { throw AppError(message:"Connection cancel changed protocol") }
+    guard setup.protocolChoice.indexOfSelectedItem == beforeConnection else { throw AppError(message:"Connection Back changed protocol without a check") }
     host.goBack()
     host.goBack()
     guard host.pages.count == 1 && controller.pageChanged == nil else { throw AppError(message:"Monitor setup did not clean up on Back") }
@@ -293,13 +293,12 @@ func runMonitorDraftTests() throws {
     let endpoint = connectionView.subviews.compactMap { $0 as? NSTextField }.first { $0.isEditable }!
     endpoint.stringValue = "192.0.2.10"
     let check = connectionView.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Check connection" }!
-    let use = connectionView.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Use this connection" }!
     check.performClick(nil); try finish()
-    guard use.isEnabled && controller.plan == working && connection.candidates == working.availableInputs else { throw AppError(message: "Checking a connection saved it or cleared input mappings") }
-    endpoint.stringValue = "192.0.2.11"; use.performClick(nil)
+    guard controller.plan == working && connection.candidates == working.availableInputs else { throw AppError(message: "Checking a connection saved it or cleared input mappings") }
+    endpoint.stringValue = "192.0.2.11"; host.goBack()
     guard host.pages.last?.title == "Monitor control connection" && controller.plan == working else { throw AppError(message: "Changed endpoint used an earlier check result") }
     check.performClick(nil); try finish()
-    use.performClick(nil)
+    host.goBack()
     guard host.pages.last?.title == "Monitor connection & inputs", controller.plan == working, connection.candidates == working.availableInputs else { throw AppError(message: "Accepting a checked connection bypassed setup Save or lost mappings") }
     connection.save.performClick(nil)
     guard controller.plan.controlConnection?.endpoint == "192.0.2.11" && controller.plan.availableInputs == working.availableInputs else { throw AppError(message: "Saved connection differs from the reviewed one") }
@@ -311,12 +310,12 @@ func runMonitorDraftTests() throws {
     guard controller.savedPlan(for: display.id) == working else { throw AppError(message:"Selecting a second display discarded the first setup") }
     try controller.save(working)
     guard controller.savedPlan(for: second.display) == second else { throw AppError(message:"Returning to the first display discarded the second setup") }
-    let identify = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Identify input…" }!
+    let identify = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Identify this Mac’s input…" }!
     let readCurrent = fresh.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Read current input" }!
     backend.reported = 145; readCurrent.performClick(nil)
     let readEnd = Date().addingTimeInterval(2)
     while controller.busy && Date()<readEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
-    guard identify.isHidden else { throw AppError(message:"Identification offered despite working automatic detection") }
+    guard !identify.isHidden && fresh.status.stringValue.contains("has not been identified") else { throw AppError(message:"Current readback hid missing Mac mapping setup") }
     backend.reported = nil; readCurrent.performClick(nil)
     let unavailableEnd = Date().addingTimeInterval(2)
     while controller.busy && Date()<unavailableEnd { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }

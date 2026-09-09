@@ -29,7 +29,7 @@ extension AppDelegate {
         item.state = modes.count > 1 ? .mixed : modes.first == true ? .on : .off
         let failed = results.filter { !$0.verified }
         let hint: String
-        if keyboardModes.blocksFunctionKeyChanges { hint = "Updating keyboards…" }
+        if keyboardModes.blocksFunctionKeyChanges { hint = "Checking keyboards…"; item.state = .mixed }
         else if !failed.isEmpty { hint = "⚠ \(failed.count) need setup · see Settings" }
         else if modes.count > 1 { hint = "Mixed modes" }
         else if let mode = modes.first { hint = mode ? "Without Fn" : "Hold Fn" }
@@ -90,7 +90,7 @@ extension AppDelegate {
         let registrations = keyboardModes.registrations
         let names = registrations.isEmpty ? nativeKeyboards.filter { !$0.builtIn }.map { $0.name } : registrations.map { $0.name }
         let unknown = keyboardModes.registrationNeedsSetup
-        let title = names.count > 1 ? "External keyboards · \(names.count) keyboards" : "External keyboard · " + (names.first ?? (unknown ? "Detection unavailable" : "None connected"))
+        let title = keyboardModes.registrationPending ? "External keyboards · Checking…" : names.count > 1 ? "External keyboards · \(names.count) keyboards" : "External keyboard · " + (names.first ?? (unknown ? "Detection unavailable" : "None connected"))
         heading.title = title
         (heading.view as? MenuRowView)?.text = NSAttributedString(string:title, attributes:[.font:NSFont.systemFont(ofSize:11,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
         let hideControls = names.isEmpty
@@ -104,7 +104,7 @@ extension AppDelegate {
     @objc func keyboardSettings() { keyboardSettingsView(details: false) }
     @objc func keyboardDetails() { keyboardSettingsView(details: true) }
     func keyboardSettingsView(details: Bool) {
-        if menuOpen { withMenuClosed { [weak self] in self?.keyboardSettings() }; return }
+        if menuOpen { withMenuClosed { [weak self] in self?.keyboardSettingsView(details: details) }; return }
         nativeKeyboards = NativeModifierKeys.keyboards()
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
         func text(_ value: String, _ y: CGFloat, _ height: CGFloat, color: NSColor = .labelColor) {
@@ -120,8 +120,9 @@ extension AppDelegate {
             heading.frame = NSRect(x: x, y: 458, width: 269, height: 24); view.addSubview(heading)
             let fn = SettingsActionButton(title: "F1–F12 directly") { [weak self] in
                 guard let self, self.fnItem != nil else { return }
-                if builtIn { self.toggleFunctionKeys() } else { self.toggleExternalFunctionKeys() }
-                self.keyboardSettings()
+                if SettingsWindow.shared.testing { self.keyboardActionTestDriver?("function", builtIn) }
+                else if builtIn { self.toggleFunctionKeys() } else { self.toggleExternalFunctionKeys() }
+                self.keyboardSettingsView(details: details)
             }
             fn.setButtonType(.switch); fn.allowsMixedState = true
             fn.state = builtIn ? nativeMode.map { $0 ? .on : .off } ?? .mixed : externalModes.count > 1 ? .mixed : externalModes.first == true ? .on : .off
@@ -131,7 +132,9 @@ extension AppDelegate {
             let devices = nativeKeyboards.filter { $0.builtIn == builtIn }
             let swap = SettingsActionButton(title: "Swap Control and Command") { [weak self] in
                 guard let self, self.swapItem != nil else { return }
-                self.setModifierGroup(builtIn); self.keyboardSettings()
+                if SettingsWindow.shared.testing { self.keyboardActionTestDriver?("modifiers", builtIn) }
+                else { self.setModifierGroup(builtIn) }
+                self.keyboardSettingsView(details: details)
             }
             swap.setButtonType(.switch); swap.allowsMixedState = true
             swap.state = devices.isEmpty ? .off : devices.allSatisfy { $0.swapped == true } ? .on : devices.allSatisfy { $0.swapped == false } ? .off : .mixed

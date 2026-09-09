@@ -83,12 +83,12 @@ info['CFBundleName'] = 'Perch Functional Review'
 (app / 'Info.plist').write_bytes(plistlib.dumps(info))
 for path in (repo / 'catalog').glob('*.json'):
     shutil.copy2(path, app / 'Resources' / path.name)
-def run(*command):
-    subprocess.run(command, cwd=repo, check=True)
+def run(*command, cwd=repo):
+    subprocess.run(command, cwd=cwd, check=True)
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'EventParser.c'), '-o', str(root / 'EventParser.o'))
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'DDCWire.c'), '-o', str(root / 'DDCWire.o'))
 run('xcrun', 'clang', '-fmodules', '-fmodules-cache-path=' + str(root / 'ClangModuleCache'), '-O2', '-DMAX_DISPLAYS=16', '-I', 'Vendor/m1ddc', '-I', str(src), str(src / 'PerchDisplay.m'), str(src / 'MonitorTransport.m'), 'Vendor/m1ddc/ioregistry.m', str(root / 'DDCWire.o'), '-framework', 'CoreDisplay', '-framework', 'IOKit', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-o', str(app / 'MacOS/PerchDisplay'))
-run('xcrun', 'swiftc', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization')
+run('xcrun', 'swiftc', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization', cwd=root)
 run('codesign', '--force', '--sign', '-', str(app / 'MacOS/PerchDisplay'))
 run('codesign', '--force', '--sign', '-', str(app.parent))
 print('Isolated review artifacts:', root, flush=True)

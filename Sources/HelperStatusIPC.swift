@@ -95,6 +95,17 @@ final class HelperStatusClient<Status: Decodable> {
     private let lock = NSLock()
     private var connection: NSXPCConnection?
     private var cached: Status?
+    private var completedRead = false
+    private var presentationDepth = 0
+    var onChange: (() -> Void)?
+    var initiallyChecking: Bool { lock.lock(); defer { lock.unlock() }; return !completedRead }
+    // Repaint from one reply without scheduling another request from UI getters.
+    func withCachedValue(_ update: () -> Void) {
+        lock.lock(); presentationDepth += 1; lock.unlock()
+        defer { lock.lock(); presentationDepth -= 1; lock.unlock() }
+        update()
+    }
+    private func notifyChange() { DispatchQueue.main.async { [weak self] in self?.onChange?() } }
     private var pending = false
     private var generation: UInt64 = 0
     private var lastRequest: UInt64 = 0
@@ -104,14 +115,15 @@ final class HelperStatusClient<Status: Decodable> {
     func refresh() {
         let now = DispatchTime.now().uptimeNanoseconds
         lock.lock()
+        guard presentationDepth == 0 else { lock.unlock(); return }
         guard now &- lastRequest >= 80_000_000 else { lock.unlock(); return }
         if pending && now &- lastRequest < 1_000_000_000 { lock.unlock(); return }
         if pending {
-            let old = connection; connection = nil; pending = false; generation &+= 1
-            lock.unlock(); old?.invalidate(); refresh(); return
+            let old = connection; connection = nil; pending = false; completedRead = true; generation &+= 1
+            lock.unlock(); old?.invalidate(); notifyChange(); refresh(); return
         }
         if connection == nil {
-            guard let requirement = HelperStatusIPC.requirement else { lock.unlock(); return }
+            guard let requirement = HelperStatusIPC.requirement else { let changed = !completedRead; completedRead = true; lock.unlock(); if changed { notifyChange() }; return }
             let new = makeConnection()
             new.setCodeSigningRequirement(requirement)
             new.remoteObjectInterface = NSXPCInterface(with: HelperStatusProtocol.self)
@@ -130,21 +142,22 @@ final class HelperStatusClient<Status: Decodable> {
         proxy.readStatus { [weak self] data in
             let status = data.flatMap { $0.count <= HelperStatusIPC.maximumBytes ? try? JSONDecoder().decode(Status.self, from: $0) : nil }
             guard let self else { return }
-            self.lock.lock(); defer { self.lock.unlock() }
-            guard self.generation == current else { return }
-            self.cached = status; self.pending = false
+            self.lock.lock()
+            guard self.generation == current else { self.lock.unlock(); return }
+            self.cached = status; self.pending = false; self.completedRead = true
+            self.lock.unlock(); self.notifyChange()
         }
     }
     private func failed(_ current: UInt64) {
         lock.lock()
         guard generation == current else { lock.unlock(); return }
-        let old = connection; connection = nil; pending = false; generation &+= 1
+        let old = connection; connection = nil; pending = false; completedRead = true; generation &+= 1
         // A recent snapshot may remain useful during a brief restart. Its
         // original timestamp still expires; failures never refresh it.
-        lock.unlock(); old?.invalidate()
+        lock.unlock(); old?.invalidate(); notifyChange()
     }
     func stop() {
-        lock.lock(); let old = connection; connection = nil; pending = false; cached = nil; generation &+= 1; lock.unlock()
+        lock.lock(); let old = connection; connection = nil; pending = false; cached = nil; completedRead = false; generation &+= 1; lock.unlock()
         old?.invalidate()
     }
     deinit { stop() }

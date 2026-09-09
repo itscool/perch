@@ -1,6 +1,22 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 61. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 63. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 63: consistent settings journeys and menu readiness
+
+Privacy resets now keep their running state and result when you leave and return during the current app session. Back no longer claims to cancel an issued command. A failed reset can be retried; simultaneous resets and stale completion callbacks cannot overwrite another operation. After success, starting another reset returns to a proposal before any new command runs.
+
+Keyboard changes stay on the page where you made them. Group edits preserve position and unsaved text, reveal new destinations and restore identifiable focus. Monitor setup has one final Save for its connection and input list: model selections fill the draft directly, Back keeps valid child edits, and invalid edits can be corrected or discarded. The ordinary monitor page continues to save preferences immediately.
+
+A saved “this Mac’s input” mapping is shown separately from the monitor’s current input. Unknown readback does not erase completed mapping setup, and a successful read does not imply that this Mac has been identified. Change and automatic Retry are available; Stop and retries use separate cancellation state. Confirming a mapping does not also enable unconfirmed cycling.
+
+Shared alerts use Back/Close for navigation while preserving named actions and their cancellation results. Input permission setup reads the input helper directly. When ready, it shows a compact confirmation and optional review instead of prominent grant instructions; missing access restores the relevant steps. Process-event readiness makes permission controls secondary.
+
+Non-System menu rows distinguish initial Checking from a failed/offline helper, repaint when status arrives, and preserve their availability through native validation. Scrolling depends on the input helper and distinguishes saved choices from running controls; a saved choice can still be turned off after losing access. Keyboard reads refresh external state while the menu is open and withhold stale Fn choices during pending reads. A read-only refresh cannot consume a later device-connection action. The tuned menu section order, overlines, highlights and System area are preserved.
+
+Validation: production and isolated compilation completed with zero compiler warnings; all 20 isolated suites passed. Expanded tests exercise reset navigation/results/retry, shared alert exits and action indices, all four keyboard-details controls, group position/draft retention, monitor identification Stop/Retry/mapping persistence, permission-ready recovery, menu validation and authenticated XPC publication without a feedback loop. Native light/dark renders were inspected. Hardware, resets, OS authorization and other external mutations were injected or blocked. The previous local build 62 was an intermediate verification build; build 63 includes the compact permission-ready presentation.
+
+This is a separately prepared local build, not an automatic installation. The shared macOS lid-control flag defect is still unresolved. Actual 60-second undocking, affected-Mac password entry, hotkeys and multi-monitor behavior, native collector installation/FDA/reboot behavior, and broader release/distribution acceptance remain open.
 
 ## Build 61: collector identity without deprecated job lookup
 

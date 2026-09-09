@@ -36,12 +36,14 @@ extension AppDelegate {
         let profiles = keyboardModes.registrations.compactMap { $0.profile }
         for (item, enabled, capable) in [(homeEndItem!, preferences.homeEnd, profiles.contains { $0.hasHomeEnd && NavigationEventDevices.mapping($0) != nil }), (pageKeysItem!, preferences.pageUpDown, profiles.contains { $0.hasPageKeys && NavigationEventDevices.mapping($0) != nil })] {
             item.state = enabled ? .on : .off
-            item.isEnabled = true
-            let needsSetup = !available || !capable
+            let checking = (helper == nil && HelperStatusIPC.inputClient.initiallyChecking) || keyboardModes.registrationPending
+            item.isEnabled = enabled || !checking
+            let needsSetup = !enabled && (!available || !capable)
             item.action = needsSetup ? #selector(keyboardSettings) : item === homeEndItem ? #selector(toggleHomeEnd) : #selector(togglePageKeys)
             (item.view as? MenuRowView)?.opensAnotherInterface = { needsSetup }
             let warning: String
-            if !available { warning = "⚠ Input setup · Settings" }
+            if checking { warning = "Checking input and keyboard…" }
+            else if !available { warning = "⚠ Input setup · Settings" }
             else if !capable { warning = "⚠ Keyboard setup · Settings" }
             else if enabled && helper?.active != true { warning = "⚠ Input controls not running" }
             else if enabled && helper?.navigationUnidentified == true { warning = "⚠ Cannot identify keyboard" }

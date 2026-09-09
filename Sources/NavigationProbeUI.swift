@@ -86,7 +86,7 @@ final class NavigationProbePage: NSObject {
     private var pageDetail: String {
         if session.state.phase == .complete {
             let name = setupIdentity?.name ?? "this keyboard"
-            return saved ? "The layout for \(name) is saved. Use Back to return to Navigation keys."
+            return saved ? "The layout for \(name) is saved. Use Back to return to the previous settings page."
                 : "Setup for \(name) finished, but the layout was not saved. Your previous layout is still in use."
         }
         return "Press and release each requested key, or mark it absent. The layout saves automatically after the last key. Back stops unfinished setup and keeps your previous layout."
@@ -160,7 +160,7 @@ final class NavigationProbePage: NSObject {
                     let profile = NavigationKeyboardProfile(identity: identity, keys: keys)
                     try saveProfile(profile)
                     profiles.removeAll { $0.identity == identity }; profiles.append(profile)
-                    saved = true; saveResult = "✓ Layout saved automatically. Use Back to return to Navigation keys."
+                    saved = true; saveResult = "✓ Layout saved automatically. Use Back to return to the previous settings page."
                 } catch { saveResult = "⚠ " + error.localizedDescription + " Your previous layout is still in use. Retry saving, or use Back to leave." }
             } else { saveResult = "⚠ Keyboard identity unavailable. Nothing was saved. Use Back, then recheck keyboards." }
         }
@@ -203,7 +203,7 @@ final class NavigationProbePage: NSObject {
         switch session.state.phase {
         case .idle:
             instruction.stringValue = ready && !offline ? "Layout ready — no setup needed." : "Start setup to identify one key at a time."
-            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : ready ? "Return to Navigation keys to choose Home/End and Page Up/Down behavior. Learn a different layout only if these keys behave differently." : "Start setup to identify Home, End, Page Up and Page Down. If a key is missing, choose “I don’t have this key.”"
+            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : ready ? "Home/End and Page Up/Down behavior can be changed in Navigation keys. Learn a different layout only if these keys behave differently." : "Start setup to identify Home, End, Page Up and Page Down. If a key is missing, choose “I don’t have this key.”"
             status.textColor = .secondaryLabelColor
         case .listening:
             let key = session.state.currentKey?.name ?? "next key"

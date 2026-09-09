@@ -2,7 +2,7 @@ import AppKit
 import IOKit
 import IOKit.hidsystem
 
-/// Runs only on setting/device changes and explicit retry. HID reports are opened
+/// Reads on setting/device changes, explicit retry, and while the menu is open. HID reports are opened
 /// for the bounded transaction then closed; there is no idle input subscription.
 final class KeyboardModeMonitor: NSObject {
     var results: [KeyboardModeResult] = []
@@ -13,11 +13,17 @@ final class KeyboardModeMonitor: NSObject {
     private var appliedNavigationRevision = 0
     var busy = false
     private var applying = false
-    var blocksFunctionKeyChanges: Bool { applying || reapplyExternal || (started && navigationRevision != appliedNavigationRevision) }
+    var blocksFunctionKeyChanges: Bool { working || applying || reapplyExternal || (started && navigationRevision != appliedNavigationRevision) }
     var onChange: (() -> Void)?
     var started = false
     var working: Bool { busy || pending != nil }
     private var lastStandard: Bool?
+    private var lastPresentationRead = Date.distantPast
+    var registrationPending: Bool { started && navigationRevision != appliedNavigationRevision }
+    func readForPresentation() {
+        guard started, !working, Date().timeIntervalSince(lastPresentationRead) >= 2 else { return }
+        lastPresentationRead = Date(); queryOnly = true; queue()
+    }
     private var pending: DispatchWorkItem?
     private var again = false
     private var reapplyExternal = false
@@ -72,7 +78,8 @@ final class KeyboardModeMonitor: NSObject {
     }
     func queue(reapplyExternal: Bool = false, navigationChanged: Bool = false) {
         guard started else { return }
-        if navigationChanged { navigationRevision &+= 1 }
+        if navigationChanged { navigationRevision &+= 1; queryOnly = false }
+        if reapplyExternal { queryOnly = false }
         self.reapplyExternal = self.reapplyExternal || reapplyExternal
         pending?.cancel()
         let job = DispatchWorkItem { [weak self] in self?.run() }
@@ -82,8 +89,8 @@ final class KeyboardModeMonitor: NSObject {
     }
     func recheck() {
         guard started, !working else { return }
-        queryOnly = true
         queue(navigationChanged: true)
+        queryOnly = true
     }
     private func run() {
         pending = nil
@@ -133,7 +140,10 @@ final class KeyboardModeMonitor: NSObject {
                     guard let self else { return }
                     self.busy = false; self.applying = false
                     if self.again { self.again = false; self.run(); return }
-                    self.lastStandard = standard; self.knownDevices = ids
+                    self.lastStandard = standard
+                    // A read-only preview must not consume the connection event
+                    // that still needs to apply a remembered device choice.
+                    if !readOnly { self.knownDevices = ids }
                     self.results = result; self.modifierErrors = failures + (self.connectionError.map { [$0] } ?? [])
                     if let registrations {
                         self.registrations = registrations; self.registrationError = registrationError

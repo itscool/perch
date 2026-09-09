@@ -112,7 +112,7 @@ final class MonitorGroupEditor: NSObject {
         draft.shortcut.key = UInt32(shortcutKey.selectedItem?.tag ?? Int(kVK_F8))
         draft.shortcut.modifiers = modifiers.filter { $0.0.state == .on }.reduce(0) { $0 | $1.1 }
     }
-    func show() {
+    func show(focusDestination: String? = nil) {
         names = [:]; modifiers = []; displayLabels = [:]
         let height = CGFloat(542 + candidates.count * 36 + draft.destinations.count * (86 + draft.members.count * 38))
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: height)); var y = height - 28
@@ -123,7 +123,7 @@ final class MonitorGroupEditor: NSObject {
             let b = SettingsActionButton(title: text, action: action); b.frame = NSRect(x: 0, y: y, width: 572, height: 28); view.addSubview(b); y -= 36; return b
         }
         label("Group name")
-        groupName = NSTextField(string: draft.name); groupName.frame = NSRect(x: 8, y: y, width: 556, height: 26); groupName.placeholderString = "For example, Desk displays"; view.addSubview(groupName); y -= 38
+        groupName = NSTextField(string: draft.name); groupName.identifier = .init("group.name"); groupName.frame = NSRect(x: 8, y: y, width: 556, height: 26); groupName.placeholderString = "For example, Desk displays"; view.addSubview(groupName); y -= 38
         label("Displays to include — select exactly the ones you want to switch")
         _ = button("Set up individual display inputs…") { [weak self] in
             guard let self else { return }; self.capture(); MonitorInputPage(self.monitor).show()
@@ -137,7 +137,7 @@ final class MonitorGroupEditor: NSObject {
                 if self.draft.members.contains(where: { $0.display == member.display }) { self.draft.members.removeAll { $0.display == member.display }; for i in self.draft.destinations.indices { self.draft.destinations[i].inputs.removeValue(forKey: member.display) } }
                 else { self.draft.members.append(member) }
                 self.show()
-            }; b.setButtonType(.switch); b.state = draft.members.contains { $0.display == member.display } ? .on : .off
+            }; b.identifier = .init("group.member." + member.display); b.setButtonType(.switch); b.state = draft.members.contains { $0.display == member.display } ? .on : .off
             if let selected = draft.members.first(where: { $0.display == member.display }) {
                 b.frame.size.width = 350
                 let label = NSTextField(string: selected.name); label.placeholderString = "Label, for example Left"
@@ -145,9 +145,9 @@ final class MonitorGroupEditor: NSObject {
             }
         }
         for destination in draft.destinations {
-            let field = NSTextField(string: destination.name); field.placeholderString = "Destination name, for example Mac mini"
+            let field = NSTextField(string: destination.name); field.identifier = .init("group.destination." + destination.id); field.placeholderString = "Destination name, for example Mac mini"
             field.frame = NSRect(x: 8, y: y, width: 420, height: 26); names[destination.id] = field; view.addSubview(field)
-            let remove = SettingsActionButton(title: "Remove") { [weak self] in guard let self else { return }; self.capture(); self.draft.destinations.removeAll { $0.id == destination.id }; self.show() }
+            let remove = SettingsActionButton(title: "Remove") { [weak self] in guard let self else { return }; self.capture(); let index = self.draft.destinations.firstIndex { $0.id == destination.id } ?? 0; self.draft.destinations.removeAll { $0.id == destination.id }; self.show(focusDestination: self.draft.destinations.isEmpty ? nil : self.draft.destinations[min(index, self.draft.destinations.count-1)].id) }
             remove.frame = NSRect(x: 440, y: y, width: 125, height: 28); view.addSubview(remove); y -= 38
             for member in draft.members {
                 let title = NSTextField(labelWithString: "\(member.name) · \(member.display.suffix(8))")
@@ -161,7 +161,7 @@ final class MonitorGroupEditor: NSObject {
             }
             y -= 10
         }
-        let add = button("Add destination") { [weak self] in guard let self else { return }; self.capture(); self.draft.destinations.append(.init(name: "", inputs: [:])); self.show() }; add.isEnabled = draft.destinations.count < 8
+        let add = button("Add destination") { [weak self] in guard let self else { return }; self.capture(); let destination = MonitorDestination(name: "", inputs: [:]); self.draft.destinations.append(destination); self.show(focusDestination: destination.id) }; add.isEnabled = draft.destinations.count < 8
         shortcutEnabled = button("Enable a shortcut when this is the menu’s active group") {}; shortcutEnabled.setButtonType(.switch); shortcutEnabled.state = draft.shortcut.enabled ? .on : .off
         let flags: [(String, UInt32)] = [("Control", UInt32(controlKey)), ("Option", UInt32(optionKey)), ("Shift", UInt32(shiftKey)), ("Command", UInt32(cmdKey))]
         for (index, flag) in flags.enumerated() {
@@ -171,9 +171,13 @@ final class MonitorGroupEditor: NSObject {
         shortcutKey = NSPopUpButton(frame: NSRect(x: 432, y: y, width: 132, height: 28), pullsDown: false)
         for key in PanicShortcut.keys { shortcutKey.addItem(withTitle: key.0); shortcutKey.lastItem?.tag = Int(key.1) }
         shortcutKey.selectItem(withTag: Int(draft.shortcut.key)); view.addSubview(shortcutKey); y -= 38
-        label(error.isEmpty ? "Save stores this group without switching displays. Back or Close discards this draft." : error, height: 54)
+        label(error.isEmpty ? "Save stores this group without switching displays. Cancel or Close discards this draft." : error, height: 54)
         let save = SettingsActionButton(title: "Save group") { [weak self] in self?.save() }; save.frame = NSRect(x: 416, y: 0, width: 148, height: 30); view.addSubview(save)
         SettingsWindow.shared.show(.init(title: "Edit switching group", detail: "Choose Save group to keep this draft; Cancel or closing keeps the saved group. Each destination names one computer and its input on every selected display. If an input is missing, open individual display setup below and return to this draft.", view: view, leave: { [self] in _ = draft }, refresh: { [weak self] in self?.show() }, backTitle: "Cancel"))
+        if let focusDestination, let field = names[focusDestination] {
+            field.scrollToVisible(field.bounds.insetBy(dx: 0, dy: -12))
+            SettingsWindow.shared.window.makeFirstResponder(field)
+        }
     }
     @objc private func mapInput(_ sender: NSPopUpButton) {
         guard let parts = sender.identifier?.rawValue.split(separator: "/"), parts.count == 2, let i = draft.destinations.firstIndex(where: { $0.id == parts[0] }) else { return }

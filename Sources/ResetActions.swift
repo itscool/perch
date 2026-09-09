@@ -6,56 +6,108 @@ enum PrivacyOnlyReset {
     static func arguments(global: Bool) -> [String] {
         global ? ["reset", "All"] : ["reset", "All", PanicPlan.perchID]
     }
-    private static var running = false
-    static func run(global: Bool, completion: @escaping (String) -> Void) {
-        guard !running else { completion("⚠ A privacy reset is already running."); return }
-        running = true
-        DispatchQueue.global(qos:.userInitiated).async {
+    static let operation = PrivacyResetOperation { global, completion in
+        DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
-            task.executableURL = URL(fileURLWithPath:"/usr/bin/tccutil")
-            task.arguments = arguments(global:global)
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            task.arguments = arguments(global: global)
             task.standardInput = FileHandle.nullDevice
             task.standardOutput = FileHandle.nullDevice
             task.standardError = FileHandle.nullDevice
-            let result: String
+            let result: Result<String, Error>
             do {
                 try task.run(); task.waitUntilExit()
-                result = task.terminationStatus == 0
-                    ? "✓ macOS accepted the privacy reset. Apps may ask for access again. Review Privacy & Security for any entries that remain; some changes require an app relaunch."
-                    : "⚠ macOS did not complete the privacy reset (exit \(task.terminationStatus)). Review Privacy & Security for remaining permissions."
-            } catch { result = "⚠ " + error.localizedDescription }
-            DispatchQueue.main.async { running = false; completion(result) }
+                if task.terminationStatus == 0 {
+                    result = .success("✓ macOS accepted the privacy reset. Apps may ask for access again. Review Privacy & Security for entries that remain; some changes require an app relaunch.")
+                } else { throw AppError(message: "macOS did not complete the privacy reset (exit \(task.terminationStatus)). Review Privacy & Security before retrying; some permissions may already have changed.") }
+            } catch { result = .failure(error) }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+}
+
+/// Owned by the app, not a page. Leaving never cancels a command already sent.
+final class PrivacyResetOperation {
+    enum State { case idle, running, succeeded(String), failed(String) }
+    private(set) var states: [Bool: State] = [:]
+    private(set) var runningScope: Bool?
+    private var generation = UUID()
+    private let execute: (Bool, @escaping (Result<String, Error>) -> Void) -> Void
+    init(execute: @escaping (Bool, @escaping (Result<String, Error>) -> Void) -> Void) { self.execute = execute }
+    func state(global: Bool) -> State { states[global] ?? .idle }
+    func prepare(global: Bool) { guard runningScope == nil else { return }; states[global] = .idle }
+    func run(global: Bool) {
+        guard runningScope == nil else { return }
+        generation = UUID(); let request = generation
+        runningScope = global; states[global] = .running
+        execute(global) { [self] result in
+            guard runningScope == global, generation == request else { return }
+            runningScope = nil
+            switch result {
+            case .success(let message): states[global] = .succeeded(message)
+            case .failure(let error): states[global] = .failed("⚠ " + error.localizedDescription)
+            }
         }
     }
 }
 
 extension AppDelegate {
     @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.privacyOnlyReset(global:true) } }
-    func privacyOnlyReset(global: Bool) {
-        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:274))
-        let status = NSTextField(wrappingLabelWithString:global
-            ? "Resets privacy decisions for all apps in your macOS account, including Perch. Perch sends no app-termination commands and does not block relaunches. This is not guaranteed to stop an agent: shell and network activity can continue."
-            : "Resets privacy decisions for Perch and its helpers, which share Perch’s bundle identity. Other apps are excluded. The shared macOS eslogger permission is not Perch-owned; review it separately in Privacy & Security if needed.")
-        status.frame = NSRect(x:0,y:108,width:572,height:150); status.textColor = .secondaryLabelColor
-        var active = true
+    func privacyOnlyReset(global: Bool, operation: PrivacyResetOperation = PrivacyOnlyReset.operation) {
+        let page = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 320))
+        let scope = global
+            ? "Resets privacy decisions for all apps in your macOS account, including Perch. This does not terminate apps or block shell and network activity."
+            : "Resets privacy decisions for Perch and its helpers, which share Perch’s bundle identity. Other apps are excluded. Review the shared eslogger permission separately in Privacy & Security if needed."
+        let explanation = NSTextField(wrappingLabelWithString: scope)
+        explanation.frame = NSRect(x: 0, y: 218, width: 572, height: 94); explanation.textColor = .secondaryLabelColor
+        let status = NSTextField(wrappingLabelWithString: "")
+        status.identifier = .init("privacy.result")
+        status.frame = NSRect(x: 0, y: 100, width: 572, height: 110)
         weak var confirmReference: SettingsActionButton?
-        let confirm = SettingsActionButton(title:global ? "Reset all apps’ privacy permissions" : "Reset Perch’s privacy permissions") {
-            guard !SettingsWindow.shared.testing else { return }
-            confirmReference?.isEnabled = false
-            status.stringValue = "Resetting privacy permissions…"
-            PrivacyOnlyReset.run(global:global) { result in
-                guard active else { return }
-                status.stringValue = result
-                status.textColor = result.hasPrefix("✓") ? StatusColors.success : StatusColors.warning
+        let update = { [weak page] in
+            let resetTitle = global ? "Reset all apps’ privacy permissions" : "Reset Perch’s privacy permissions"
+            confirmReference?.isEnabled = operation.runningScope == nil
+            confirmReference?.isHidden = false
+            status.textColor = .secondaryLabelColor
+            switch operation.state(global: global) {
+            case .idle:
+                status.stringValue = operation.runningScope == nil ? "Nothing has been reset. Only the reset button starts this action." : "Another privacy reset is running. Wait for its result before starting this one."
+                confirmReference?.title = resetTitle
+            case .running:
+                status.stringValue = "Resetting privacy permissions… You can leave this page. macOS will continue; return here to see the result during this Perch session."
+                confirmReference?.title = "Reset in progress…"
+            case .succeeded(let result):
+                status.stringValue = result; status.textColor = StatusColors.success
+                confirmReference?.title = "Start another reset…"
+            case .failed(let result):
+                status.stringValue = result; status.textColor = StatusColors.warning
+                confirmReference?.title = "Retry privacy reset"
+            }
+            if let page, SettingsWindow.shared.pages.last?.view === page {
+                let host = SettingsWindow.shared
+                switch operation.state(global: global) {
+                case .idle: host.heading.stringValue = global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?"
+                case .running: host.heading.stringValue = "Resetting privacy permissions"
+                case .succeeded: host.heading.stringValue = "Privacy reset completed"
+                case .failed: host.heading.stringValue = "Privacy reset needs attention"
+                }
             }
         }
-        confirmReference = confirm
-        confirm.frame = NSRect(x:0,y:54,width:572,height:32)
+        let confirm = SettingsActionButton(title: "") {
+            guard !SettingsWindow.shared.testing || operation !== PrivacyOnlyReset.operation else { return }
+            if case .succeeded = operation.state(global: global) { operation.prepare(global: global) }
+            else { operation.run(global: global) }
+            update()
+        }
+        confirm.identifier = .init("privacy.reset"); confirmReference = confirm
+        confirm.frame = NSRect(x: 0, y: 54, width: 572, height: 32)
         let recovery = SettingsActionButton(title: "Review Perch setup & status…") { [weak self] in self?.setupOverview() }
-        recovery.frame = NSRect(x:0,y:10,width:572,height:32)
-        recovery.toolTip = "Check current access and restore missing Perch setup. Opening this does not reset anything."
-        page.addSubview(status); page.addSubview(confirm); page.addSubview(recovery)
-        SettingsWindow.shared.show(.init(title:global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?",detail:"Only clicking the reset button below performs this action. Resetting permissions also forgets previous denials; it is not a permanent block. Back cancels.",view:page,leave:{active=false}))
+        recovery.frame = NSRect(x: 0, y: 10, width: 572, height: 32)
+        [explanation, status, confirm, recovery].forEach { page.addSubview($0) }
+        let timer = Timer(timeInterval: 0.25, repeats: true) { _ in update() }
+        RunLoop.main.add(timer, forMode: .common)
+        SettingsWindow.shared.show(.init(title: global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?", detail: "Resetting permissions also forgets previous denials; it is not a permanent block. Leaving before starting makes no changes. Once started, the reset cannot be cancelled here.", view: page, leave: { timer.invalidate() }, refresh: update))
+        update()
     }
     func systemResetPage(includeAudio: Bool = true) {
         let page = NSView(frame:NSRect(x:0,y:0,width:572,height:includeAudio ? 260 : 220))

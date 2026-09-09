@@ -1,7 +1,7 @@
 import AppKit
 
 enum SetupRoute: String {
-    case maintenance, inputAccess, keyboards, displays, awake, agents, events, settings, updates
+    case maintenance, inputAccess, keyboards, displays, awake, agents, events, settings
 }
 
 struct SetupCheck: Equatable {
@@ -77,7 +77,7 @@ struct SetupSnapshot {
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "An older system-wide sleep override is active without a timeout. Remove it before setting up supervised lid protection.", "Review sleep…", .awake)
         } else if lidHelperUpdatePending {
-            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Updates to finish. The existing helper is kept until then.", "Review updates…", .updates)
+            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Keep awake to finish. The existing helper is kept until then.", "Review helper update…", .awake)
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
@@ -248,7 +248,6 @@ extension AppDelegate {
     }
     func openSetupRoute(_ route: SetupRoute, id: String = "") {
         switch route {
-        case .updates: updateSettings()
         case .maintenance: advancedSafetySettings()
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboards: keyboardSettings()

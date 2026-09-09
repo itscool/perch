@@ -1,6 +1,27 @@
 import AppKit
 
 extension AppDelegate {
+    static func applicationMenu(quitTarget: AnyObject, quitAction: Selector) -> NSMenu {
+        let main = NSMenu(), app = NSMenu(title: "Perch")
+        let root = NSMenuItem(title: "Perch", action: nil, keyEquivalent: "")
+        let quit = NSMenuItem(title: "Quit Perch", action: quitAction, keyEquivalent: "q")
+        quit.keyEquivalentModifierMask = .command; quit.target = quitTarget
+        app.addItem(quit); root.submenu = app; main.addItem(root)
+        return main
+    }
+    func installApplicationMenu() {
+        NSApp.mainMenu = Self.applicationMenu(quitTarget: self, quitAction: #selector(quit))
+    }
+    // Custom status-menu views do not supply AppKit's ordinary key-equivalent
+    // dispatch. Route the displayed shortcut through the same command action.
+    func handleMenuShortcut(_ event: NSEvent) -> Bool {
+        guard menuOpen, event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "q",
+              let item = menu.items.first(where: { $0.keyEquivalent == "q" }),
+              let row = item.view as? MenuRowView else { return false }
+        return row.activate()
+    }
+
     func setMenuTitle(_ item: NSMenuItem, _ source: NSAttributedString) {
         guard menuTitleSources[item]?.isEqual(to: source) != true else {
             // State or enabled status can change independently of the wording.
@@ -25,7 +46,9 @@ extension AppDelegate {
         // Only Perch-local key events, only while this menu is open. No global
         // keyboard monitor, event tap, Accessibility grant or idle callback.
         menuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.menuOpen, [36, 49, 76].contains(event.keyCode),
+            guard let self else { return event }
+            if self.handleMenuShortcut(event) { return nil }
+            guard self.menuOpen, [36, 49, 76].contains(event.keyCode),
                   event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
                   let row = self.menu.highlightedItem?.view as? MenuRowView else { return event }
             _ = row.activate()

@@ -57,40 +57,16 @@ final class LidHelperUpdate {
     }
 }
 
-struct UpdateSettingsSnapshot {
-    var message: String
-    var prepared = false
+struct LidHelperSettingsSnapshot {
     var busy = false
-    var helperBusy = false
-    var helperResult: String?
+    var result: String?
     var helper: LidHelperUpdateState
-    static var current: Self {
-        .init(message: AppUpdate.shared.message, prepared: AppUpdate.shared.candidate != nil,
-              busy: AppUpdate.shared.busy, helperBusy: LidHelperUpdate.shared.busy,
-              helperResult: LidHelperUpdate.shared.result, helper: LidHelperUpdate.shared.state)
-    }
+    static var current: Self { .init(busy: LidHelperUpdate.shared.busy, result: LidHelperUpdate.shared.result, helper: LidHelperUpdate.shared.state) }
 }
-
-extension AppDelegate {
-    @objc func updateSettings() { presentUpdateSettings(read: { .current }) }
-    func presentUpdateSettings(read: @escaping () -> UpdateSettingsSnapshot) {
-        let page = SettingsTaskPage(title: "Updates", detail: "App updates and lid-helper updates are separate. A compatible app can restart while the helper keeps the current lid session for up to 60 seconds. Battery and watchdog deadlines still apply. A helper update waits for an open lid and your administrator authorization.", height: 508, statusHeight: 110)
-        let choose = page.add("Choose update…", detail: "Select a newer signed Perch.app. Verification and staging happen before restarting.") { AppUpdate.shared.choose() }
-        let restart = page.add("Update & restart", detail: "Apply the prepared app and restart Perch. Saved settings are kept; success requires the new app to reclaim any active lid session.") { AppUpdate.shared.restart() }
-        let finish = page.add("Finish helper update…", detail: "Requires the lid open. An active, confirmed lid choice is restored after the new helper responds, while the lid is still open.") { LidHelperUpdate.shared.finish() }
-        page.add("Keep awake…", detail: "Review the actual lid session, adjust your choices or repair a failed helper.") { [weak self] in self?.keepAwakeSettings() }
-        page.add("Lid activity…", detail: "See restart handoffs, battery timing and observed sleep/wake transitions.") { [weak self] in self?.lidActivity() }
-        page.update = { [weak page] in
-            let snapshot = read(), state = snapshot.helper
-            let blocked = snapshot.busy || snapshot.helperBusy
-            choose.isEnabled = !blocked
-            restart.isEnabled = snapshot.prepared && !blocked
-            finish.isEnabled = state.pending && state.lidOpen && !blocked
-            finish.title = snapshot.helperBusy ? "Updating lid helper…" : state.pending && !state.lidOpen ? "Open lid to finish helper update" : "Finish helper update…"
-            // Reserve room for both status blocks and recovery text. The last
-            // helper result replaces its notice and remains when returning.
-            page?.status.stringValue = snapshot.message + "\n" + (snapshot.helperResult ?? state.notice)
-        }
-        page.show(delegate: self)
+struct RestartSettingsSnapshot {
+    var busy = false
+    var message = ""
+    static var current: Self {
+        .init(busy: AppUpdate.shared.busy || LidHelperUpdate.shared.busy || LidGuardClient.shared.changing, message: AppUpdate.shared.message)
     }
 }

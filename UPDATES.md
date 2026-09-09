@@ -1,55 +1,39 @@
-# App updates and lid-helper updates
+# Restart Perch and separate lid-helper maintenance
 
-Perch's **App settings → Updates** page accepts a newer local, signed `Perch.app`.
-There is no release feed, download, public upload or automatic installation.
-The app must be in a user-owned writable location. A copy running from a mounted
-volume must first be moved to a writable Applications folder.
+**App settings → Restart Perch** closes and reopens the installed app. There is
+no Updates page, file picker, download or installation in this action. Saved
+choices are kept. A real update checker and release distribution are deferred
+until release work.
 
-## App update transaction
+## Restart contract
 
-1. Choose an update. Verify its complete signature against the running app's
-   designated requirement, bundle identity, newer build and compatible lid
-   protocol. Copy it into private Application Support staging and verify again.
-   Choosing does not restart Perch or change a setting. Back/Close keeps the
-   prepared candidate during this app session; verification errors keep the
-   previously prepared candidate.
-2. **Update & restart** rechecks both app identities and the destination. An
-   active session must be owned by this app and confirmed by a compatible helper.
-   Otherwise the lid must be open. A saved preference is not session authority.
-3. The helper issues one UUID ticket pinned to the staged executable's code hash,
-   with a continuous-clock deadline 60 seconds away. Retrying the preparation
-   returns the same ticket and deadline. It does not reset the existing battery
-   countdown, watchdog state, ownership token or sleep-interruption state.
-4. Start the signed staged worker. The old app waits for the worker to acknowledge
-   verification before quitting. A failed spawn/readiness check requests
-   cancellation of the allowance and keeps the old app running. A missing
-   preparation reply also requests cancellation. Connection failure is reported
-   as uncertain; it is never displayed as successful preservation.
-5. The worker waits for that specific old PID and birth identity to exit, checks
-   both bundles again, moves the old app to a sibling backup, installs the staged
-   app and launches it with the ticket. A failed file move restores the old app;
-   later failure retains a backup and attempts to reopen an intact verified app.
-6. The new app claims through a separate authenticated XPC endpoint restricted
-   to the ticket's exact code hash and the helper's configured user. Its existing
-   helper session then resumes ordinary five-second app renewals. Old connections,
-   wrong tickets, expiry, disable and stopped policy cannot claim. The normal
-   status/cancellation endpoint stays accessible during preparation failures.
-7. The worker requires the new app's completion receipt before removing its
-   backup. A launch alone is not completion. A failed claim does not enable a
-   replacement lid session. Updates retains the result and reopens after restart.
+1. Verify the app at its current path against this publisher’s signing identity.
+   A plain restart does not require a writable installation and never copies,
+   moves or replaces the app bundle.
+2. An active lid session requires a confirmed owned session and a compatible
+   helper. With an inactive session and a closed lid, require fresh native
+   evidence that both sleep-override states are off and no ownership is recorded.
+   Otherwise explain that the lid must be opened or Keep awake reviewed.
+3. The helper grants one ticket, pinned to the exact app code hash, for at most
+   60 seconds. Existing battery countdowns, watchdog deadlines and ownership do
+   not reset. Missing, expired or failed claims never create a new session.
+4. Start a worker from the verified app. Keep the original process running until
+   the worker acknowledges readiness. Failed readiness cancels the attempt and
+   the handoff ticket, leaving a visible retry action in App settings.
+5. The worker waits for the specific original PID and birth identity to exit,
+   verifies the app again, and starts its exact executable. It waits for the new
+   app’s completion receipt. App settings reopens with the result; a failed lid
+   claim directs the user to Keep awake. A launch alone is not successful handoff.
+6. The independent watchdog still has its short lease. Closed-battery expiry
+   requests sleep even during restart. A missing replacement eventually ends the
+   allowance; no restart path grants extra battery time.
 
-The independent watchdog still receives short leases, normally three seconds,
-and its acknowledgments must remain fresh. Closed-battery expiry still requests
-sleep even if the update allowance has time left. At app-allowance expiry, normal
-fail-safe policy ends protection and requests sleep when closed without external
-power. No system-wide persistent sleep setting is written by the updater.
-
-These rules preserve the supervised session, **not proof of physical sleep
-behavior**. Helper revision 2 replaces the shared clamshell flag with the
-[guarded system override and independent recovery](LID-RECOVERY.md); older
-helpers retain the known powerd/shared-bit defect until separately updated.
-A lost cancellation/claim reply may end protection; it must not be hidden by
-silently creating a fresh session.
+The internal worker retains legacy file-replacement compatibility for builds
+68–69, so those installed apps can bootstrap to this version. That branch checks
+both bundles, retains a rollback copy and requires completion acknowledgment.
+It is no longer an exposed user workflow. The plain restart branch cannot enter
+file replacement. These mechanisms preserve the supervised session, not proof
+of physical sleep prevention; see [lid recovery](LID-RECOVERY.md).
 
 ## Separate helper revision and visible deferral
 
@@ -59,9 +43,8 @@ do not make a compatible lid helper obsolete. Increment the helper revision
 when its implementation needs replacing; incompatible protocol changes require
 an explicit migration and cannot use this app-only handoff.
 
-A required installed-helper update appears in Setup & status, Keep awake and
-Updates. The existing helper remains installed while the lid is closed. Opening
-the lid makes **Finish helper update…** available; it does not spring an automatic
+A required installed-helper update appears in Setup & status and Keep awake. The existing helper remains installed while the lid is closed. Opening
+the lid makes **Finish lid helper update…** available; it does not spring an automatic
 administrator prompt. Back/Close does not clear the version-based pending notice.
 A missing optional helper is not presented as a mandatory update.
 
@@ -77,6 +60,16 @@ The first upgrade from build 63 needs the lid open, followed by the queued helpe
 update and explicit re-enabling if the old session could not be confirmed.
 Known legacy builds 44–68 can still perform their corrected explicit cleanup
 without replacement merely because the app build changed.
+
+## Development launch and access
+
+Launch the live app through LaunchServices (`open -a /absolute/Perch.app`).
+Executing its binary from an agent terminal can attribute privacy checks to that
+agent, despite Perch already being enabled. This reproduced unavailable MX Keys
+Fn controls. Normal launch restored access without permission changes; the
+in-app worker then preserved the correct attribution across a plain restart.
+The explicit permission state is not itself proof that a particular process has
+access. Check provenance before requesting a reset or another grant.
 
 ## Verification boundaries
 

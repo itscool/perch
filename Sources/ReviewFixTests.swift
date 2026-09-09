@@ -93,7 +93,7 @@ func runReviewFixTests() throws {
     try check(app.monitorInputItem.isEnabled && app.monitorInputItem.action == #selector(AppDelegate.monitorInputSettings), "Monitor setup hint does not navigate")
     app.keyboardModes.results = [.init(name: "Fixture", detail: "Needs setup", verified: false)]
     app.refreshExternalFunctionKeyItem()
-    try check(app.externalFnItem.isEnabled && app.externalFnItem.action == #selector(AppDelegate.keyboardSettings), "Keyboard setup hint still toggles")
+    try check(app.externalFnItem.isEnabled && app.externalFnItem.action == #selector(AppDelegate.keyboardDetails), "Unavailable Fn mode did not route to its detailed recovery")
     try check(app.validateMenuItem(app.externalFnItem), "Menu validation blocks the keyboard setup route")
     let keyboard = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Saved keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
     var profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68,0x69,nil,nil])]

@@ -190,7 +190,7 @@ enum ExternalKeyboardModes {
                 }) { endpoint = sibling }
             }
             guard IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted else {
-                results.append(.init(name: name, detail: "⚠ Enable Input Monitoring for Perch to configure this keyboard’s Fn mode.", verified: false, needsAccess: true)); continue
+                results.append(.init(name: name, detail: "⚠ macOS is not granting this process Input Monitoring access. If Perch is already enabled there, quit and reopen it from Finder.", verified: false, needsAccess: true)); continue
             }
             do {
                 let session = try KeyboardHIDSession(service: endpoint)

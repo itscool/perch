@@ -26,17 +26,18 @@ extension AppDelegate {
         guard let item = externalFnItem else { return }
         let results = keyboardModes.results
         let modes = Set(results.compactMap { $0.standard })
-        item.state = modes.count > 1 ? .mixed : modes.first == true ? .on : .off
+        item.state = modes.count > 1 || (modes.isEmpty && !results.isEmpty) ? .mixed : modes.first == true ? .on : .off
         let failed = results.filter { !$0.verified }
         let hint: String
         if keyboardModes.blocksFunctionKeyChanges { hint = "Checking keyboards…"; item.state = .mixed }
+        else if keyboardModes.needsAccess { hint = "Input Monitoring unavailable" }
         else if !failed.isEmpty { hint = "⚠ \(failed.count) need setup · see Settings" }
         else if modes.count > 1 { hint = "Mixed modes" }
         else if let mode = modes.first { hint = mode ? "Without Fn" : "Hold Fn" }
         else { hint = "No keyboard" }
         label(item, "Use F1–F12 directly", hint: hint, hintColor: failed.isEmpty ? .secondaryLabelColor : StatusColors.warning)
         item.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (!modes.isEmpty || !failed.isEmpty)
-        item.action = failed.isEmpty ? #selector(toggleExternalFunctionKeys) : #selector(keyboardSettings)
+        item.action = failed.isEmpty ? #selector(toggleExternalFunctionKeys) : #selector(keyboardDetails)
         (item.view as? MenuRowView)?.opensAnotherInterface = { !failed.isEmpty }
         item.toolTip = "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
     }
@@ -102,6 +103,9 @@ extension AppDelegate {
         keyboardSetupItem.isHidden = !unknown
     }
     @objc func keyboardSettings() { keyboardSettingsView(details: false) }
+    func openKeyboardPreferences(permission: Bool) {
+        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: permission ? "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" : "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!) }
+    }
     @objc func keyboardDetails() { keyboardSettingsView(details: true) }
     func keyboardSettingsView(details: Bool) {
         if menuOpen { withMenuClosed { [weak self] in self?.keyboardSettingsView(details: details) }; return }
@@ -125,7 +129,7 @@ extension AppDelegate {
                 self.keyboardSettingsView(details: details)
             }
             fn.setButtonType(.switch); fn.allowsMixedState = true
-            fn.state = builtIn ? nativeMode.map { $0 ? .on : .off } ?? .mixed : externalModes.count > 1 ? .mixed : externalModes.first == true ? .on : .off
+            fn.state = builtIn ? nativeMode.map { $0 ? .on : .off } ?? .mixed : externalModes.count > 1 || (externalModes.isEmpty && !keyboardModes.results.isEmpty) ? .mixed : externalModes.first == true ? .on : .off
             fn.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (builtIn ? nativeMode != nil && nativeKeyboards.contains { $0.builtIn } : !externalModes.isEmpty)
             fn.toolTip = builtIn ? "On: F1–F12 without Fn. Off: media controls without Fn. External choices are preserved." : "Applies to all supported external keyboards. Mixed indicates different observed modes. Unavailable devices are explained below."
             fn.frame = NSRect(x: x, y: 423, width: 269, height: 28); view.addSubview(fn)
@@ -145,7 +149,11 @@ extension AppDelegate {
         text(keyboardModes.blocksFunctionKeyChanges ? "Checking keyboard settings…" : "On: F1–F12 work without holding Fn. Off: media controls work directly. Checkmarks show observed settings; mixed means different or custom settings.", 340, 43, color: .secondaryLabelColor)
         if !details {
             let status = keyboardModes.blocksFunctionKeyChanges ? "Reading connected keyboards…" : keyboardModes.needsAccess ? "Some external controls need Input Monitoring. Open keyboard details for the affected devices and access setup." : keyboardModes.results.contains(where: { !$0.verified }) || !keyboardModes.modifierErrors.isEmpty ? "Some keyboard controls need attention. Keyboard details lists the affected devices and the next step." : !nativeKeyboards.contains(where: { !$0.builtIn }) ? "No external keyboard is connected. Its controls become available when one connects." : externalModes.isEmpty ? "External F1–F12 status is unavailable. Recheck keyboards, or open details for supported controls and access setup." : "Connected keyboard controls are available. Navigation keys and app exceptions are optional choices below."
-            text(status, 250, 70, color: .secondaryLabelColor)
+            if keyboardModes.needsAccess && !keyboardModes.blocksFunctionKeyChanges {
+                text("macOS is not allowing external Fn access. Check Perch in Input Monitoring. If already enabled, quit and reopen Perch from Finder.", 282, 54, color: StatusColors.warning)
+                let access = SettingsActionButton(title: "Open macOS Input Monitoring") { [weak self] in self?.openKeyboardPreferences(permission: true) }
+                access.frame = NSRect(x: 0, y: 249, width: 572, height: 32); view.addSubview(access)
+            } else { text(status, 250, 70, color: .secondaryLabelColor) }
             let navigation = SettingsActionButton(title: "Navigation keys…") { [weak self] in self?.navigationSettings() }
             navigation.frame = NSRect(x: 0, y: 205, width: 572, height: 32); view.addSubview(navigation)
             text("Behavior, app exceptions, learning and saved layouts in one place.", 172, 28, color: .secondaryLabelColor)
@@ -195,7 +203,7 @@ extension AppDelegate {
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
         let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open macOS Input Monitoring" : "Open macOS Keyboard Settings") { [weak self] in
             let permission = self?.keyboardModes.needsAccess == true
-            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: permission ? "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" : "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!) }
+            self?.openKeyboardPreferences(permission: permission)
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
         if keyboardModes.needsAccess {

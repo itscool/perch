@@ -20,3 +20,15 @@ then, during an announced active session, use `--run-only --output DIR
 --agent-session SESSION`. The runner checks before launch and between suites;
 visible panel cases check again immediately before presentation. Do not start
 or restart a session automatically after the user asks for control.
+
+# Launch identity and privacy checks
+
+Launch the live menu app through macOS LaunchServices (`open -a /absolute/Perch.app`),
+not by executing `Contents/MacOS/Perch` from the agent shell. A direct terminal
+launch can attribute Input Monitoring checks to Codex/the terminal despite
+Perch already being enabled. This reproduced the MX Keys disabled-control bug.
+Do not reset or re-request permission as the first response to that discrepancy:
+check launch provenance, signing identity and scoped TCC attribution, then verify
+normal app launch. Headless tools and deliberately isolated test subprocesses are
+separate; the in-app verified restart worker has a live test preserving Perch’s
+own attribution. Keep this distinction when changing launch/restart mechanisms.

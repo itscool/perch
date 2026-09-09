@@ -88,3 +88,16 @@ session check before running and at visible action boundaries. Compile before
 taking control. Stop when the user requests control; do not automatically restart
 the indicator. Truly nonpresenting render/policy tests remain eligible for
 background execution. Isolation of data and hardware is not isolation of UI.
+
+## Permission enabled but process denied
+
+Scenario: a keyboard control is disabled; the user shows that the app is already
+enabled in OS Input Monitoring. The agent launched the executable directly from
+its terminal. The page says only “enable access” behind another details page.
+
+Expected: investigate launch provenance/current identity and scoped OS
+attribution; replay normal app launch and in-app restart without resetting
+permissions. Put the unavailable capability and recovery beside the control,
+including the already-enabled case. Do not claim the permission was never
+granted or render an unreadable setting as off. A genuinely absent permission
+still needs the direct OS grant route; provenance checking does not replace it.

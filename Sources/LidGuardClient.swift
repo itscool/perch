@@ -233,7 +233,7 @@ extension AppDelegate {
         do {
             let installed = enabled && LidGuardClient.shared.status?.fresh != true
             if installed {
-                guard !LidHelperUpdate.shared.state.pending else { throw AppError(message: "A lid-helper update is queued. Open Updates and finish it with the lid open before enabling a new session.") }
+                guard !LidHelperUpdate.shared.state.pending else { throw AppError(message: "A lid-helper update is queued. Open Keep awake and finish it with the lid open before enabling a new session.") }
                 try LidGuardInstall.install()
             }
             LidGuardClient.shared.start()

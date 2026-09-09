@@ -131,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         status.button?.image = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")
         status.button?.toolTip = "Perch — your Mac, ready for AI work"
         buildMenu()
+        installApplicationMenu()
         status.menu = menu
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
         keyboardModes.start()
@@ -144,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
             }
             if CommandLine.arguments.contains("--complete-update") || CommandLine.arguments.contains("--show-updates") {
-                self?.configureSettings(); self?.appSettings(); self?.updateSettings()
+                self?.configureSettings(); self?.appSettings()
             }
         }
         inputTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -491,7 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if item === monitorInputItem { return monitorInputMenuEnabled }
         if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }
-        if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardSettings) || keyboardModes.results.contains { $0.standard != nil }) }
+        if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardDetails) || keyboardModes.results.contains { $0.standard != nil }) }
         if item === trackpadItem || item === wheelItem || item === homeEndItem || item === pageKeysItem { return item.isEnabled }
         return true
     }
@@ -573,7 +574,7 @@ if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--apply-update
     _ = NSApplication.shared; NSApp.setActivationPolicy(.prohibited)
     do { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
     catch {
-        UserDefaults.standard.set("Update did not complete. " + error.localizedDescription, forKey: AppUpdate.noticeKey)
+        UserDefaults.standard.set("Restart did not complete. " + error.localizedDescription, forKey: AppUpdate.noticeKey)
         fputs("Update failed: \(error.localizedDescription)\n", stderr); exit(1)
     }
 }

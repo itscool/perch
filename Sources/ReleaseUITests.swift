@@ -109,6 +109,18 @@ func runReleaseUITests() throws {
 
     // Exercise the production toggle action route with a harmless local target.
     let target = ReleaseToggleTarget()
+    let appMenu = AppDelegate.applicationMenu(quitTarget: target, quitAction: #selector(ReleaseToggleTarget.toggle(_:)))
+    let cmdQ = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil, characters: "q", charactersIgnoringModifiers: "q", isARepeat: false, keyCode: 12)!
+    try check(appMenu.performKeyEquivalent(with: cmdQ) && target.presses == 1, "Command-Q did not reach the application menu's quit target")
+    let shortcutApp = AppDelegate(); shortcutApp.buildMenu(); shortcutApp.menuOpen = true
+    let quitItem = shortcutApp.menu.items.first { $0.keyEquivalent == "q" }!
+    quitItem.target = target; quitItem.action = #selector(ReleaseToggleTarget.toggle(_:))
+    try check(shortcutApp.handleMenuShortcut(cmdQ), "Open status menu ignored its Quit shortcut")
+    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    try check(target.presses == 2, "Status-menu shortcut did not dispatch Quit")
+    shortcutApp.menuOpen = false
+    try check(!shortcutApp.handleMenuShortcut(cmdQ), "Closed status menu captured another app's Quit")
+    target.presses = 0
     let toggle = NSMenuItem(title: "Test toggle", action: #selector(ReleaseToggleTarget.toggle(_:)), keyEquivalent: "")
     toggle.target = target
     let row = MenuRowView(item: toggle, kind: .toggle)
@@ -209,6 +221,20 @@ func runReleaseUITests() throws {
     app.keyboardModes.results = [.init(name: "Test external keyboard", detail: "✓ Firmware mode read", verified: true, standard: true)]
     app.refreshFunctionKeyItem(false)
     try check(app.fnItem.state == .off && app.externalFnItem.state == .on, "External Fn state changed with built-in Fn state")
+
+    app.keyboardModes.results = [.init(name: "MX Keys", detail: "Input Monitoring needed", verified: false, needsAccess: true)]
+    app.refreshExternalFunctionKeyItem()
+    try check(app.externalFnItem.state == .mixed && app.validateMenuItem(app.externalFnItem) && app.externalFnItem.action == #selector(AppDelegate.keyboardDetails), "Permission loss looked off or blocked the repair route")
+    let accessApp = AppDelegate(); accessApp.buildMenu()
+    accessApp.keyboardModes.results = app.keyboardModes.results
+    accessApp.configureSettings(); accessApp.keyboardSettings()
+    let accessPage = SettingsWindow.shared.pages.last!.view
+    try check(accessPage.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Open macOS Input Monitoring" }, "Missing permission requires discovering another page")
+    try renderReleaseView(SettingsWindow.shared.window.contentView!, path: "/private/tmp/perch-keyboard-access.png")
+    SettingsWindow.shared.goBack(); SettingsWindow.shared.goBack()
+    app.keyboardModes.results = [.init(name: "MX Keys", detail: "Confirmed", verified: true, standard: false)]
+    app.refreshExternalFunctionKeyItem()
+    try check(app.externalFnItem.state == .off && app.externalFnItem.action == #selector(AppDelegate.toggleExternalFunctionKeys) && app.validateMenuItem(app.externalFnItem), "Restored Fn permission did not restore the toggle")
 
     let visibleItems = app.menu.items.filter { !$0.isHidden }
     let menuWidth = max(430, visibleItems.compactMap { $0.view?.frame.width }.max() ?? 430)

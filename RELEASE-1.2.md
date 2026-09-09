@@ -1,6 +1,40 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 69. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 73. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 73: direct restart, Quit shortcuts and clear Fn recovery
+
+App settings replaces the developer-oriented Updates page with **Restart Perch**.
+Restart reopens the installed app without choosing or installing anything. Its
+verified worker preserves a compatible active lid session with the existing
+bounded ticket and unchanged battery/watchdog deadlines. Inactive closed-lid
+restart is allowed only after confirming the override is off and unowned.
+Required lid-helper updates remain visible in Keep awake and Setup & status.
+A release update checker is deferred.
+
+Quit now has application-menu wiring for Settings and explicit shortcut routing
+in the custom status menu. The tuned status-menu layout is unchanged. The user
+confirmed CPU colors and password entry. The MX Keys Fn-access failure was
+traced to direct terminal launching: macOS attributed access to Codex even though
+Perch was already enabled in Input Monitoring. Normal app launch restored access
+without changing permissions; in-app Restart preserved it. The Fn page now shows
+unknown state and a direct Input Monitoring route when access is unavailable,
+with recovery wording for an already-enabled app. Ordinary Keep awake flicker
+remains open.
+
+Build 70 live checks confirmed ordinary restart, Command-Q from Settings and
+retained Fn access after restart. Isolated tests cover both Quit routes, plain
+restart without bundle replacement, cancellation, legacy bootstrap replacement,
+unchanged battery/watchdog limits and helper-maintenance recovery. Production and isolated compilation completed with zero warnings. All 20
+isolated suites passed after correcting the dialog test setup, its superseded
+recovery-route expectation and isolation of the durable lid ownership journal;
+the final changed AppKit suite passed a targeted rerun. Light/dark recovery
+renders and strict signatures passed. Build 73 is prepared as a local package.
+Build 70 remains installed and running because the user activated lid protection
+during verification; the active session and helper processes were preserved.
+Active lid-session restart and remaining hardware/failure acceptance stay open.
+No permissions were reset or changed, no physical Fn toggle was issued and no
+public release was made.
 
 ## Build 69: usable controls during polling and guarded lid recovery
 

@@ -125,6 +125,14 @@ lid.write_text(lid_text)
 
 lid_service = src / 'LidGuardService.swift'
 lid_service.write_text(lid_service.read_text().replace('/var/run/local.scott.perch.lid.active', str(root / 'isolated-lid-ownership')))
+# The durable ownership journal is a second source of session state. Do not let
+# a live user session leak into the isolated menu's otherwise disconnected IPC.
+override = src / 'LidSleepOverride.swift'
+override.write_text(override.read_text()
+    .replace('/var/db/local.scott.perch.lid-override', str(root / 'isolated-override'))
+    .replace('/var/run/local.scott.perch.lid-override.lock', str(root / 'isolated-override.lock'))
+    .replace('/var/run/local.scott.perch.lid-override.lease', str(root / 'isolated-override.lease')))
+
 app = root / 'Perch Functional Review.app' / 'Contents'
 (app / 'MacOS').mkdir(parents=True, exist_ok=True)
 (app / 'Resources').mkdir(exist_ok=True)

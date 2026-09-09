@@ -1,7 +1,8 @@
 # Dialog interaction audit — September 9, build 75 candidate
 
 User report: another dialog had nonfunctional buttons and required the window X.
-The exact page/preceding action is not yet identified. Installed build 70 remains
+The user later recalled Agent Kill Switch setup while assigning the shortcut,
+possibly a child dialog. The exact screen is still unconfirmed. Installed build 70 remains
 running; prepared build 74 was not installed. This audit covers current source
 at 5a92c60 and the corrections below, not a claim that the user has the fixes.
 
@@ -36,6 +37,27 @@ These findings establish source risks and corrected contracts. They do not
 establish which risk caused the user's unidentified dialog failure. The native
 modal APIs remain centralized in SettingsWindow; this change does not replace
 all OS modal loops or use worksWhenModal to bypass their protections.
+
+## Focused replay from the user's shortcut clue
+
+Start with Agent Kill Switch → Agents, shortcut & panic actions. Exercise the
+enable checkbox, each modifier and the key popup, including incomplete edits,
+valid autosave, Back and reopening. Assignment itself opens no child alert in
+the current source; do not assume the user was testing rather than assigning.
+Keep configuration writes and shortcut registration injected in an isolated app.
+
+Separately follow Agent Kill Switch → Test shortcut → preparation/countdown →
+result → Back → Ending shortcut test → parent. Inject success, timeout, cancel,
+helper loss and delayed cleanup. Verify actual mouse input, keyboard navigation,
+parent controls after return and repeated entry. The cleanup screen deliberately
+disables Waiting and Back/X while it waits, but must complete within its five-
+second bound and report unconfirmed restoration. A screen that remained stuck
+until X is not explained merely by that deliberate temporary disabled state.
+
+Also cancel the neighboring Add app / Add executable native pickers and verify
+parent controls afterward if the shortcut path does not reproduce the report.
+Record the exact title, preceding action and first failed control. The generic
+smoke lab and injected response tests cannot close this product-route report.
 
 ## Whole-set source ledger
 

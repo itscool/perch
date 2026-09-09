@@ -4,6 +4,15 @@ September 9, 2026, build 75. This is a local build for trying the implemented 1.
 
 ## Build 75: dialog ownership and whole-set interaction audit
 
+Installation follow-up: the user authorized installing build 75. It is now
+installed at `build/Perch.app` and running after a LaunchServices launch; the
+guardian/input helper copy also reports build 75. Saved preferences compared
+equal before/after. At installation the lid session was already inactive, both
+override readings were off and ownership records were absent. The existing lid
+supervisor/watchdog were preserved. This was not an active-session handoff test.
+Native dialog acceptance remains open; see the installation checkpoint in
+V1.2-REVIEW.md. Earlier preparation-only statements below record the prior pass.
+
 Dialog timers and buttons can finish only their own active confirmation.
 Background page refreshes cannot replace its controls or heading. Closing
 Settings during a Finder/System Settings handoff releases that ownership so

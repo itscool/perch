@@ -4,9 +4,12 @@
 Uses distinct preferences, config storage and XPC names. Startup, AppleScript,
 helper installation and physical monitor requests are blocked in the test copy.
 The production sources and installed app are not rewritten by this tool.
+Native panel tests can show windows: execution requires an active AGENT MODE
+session. Compile with --build-only before starting that short desktop session.
 """
 from pathlib import Path
 import argparse
+import os
 import plistlib
 import re
 import shutil
@@ -15,9 +18,33 @@ import tempfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path)
+mode = parser.add_mutually_exclusive_group()
+mode.add_argument('--build-only', action='store_true')
+mode.add_argument('--run-only', action='store_true')
+parser.add_argument('--agent-session', type=Path)
+parser.add_argument('--suite', help='Run one named suite from the existing isolated binary')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 root = args.output.resolve() if args.output else Path(tempfile.mkdtemp(prefix='perch-functional-review-'))
+def execute_tests():
+    if args.agent_session is None:
+        parser.error('Native panel tests require --agent-session. Use --build-only for background compilation.')
+    checker = repo / 'Tools/agent-mode/agent-mode.py'
+    session = args.agent_session.resolve()
+    subprocess.run(['python3', str(checker), 'check', '--session', str(session)], check=True)
+    environment = dict(os.environ, PERCH_AGENT_MODE_CHECKER=str(checker), PERCH_AGENT_MODE_SESSION=str(session))
+    subprocess.run([str(root / 'Perch Functional Review.app/Contents/MacOS/Perch')] + (['--suite', args.suite] if args.suite else []), env=environment, check=True)
+
+if not args.build_only and args.agent_session is None:
+    parser.error('Native panel tests require --agent-session. Use --build-only for background compilation.')
+if args.run_only:
+    if args.output is None:
+        parser.error('--run-only requires the existing --output directory')
+    execute_tests()
+    raise SystemExit(0)
+fixture_storage = Path(tempfile.mkdtemp(prefix='perch-functional-storage-')).resolve()
+(root / 'fixture-storage.txt').parent.mkdir(parents=True, exist_ok=True)
+(root / 'fixture-storage.txt').write_text(str(fixture_storage))
 src = root / 'Sources'
 src.mkdir(parents=True, exist_ok=True)
 for path in (repo / 'Sources').iterdir():
@@ -35,6 +62,21 @@ declarations = declarations.replace('\nfunc sleepDisabled()', '\n*/}\n\nfunc sle
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.contains("--show-updates") { exit(0) } // Fixture recovery never runs the suite recursively.
+// Disposable updater subprocesses have the test bundle identity and isolated
+// storage. They never run AppDelegate or install/contact production helpers.
+if CommandLine.arguments.count == 3 && ["--apply-update", "--complete-update"].contains(CommandLine.arguments[1]) {
+    do {
+        let record = try AppUpdate.readRecord(CommandLine.arguments[2])
+        if CommandLine.arguments[1] == "--complete-update", let birth = ProcessCPUReader.birth(getpid()) {
+            try JSONEncoder().encode(["pid": UInt64(getpid()), "birth": birth]).write(to: record.candidate.directory.appendingPathComponent("fixture-completer.json"))
+        }
+        guard record.ticket == nil else { throw AppError(message: "Live lid handoffs are blocked in disposable update fixtures") }
+        if CommandLine.arguments[1] == "--apply-update" { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
+        DispatchQueue.main.async { AppUpdate.completeLaunch { exit(0) } }
+        NSApp.run()
+    } catch { fputs("FIXTURE UPDATE FAILED: \\(error)\\n", stderr); exit(1) }
+}
 SettingsWindow.shared.testing = true
 let suites: [(String, () throws -> Void)] = [
     ("catalog", runCatalogTests), ("CPU logic", runProcessCPUTests),
@@ -48,16 +90,21 @@ let suites: [(String, () throws -> Void)] = [
     ("keyboard registration", runKeyboardRegistrationTests), ("AppKit settings", runSettingsTests),
     ("multi-monitor groups", runMonitorGroupTests), ("lid grace and enforcement", runLidGuardTests)
 ]
+let selected = CommandLine.arguments.firstIndex(of: "--suite").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }
+let chosen = suites.filter { selected == nil || $0.0 == selected }
+guard !chosen.isEmpty else { fputs("Unknown suite\\n", stderr); exit(2) }
 var failures = 0
-for (name, run) in suites {
+for (name, run) in chosen {
+    do { try DesktopTestSession.check() }
+    catch { print("DESKTOP HANDOFF: \\(error)"); exit(2) }
     do { try run(); print("SUITE PASS: \\(name)") }
     catch { failures += 1; print("SUITE FAIL: \\(name): \\(error)") }
 }
-print("RESULT: \\(suites.count - failures)/\\(suites.count) isolated suites passed")
+print("RESULT: \\(chosen.count - failures)/\\(chosen.count) isolated suites passed")
 exit(failures == 0 ? 0 : 1)
 ''')
 model = src / 'AgentSafetyModel.swift'
-model.write_text(model.read_text().replace('FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Perch/Safety", isDirectory: true)', 'URL(fileURLWithPath: "' + str(root / 'isolated-safety') + '", isDirectory: true)'))
+model.write_text(model.read_text().replace('FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Perch/Safety", isDirectory: true)', 'URL(fileURLWithPath: "' + str(fixture_storage) + '", isDirectory: true)'))
 ipc = src / 'HelperStatusIPC.swift'
 ipc.write_text(ipc.read_text().replace('local.scott.perch.guardian.status', 'local.perch.functional-review.guardian.status').replace('local.scott.perch.input.status', 'local.perch.functional-review.input.status'))
 installer = src / 'GuardianInstall.swift'
@@ -92,4 +139,5 @@ run('xcrun', 'swiftc', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-
 run('codesign', '--force', '--sign', '-', str(app / 'MacOS/PerchDisplay'))
 run('codesign', '--force', '--sign', '-', str(app.parent))
 print('Isolated review artifacts:', root, flush=True)
-run(str(app / 'MacOS/Perch'))
+if not args.build_only:
+    execute_tests()

@@ -5,8 +5,19 @@ enum LidGuardInstall {
     static let bundle = "/Library/PrivilegedHelperTools/Perch Lid Helper.app"
     static let binary = bundle + "/Contents/MacOS/Perch"
     static func cleanupRequiresUpdate(appInfo: [String: Any] = Bundle.main.infoDictionary ?? [:], executable: URL = URL(fileURLWithPath: binary)) -> Bool {
-        !GuardianInstall.buildMatches(executable: executable, appInfo: appInfo)
+        guard let data = try? Data(contentsOf: executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Info.plist")),
+              let installed = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
+              let identifier = appInfo["CFBundleIdentifier"] as? String,
+              installed["CFBundleIdentifier"] as? String == identifier else { return true }
+        if installed["PerchLidProtocolVersion"] as? Int == LidGuardCompatibility.protocolVersion,
+           (installed["PerchLidHelperVersion"] as? Int ?? 0) >= 1 { return false }
+        // These shipped helpers already have the corrected power connection
+        // and --lid-cleanup contract. An app-only update need not replace them
+        // simply to perform a user's explicit reset/disable cleanup.
+        if let build = Int(installed["CFBundleVersion"] as? String ?? ""), (44...67).contains(build) { return false }
+        return !GuardianInstall.buildMatches(executable: executable, appInfo: appInfo)
     }
+
     static func cleanup() throws {
         guard LidGuardOwnership.exists else { return }
         guard !SettingsWindow.shared.testing, let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Lid cleanup is unavailable.") }
@@ -19,17 +30,17 @@ enum LidGuardInstall {
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         _ = try script("do shell script \"\(escaped)\" with administrator privileges")
     }
-    static func install() throws {
+    static func install(requireOpenLid: Bool = false) throws {
         guard !SettingsWindow.shared.testing, getuid() >= 501,
               let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Install lid protection from the signed Perch app in your user session.") }
-        let command = try installationCommand(source: Bundle.main.bundleURL, requirement: requirement, owner: getuid())
+        let command = try installationCommand(source: Bundle.main.bundleURL, requirement: requirement, owner: getuid(), requireOpenLid: requireOpenLid)
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
         _ = try script("do shell script \"\(escaped)\" with administrator privileges")
     }
-    static func installationCommand(source: URL, requirement: String, owner: uid_t) throws -> String {
+    static func installationCommand(source: URL, requirement: String, owner: uid_t, requireOpenLid: Bool = false) throws -> String {
         guard source.pathExtension == "app", owner >= 501 else { throw AppError(message: "Use the signed Perch app to install lid protection.") }
         let plist = "/Library/LaunchDaemons/\(LidGuardService.name).plist"
-        let job: [String: Any] = ["Label": LidGuardService.name, "ProgramArguments": [binary, "--lid-guard", String(owner)], "MachServices": [LidGuardService.name: true], "RunAtLoad": true, "KeepAlive": true, "ThrottleInterval": 2, "ProcessType": "Background"]
+        let job: [String: Any] = ["Label": LidGuardService.name, "ProgramArguments": [binary, "--lid-guard", String(owner)], "MachServices": [LidGuardService.name: true, LidGuardService.restartName: true], "RunAtLoad": true, "KeepAlive": true, "ThrottleInterval": 2, "ProcessType": "Background"]
         let encoded = try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0).base64EncodedString()
         let staged = "/Library/PrivilegedHelperTools/.perch-lid-" + UUID().uuidString + ".app"
         let backup = "/Library/PrivilegedHelperTools/.perch-lid-backup-" + UUID().uuidString + ".app"
@@ -42,6 +53,7 @@ enum LidGuardInstall {
             "trap " + quote("if test -d " + quote(backup) + " && test ! -e " + quote(bundle) + "; then /bin/mv " + quote(backup) + " " + quote(bundle) + "; fi; /bin/rm -rf " + quote(staged)) + " EXIT\n" +
             "/usr/bin/ditto " + quote(source.path) + " " + quote(staged) + "\ntest -z \"$(/usr/bin/find " + quote(staged) + " -type l -print)\"\n/usr/sbin/chown -R root:wheel " + quote(staged) + "\n/bin/chmod -R go-w " + quote(staged) +
             "\n/usr/bin/codesign --verify --strict --test-requirement " + quote("=" + requirement) + " " + quote(staged) +
+            (requireOpenLid ? "\n" + quote(staged + "/Contents/MacOS/Perch") + " --check-lid-update" : "") +
             "\n/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true\n" +
             quote(staged + "/Contents/MacOS/Perch") + " --lid-cleanup\nif test -e " + quote(bundle) + "; then /bin/mv " + quote(bundle) + " " + quote(backup) + "; fi\n/bin/mv " + quote(staged) + " " + quote(bundle) +
             "\n/usr/bin/printf %s " + quote(encoded) + " | /usr/bin/base64 -D > " + quote(plist + ".new") +
@@ -67,12 +79,79 @@ final class LidGuardClient {
     private var connection: NSXPCConnection?
     private var timer: DispatchSourceTimer?
     private var responsiveness: NSObjectProtocol?
+    enum RestartRequest: Equatable { case prepare(String, String), resume(String), cancel(String, String) }
+    typealias RestartSend = (RestartRequest, @escaping (Data?) -> Void) -> Void
     private let injectedTransport: LidGuardSession.Send?
-    init(transport: LidGuardSession.Send? = nil) { injectedTransport = transport }
+    private let injectedRestart: RestartSend?
+    init(transport: LidGuardSession.Send? = nil, restart: RestartSend? = nil) { injectedTransport = transport; injectedRestart = restart }
+    private func sendRestart(_ request: RestartRequest, reply: @escaping (Data?) -> Void) {
+        if let injectedRestart { injectedRestart(request, reply); return }
+        let claiming: Bool
+        if case .resume = request { claiming = true } else { claiming = false }
+        guard let remote = proxy(restart: claiming, failure: { reply(nil) }) else { return }
+        switch request {
+        case .prepare(let token, let identity): remote.prepareRestart(token, targetIdentity: identity, reply: reply)
+        case .resume(let ticket): remote.resumeRestart(ticket, reply: reply)
+        case .cancel(let token, let ticket): remote.cancelRestart(token, ticket: ticket, reply: reply)
+        }
+    }
     var status: LidGuardStatus? { stateLock.withLock { publishedStatus } }
     var changing: Bool { stateLock.withLock { publishedChanging } }
     var active: Bool { let current = status; return current?.fresh == true && current?.armed == true && current?.error == nil }
     var detail: String { let current = status; return current?.fresh == true ? current!.displayDetail : "Lid protection is not confirmed. Checking the helper connection…" }
+    func prepareForRestart(identity: String, completion: @escaping (Result<LidRestartTicket, Error>) -> Void) {
+        guard !SettingsWindow.shared.testing || injectedRestart != nil else { completion(.failure(AppError(message: "Live updates are blocked in tests."))); return }
+        queue.async {
+            guard let token = self.session.activeToken else {
+                DispatchQueue.main.async { completion(.failure(AppError(message: "The active lid session is not owned by this app. Open the lid before updating."))) }; return
+            }
+            var finished = false
+            let finish: (Data?) -> Void = { data in
+                self.queue.async {
+                    guard !finished else { return }; finished = true
+                    let result: Result<LidRestartTicket, Error>
+                    if let data, let reply = try? JSONDecoder().decode(LidGuardReply.self, from: data), reply.status.fresh,
+                       reply.restartError == nil, let ticket = reply.restart, ticket.targetIdentity == identity,
+                       ticket.deadline > LidGuardClock.now {
+                        result = .success(ticket)
+                    } else {
+                        self.sendRestart(.cancel(token, ""), reply: { _ in })
+                        result = .failure(AppError(message: "Restart preparation was not confirmed. Perch is still running; review Keep awake because the lid session may end if the helper connection was lost."))
+                    }
+                    DispatchQueue.main.async { completion(result) }
+                }
+            }
+            self.sendRestart(.prepare(token, identity), reply: finish)
+            self.queue.asyncAfter(deadline: .now()+3) { finish(nil) }
+        }
+    }
+    func resumeAfterRestart(_ ticket: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard !SettingsWindow.shared.testing || injectedRestart != nil else { completion(.failure(AppError(message: "Live updates are blocked in tests."))); return }
+        queue.async {
+            self.connection?.invalidate(); self.connection = nil
+            var finished = false
+            let finish: (Data?) -> Void = { data in
+                self.queue.async {
+                    guard !finished else { return }; finished = true
+                    let result: Result<Void, Error>
+                    do {
+                        guard let data else { throw AppError(message: "The lid helper did not respond to the updated app.") }
+                        try self.session.adoptRestart(data); result = .success(())
+                    } catch { result = .failure(error) }
+                    DispatchQueue.main.async { completion(result) }
+                }
+            }
+            self.sendRestart(.resume(ticket), reply: finish)
+            self.queue.asyncAfter(deadline: .now()+3) { finish(nil) }
+        }
+    }
+    func cancelRestart(_ ticket: String) {
+        guard !SettingsWindow.shared.testing || injectedRestart != nil else { return }
+        queue.async {
+            guard let token = self.session.activeToken else { return }
+            self.sendRestart(.cancel(token, ticket), reply: { _ in })
+        }
+    }
     private lazy var session = LidGuardSession(send: { [weak self] request, reply in
         guard let self else { reply(nil); return }
         let complete: (Data?) -> Void = { [weak self] data in self?.queue.async { reply(data) } }
@@ -110,10 +189,10 @@ final class LidGuardClient {
             self.timer = timer; timer.resume()
         }
     }
-    private func proxy(failure: @escaping () -> Void) -> LidGuardProtocol? {
+    private func proxy(restart: Bool = false, failure: @escaping () -> Void) -> LidGuardProtocol? {
         guard let requirement = HelperStatusIPC.requirement else { failure(); return nil }
         if connection == nil {
-            let new = NSXPCConnection(machServiceName: LidGuardService.name, options: .privileged)
+            let new = NSXPCConnection(machServiceName: restart ? LidGuardService.restartName : LidGuardService.name, options: .privileged)
             new.setCodeSigningRequirement(requirement); new.remoteObjectInterface = NSXPCInterface(with: LidGuardProtocol.self)
             new.resume(); connection = new
         }
@@ -142,7 +221,10 @@ extension AppDelegate {
     func changeSupervisedLid(_ enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
         do {
             let installed = enabled && LidGuardClient.shared.status?.fresh != true
-            if installed { try LidGuardInstall.install() }
+            if installed {
+                guard !LidHelperUpdate.shared.state.pending else { throw AppError(message: "A lid-helper update is queued. Open Updates and finish it with the lid open before enabling a new session.") }
+                try LidGuardInstall.install()
+            }
             LidGuardClient.shared.start()
             if installed { DispatchQueue.main.asyncAfter(deadline: .now()+0.8) { LidGuardClient.shared.change(enabled, completion: completion) } }
             else { LidGuardClient.shared.change(enabled, completion: completion) }

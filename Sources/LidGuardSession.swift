@@ -17,6 +17,16 @@ final class LidGuardSession {
     private var changing = false
     private var generation = UUID()
     private var lastStatus: LidGuardStatus?
+    var activeToken: String? { token }
+    func adoptRestart(_ data: Data) throws {
+        guard let reply = decode(data), reply.restartError == nil, reply.status.armed,
+              reply.status.error == nil, let token = reply.token, UUID(uuidString: token) != nil else {
+            throw AppError(message: (try? JSONDecoder().decode(LidGuardReply.self, from: data))?.restartError ?? "The updated app did not confirm its lid session.")
+        }
+        generation = UUID(); pending = false; changing = false
+        self.token = token; renewUntil = now() + 5
+        retain(reply)
+    }
 
     init(send: @escaping Send, schedule: @escaping (Double, @escaping () -> Void) -> Void,
          invalidate: @escaping () -> Void, publish: @escaping (LidGuardStatus?, Bool) -> Void,

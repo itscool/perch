@@ -12,5 +12,11 @@ control request. Stop the indicator when finished or yielding to the user.
 
 The indicator is cooperative, not an input lock or authorization for tests.
 It does not cancel actions already started. Preserve the user's restrictions
-on live permissions, hardware, emergency actions and publication. Source reads,
-compilation and isolated tests that do not operate the desktop need no banner.
+on live permissions, hardware, emergency actions and publication. Source reads and compilation need no banner. Isolated storage or prohibited
+activation does not make native window tests invisible. The functional suite
+contains tests that show Settings panels and therefore requires the banner.
+Build it first with `Tools/check-functional-review.py --build-only --output DIR`,
+then, during an announced active session, use `--run-only --output DIR
+--agent-session SESSION`. The runner checks before launch and between suites;
+visible panel cases check again immediately before presentation. Do not start
+or restart a session automatically after the user asks for control.

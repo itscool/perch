@@ -91,8 +91,10 @@ struct LidGuardPolicy {
 }
 
 struct LidGuardStatus: Codable {
-    static let revision = 1
+    static let revision = LidGuardCompatibility.protocolVersion
     var revision = Self.revision
+    var helperVersion = LidGuardCompatibility.helperVersion
+    var helperBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
     var codeIdentity = LidGuardIdentity.current
     var updatedAt: Double
     var armed: Bool
@@ -101,5 +103,7 @@ struct LidGuardStatus: Codable {
     var error: String? = nil
     var activityError: String? = nil
     var displayDetail: String { armed && error == nil ? "Lid mode requested; prevention is unverified. " + detail : detail }
-    var fresh: Bool { let age = LidGuardClock.now - updatedAt; return revision == Self.revision && codeIdentity != nil && codeIdentity == LidGuardIdentity.current && age >= 0 && age < 3 }
+    // The authenticated XPC connection verifies the helper's signing identity.
+    // Compatibility is independent of the app's executable hash/build number.
+    var fresh: Bool { let age = LidGuardClock.now - updatedAt; return revision == Self.revision && helperVersion > 0 && age >= 0 && age < 3 }
 }

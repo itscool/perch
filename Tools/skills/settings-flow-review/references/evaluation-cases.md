@@ -75,3 +75,16 @@ Expected: enumerate both native and embedded branches, protect their complete li
 Scenario: a child input-list editor loses its Apply button and validates on Back. A new device has an empty list; a mistyped line fails validation. A connection check is successful, then its address changes. A saved device mapping also silently enables an unrelated fallback preference.
 
 Expected: unchanged empty drafts can return; invalid changed drafts preserve text and provide correction or explicit discard; changed connection details cannot inherit an old successful check. Valid Back updates only the parent draft and one final Save commits it. Mapping confirmation must not change an independent preference. Replay these routes through controls as well as validation functions.
+
+## Isolated UI tests still interrupt the desktop
+
+Scenario: a regression runner uses temporary preferences, injected hardware and
+prohibited app activation. Its authorization tests call `orderFront` to test
+hiding and restoring a floating Settings panel. The agent calls it a background
+test and runs it without the user's required visible takeover indicator.
+
+Expected: classify it as desktop interaction, announce its scope and enforce the
+session check before running and at visible action boundaries. Compile before
+taking control. Stop when the user requests control; do not automatically restart
+the indicator. Truly nonpresenting render/policy tests remain eligible for
+background execution. Isolation of data and hardware is not isolation of UI.

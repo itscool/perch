@@ -1,6 +1,7 @@
 import AppKit
 
 func runSettingsTests() throws {
+    try DesktopTestSession.check()
     try runSettingsJourneyFixTests()
     try runLidSettingTests()
     try runStatusColorTests()

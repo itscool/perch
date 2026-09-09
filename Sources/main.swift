@@ -137,8 +137,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         monitorInputs.groups.onNeedsDestination = { [weak self] in self?.monitorGroupSettings() }
         observeHelperPresentation()
         LidGuardClient.shared.start()
-        if !GuardianInstall.messagingInstalled {
-            do { try GuardianInstall.install() } catch { safetyError = error.localizedDescription }
+        AppUpdate.completeLaunch { [weak self] in
+            if !GuardianInstall.messagingInstalled {
+                do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
+            }
+            if CommandLine.arguments.contains("--complete-update") || CommandLine.arguments.contains("--show-updates") {
+                self?.configureSettings(); self?.appSettings(); self?.updateSettings()
+            }
         }
         inputTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -558,6 +563,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
 if CommandLine.arguments.contains("--check-modifier-access") {
     NativeModifierKeys.checkExistingAccess()
+    exit(0)
+}
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--apply-update" {
+    _ = NSApplication.shared; NSApp.setActivationPolicy(.prohibited)
+    do { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
+    catch {
+        UserDefaults.standard.set("Update did not complete. " + error.localizedDescription, forKey: AppUpdate.noticeKey)
+        fputs("Update failed: \(error.localizedDescription)\n", stderr); exit(1)
+    }
+}
+if CommandLine.arguments == [CommandLine.arguments[0], "--check-lid-update"] {
+    guard MacLidGuardHardware().observe().closed == false else {
+        fputs("Open the lid before finishing the helper update. Nothing has been replaced.\n", stderr); exit(1)
+    }
     exit(0)
 }
 if let index = CommandLine.arguments.firstIndex(of: "--update-catalog"), CommandLine.arguments.count > index + 1 {

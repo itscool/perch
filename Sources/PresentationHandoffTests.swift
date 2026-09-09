@@ -53,6 +53,7 @@ func runPresentationHandoffTests() throws {
 
     var opens = 0
     host.externalAppTestDriver = { opens += 1; return true }
+    try DesktopTestSession.check()
     host.window.orderFront(nil)
     let priorLevel = host.window.level, priorFloating = host.window.isFloatingPanel
     let permission = PermissionSetup()

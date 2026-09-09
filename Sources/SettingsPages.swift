@@ -11,12 +11,12 @@ final class SettingsTaskPage {
     var update: (() -> Void)?
     private var timer: Timer?
     private var y: CGFloat
-    init(title: String, detail: String, height: CGFloat) {
+    init(title: String, detail: String, height: CGFloat, statusHeight: CGFloat = 60) {
         self.title = title; self.detail = detail
         view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: height))
         status.font = .systemFont(ofSize: 13)
-        status.frame = NSRect(x: 8, y: height-65, width: 556, height: 60)
-        view.addSubview(status); y = height-143
+        status.frame = NSRect(x: 8, y: height-statusHeight-5, width: 556, height: statusHeight)
+        view.addSubview(status); y = height-statusHeight-83
     }
     @discardableResult
     func add(_ title: String, detail: String, checkbox: Bool = false, action: @escaping () -> Void) -> NSButton {
@@ -90,12 +90,13 @@ extension AppDelegate {
     }
 
     @objc func keepAwakeSettings() {
-        let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 532)
+        let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 606)
         let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
         let lid = page.add("Including with the lid closed", detail: "Requests lid control with the lid open or external power connected. macOS can override this request; the checkbox does not verify continued protection.", checkbox: true) { [weak self] in self?.toggleLid() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
+        let updates = page.add("Updates…", detail: "Review queued lid-helper updates. They wait for an open lid; app-only updates can preserve a compatible session.") { [weak self] in self?.updateSettings() }
         page.add("Repair lid protection…", detail: "Reinstall the helper, then enable protection again. The lid can stay closed while external power is connected.") { [weak self] in
-            guard let self else { return }; do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() } catch { self.showError(error) }
+            guard let self else { return }; if LidHelperUpdate.shared.state.pending { self.updateSettings(); return }; do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() } catch { self.showError(error) }
         }
         page.add("Review background helpers…", detail: "Use if Perch cannot confirm or apply a keep-awake request.") { [weak self] in self?.advancedSafetySettings() }
         page.add("Review sleep reset…", detail: "Remove the lid override and Perch’s keep-awake request, with an explicit reset action.") { [weak self] in self?.systemResetPage(includeAudio: false) }
@@ -105,6 +106,7 @@ extension AppDelegate {
             awake.isEnabled = self.observedLidDisabled != nil && self.awakeItem?.isEnabled == true
             // The menu remembers the lid choice while Keep awake is off. This page
             // distinguishes that preference from the observed macOS override.
+            updates.title = LidHelperUpdate.shared.state.pending ? "Lid helper update queued…" : "Updates…"
             let guarded = LidGuardClient.shared.active
             lid.state = LidGuardClient.controlState(legacyDisabled: self.observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.exists)
             lid.isEnabled = self.awakeItem?.state == .on && self.observedLidDisabled != nil && !LidGuardClient.shared.changing
@@ -115,13 +117,14 @@ extension AppDelegate {
         page.show(delegate: self)
     }
     @objc func appSettings() {
-        let page = SettingsTaskPage(title: "App settings", detail: "Preferences for Perch itself. Feature controls are in their own Settings categories.", height: 458)
+        let page = SettingsTaskPage(title: "App settings", detail: "Preferences for Perch itself. Feature controls are in their own Settings categories.", height: 532)
         let login = page.add("Start Perch at login", detail: "Open the menu app when you sign in. macOS may require approval in Login Items.", checkbox: true) { [weak self] in self?.toggleLogin() }
         let cpu = page.add("Show top process and Perch CPU usage", detail: "Updates every 10 seconds while the menu is open. Percentages use total CPU capacity.", checkbox: true) {
             let sender = NSButton(); sender.state = CPUDisplaySettings.enabled() ? .off : .on
             self.toggleProcessCPU(sender)
         }
         cpu.identifier = NSUserInterfaceItemIdentifier(CPUDisplaySettings.key)
+        page.add("Updates…", detail: "Update and restart Perch, or finish a queued lid-helper update when the lid is open.") { [weak self] in self?.updateSettings() }
         page.add("Maintenance…", detail: "Review or repair background helpers and Perch’s own permission setup.") { [weak self] in self?.advancedSafetySettings() }
         page.add("Reset Perch settings…", detail: "Choose saved device setup or Perch preferences to forget, with a separate confirmation.") { [weak self] in self?.resetSettingsPage() }
         page.add("About Perch…", detail: "Version and build information.") { [weak self] in self?.about() }

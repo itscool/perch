@@ -15,6 +15,8 @@ private final class FakeLidHardware: LidGuardHardware {
 }
 
 func runLidGuardTests() throws {
+    try runLidRestartTests()
+    try runAppUpdateTests()
     try runLidActivityTests()
     try runLidGuardSessionTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
@@ -46,6 +48,9 @@ func runLidGuardTests() throws {
     try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Cleanup would retry the older helper instead of upgrading it")
     try PropertyListSerialization.data(fromPropertyList: current, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
     try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Matching helper unnecessarily requires installation for cleanup")
+    installed["CFBundleVersion"] = "63"
+    try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Explicit cleanup unnecessarily installed a queued app-only helper update")
     let closedBattery = LidObservation(closed: true, power: .battery), closedAC = LidObservation(closed: true, power: .external)
     var policy = LidGuardPolicy()
     try check(policy.step(closedAC, now: 0, authorized: true).preventLidSleep, "Closed powered operation failed")
@@ -119,7 +124,9 @@ func runLidGuardTests() throws {
     try check(LidGuardClient.controlState(legacyDisabled: false, status: .init(updatedAt: now, armed: true, detail: "Enabled"), recordedSession: true) == .on, "A current active session did not appear enabled")
     try check(LidGuardStatus(updatedAt: now, armed: false, detail: "Off").fresh, "The current signed helper identity was not recognized")
     var older = LidGuardStatus(updatedAt: now, armed: true, detail: "Ready"); older.codeIdentity = "older-executable"
-    try check(!older.fresh, "An older running lid helper was accepted")
+    try check(older.fresh, "A compatible helper required replacement for an app-only update")
+    older.revision = 1
+    try check(!older.fresh, "An incompatible helper protocol was accepted")
     try check(!LidGuardStatus(updatedAt: now - 10, armed: true, detail: "Ready").fresh && !LidGuardStatus(updatedAt: now + 10, armed: true, detail: "Ready").fresh, "Stale or future status appeared ready")
     let command = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch ' $(literal).app"), requirement: "identifier \"fixture.perch\"", owner: 501)
     let script = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-script-" + UUID().uuidString)

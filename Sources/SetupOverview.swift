@@ -1,7 +1,7 @@
 import AppKit
 
 enum SetupRoute: String {
-    case maintenance, inputAccess, keyboards, displays, awake, agents, events, settings
+    case maintenance, inputAccess, keyboards, displays, awake, agents, events, settings, updates
 }
 
 struct SetupCheck: Equatable {
@@ -36,6 +36,7 @@ struct SetupSnapshot {
     var lidDisabled: Bool?
     var lidWanted = false
     var lidGuard: LidGuardStatus?
+    var lidHelperUpdatePending = false
 
     var checks: [SetupCheck] {
         let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
@@ -75,6 +76,8 @@ struct SetupSnapshot {
 
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "An older system-wide sleep override is active without a timeout. Remove it before setting up supervised lid protection.", "Review sleep…", .awake)
+        } else if lidHelperUpdatePending {
+            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Updates to finish. The existing helper is kept until then.", "Review updates…", .updates)
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
@@ -217,6 +220,7 @@ extension AppDelegate {
         result.lidDisabled = observedLidDisabled
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status
+        result.lidHelperUpdatePending = LidHelperUpdate.shared.state.pending
         return result
     }
     func showFirstSetupIfNeeded() {
@@ -244,6 +248,7 @@ extension AppDelegate {
     }
     func openSetupRoute(_ route: SetupRoute, id: String = "") {
         switch route {
+        case .updates: updateSettings()
         case .maintenance: advancedSafetySettings()
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboards: keyboardSettings()

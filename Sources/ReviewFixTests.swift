@@ -41,6 +41,7 @@ func runReviewFixTests() throws {
     try check(host.pages.count == 1 && host.back.title == "Close", "Reopening Settings created a second home")
     let previousLevel = host.window.level
     let previousFloating = host.window.isFloatingPanel
+    try DesktopTestSession.check()
     host.window.orderFront(nil) // Isolated panel only; never activate or open OS authorization.
     try check(host.window.isVisible, "Authorization fixture did not open")
     let restore = host.beginAuthorization()

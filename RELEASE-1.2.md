@@ -1,6 +1,45 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 67. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 68. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 68: controlled restart and separate lid-helper updates
+
+**App settings → Updates** prepares a newer local signed Perch app and offers
+**Update & restart**. The old app waits for the staged worker to verify readiness
+before exiting. The worker checks both bundles, keeps a rollback copy, starts the
+exact new executable and waits for its completion receipt. A prepared update and
+its result survive Back/Close during the app session; there is no extra Done.
+
+A compatible, active lid session can grant one restart allowance of at most 60
+seconds. Only a new connection from the exact staged executable can claim it.
+The existing battery countdown and short watchdog deadlines remain in force;
+retries, a launch alone or stale replies do not establish successful handoff.
+Missing/expired claims do not silently enable a new session. App and helper
+component versions are separate, so UI-only builds do not require lid-helper
+replacement. See [the update contract and failure paths](UPDATES.md).
+
+Required installed-helper updates appear in Setup & status, Keep awake and
+Updates. They wait for an open lid and **Finish helper update…**, including a
+second lid check in the authorized installer before stopping the old helper.
+Opening the lid does not itself trigger a surprise password prompt. The first
+upgrade from the older build 63 helper needs the lid open; that helper cannot
+hand a session across an app restart. Saved preferences are retained.
+
+The functional runner now enforces AGENT MODE for native tests, including its
+isolated panels. Build-only and run-only phases separate background compilation
+from announced desktop use. This corrects a test-ownership failure caught by the
+user; the reusable settings-flow skill was updated too.
+
+Validation: zero production or isolated compiler warnings; all 20 isolated suites
+passed under AGENT MODE. A real signed disposable worker replaced and relaunched
+copied fixture apps and received completion acknowledgment. Tests cover ticket
+expiry/replay, preparation failure cancellation, unchanged battery/watchdog
+limits, late replies, rollback, invalid paths/signatures, queued/open/busy/error
+states and Back/re-entry. Light/dark Updates renders and strict app/tool signatures
+passed. The exact-hash requirement accepts signed build 68 and rejects build 67.
+Live helper handoff, first password entry and physical sleep/wake acceptance are
+still pending; the shared macOS clamshell-control defect remains unresolved.
+No public release or privacy reset was performed. The tuned main menu is unchanged.
 
 ## Build 67: stable menu geometry during live refresh
 

@@ -6,8 +6,11 @@ import Darwin
     func status(_ reply: @escaping (Data) -> Void)
     func setEnabled(_ enabled: Bool, reply: @escaping (Data) -> Void)
     func renew(_ token: String, reply: @escaping (Data) -> Void)
+    func prepareRestart(_ token: String, targetIdentity: String, reply: @escaping (Data) -> Void)
+    func cancelRestart(_ token: String, ticket: String, reply: @escaping (Data) -> Void)
+    func resumeRestart(_ ticket: String, reply: @escaping (Data) -> Void)
 }
-struct LidGuardReply: Codable { var status: LidGuardStatus; var token: String? }
+struct LidGuardReply: Codable { var status: LidGuardStatus; var token: String?; var restart: LidRestartTicket? = nil; var restartError: String? = nil }
 struct LidGuardLease: Codable {
     var token: String?; var expires: Double; var deadline: Double?
     func acceptsRenewal(_ supplied: String, now: Double) -> Bool { token == supplied && expires.isFinite && now.isFinite && now >= 0 && now < expires }
@@ -120,8 +123,10 @@ func runLidGuardWatchdog() -> Never {
     }
 }
 
-final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
+final class LidGuardService: NSObject, NSXPCListenerDelegate {
     static let name = "local.scott.perch.lid"
+    static let restartName = name + ".restart"
+    private let restartListener = NSXPCListener(machServiceName: restartName)
     private let owner: uid_t
     private let listener = NSXPCListener(machServiceName: name)
     private let hardware = MacLidGuardHardware()
@@ -138,10 +143,12 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
     private var policy = LidGuardPolicy()
     private var token: String?
     private var leaseEnds: Double = 0
+    private let restartLock = NSLock()
+    private var restart = LidRestartHandoff()
     private var startingUntil: Double?
     private var snapshot = LidGuardStatus(updatedAt: 0, armed: false, remaining: nil, detail: "Lid protection is off.")
     private var connections: [NSXPCConnection] = []
-    init(owner: uid_t) { self.owner = owner; super.init(); listener.delegate = self }
+    init(owner: uid_t) { self.owner = owner; super.init(); listener.delegate = self; restartListener.delegate = self }
     func run() -> Never {
         guard geteuid() == 0 else { exit(1) }
         activity.record("Lid helper started (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")). Previous gaps in observation cannot be reconstructed.")
@@ -161,7 +168,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
             pipes = [toChild, fromChild]; child = process
             channel = LidGuardPipe(input: fromChild.fileHandleForReading.fileDescriptor, output: toChild.fileHandleForWriting.fileDescriptor)
         } catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("Helper startup failed: \(error.localizedDescription)") }
-        listener.resume()
+        listener.resume(); restartListener.resume()
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
         withExtendedLifetime(self) { RunLoop.main.run() }; exit(0)
@@ -207,11 +214,12 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
                     try enforcer.apply(.init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external, remaining: nil, detail: "Watchdog ended this session"), now: LidGuardClock.now)
                     throw AppError(message: "The watchdog ended this session before lid control was confirmed.")
                 }
-                if !decision.preventLidSleep { try LidGuardOwnership.release(enforcer, sleep: decision.requestSleep, now: now); token = nil }
+                if !decision.preventLidSleep { try LidGuardOwnership.release(enforcer, sleep: decision.requestSleep, now: now); token = nil; restartLock.withLock { restart.clear() } }
                 snapshot = .init(updatedAt: now, armed: decision.preventLidSleep, remaining: decision.remaining, detail: decision.detail, error: policy.sleepInterruption)
             } catch {
                 activity.record("Lid session failed: \(error.localizedDescription)", coalesce: true)
                 token = nil
+                restartLock.withLock { restart.clear() }
                 try? idleAwake.set(false)
                 try? enforcer.apply(.init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external, remaining: nil, detail: "Lid control failed"), now: LidGuardClock.now)
                 try? LidGuardOwnership.release(enforcer, sleep: observation.closed != false && observation.power != .external, now: now)
@@ -227,13 +235,54 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         snapshot.activityError = activity.error
         if channel?.send(LidGuardLease(token: token, expires: min(now+3, token == nil ? now+3 : leaseEnds), deadline: policy.deadline)) == false { ack = nil }
     }
-    private func encoded() -> Data { (try? JSONEncoder().encode(LidGuardReply(status: snapshot, token: token))) ?? Data() }
+    private func encoded(restartError: String? = nil) -> Data { (try? JSONEncoder().encode(LidGuardReply(status: snapshot, token: token, restart: restartLock.withLock { restart.pending }, restartError: restartError))) ?? Data() }
     func status(_ reply: @escaping (Data) -> Void) { DispatchQueue.main.async { reply(self.encoded()) } }
     func renew(_ token: String, reply: @escaping (Data) -> Void) {
         DispatchQueue.main.async {
             let now = LidGuardClock.now
             // A late renewal cannot resurrect an expired lease.
-            if LidGuardLease(token: self.token, expires: self.leaseEnds, deadline: nil).acceptsRenewal(token, now: now) { self.leaseEnds = now + 5 }
+            if self.restartLock.withLock({ self.restart.pending == nil }), LidGuardLease(token: self.token, expires: self.leaseEnds, deadline: nil).acceptsRenewal(token, now: now) { self.leaseEnds = now + 5 }
+            reply(self.encoded())
+        }
+    }
+    func prepareRestart(_ supplied: String, targetIdentity: String, reply: @escaping (Data) -> Void) {
+        DispatchQueue.main.async {
+            self.tick()
+            do {
+                let now = LidGuardClock.now
+                let ticket = try self.restartLock.withLock {
+                    try self.restart.prepare(identity: targetIdentity, now: now,
+                        active: self.token == supplied && self.snapshot.armed && !self.policy.stopped && now < self.leaseEnds)
+                }
+                self.leaseEnds = ticket.deadline
+                self.activity.record("Update restart allowance started: 60 seconds maximum. Battery and watchdog deadlines remain active.", coalesce: true)
+                self.tick(); reply(self.encoded())
+            } catch { reply(self.encoded(restartError: error.localizedDescription)) }
+        }
+    }
+    func resumeRestart(_ ticket: String, pinnedConnection: String?, reply: @escaping (Data) -> Void) {
+        DispatchQueue.main.async {
+            self.tick()
+            do {
+                let now = LidGuardClock.now
+                try self.restartLock.withLock { try self.restart.claim(ticket, pinnedConnection: pinnedConnection, now: now,
+                    active: self.snapshot.armed && self.token != nil && !self.policy.stopped && now < self.leaseEnds) }
+                self.leaseEnds = now + 5
+                self.activity.record("Updated Perch reclaimed the lid session. Normal heartbeats resumed; battery deadline preserved.")
+                self.tick(); reply(self.encoded())
+            } catch { reply(self.encoded(restartError: error.localizedDescription)) }
+        }
+    }
+    func cancelRestart(_ supplied: String, ticket: String, reply: @escaping (Data) -> Void) {
+        DispatchQueue.main.async {
+            self.tick()
+            let now = LidGuardClock.now
+            if self.token == supplied && self.snapshot.armed && now < self.leaseEnds &&
+                self.restartLock.withLock({ self.restart.pending != nil && (ticket.isEmpty || self.restart.pending?.id == ticket) }) {
+                self.restartLock.withLock { self.restart.clear() }
+                self.leaseEnds = now + 5
+                self.activity.record("Update cancelled before restart. Normal app heartbeat restored.")
+            }
             reply(self.encoded())
         }
     }
@@ -260,6 +309,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
                 } else if !enabled {
                     self.activity.record("Disable lid protection requested.")
                     self.token = nil
+                    self.restartLock.withLock { self.restart.clear() }
                     try self.idleAwake.set(false)
                     try LidGuardOwnership.release(self.enforcer, sleep: observation.closed != false && observation.power != .external, now: now)
                     self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: "Lid protection is off. Normal macOS lid behavior applies.")
@@ -271,8 +321,15 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
     }
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         guard connection.effectiveUserIdentifier == owner, let requirement = HelperStatusIPC.requirement else { return false }
-        connection.setCodeSigningRequirement(requirement)
-        connection.exportedInterface = NSXPCInterface(with: LidGuardProtocol.self); connection.exportedObject = self
+        let ticket = listener === restartListener ? restartLock.withLock { restart.pending } : nil
+        guard listener !== restartListener || ticket != nil else { return false }
+        // Normal status/cancellation connections remain available to the old
+        // app after a transport failure. The dedicated claim endpoint is pinned.
+        // Only a newly connected instance of the exact staged executable can
+        // claim the allowance. Existing old-app connections are not eligible.
+        connection.setCodeSigningRequirement(requirement + (ticket.map { " and cdhash H\"\($0.targetIdentity)\"" } ?? ""))
+        connection.exportedInterface = NSXPCInterface(with: LidGuardProtocol.self)
+        connection.exportedObject = LidGuardConnection(service: self, pinnedTicket: ticket?.id)
         // Only the configured user and matching signed Perch code can call the
         // narrow interface. It accepts no paths, commands or timer durations.
         objc_sync_enter(self); defer { objc_sync_exit(self) }
@@ -280,4 +337,16 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate, LidGuardProtocol {
         connection.invalidationHandler = { [weak self, weak connection] in guard let self else { return }; objc_sync_enter(self); self.connections.removeAll { $0 === connection }; objc_sync_exit(self) }
         connection.resume(); return true
     }
+}
+
+private final class LidGuardConnection: NSObject, LidGuardProtocol {
+    let service: LidGuardService
+    let pinnedTicket: String?
+    init(service: LidGuardService, pinnedTicket: String?) { self.service = service; self.pinnedTicket = pinnedTicket }
+    func status(_ reply: @escaping (Data) -> Void) { service.status(reply) }
+    func renew(_ token: String, reply: @escaping (Data) -> Void) { service.renew(token, reply: reply) }
+    func setEnabled(_ enabled: Bool, reply: @escaping (Data) -> Void) { service.setEnabled(enabled, reply: reply) }
+    func prepareRestart(_ token: String, targetIdentity: String, reply: @escaping (Data) -> Void) { service.prepareRestart(token, targetIdentity: targetIdentity, reply: reply) }
+    func cancelRestart(_ token: String, ticket: String, reply: @escaping (Data) -> Void) { service.cancelRestart(token, ticket: ticket, reply: reply) }
+    func resumeRestart(_ ticket: String, reply: @escaping (Data) -> Void) { service.resumeRestart(ticket, pinnedConnection: pinnedTicket, reply: reply) }
 }

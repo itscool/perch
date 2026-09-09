@@ -44,3 +44,21 @@ actions and external publication. It does not enforce tool access and cannot
 stop another agent that ignores this protocol. Native system/security UI may
 appear above the floating banner; it deliberately avoids elevated levels that
 could obstruct a password prompt.
+
+## Native test suites also need the banner
+
+An isolated preferences domain and `NSApplication.ActivationPolicy.prohibited`
+do not prevent a test from showing windows. The functional regression suite has
+native panel handoff tests, so compile it before taking the desktop:
+
+```sh
+python3 Tools/check-functional-review.py --build-only --output /absolute/task/work/tests
+# Announce the test scope, then start/check AGENT MODE as described above.
+python3 Tools/check-functional-review.py --run-only --output /absolute/task/work/tests --agent-session /absolute/task/work/agent-mode
+# Stop the banner on completion or error and hand the desktop back.
+```
+
+Execution without a session is rejected. The test process checks before each
+suite and the visible-panel cases check immediately before ordering a window
+front. A stopped, expired or control-requested session prevents those actions.
+These are foreground action-boundary checks, not a background renewal loop.

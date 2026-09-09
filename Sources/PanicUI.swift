@@ -5,10 +5,9 @@ import UniformTypeIdentifiers
 extension AppDelegate {
     func setupSafetyMenu() {
         section("Agent Kill Switch")
-        safetyItem = add("Panic…", #selector(stopAgents))
-        safetyItem.menuHelp = "Immediately stop selected agents and their observed children, then keep stopping relaunches until you resume."
-        _ = add("Reset all apps’ privacy permissions…", #selector(globalPrivacyReset))
-        safetyResumeItem = add("Resume agent activity…", #selector(resumeAgents))
+        safetyItem = add("Panic…", #selector(stopAgents), help: ControlHelp.panic)
+        _ = add("Reset all apps’ privacy permissions…", #selector(globalPrivacyReset), help: ControlHelp.privacyReset)
+        safetyResumeItem = add("Resume agent activity…", #selector(resumeAgents), help: ControlHelp.resume)
     }
     func refreshSafety(status: SafetyStatus? = GuardianInstall.status, config: SafetyConfiguration = SafetyConfiguration.load(), checking: Bool? = nil) {
         let checking = checking ?? (status == nil && HelperStatusIPC.guardianClient.initiallyChecking)
@@ -26,7 +25,7 @@ extension AppDelegate {
             }
             setMenuTitle(safetySettingsItem, colored)
         }
-        safetySettingsItem.menuHelp = issue?.detail ?? (keyboardModes.warning ? keyboardModes.attentionDetail : "Configure input access, Agent Kill Switch, and maintenance.")
+        safetySettingsItem.menuHelp = ControlHelp.adding(issue?.detail ?? (keyboardModes.warning ? keyboardModes.attentionDetail : nil), to: ControlHelp.settings)
         if let issue, issue.severity == .critical {
             if criticalIssueSince == nil { criticalIssueSince = Date() }
             // One in-app notice per critical condition; no extra permission or popup window.
@@ -41,7 +40,8 @@ extension AppDelegate {
         } else { criticalIssueSince = nil; notifiedCriticalIssue = nil }
         guard let state = status, state.fresh else {
             label(safetyItem, "Panic…", hint: checking ? "Checking watcher…" : "Watcher offline")
-            safetyItem.menuHelp = checking ? "Waiting for the watcher’s first status reply." : safetyError ?? "Watcher offline — repair before relying on panic"
+            safetyItem.menuHelp = ControlHelp.adding(checking ? "Checking background protection. Availability is not confirmed yet." : safetyError ?? "Background protection is unavailable. Review Settings before relying on Panic.", to: ControlHelp.panic)
+            safetyResumeItem.menuHelp = ControlHelp.adding(checking ? "Checking whether agent activity is blocked." : nil, to: ControlHelp.resume)
             safetyResumeItem.isHidden = !checking
             safetyResumeItem.isEnabled = !checking
             label(safetyResumeItem, "Resume agent activity…", hint: checking ? "Checking watcher…" : "")
@@ -67,7 +67,8 @@ extension AppDelegate {
         let activity = state.locked ? "Stopping relaunches" : (state.testUntil != nil ? "Test mode" : shortcut)
         let attention = state.error == nil ? "" : " · Needs attention"
         label(safetyItem, "Panic…", hint: "\(state.trackedCount) tracked\u{2003}\u{2003}\(activity)\(attention)")
-        safetyItem.menuHelp = state.error ?? (state.testUntil != nil ? state.message : "Immediately stop selected agents and their observed children. \(state.trackedCount) processes currently tracked. Keep stopping relaunches until you resume.")
+        safetyItem.menuHelp = ControlHelp.adding(state.error ?? (state.testUntil != nil ? state.message : nil), to: ControlHelp.panic)
+        safetyResumeItem.menuHelp = ControlHelp.resume
         safetyResumeItem.isEnabled = true
         label(safetyResumeItem, "Resume agent activity…")
         safetyResumeItem.isHidden = !state.locked && state.pendingLaunchJobs == 0

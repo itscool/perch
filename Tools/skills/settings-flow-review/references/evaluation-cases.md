@@ -155,3 +155,18 @@ check its full-root hit target, and audit successive modal loops in the reusable
 host. A callback-based replacement must retain confirmation gates, exclusive
 action ownership and cleanup. Stop parent navigation when Back is refused;
 never bypass validation or discard the draft merely to reach the overview.
+
+## Help coverage after hover repair
+
+Scenario: tooltips now stay with the correct menu row. Several actions have no
+help; a healthy refresh empties Settings help, another replaces an action's
+purpose with a device status, and a confirmed menu action is described as
+immediate because the hotkey is immediate. The same shortcut says Escape in a
+dialog and Esc in the menu. Settings buttons already have visible descriptions.
+
+Expected: accept the hover repair while auditing every action's help and state
+transitions. Retain purpose and scope plus relevant context; distinguish menu
+confirmation from immediate shortcut behavior. Share concept/key-label copy
+across consumers and preserve visible explanations and accessible help. Do not
+add redundant hover text to every heading or hide required instructions in
+hover-only help. A string-presence test alone cannot establish useful wording.

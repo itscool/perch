@@ -9,10 +9,11 @@ acceptance gaps below are not automatically established defects.
    Esc spelling differed between Settings and menu; the follow-up now uses one
    shared shortcut title and key label. Broader sibling/native-lab coverage stays
    under item 3, not an unresolved claim about the reported Back defect.
-2. **Confirm native menu interaction corrections.** Hover across rows to check
-   Panic help no longer leaks; mix pointer and keyboard selection and activate
-   harmless actions with Return/Space. Check conditional/disabled rows and
-   reopening. Build 77 includes source fixes and passing hidden boundary tests.
+2. **Menu interaction fix accepted by the user on build 77.** The user confirmed
+   item 2 is perfect, then reported incomplete and inconsistent tooltip content.
+   Build 78 adds required help for all 21 action rows, shared explanations and
+   state-specific context. Its content changes still need native hover acceptance;
+   the original tooltip ownership/selection defect is not being reopened.
 3. **Run the current full isolated functional suite and native dialog lab.**
    Compilation and targeted hidden tests pass. The full visible run remains
    outstanding after the callback migration; use AGENT MODE for visible work.

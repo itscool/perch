@@ -243,6 +243,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 _ = delegate.perform(option.2)
                 if let current = self.pages.last { self.display(current) }
             }
+            button.toolTip = option.1
+            button.setAccessibilityHelp(option.1)
             if option.0.hasPrefix("⛔") || option.0.hasPrefix("⚠") || option.0.hasPrefix("✓") {
                 button.attributedTitle = NSAttributedString(string: option.0, attributes: [.foregroundColor: option.0.hasPrefix("⛔") ? StatusColors.critical : (option.0.hasPrefix("✓") ? StatusColors.success : StatusColors.warning), .font: NSFont.systemFont(ofSize: 13, weight: .semibold)])
             }

@@ -12,13 +12,14 @@ extension AppDelegate {
             else if modes.allSatisfy({ $0 == false }) { item.state = .off }
             else { item.state = .mixed }
             label(item, "Swap Control ↔ Command keys")
-            item.menuHelp = devices.isEmpty ? "No \(builtIn ? "built-in" : "external") keyboard connected. Your choice applies when one connects." : devices.map { $0.name + ": " + ($0.swapped == true ? "swapped" : $0.swapped == false ? "unswapped" : "custom mapping") }.joined(separator: "\n")
+            let context = devices.isEmpty ? "No keyboard in this group is connected. Your saved choice is kept." : item.state == .mixed ? "Connected keyboards have different or custom mappings. Review Keyboard settings for details." : nil
+            item.menuHelp = ControlHelp.adding(context, to: builtIn ? ControlHelp.builtInModifiers : ControlHelp.externalModifiers)
         }
     }
     func refreshFunctionKeyItem(_ standard: Bool) {
         fnItem.state = standard ? .on : .off
         label(fnItem, "Use F1–F12 directly", hint: standard ? "Without Fn" : "Hold Fn")
-        fnItem.menuHelp = "Changes the real macOS function-key setting while preserving connected external keyboards’ Fn modes."
+        fnItem.menuHelp = ControlHelp.adding(keyboardModes.blocksFunctionKeyChanges ? "Checking keyboard settings before changes are available." : !nativeKeyboards.contains(where: { $0.builtIn }) ? "No built-in keyboard is connected." : nil, to: ControlHelp.builtInFn)
         fnItem.isEnabled = !keyboardModes.blocksFunctionKeyChanges && nativeKeyboards.contains { $0.builtIn }
         refreshExternalFunctionKeyItem()
     }
@@ -39,7 +40,8 @@ extension AppDelegate {
         item.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (!modes.isEmpty || !failed.isEmpty)
         item.action = failed.isEmpty ? #selector(toggleExternalFunctionKeys) : #selector(keyboardDetails)
         (item.view as? MenuRowView)?.opensAnotherInterface = { !failed.isEmpty }
-        item.menuHelp = (keyboardModes.needsAccess ? LaunchAccessRecovery.summary + "\n" : "") + "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
+        let context = keyboardModes.blocksFunctionKeyChanges ? "Checking keyboard settings before changes are available." : keyboardModes.needsAccess ? "Input Monitoring is unavailable in this launch. Open Keyboard details for access and the already-enabled recovery steps." : !failed.isEmpty ? "Select to review the keyboards that need setup. This opens details instead of changing their mode." : modes.count > 1 ? "Connected keyboards currently use different modes. Turning this on applies it to all supported external keyboards." : results.isEmpty ? "Connect a supported external keyboard to use this control." : nil
+        item.menuHelp = ControlHelp.adding(context, to: ControlHelp.externalFn)
     }
     @objc func toggleExternalFunctionKeys() {
         let desired = externalFnItem.state != .on
@@ -79,12 +81,12 @@ extension AppDelegate {
         if let item = keyboardSetupItem {
             item.isHidden = !keyboardModes.registrationNeedsSetup
             label(item, "Set up keyboard…", hint: "⚠ Review navigation keys", hintColor: StatusColors.warning)
-            item.menuHelp = keyboardModes.attentionDetail
+            item.menuHelp = ControlHelp.adding(keyboardModes.attentionDetail, to: ControlHelp.keyboardSetup)
         }
         refreshExternalKeyboardSection()
         if currentProtectionIssue == nil, let item = safetySettingsItem {
             label(item, "Settings…", hint: keyboardModes.attentionHint, hintColor: StatusColors.warning)
-            item.menuHelp = keyboardModes.attentionDetail
+            item.menuHelp = ControlHelp.adding(keyboardModes.warning ? keyboardModes.attentionDetail : nil, to: ControlHelp.settings)
         }
     }
     func refreshExternalKeyboardSection() {
@@ -132,7 +134,7 @@ extension AppDelegate {
             fn.setButtonType(.switch); fn.allowsMixedState = true
             fn.state = builtIn ? nativeMode.map { $0 ? .on : .off } ?? .mixed : externalModes.count > 1 || (externalModes.isEmpty && !keyboardModes.results.isEmpty) ? .mixed : externalModes.first == true ? .on : .off
             fn.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (builtIn ? nativeMode != nil && nativeKeyboards.contains { $0.builtIn } : !externalModes.isEmpty)
-            fn.toolTip = builtIn ? "On: F1–F12 without Fn. Off: media controls without Fn. External choices are preserved." : "Applies to all supported external keyboards. Mixed indicates different observed modes. Unavailable devices are explained below."
+            fn.toolTip = ControlHelp.adding(fn.isEnabled ? nil : "Review the keyboard status and access steps on this page.", to: builtIn ? ControlHelp.builtInFn : ControlHelp.externalFn)
             fn.frame = NSRect(x: x, y: 423, width: 269, height: 28); view.addSubview(fn)
             let devices = nativeKeyboards.filter { $0.builtIn == builtIn }
             let swap = SettingsActionButton(title: "Swap Control and Command") { [weak self] in
@@ -144,7 +146,7 @@ extension AppDelegate {
             swap.setButtonType(.switch); swap.allowsMixedState = true
             swap.state = devices.isEmpty ? .off : devices.allSatisfy { $0.swapped == true } ? .on : devices.allSatisfy { $0.swapped == false } ? .off : .mixed
             swap.isEnabled = !devices.isEmpty
-            swap.toolTip = builtIn ? "Changes only the built-in keyboard." : "Changes all connected external keyboards and remembers this group choice for reconnection."
+            swap.toolTip = ControlHelp.adding(devices.isEmpty ? "No keyboard in this group is connected." : nil, to: builtIn ? ControlHelp.builtInModifiers : ControlHelp.externalModifiers)
             swap.frame = NSRect(x: x, y: 389, width: 269, height: 28); view.addSubview(swap)
         }
         text(keyboardModes.blocksFunctionKeyChanges ? "Checking keyboard settings…" : "On: F1–F12 work without holding Fn. Off: media controls work directly. Checkmarks show observed settings; mixed means different or custom settings.", 340, 43, color: .secondaryLabelColor)

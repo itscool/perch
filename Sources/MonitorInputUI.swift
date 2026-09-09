@@ -721,20 +721,20 @@ extension AppDelegate {
         if monitorInputs.checkingDisplays {
             item.action = #selector(cycleMonitorInput)
             label(item, "Cycle monitor input", hint: "Checking monitors…")
-            item.menuHelp = "Checking connected displays before making monitor controls available. This does not switch inputs."
+            item.menuHelp = ControlHelp.adding("Checking connected displays. This check does not switch inputs.", to: ControlHelp.monitor)
             return
         }
         if let group = monitorInputs.groups.active {
             let needsSettings = !monitorInputs.groups.canCycle || monitorInputs.groups.hasAttention
             item.action = needsSettings ? #selector(monitorGroupSettings) : #selector(cycleMonitorInput)
             label(item, "Cycle monitor input", hint: monitorInputs.busy || monitorInputs.groups.busy ? "Working…" : needsSettings ? "See display group settings" : "\(group.name) · \(group.members.count) display\(group.members.count == 1 ? "" : "s")", hintColor: monitorInputs.groups.hasAttention ? StatusColors.warning : .secondaryLabelColor)
-            item.menuHelp = monitorInputs.groups.message
+            item.menuHelp = ControlHelp.adding(needsSettings ? "Select to open display group settings and review the connection or input setup." : monitorInputs.busy || monitorInputs.groups.busy ? "A display operation is in progress." : nil, to: ControlHelp.monitor)
             return
         }
         item.action = !monitorInputs.canCycle || monitorInputs.warning ? #selector(monitorInputSettings) : #selector(cycleMonitorInput)
         let hint = monitorInputs.busy ? "Working…" : monitorInputs.warning ? "⚠ See monitor settings" : monitorInputs.connected == nil && monitorInputs.plan.controlConnection == nil ? "Set up in Settings" : monitorInputs.shortcutActive ? "" : monitorInputs.plan.inputs.count >= 2 ? (shortcut.enabled ? "Shortcut unavailable" : "Shortcut off") : "Choose inputs in Settings"
         label(item, "Cycle monitor input", hint: hint, hintColor: monitorInputs.warning ? StatusColors.warning : .secondaryLabelColor)
-        item.menuHelp = monitorInputs.message
+        item.menuHelp = ControlHelp.adding(!monitorInputs.canCycle || monitorInputs.warning ? "Select to open monitor settings and review the connection or input setup." : monitorInputs.busy ? "A display operation is in progress." : nil, to: ControlHelp.monitor)
     }
     @objc func cycleMonitorInput() { if monitorInputs.groups.active != nil { monitorInputs.groups.cycle() } else { monitorInputs.cycle() } }
     @objc func monitorInputSettings() {

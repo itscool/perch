@@ -199,39 +199,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         setupSafetyMenu()
         section("Display")
-        let displayItem = add("Turn display off", #selector(turnDisplayOff))
+        let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
-        displayItem.menuHelp = "Turn off the display now. Moving the mouse or pressing a key wakes it. Your Mac can keep working while Keep awake is enabled."
-        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput))
+        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput), help: ControlHelp.monitor)
         refreshMonitorInputItem()
         audioSection = section("Audio")
-        audioItem = add("Mute audio", #selector(toggleAudio))
+        audioItem = add("Mute audio", #selector(toggleAudio), help: ControlHelp.audio)
         section("Scrolling")
-        trackpadItem = add("Reverse trackpad scroll", #selector(toggleTrackpad))
-        wheelItem = add("Reverse mouse wheel", #selector(toggleWheel))
+        trackpadItem = add("Reverse trackpad scroll", #selector(toggleTrackpad), help: ControlHelp.trackpad)
+        wheelItem = add("Reverse mouse wheel", #selector(toggleWheel), help: ControlHelp.wheel)
         section("Built-in keyboard")
-        swapItem = add("Swap Control ↔ Command keys", #selector(toggleModifiers))
-        fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys))
+        swapItem = add("Swap Control ↔ Command keys", #selector(toggleModifiers), help: ControlHelp.builtInModifiers)
+        fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys), help: ControlHelp.builtInFn)
         externalKeyboardSection = section("External keyboards")
-        externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers))
-        externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys))
-        homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd))
-        pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys))
-        keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings))
+        externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers), help: ControlHelp.externalModifiers)
+        externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys), help: ControlHelp.externalFn)
+        homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd), help: ControlHelp.homeEnd)
+        pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys), help: ControlHelp.pageKeys)
+        keyboardSetupItem = add("Set up keyboard…", #selector(keyboardSettings), help: ControlHelp.keyboardSetup)
         keyboardSetupItem.isHidden = true
         section("Sleep")
-        awakeItem = add("Keep awake", #selector(toggleAwake))
-        awakeItem.menuHelp = "Keep the Mac awake while allowing the display to sleep. Turning this off also stops your active caffeinate sessions."
-        lidItem = add("Including with lid closed", #selector(toggleLid))
-        lidItem.menuHelp = "Prevents all system sleep, including on battery. Requires administrator authorization. Turn off before putting your Mac in a bag."
+        awakeItem = add("Keep awake", #selector(toggleAwake), help: ControlHelp.awake)
+        lidItem = add("Including with lid closed", #selector(toggleLid), help: ControlHelp.lid)
         section("Perch")
-        loginItem = add("Start at login", #selector(toggleLogin))
-        safetySettingsItem = add("Settings…", #selector(configureSettings))
-        _ = add("About Perch", #selector(about))
-        let quit = add("Quit Perch", #selector(quit))
+        loginItem = add("Start at login", #selector(toggleLogin), help: ControlHelp.login)
+        safetySettingsItem = add("Settings…", #selector(configureSettings), help: ControlHelp.settings)
+        _ = add("About Perch", #selector(about), help: ControlHelp.about)
+        let quit = add("Quit Perch", #selector(quit), help: ControlHelp.quit)
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
-        quit.menuHelp = "Input controls, ordinary keep-awake and agent protection continue. Monitor shortcuts and supervised lid protection stop. If the lid stays closed on battery, the lid helper requests sleep."
         for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
@@ -246,9 +242,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self.showSystemReading(self.systemItems[1], self.systemMonitor.cpuReading)
         }
     }
-    func add(_ title: String, _ action: Selector) -> NSMenuItem {
+    func add(_ title: String, _ action: Selector, help: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        item.menuHelp = help
         item.view = MenuRowView(item: item, kind: .command)
         menu.addItem(item)
         return item
@@ -332,8 +329,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let loginStatus = SMAppService.mainApp.status
         loginItem.state = loginStatus == .enabled ? .on : (loginStatus == .requiresApproval ? .mixed : .off)
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
+        loginItem.menuHelp = ControlHelp.adding(loginStatus == .requiresApproval ? "Select to open macOS Login Items and approve Perch." : nil, to: ControlHelp.login)
         do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
-        catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable") }
+        catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable"); fnItem.menuHelp = ControlHelp.adding("The current setting could not be read. Review Keyboard settings before changing it.", to: ControlHelp.builtInFn) }
         observedSleep = try? SleepStatus.read()
         observedLidDisabled = try? legacySleepDisabled()
         LidGuardClient.shared.refresh()
@@ -342,7 +340,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             let muted = try AudioStatus.muted()
             audioItem.state = muted ? .on : .off
             label(audioItem, "Mute audio")
-        } catch { label(audioItem, "Mute audio", hint: "Unavailable"); audioItem.state = .mixed }
+            audioItem.menuHelp = ControlHelp.audio
+        } catch { label(audioItem, "Mute audio", hint: "Unavailable"); audioItem.state = .mixed; audioItem.menuHelp = ControlHelp.adding("The current mute setting could not be read. Check the selected output in macOS Sound settings.", to: ControlHelp.audio) }
         if menuOpen {
             let title = AudioStatus.heading(volume:AudioStatus.volume(),muted:audioItem.state == .mixed ? nil : audioItem.state == .on)
             (audioSection.view as? MenuRowView)?.text = NSAttributedString(string:title,attributes:[.font:NSFont.systemFont(ofSize:11,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
@@ -389,8 +388,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         lidItem.state = value.lid; lidItem.isEnabled = value.lidEnabled
         label(awakeItem, "Keep awake", hint: value.awakeHint)
         label(lidItem, "Including with lid closed", hint: value.lidHint, hintColor: observedLidDisabled == true ? StatusColors.warning : .secondaryLabelColor)
-        awakeItem.menuHelp = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
-        lidItem.menuHelp = "Your saved choice stays checked when a session ends. Review Keep awake settings to resume stopped protection. While active, lid protection blocks manual Sleep and allows 60 seconds to open the lid or reconnect after undocking."
+        awakeItem.menuHelp = ControlHelp.awake
+        lidItem.menuHelp = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid)
     }
     @objc func resumeLidProtection() {
         withMenuClosed { [weak self] in
@@ -542,7 +541,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             (item.view as? MenuRowView)?.opensAnotherInterface = { !canChange }
             let hint = pending && input == nil ? "Checking input helper…" : !trusted ? "Set up in Settings" : saved && input?.active != true ? "Saved · controls not running" : "Vertical"
             label(item, title, hint: hint, hintColor: trusted && (!saved || input?.active == true) ? .secondaryLabelColor : StatusColors.warning)
-            item.menuHelp = saved && !trusted ? "This choice is saved. You can turn it off here, or restore input access in Settings." : "Changes vertical scrolling. Input controls must be running for the saved choice to take effect."
+            let purpose = item === trackpadItem ? ControlHelp.trackpad : ControlHelp.wheel
+            let context = pending && input == nil ? "Checking input access. Your saved choice is kept." : !trusted ? (saved ? "This choice is saved. Turn it off here, or restore input access in Settings." : "Select to set up input access in Settings.") : saved && input?.active != true ? "This choice is saved, but input controls are not running. Review Scrolling settings." : nil
+            item.menuHelp = ControlHelp.adding(context, to: purpose)
         }
     }
     func observeHelperPresentation() {

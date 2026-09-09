@@ -21,6 +21,8 @@ final class SettingsTaskPage {
     @discardableResult
     func add(_ title: String, detail: String, checkbox: Bool = false, action: @escaping () -> Void) -> NSButton {
         let button = SettingsActionButton(title: title, action: action)
+        button.toolTip = detail
+        button.setAccessibilityHelp(detail)
         if checkbox { button.setButtonType(.switch); button.allowsMixedState = true }
         button.frame = NSRect(x: 0, y: y+34, width: 572, height: 30)
         let label = NSTextField(wrappingLabelWithString: detail)
@@ -58,8 +60,8 @@ extension AppDelegate {
     }
     @objc func scrollingSettings() {
         let page = SettingsTaskPage(title: "Scrolling", detail: "Choose each device’s vertical scroll direction. Changes save immediately. Horizontal scrolling is unchanged.", height: 310)
-        let trackpad = page.add("Reverse trackpad scrolling", detail: "Reverse the trackpad’s current macOS vertical scroll direction.", checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: true) }
-        let wheel = page.add("Reverse mouse-wheel scrolling", detail: "Reverse the wheel’s current macOS vertical scroll direction.", checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: false) }
+        let trackpad = page.add("Reverse trackpad scrolling", detail: ControlHelp.trackpad, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: true) }
+        let wheel = page.add("Reverse mouse-wheel scrolling", detail: ControlHelp.wheel, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: false) }
         let access = page.add("Set up Accessibility…", detail: "Check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
             if HelperStatusIPC.inputClient.value?.fresh == true { self?.inputPermissionsFromSettings() }
             else { self?.advancedSafetySettings() }
@@ -94,6 +96,8 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 646, statusHeight: 100)
         let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
         let lid = page.add("Including with the lid closed", detail: "Temporarily blocks all system sleep, including Apple menu → Sleep. The 60-second deadline, watchdog and independent recovery remove the override. Turn this off to sleep manually.", checkbox: true) { [weak self] in self?.toggleLid() }
+        awake.toolTip = ControlHelp.awake; awake.setAccessibilityHelp(ControlHelp.awake)
+        lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
         let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
         let repair = page.add("Repair lid protection…", detail: "Finish a queued helper update with the lid open, or reinstall to repair protection. macOS asks for administrator authorization.") { [weak self] in
@@ -136,7 +140,7 @@ extension AppDelegate {
     @objc func appSettings() { presentAppSettings(readRestart: { .current }, restart: { AppUpdate.shared.restartCurrentApp() }) }
     func presentAppSettings(readRestart: @escaping () -> RestartSettingsSnapshot, restart: @escaping () -> Void) {
         let page = SettingsTaskPage(title: "App settings", detail: "Preferences for Perch itself. Feature controls are in their own Settings categories.", height: 532)
-        let login = page.add("Start Perch at login", detail: "Open the menu app when you sign in. macOS may require approval in Login Items.", checkbox: true) { [weak self] in self?.toggleLogin() }
+        let login = page.add("Start Perch at login", detail: ControlHelp.login, checkbox: true) { [weak self] in self?.toggleLogin() }
         let cpu = page.add("Show top process and Perch CPU usage", detail: "Updates every 10 seconds while the menu is open. Percentages use total CPU capacity.", checkbox: true) {
             let sender = NSButton(); sender.state = CPUDisplaySettings.enabled() ? .off : .on
             self.toggleProcessCPU(sender)

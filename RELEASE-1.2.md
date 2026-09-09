@@ -1,6 +1,25 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 78 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 78: consistent action help
+
+The user confirmed build 77's menu interaction fixes work. All 21 menu action
+rows now require help at construction, including privacy reset, Resume, Mute,
+Start at login and About. Refreshes preserve the action's purpose and add relevant
+availability or repair context; healthy Settings help no longer becomes empty.
+Panic help describes the menu confirmation instead of implying an immediate click.
+Matching Settings controls share explanations, and ordinary Settings action lists
+reuse their visible descriptions for hover and accessibility help. Menu layout,
+commands, permissions and hardware behavior are unchanged. System metric help is
+retained. This build also includes the shared Esc label below.
+
+Production and the full isolated app compile without warnings. Strict app/helper
+signatures and the build 78 ZIP integrity/version checks pass. Hidden tooltip ownership,
+tracking, accessibility and menu activation regression checks pass. No visible
+menu, Settings flow, permission or hardware operation was used for this content
+pass. Native acceptance of the new wording remains separate from the accepted
+build 77 hover repair. See TOOLTIP-REVIEW.md for coverage and exclusions.
 
 ## Follow-up in source: one shortcut label
 

@@ -41,26 +41,31 @@ final class AgentSettingsPage: NSObject {
         for (index, target) in config.targets.enumerated() {
             let box = NSButton(checkboxWithTitle: target.name, target: self, action: #selector(agentChanged(_:)))
             box.frame = NSRect(x: 8, y: list.frame.height - CGFloat((index+1)*28), width: 530, height: 26)
+            box.toolTip = "Include this agent and its observed child processes when Panic runs. Changing this choice saves immediately; it does not stop anything now."
             box.state = target.enabled ? .on : .off
             list.addSubview(box); agents.append((target.id, box))
         }
         caption("Emergency shortcut · fires immediately, without confirmation", 263)
         enabled.frame = NSRect(x: 8, y: 232, width: 548, height: 28)
+        enabled.toolTip = "Enable the configured emergency shortcut. Outside Test shortcut, it runs Panic immediately without confirmation."
         enabled.state = config.shortcut.enabled ? .on : .off
         enabled.target = self; enabled.action = #selector(shortcutChanged)
         view.addSubview(enabled)
         for (index, pair) in [("Control", controlKey), ("Option", optionKey), ("Shift", shiftKey), ("Command", cmdKey)].enumerated() {
             let box = NSButton(checkboxWithTitle: pair.0, target: self, action: #selector(shortcutChanged))
             box.frame = NSRect(x: 8+index*112, y: 200, width: 112, height: 28)
+            box.toolTip = "Require this modifier along with the other selected keys. Valid combinations save immediately."
             box.state = config.shortcut.modifiers & UInt32(pair.1) != 0 ? .on : .off
             modifiers.append((box, UInt32(pair.1))); view.addSubview(box)
         }
         keys.frame = NSRect(x: 460, y: 200, width: 104, height: 28)
+        keys.toolTip = "Choose the key to press with the selected modifiers. Valid combinations save immediately."
         keys.addItems(withTitles: PanicShortcut.keys.map(\.0))
         keys.selectItem(at: PanicShortcut.keys.firstIndex { $0.1 == config.shortcut.key } ?? 0)
         keys.target = self; keys.action = #selector(shortcutChanged); view.addSubview(keys)
         caption("After stopping agents", 164)
         reset.frame = NSRect(x: 8, y: 128, width: 556, height: 30)
+        reset.toolTip = "Choose which privacy permissions Panic resets after stopping agents. This saves your choice; no permissions change now."
         reset.addItems(withTitles: ["Privacy reset: None", "Privacy reset: Selected agent apps", "Privacy reset: All apps, including Perch"])
         reset.selectItem(at: config.resetAgentPermissions ? (config.resetAllPermissions == true ? 2 : 1) : 0)
         reset.target = self; reset.action = #selector(resetChanged); view.addSubview(reset)

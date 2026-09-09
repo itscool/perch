@@ -51,7 +51,8 @@ extension AppDelegate {
             else { warning = "" }
             let hint = warning.isEmpty ? (enabled ? "On · app exceptions apply" : "Off") : warning
             label(item, item === homeEndItem ? "Home/End move to line edges" : "Page Up/Down move the cursor", hint: hint, hintColor: warning.hasPrefix("⚠") ? StatusColors.warning : .secondaryLabelColor)
-            item.menuHelp = "External keyboards only. Built-in Fn+arrows are unchanged. Unknown event sources pass through unchanged. App exceptions are in Settings → Keyboards → Navigation keys."
+            let context = checking ? "Checking input access and keyboard layout. Your saved choice is kept." : needsSetup ? "Select to open Keyboard settings and complete the missing setup." : !warning.isEmpty ? "Your choice is saved. Review Navigation keys in Settings for the current input or keyboard issue; you can turn the choice off here." : "Manage app exceptions in Settings → Keyboards → Navigation keys."
+            item.menuHelp = ControlHelp.adding(context, to: item === homeEndItem ? ControlHelp.homeEnd : ControlHelp.pageKeys)
         }
         refreshExternalKeyboardSection()
     }

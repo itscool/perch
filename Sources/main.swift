@@ -73,6 +73,10 @@ final class Awake {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
+    let appReplacement = AppReplacementMonitor()
+    var replacementInfoItem: NSMenuItem?
+    var replacementRestartItem: NSMenuItem?
+    var replacementRestartTestDriver: (() -> Void)?
     let systemMonitor = SystemMonitor()
     var systemItems: [NSMenuItem] = []
     var permissionSetup: PermissionSetup?
@@ -139,6 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         buildMenu()
         installApplicationMenu()
         status.menu = menu
+        appReplacement.onChange = { [weak self] in self?.refreshAppReplacement() }
+        appReplacement.start()
         accessNoticeStarted = true; accessNoticeDeadline = Date().addingTimeInterval(30)
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
         keyboardModes.start()
@@ -222,9 +228,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         awakeItem = add("Keep awake", #selector(toggleAwake), help: ControlHelp.awake)
         lidItem = add("Including with lid closed", #selector(toggleLid), help: ControlHelp.lid)
         section("Perch")
+        let installed = NSMenuItem(title: "Installed Perch", action: nil, keyEquivalent: "")
+        installed.view = MenuRowView(item: installed, kind: .information)
+        installed.isHidden = true; menu.addItem(installed); replacementInfoItem = installed
         loginItem = add("Start at login", #selector(toggleLogin), help: ControlHelp.login)
         safetySettingsItem = add("Settings…", #selector(configureSettings), help: ControlHelp.settings)
         _ = add("About Perch", #selector(about), help: ControlHelp.about)
+        replacementRestartItem = add("Restart Perch", #selector(restartForReplacement), help: "Close and reopen the installed Perch, keeping your saved choices and an active lid session’s existing timeout. The app and handoff are verified before quitting.")
+        replacementRestartItem?.isHidden = true
         let quit = add("Quit Perch", #selector(quit), help: ControlHelp.quit)
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
@@ -266,6 +277,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         setMenuTitle(item, text)
     }
     func menuWillOpen(_ menu: NSMenu) {
+        refreshAppReplacement(showNotice: false)
+        appReplacement.check()
         menuOpen = true; menuGeneration &+= 1
         monitorInputs.prepareForMenu() // Keep confirmed readiness unless macOS reports a change.
         beginMenuKeyboardHandling()
@@ -285,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menuOpen = false; menuGeneration &+= 1; systemMonitor.menuClosed()
         for item in menu.items { (item.view as? MenuRowView)?.holdsMenuWidth = false }
         endMenuKeyboardHandling()
+        DispatchQueue.main.async { [weak self] in self?.refreshAppReplacement() }
     }
     func showSystemReading(_ item: NSMenuItem, _ reading: SystemReading) {
         let color: NSColor
@@ -303,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func refresh() {
         refreshSystem()
+        refreshAppReplacement()
         let settings = SafetyConfiguration.load()
         inputs.reverseTrackpad = settings.reverseTrackpad
         inputs.reverseWheel = settings.reverseWheel
@@ -523,6 +538,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         // App-owned confirmations use the ordinary event loop now. Preserve
         // their exclusive action scope without a native modal window.
         if SettingsWindow.shared.modal { return false }
+        if item === replacementRestartItem { return appReplacement.state.available != nil && !RestartSettingsSnapshot.current.busy }
         if item === monitorInputItem { return monitorInputMenuEnabled }
         if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }

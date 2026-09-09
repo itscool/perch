@@ -96,3 +96,11 @@ Record a finding as trigger → user expectation → actual result → impact, p
 Use isolated state changes to test destructive or hardware-dependent branches within scope. Do not claim a live grant, actual sleep, visible input switch or safe failure recovery from a fixture alone. Bounded activity logs can help users distinguish observed transitions, elapsed times, requests and confirmed outcomes without recording unrelated sensitive content.
 
 After a shared-component change, replay representative normal, confirmation, result, error and nested-entry routes and inspect all affected call sites. Do not mark every page passed solely because its shared wrapper passed one test. Finish the authorized batch, retain honest unresolved statuses, and communicate whether the user is running the new build.
+
+### Installed-version notices
+
+Keep the running version separate from metadata at a replaceable app path. For
+background availability notices, define per-run versus persistent dismissal,
+defer during active interactions, and keep open-menu structure stable. Test
+partial replacement, disappearance, rollback, repeated detection and restart
+failure; a previous readiness check never replaces validation at execution.

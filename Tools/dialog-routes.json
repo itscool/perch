@@ -346,5 +346,11 @@
     "kind": "menu-entry",
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit",
     "acceptance": "Build 79 full isolated suite and shared native-lab sample passed; individual production-route native input and complete keyboard/VoiceOver acceptance are not implied"
+  },
+  "AppReplacement.swift:considerAppReplacementNotice:alert:1": {
+    "file": "AppReplacement.swift",
+    "kind": "alert",
+    "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route",
+    "acceptance": "Isolated file/notice/menu fixtures; live bundle replacement and active-session restart not exercised"
   }
 }

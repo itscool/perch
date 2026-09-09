@@ -1,6 +1,26 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 79 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 80 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 80: restart into a newer installed copy
+
+Perch detects when a newer signed version replaces the app at its current path.
+The Perch section of the main menu then shows the running and on-disk versions
+and offers Restart Perch. The first detection in each run also offers Restart
+now or Later; it waits while a menu or Settings interaction is active. Dismissing
+it leaves the menu offer available without repeated prompts in that run.
+
+Checks run in the background and reuse unchanged results. A partial installation,
+older version or unverifiable app does not produce a restart offer. Background
+completion does not insert rows into an open menu or disable unrelated controls.
+Restart uses the existing verified worker and bounded lid handoff, with visible
+progress/errors in App settings. No downloading or installation is added.
+
+All 22 isolated suites pass, including file-replacement, numeric-version,
+verification-retry, dismissal and menu-stability cases. Live replacement and
+active-session restart acceptance remain separate. This candidate includes
+builds 78–79 and has not been installed. Production compilation was warning-free;
+strict signatures and ZIP integrity/version checks pass. See APP-REPLACEMENT-REVIEW.md.
 
 ## Build 79: whole-app review fixes
 

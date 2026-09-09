@@ -1,6 +1,6 @@
 # Current Perch backlog
 
-Reconciled September 9, 2026 after the build 79 review; build 77 remains installed. This is the planned
+Reconciled September 9, 2026 after the build 80 restart-notice work; build 77 remains installed. This is the planned
 execution order, not the dates issues were first reported. It supersedes stale
 open-item wording in dated review checkpoints. Functional bugs come first;
 acceptance gaps below are not automatically established defects.
@@ -85,9 +85,13 @@ acceptance gaps below are not automatically established defects.
     rollback and uninstall. Confirm compatibility without this development Mac's
     grants/jobs. Review the concrete release before any separately authorized
     publication; public publishing is not authorized by this backlog.
-15. **Later: real release update checker.** The development file-picker Updates
-    flow was intentionally replaced by Restart. Design user-facing release
-    discovery/delivery when preparing an actual public release.
+15. **Later: real release update checker.** Build 80 adds the reusable local
+    replacement step now: detect a newer signed app at the running copy's path,
+    show running/on-disk versions and Restart in the menu, and notify once per
+    process run. See APP-REPLACEMENT-REVIEW.md. No download/install method is
+    assumed. Release discovery and delivery remain future work; the development
+    file-picker Updates flow stays retired. Native replacement/notice acceptance
+    remains separate from the isolated tests and active-session restart checks.
 16. **Optional/deferred research and metrics.** A supported native expiring lid
     assertion may simplify recovery, but is not required if the guarded override
     meets acceptance. Retain older optional thermal-alert/swap-rate ideas; numeric

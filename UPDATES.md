@@ -44,8 +44,10 @@ sleep even if the update allowance has time left. At app-allowance expiry, norma
 fail-safe policy ends protection and requests sleep when closed without external
 power. No system-wide persistent sleep setting is written by the updater.
 
-These rules preserve the supervised session, **not proof that macOS honors the
-private clamshell request**. The separate powerd/shared-bit defect remains open.
+These rules preserve the supervised session, **not proof of physical sleep
+behavior**. Helper revision 2 replaces the shared clamshell flag with the
+[guarded system override and independent recovery](LID-RECOVERY.md); older
+helpers retain the known powerd/shared-bit defect until separately updated.
 A lost cancellation/claim reply may end protection; it must not be hidden by
 silently creating a fresh session.
 
@@ -73,7 +75,7 @@ result tells the user to review Keep awake. Saved choices are not rewritten.
 Builds before this protocol cannot preserve a session through an app restart.
 The first upgrade from build 63 needs the lid open, followed by the queued helper
 update and explicit re-enabling if the old session could not be confirmed.
-Known legacy builds 44–67 can still perform their corrected explicit cleanup
+Known legacy builds 44–68 can still perform their corrected explicit cleanup
 without replacement merely because the app build changed.
 
 ## Verification boundaries

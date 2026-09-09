@@ -92,7 +92,7 @@ extension AppDelegate {
     @objc func keepAwakeSettings() {
         let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 606)
         let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
-        let lid = page.add("Including with the lid closed", detail: "Requests lid control with the lid open or external power connected. macOS can override this request; the checkbox does not verify continued protection.", checkbox: true) { [weak self] in self?.toggleLid() }
+        let lid = page.add("Including with the lid closed", detail: "Temporarily blocks all system sleep, including Apple menu → Sleep. The 60-second deadline, watchdog and independent recovery remove the override. Turn this off to sleep manually.", checkbox: true) { [weak self] in self?.toggleLid() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
         let updates = page.add("Updates…", detail: "Review queued lid-helper updates. They wait for an open lid; app-only updates can preserve a compatible session.") { [weak self] in self?.updateSettings() }
         page.add("Repair lid protection…", detail: "Reinstall the helper, then enable protection again. The lid can stay closed while external power is connected.") { [weak self] in
@@ -108,7 +108,7 @@ extension AppDelegate {
             // distinguishes that preference from the observed macOS override.
             updates.title = LidHelperUpdate.shared.state.pending ? "Lid helper update queued…" : "Updates…"
             let guarded = LidGuardClient.shared.active
-            lid.state = LidGuardClient.controlState(legacyDisabled: self.observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.exists)
+            lid.state = LidGuardClient.controlState(legacyDisabled: self.observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.recorded)
             lid.isEnabled = self.awakeItem?.state == .on && self.observedLidDisabled != nil && !LidGuardClient.shared.changing
             let remembered = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
             page?.status.stringValue = self.observedLidDisabled == true ? "An older system-wide sleep override is active without a timeout. Remove it with Review sleep reset before using lid protection." : guarded || remembered || LidGuardClient.shared.changing || LidGuardClient.shared.status?.error != nil ? LidGuardClient.shared.detail : self.observedLidDisabled == nil || awake.state == .mixed ? "Sleep state is not confirmed. Review the helper status before relying on Keep awake." : awake.state == .on ? "Keep awake is active. Enable lid protection below to add the 60-second undocking interval." : "Keep awake is off. Normal macOS sleep behavior applies."

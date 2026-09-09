@@ -7,13 +7,13 @@ protocol LidGuardHardware: AnyObject {
     func observe() -> LidObservation
     func preventLidSleep(_ enabled: Bool) throws
     func requestSleep() throws
+    func verifyLidSleepPrevention() throws
 }
+extension LidGuardHardware { func verifyLidSleepPrevention() throws {} }
 
 /// The macOS adapter is deliberately separate from the deterministic policy.
-/// kPMSetClamshellSleepState (12) is an Apple XNU private interface, not a
-/// public power assertion. Keep it isolated and fail on unsupported hardware.
-/// It changes the clamshell bit, never the persistent pmset SleepDisabled key.
-/// See Apple XNU IOPMLibDefs.h and RootDomainUserClient::externalMethodDispatched.
+/// The guarded persistent override is independent of powerd's shared clamshell
+/// flag. A durable ownership journal and independent recovery must exist first.
 final class MacLidGuardHardware: LidGuardHardware {
     /// IOPMFindPowerManagement takes the IOKit main port, not a task port.
     /// Opening/closing this connection alone does not change power settings.
@@ -38,15 +38,21 @@ final class MacLidGuardHardware: LidGuardHardware {
     }
     func preventLidSleep(_ enabled: Bool) throws {
         guard geteuid() == 0 else { throw AppError(message: "The authorized lid helper is required.") }
+        if enabled || LidSleepOverride.owned {
+            try LidSleepOverride.set(enabled)
+            return
+        }
+        // Migration cleanup only: older helpers used the shared powerd bit.
+        guard LidGuardOwnership.exists else { return }
         let connection = try Self.openPowerConnection()
         defer { IOServiceClose(connection) }
-        var value: UInt64 = enabled ? 1 : 0
+        var value: UInt64 = 0
         let result = IOConnectCallScalarMethod(connection, 12, &value, 1, nil, nil)
         guard result == kIOReturnSuccess else { throw AppError(message: "This Mac did not accept supervised lid control (\(result)). Lid mode is unavailable.") }
-        // AppleClamshellCausesSleep is a cached notification property. XNU's
-        // setter changes its internal mask without refreshing that property.
-        // A successful command is acknowledgment, not physical sleep proof;
-        // the cached property cannot establish success or failure of this call.
+    }
+    func verifyLidSleepPrevention() throws {
+        guard LidSleepOverride.owned else { throw AppError(message: "The lid recovery record is missing. Protection has stopped.") }
+        try LidSleepOverride.verify(true)
     }
     func requestSleep() throws {
         let connection = try Self.openPowerConnection()
@@ -82,6 +88,7 @@ final class LidGuardEnforcer {
             }
             preventing = decision.preventLidSleep
         }
+        if decision.preventLidSleep { try hardware.verifyLidSleepPrevention() }
         if decision.requestSleep && now - lastSleep >= 5 {
             log("Sending a system sleep request to macOS.")
             do { try hardware.requestSleep(); lastSleep = now; log("macOS accepted the sleep request. See sleep/wake notifications for the observed transition.") }

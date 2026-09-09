@@ -3,7 +3,7 @@ import Foundation
 enum LidGuardCompatibility {
     static let protocolVersion = 2
     // Increment only when the lid helper needs replacement, not for app UI edits.
-    static let helperVersion = 1
+    static let helperVersion = 2
 }
 
 struct LidRestartTicket: Codable, Equatable {

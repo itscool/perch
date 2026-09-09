@@ -4,6 +4,7 @@ import Security
 enum LidGuardInstall {
     static let bundle = "/Library/PrivilegedHelperTools/Perch Lid Helper.app"
     static let binary = bundle + "/Contents/MacOS/Perch"
+    static let recoveryName = "local.scott.perch.lid.recovery"
     static func cleanupRequiresUpdate(appInfo: [String: Any] = Bundle.main.infoDictionary ?? [:], executable: URL = URL(fileURLWithPath: binary)) -> Bool {
         guard let data = try? Data(contentsOf: executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Info.plist")),
               let installed = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
@@ -14,12 +15,12 @@ enum LidGuardInstall {
         // These shipped helpers already have the corrected power connection
         // and --lid-cleanup contract. An app-only update need not replace them
         // simply to perform a user's explicit reset/disable cleanup.
-        if let build = Int(installed["CFBundleVersion"] as? String ?? ""), (44...67).contains(build) { return false }
+        if let build = Int(installed["CFBundleVersion"] as? String ?? ""), (44...68).contains(build) { return false }
         return !GuardianInstall.buildMatches(executable: executable, appInfo: appInfo)
     }
 
     static func cleanup() throws {
-        guard LidGuardOwnership.exists else { return }
+        guard LidGuardOwnership.recorded else { return }
         guard !SettingsWindow.shared.testing, let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Lid cleanup is unavailable.") }
         // The verified, root-owned staged bundle performs cleanup before the
         // installer replaces/restarts the service. An app update must not keep
@@ -40,8 +41,11 @@ enum LidGuardInstall {
     static func installationCommand(source: URL, requirement: String, owner: uid_t, requireOpenLid: Bool = false) throws -> String {
         guard source.pathExtension == "app", owner >= 501 else { throw AppError(message: "Use the signed Perch app to install lid protection.") }
         let plist = "/Library/LaunchDaemons/\(LidGuardService.name).plist"
+        let recoveryPlist = "/Library/LaunchDaemons/\(recoveryName).plist"
         let job: [String: Any] = ["Label": LidGuardService.name, "ProgramArguments": [binary, "--lid-guard", String(owner)], "MachServices": [LidGuardService.name: true, LidGuardService.restartName: true], "RunAtLoad": true, "KeepAlive": true, "ThrottleInterval": 2, "ProcessType": "Background"]
         let encoded = try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0).base64EncodedString()
+        let recovery: [String: Any] = ["Label": recoveryName, "ProgramArguments": [binary, "--lid-recover"], "RunAtLoad": true, "StartInterval": 5, "ThrottleInterval": 1, "ProcessType": "Background", "ExitTimeOut": 5]
+        let recoveryEncoded = try PropertyListSerialization.data(fromPropertyList: recovery, format: .xml, options: 0).base64EncodedString()
         let staged = "/Library/PrivilegedHelperTools/.perch-lid-" + UUID().uuidString + ".app"
         let backup = "/Library/PrivilegedHelperTools/.perch-lid-backup-" + UUID().uuidString + ".app"
         let quote = GuardianInstall.shellQuote
@@ -55,10 +59,17 @@ enum LidGuardInstall {
             "\n/usr/bin/codesign --verify --strict --test-requirement " + quote("=" + requirement) + " " + quote(staged) +
             (requireOpenLid ? "\n" + quote(staged + "/Contents/MacOS/Perch") + " --check-lid-update" : "") +
             "\n/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true\n" +
-            quote(staged + "/Contents/MacOS/Perch") + " --lid-cleanup\nif test -e " + quote(bundle) + "; then /bin/mv " + quote(bundle) + " " + quote(backup) + "; fi\n/bin/mv " + quote(staged) + " " + quote(bundle) +
+            quote(staged + "/Contents/MacOS/Perch") + " --lid-cleanup\n" +
+            "/bin/launchctl bootout system/" + recoveryName + " 2>/dev/null || true\n" +
+            "if test -e " + quote(bundle) + "; then /bin/mv " + quote(bundle) + " " + quote(backup) + "; fi\n/bin/mv " + quote(staged) + " " + quote(bundle) +
             "\n/usr/bin/printf %s " + quote(encoded) + " | /usr/bin/base64 -D > " + quote(plist + ".new") +
             "\n/usr/sbin/chown root:wheel " + quote(plist + ".new") + "\n/bin/chmod 644 " + quote(plist + ".new") +
-            "\n/bin/mv -f " + quote(plist + ".new") + " " + quote(plist) + "\n/bin/launchctl bootstrap system " + quote(plist) + "\n/bin/rm -rf " + quote(backup)
+            "\n/bin/mv -f " + quote(plist + ".new") + " " + quote(plist) +
+            "\n/usr/bin/printf %s " + quote(recoveryEncoded) + " | /usr/bin/base64 -D > " + quote(recoveryPlist + ".new") +
+            "\n/usr/sbin/chown root:wheel " + quote(recoveryPlist + ".new") + "\n/bin/chmod 644 " + quote(recoveryPlist + ".new") +
+            "\n/bin/mv -f " + quote(recoveryPlist + ".new") + " " + quote(recoveryPlist) +
+            "\n/bin/launchctl bootstrap system " + quote(recoveryPlist) +
+            "\n/bin/launchctl bootstrap system " + quote(plist) + "\n/bin/rm -rf " + quote(backup)
     }
 }
 

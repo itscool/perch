@@ -1,6 +1,36 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 68. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 8, 2026, build 69. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 69: usable controls during polling and guarded lid recovery
+
+F1–F12 controls retain their confirmed state and remain usable during ordinary
+two-second background reads. A click queues the selected change behind the read;
+actual writes, first discovery and invalidated devices still have distinct
+availability. Unchanged reads do not refresh the Settings page. CPU colors now
+follow the CPU measurement's severity, independently of unavailable optional
+process statistics or words in process names. The other periodically refreshed
+menu controls were audited for the same read-versus-write distinction. Main menu
+section design and order are preserved.
+
+Lid helper revision 2 replaces the unreliable shared clamshell flag with a
+guarded system sleep override. It blocks manual Sleep too while enabled; turn
+off lid protection to sleep immediately. A durable root-owned journal, bounded
+serialized commands and independent launchd recovery handle ended supervision,
+crash and reboot recovery. Cleanup retains its recovery record until persistent
+and live state confirm restoration. Existing overrides are refused, and helper
+updates keep recovery running until cleanup succeeds. The 60-second policy and
+short watchdog leases remain. See [behavior and recovery limits](LID-RECOVERY.md).
+
+Build 69 is prepared separately from the running app. The privileged helper
+requires its separate update; installing only the app does not replace the old
+lid mechanism. Production and isolated compilation completed with zero warnings;
+all 20 isolated suites passed, including a disposable stalled-writer test, durable
+ownership and failed-cleanup retention, boot/lease/process identity checks, real
+read-only power-state checks, and unplugged/open → close → plug → open policy.
+Keep awake renders were inspected in light and dark appearances. Physical power
+mutation, crash/reboot recovery and sleep/wake acceptance remain open; simulated
+tests do not establish those results. No public release was made.
 
 ## Build 68: controlled restart and separate lid-helper updates
 

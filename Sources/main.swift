@@ -51,6 +51,8 @@ func setSleepDisabled(_ disabled: Bool) throws {
     guard try sleepDisabled() == disabled else { throw AppError(message: "macOS did not apply the sleep setting.") }
 }
 
+func legacySleepDisabled() throws -> Bool { try sleepDisabled() && !LidSleepOverride.owned }
+
 final class Awake {
     private var ids: [IOPMAssertionID] = []
     var enabled: Bool { !ids.isEmpty }
@@ -319,7 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             label(awakeItem, "Keep awake", hint: "Unavailable")
         }
         do {
-            let disabled = try sleepDisabled()
+            let disabled = try legacySleepDisabled()
             observedLidDisabled = disabled
             LidGuardClient.shared.refresh()
             refreshLidStatus(legacyDisabled: disabled)
@@ -354,7 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func refreshLidStatus(legacyDisabled: Bool) {
         let client = LidGuardClient.shared
-        lidItem.state = LidGuardClient.controlState(legacyDisabled: legacyDisabled, status: client.status, recordedSession: LidGuardOwnership.exists)
+        lidItem.state = LidGuardClient.controlState(legacyDisabled: legacyDisabled, status: client.status, recordedSession: LidGuardOwnership.recorded)
         let hint = legacyDisabled ? "Old override · review sleep settings" : client.active ? (client.status?.remaining.map { "Requested · \($0)s remaining" } ?? "Requested · unverified") : lidItem.state == .mixed || client.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
         label(lidItem, "Including with lid closed", hint: hint, hintColor: legacyDisabled ? StatusColors.warning : .secondaryLabelColor)
     }
@@ -369,7 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid mode requested") }
         awakeItem.toolTip = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
-        lidItem.toolTip = "Request closed-lid keep-awake on external power, with 60 seconds to open the lid or reconnect power after undocking. macOS can override this request; continued protection is unverified. Set up with the lid open or external power connected."
+        lidItem.toolTip = "Keep awake with the lid closed on external power, with 60 seconds to open the lid or reconnect after undocking. This also blocks manual Sleep while enabled; turn it off to sleep immediately. Independent recovery restores normal sleep if supervision ends."
     }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }
@@ -397,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read(), legacy = try sleepDisabled()
+                let state = try SleepStatus.read(), legacy = try legacySleepDisabled()
                 let enabling = !(legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
                 guard !enabling || GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Maintenance first.") }
                 let remembered = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
@@ -411,7 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 }
                 if legacy { try setSleepDisabled(false) }
                 if enabling && remembered { self.changeSupervisedLid(true, completion: finish) }
-                else if LidGuardClient.shared.status?.armed == true || LidGuardOwnership.exists { self.changeSupervisedLid(false, completion: finish) }
+                else if LidGuardClient.shared.status?.armed == true || LidGuardOwnership.recorded { self.changeSupervisedLid(false, completion: finish) }
                 else { finish(.success(())) }
             } catch { self.refresh(); self.showError(error) }
         }
@@ -420,7 +422,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read(), legacy = try sleepDisabled()
+                let state = try SleepStatus.read(), legacy = try legacySleepDisabled()
                 guard legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
                 let enabling = !(legacy || LidGuardClient.shared.active)
                 if legacy { try setSleepDisabled(false) }
@@ -432,7 +434,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                         self.refresh(); self.settingsRefresh?()
                     } catch { self.refresh(); self.showError(error) }
                 }
-                if legacy && !LidGuardOwnership.exists && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
+                if legacy && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
                 else { self.changeSupervisedLid(enabling, completion: finish) }
             } catch { self.refresh(); self.showError(error) }
         }
@@ -586,6 +588,22 @@ if let index = CommandLine.arguments.firstIndex(of: "--update-catalog"), Command
     catch { fputs("\(error)\n", stderr); exit(1) }
 }
 var retainedLidGuard: LidGuardService?
+if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--lid-override-worker", let deadline = Double(CommandLine.arguments[4]) {
+    do { try LidSleepOverride.worker(CommandLine.arguments[2], token: CommandLine.arguments[3], deadline: deadline); exit(0) }
+    catch { fputs("Lid override failed: \(error.localizedDescription)\n", stderr); exit(1) }
+}
+if CommandLine.arguments.contains("--lid-recover") {
+    guard geteuid() == 0 else { exit(1) }
+    let activity = LidActivityRecorder(source: "Recovery")
+    do {
+        if try LidSleepOverride.recover(force: false) {
+            activity.record("Independent recovery restored normal system sleep after an expired or missing supervisor lease.")
+            let hardware = MacLidGuardHardware(), observation = hardware.observe()
+            if observation.closed != false && observation.power != .external { try hardware.requestSleep(); activity.record("Independent recovery requested sleep with the lid closed without external power.") }
+        }
+        activity.finish(); exit(0)
+    } catch { activity.record("Independent system sleep recovery failed: " + error.localizedDescription); activity.finish(); exit(1) }
+}
 if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--lid-guard", let owner = UInt32(CommandLine.arguments[2]), owner >= 501, geteuid() == 0 {
     retainedLidGuard = LidGuardService(owner: owner)
     retainedLidGuard!.run()
@@ -595,7 +613,9 @@ if CommandLine.arguments == [CommandLine.arguments[0], "--lid-cleanup"] {
     guard geteuid() == 0 else { exit(1) }
     do {
         let hardware = MacLidGuardHardware(), observation = hardware.observe()
+        let recovered = try LidSleepOverride.recover(force: true)
         try LidGuardOwnership.release(LidGuardEnforcer(hardware), sleep: observation.closed != false && observation.power != .external, now: LidGuardClock.now)
+        if recovered && observation.closed != false && observation.power != .external { try hardware.requestSleep() }
         exit(0)
     } catch { fputs("Lid cleanup failed: \(error.localizedDescription)\n", stderr); exit(1) }
 }

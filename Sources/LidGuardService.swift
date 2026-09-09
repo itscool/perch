@@ -34,6 +34,7 @@ struct LidGuardWatchdogState {
 
 enum LidGuardOwnership {
     static let path = "/var/run/local.scott.perch.lid.active"
+    static var recorded: Bool { exists || LidSleepOverride.owned }
     static var exists: Bool {
         var info = stat()
         return lstat(path, &info) == 0 && info.st_uid == 0 && info.st_mode & S_IFMT == S_IFREG && info.st_nlink == 1
@@ -55,9 +56,13 @@ enum LidGuardOwnership {
         guard bytes.withUnsafeBytes({ write(fd, $0.baseAddress, $0.count) }) == bytes.count else { throw AppError(message: "Could not record the lid session.") }
     }
     static func release(_ enforcer: LidGuardEnforcer, sleep: Bool, now: Double, expectedToken: String? = nil) throws {
-        guard exists, expectedToken == nil || token == expectedToken else { return }
+        let recordedToken = token ?? (try? LidSleepOverride.store.record().token)
+        guard recorded, expectedToken == nil || recordedToken == expectedToken else { return }
         try enforcer.apply(.init(preventLidSleep: false, requestSleep: sleep, remaining: nil, detail: "Stopped"), now: now, forceRelease: true)
-        guard unlink(path) == 0 || errno == ENOENT else { throw AppError(message: "Could not finish recording lid cleanup.") }
+        // An old watchdog's cleanup must not remove a newer runtime session.
+        if token == recordedToken {
+            guard unlink(path) == 0 || errno == ENOENT else { throw AppError(message: "Could not finish recording lid cleanup.") }
+        }
     }
 }
 
@@ -134,6 +139,8 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
     private var activityTracker = LidActivityTracker()
     private var powerObserver: LidPowerNotifications?
     private var lastActivityPrune: Double = 0
+    private var lastRecoveryPulse: Double = 0
+    private var lastOverrideRecovery: Double = 0
     private let idleAwake = Awake()
     private lazy var enforcer = LidGuardEnforcer(hardware, log: { [weak self] in self?.activity.record($0, coalesce: true) })
     private var child: Process?
@@ -160,6 +167,10 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
         // Launchd restarts begin disarmed; old UI preferences cannot re-arm us.
         do {
             let observation = hardware.observe()
+            if try LidSleepOverride.recover(force: true) {
+                activity.record("Restored normal system sleep from the durable recovery record at helper startup.")
+                if observation.closed != false && observation.power != .external { try hardware.requestSleep() }
+            }
             try LidGuardOwnership.release(enforcer, sleep: observation.closed != false && observation.power != .external, now: LidGuardClock.now)
             let toChild = Pipe(), fromChild = Pipe(), process = Process()
             process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]); process.arguments = ["--lid-watchdog"]
@@ -207,6 +218,10 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                 if decision.preventLidSleep {
                     if startingUntil != nil { try LidGuardOwnership.claim(token!) }
                     guard LidGuardOwnership.token == token else { throw AppError(message: "The watchdog ended this lid session. Enable it again with the lid open or external power connected.") }
+                    if startingUntil != nil || now - lastRecoveryPulse >= 1 {
+                        try LidSleepOverride.pulse(token: token!, until: leaseEnds)
+                        lastRecoveryPulse = now
+                    }
                 }
                 startingUntil = nil
                 try enforcer.apply(decision, now: now)
@@ -226,6 +241,15 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                 snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: error.localizedDescription, error: error.localizedDescription)
             }
         } else {
+            if LidSleepOverride.owned, now - lastOverrideRecovery >= 1 {
+                lastOverrideRecovery = now
+                do {
+                    if try LidSleepOverride.recover(force: true) {
+                        activity.record("Restored normal system sleep after the lid session ended.")
+                        if observation.closed != false && observation.power != .external { try hardware.requestSleep() }
+                    }
+                } catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("System sleep recovery failed: \(error.localizedDescription)", coalesce: true) }
+            }
             if LidGuardOwnership.exists {
                 do { try LidGuardOwnership.release(enforcer, sleep: observation.closed != false && observation.power != .external, now: now) }
                 catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("Lid cleanup failed: \(error.localizedDescription)", coalesce: true) }
@@ -294,7 +318,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                     self.activity.record("Enable lid protection requested.")
                     try LidGuardStart.validate(observation)
                     guard self.child?.isRunning == true, self.channel?.ended == false, let ack = self.ack, now >= ack.time, now - ack.time < 2 else { throw AppError(message: "The lid watchdog is unavailable. Repair the lid helper before relying on this mode.") }
-                    guard try !sleepDisabled() else { throw AppError(message: "The old system-wide sleep override is still on. Remove it with Review sleep reset before enabling the 60-second mode.") }
+                    guard !LidSleepOverride.owned, try !LidSleepOverride.systemDisabled() else { throw AppError(message: "A prior system sleep override still needs cleanup. Review sleep reset before enabling a new lid session.") }
                     self.policy = LidGuardPolicy(); self.activityTracker.endSession(); let token = UUID().uuidString
                     self.token = token; self.leaseEnds = now + 5; self.startingUntil = now + 1
                     // Wait for an independent watchdog acknowledgment before
@@ -312,6 +336,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                     self.restartLock.withLock { self.restart.clear() }
                     try self.idleAwake.set(false)
                     try LidGuardOwnership.release(self.enforcer, sleep: observation.closed != false && observation.power != .external, now: now)
+                    _ = try LidSleepOverride.recover(force: true)
                     self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: "Lid protection is off. Normal macOS lid behavior applies.")
                     self.activityTracker.endSession(); self.activity.record("Lid protection disabled.")
                 }

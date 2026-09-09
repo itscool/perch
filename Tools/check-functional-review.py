@@ -62,6 +62,10 @@ declarations = declarations.replace('\nfunc sleepDisabled()', '\n*/}\n\nfunc sle
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--lid-lock-fixture" {
+    do { try runLidLockFixture(CommandLine.arguments[2]); exit(0) }
+    catch { fputs("LOCK FIXTURE FAILED: \\(error)\\n", stderr); exit(1) }
+}
 if CommandLine.arguments.contains("--show-updates") { exit(0) } // Fixture recovery never runs the suite recursively.
 // Disposable updater subprocesses have the test bundle identity and isolated
 // storage. They never run AppDelegate or install/contact production helpers.

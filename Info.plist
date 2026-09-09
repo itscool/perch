@@ -13,7 +13,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.2</string>
 	<key>CFBundleVersion</key>
-	<string>68</string>
+	<string>69</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
@@ -21,7 +21,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>PerchLidHelperVersion</key>
-	<integer>1</integer>
+	<integer>2</integer>
 	<key>PerchLidProtocolVersion</key>
 	<integer>2</integer>
 </dict>

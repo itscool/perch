@@ -39,6 +39,9 @@ func runAppUpdateTests() throws {
     try check(!LidHelperUpdateState(info: [:], lidOpen: true).pending, "Optional uninstalled helper became a required update")
     let command = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch.app"), requirement: "identifier \"fixture\"", owner: 501, requireOpenLid: true)
     try check(command.range(of: "--check-lid-update")!.lowerBound < command.range(of: "/bin/launchctl bootout")!.lowerBound, "Open-lid check occurs after stopping the old helper")
+    let cleanupIndex = command.range(of: " --lid-cleanup")!.lowerBound
+    let stopRecoveryIndex = command.range(of: "/bin/launchctl bootout system/" + LidGuardInstall.recoveryName)!.lowerBound
+    try check(cleanupIndex < stopRecoveryIndex, "A failed cleanup could remove independent recovery during helper replacement")
     var snapshot = SetupSnapshot(config: SafetyConfiguration()); snapshot.lidHelperUpdatePending = true
     try check(snapshot.checks.first(where: { $0.id == "awake" })?.route == .updates, "Queued helper update has no overview recovery route")
     let app = AppDelegate()

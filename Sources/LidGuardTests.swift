@@ -15,6 +15,7 @@ private final class FakeLidHardware: LidGuardHardware {
 }
 
 func runLidGuardTests() throws {
+    try runLidOverrideTests()
     try runLidRestartTests()
     try runAppUpdateTests()
     try runLidActivityTests()
@@ -37,6 +38,8 @@ func runLidGuardTests() throws {
     // to hide. No power method or sleep request is sent over this connection.
     let connection = try MacLidGuardHardware.openPowerConnection()
     try check(IOServiceClose(connection) == KERN_SUCCESS, "Power connection did not close cleanly")
+    // Read the real persistent and live keys without issuing any power command.
+    try LidSleepOverride.verify(LidSleepOverride.systemDisabled())
     let fixture = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-upgrade-" + UUID().uuidString)
     let contents = fixture.appendingPathComponent("Contents")
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)

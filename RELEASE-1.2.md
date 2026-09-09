@@ -1,6 +1,38 @@
 # Perch 1.2 — local preview
 
-September 8, 2026, build 73. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 74. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 74: stable sleep state and launch-access recovery
+
+Keep awake ignores transient activity assertions and updates each menu row only
+when its final presentation changes. Including with lid closed retains your saved
+choice after a session ends; status identifies stopped or unconfirmed protection.
+Keep awake offers Resume lid protection, and clearing a checked inactive choice
+no longer starts a session. The guarded helper and 60-second policy are unchanged.
+
+If the choice was on when the running app observed closed-lid sleep, Perch retains
+that context and explains the recorded sequence on wake, with View lid activity.
+It does not warn for ordinary sleep with the choice off, invent a cause from a
+sent command, or repeat an acknowledged incident. Recovery across app restarts
+requires corroborating sleep/wake evidence. If Perch was absent before sleep,
+the exact historical choice is unknown and no notice is fabricated.
+
+Blocked connected external keyboards receive a startup access notice and shared
+recovery throughout keyboard setup. An already-enabled permission has a Finder
+relaunch route; independent helper permissions remain separate. Exact OS privacy
+attribution cannot be inferred from a parent process. Actual Automation denial
+also explains its own permission and normal-launch recovery.
+
+All 20 isolated suites are covered by passing runs, with the changed AppKit
+suite rerun after fixture corrections. New checks cover stable polling, saved
+lid actions, durable conditional notices and scoped access recovery. Light/dark
+recovery pages were inspected.
+
+Build 74 is signed and packaged; production and isolated compilation had zero
+warnings, and strict signature verification passed. Build 70 remains installed to preserve the
+active lid session. Physical sleep/wake, hardware and affected-machine acceptance
+remain open. No public release or live permission/hardware change is part of this
+preparation.
 
 ## Build 73: direct restart, Quit shortcuts and clear Fn recovery
 

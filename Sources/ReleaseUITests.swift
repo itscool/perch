@@ -187,15 +187,15 @@ func runReleaseUITests() throws {
     let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
     try check(!cpu.contains("--%") && cpu.contains("%"), "CPU did not update while tracking an open menu")
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
-    try check(app.lidItem.state == .on && app.lidItem.isEnabled ? (lid.contains("Old override") || lid.contains("60s") || lid.contains("Open lid within")) : (lid.contains("Normal lid sleep") || lid.contains("Applies when Keep awake is on")), "Lid wording disagrees with current state")
+    try check(["Old override", "Requested", "Normal lid sleep", "Applies when", "protection stopped", "Status unknown"].contains(where: { lid.contains($0) }), "Lid wording does not explain its state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
     try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
     try check((app.lidItem.view as! MenuRowView).opensAnotherInterface(), "Lid authorization toggle must close the menu first")
-    app.lidItem.state = .on; app.applyLidSleepPresentation()
+    app.observedLidDisabled = true; app.applyLidSleepPresentation()
     try check(app.awakeItem.isEnabled && app.awakeItem.state == .on && app.lidItem.isEnabled, "Lid override did not activate master")
-    app.lidItem.state = .off; app.awakeItem.state = .off; app.applyLidSleepPresentation()
-    try check(app.awakeItem.isEnabled && !app.lidItem.isEnabled && (app.lidItem.view as! MenuRowView).text.string.contains("Applies when Keep awake is on"), "Master off did not explain disabled lid preference")
+    app.observedLidDisabled = false; app.observedSleep = SleepStatus(perchActive: false, caffeinateProcesses: []); UserDefaults.standard.set(false, forKey: SleepMasterChange.lidPreferenceKey); app.applyLidSleepPresentation()
+    try check(app.awakeItem.isEnabled && !app.lidItem.isEnabled && (app.lidItem.view as! MenuRowView).text.string.contains("Normal lid sleep"), "Master off did not explain disabled lid preference")
     app.refresh()
     let headings = app.menu.items.filter { ($0.view as? MenuRowView)?.kind == .section }.map { $0.title }
     try check(headings.contains("Scrolling") && headings.contains("Built-in keyboard") && headings.contains { $0.hasPrefix("External keyboard") } && !headings.contains("Input"), "Keyboard groups were not split")

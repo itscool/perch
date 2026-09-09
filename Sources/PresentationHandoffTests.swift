@@ -26,10 +26,14 @@ func runPresentationHandoffTests() throws {
         return .cancel
     }
     for action in [{ app.addTarget(app: true) }, { app.addTarget(app: false) }, { app.importAgentCatalog() }] {
-        action(); flush()
+        let expectedNotices = notices + 1
+        action()
+        let deadline = Date().addingTimeInterval(2)
+        while notices < expectedNotices && Date() < deadline { flush() }
+        try check(notices == expectedNotices, "Picker completion did not deliver its queued notice")
         try check(!host.interactionBusy && host.back.isEnabled && host.pages.last?.view === original, "Picker cancellation changed the originating page or left it busy")
     }
-    try check(pickerChecks && pickerTitles == ["Choose an agent app", "Choose an agent executable", "Import agent catalog"] && notices == 3, "A picker route lost interaction ownership or a queued notice")
+    try check(pickerChecks && pickerTitles == ["Choose an agent app", "Choose an agent executable", "Import agent catalog"] && notices == 3, "A picker route lost interaction ownership or a queued notice: checks=\(pickerChecks), titles=\(pickerTitles), notices=\(notices)")
     host.pickerTestDriver = { _ in .OK }
     try check(host.open(NSOpenPanel()) == .OK && !host.interactionBusy, "Picker success left ownership stuck")
 

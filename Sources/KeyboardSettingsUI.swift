@@ -39,7 +39,7 @@ extension AppDelegate {
         item.isEnabled = !keyboardModes.blocksFunctionKeyChanges && (!modes.isEmpty || !failed.isEmpty)
         item.action = failed.isEmpty ? #selector(toggleExternalFunctionKeys) : #selector(keyboardDetails)
         (item.view as? MenuRowView)?.opensAnotherInterface = { !failed.isEmpty }
-        item.toolTip = "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
+        item.toolTip = (keyboardModes.needsAccess ? LaunchAccessRecovery.summary + "\n" : "") + "Changes only external keyboards. Supported Logitech devices use their own Fn Lock; Apple keyboards use a native per-device override, reapplied on connection while Perch runs.\n" + results.map { $0.name + ": " + $0.detail }.joined(separator: "\n")
     }
     @objc func toggleExternalFunctionKeys() {
         let desired = externalFnItem.state != .on
@@ -47,6 +47,7 @@ extension AppDelegate {
         keyboardModes.queue(reapplyExternal: true)
     }
     func keyboardStatusChanged() {
+        considerKeyboardAccessNotice()
         synchronizeNavigationProfiles()
         nativeKeyboards = NativeModifierKeys.keyboards()
         refreshModifierItems()
@@ -150,9 +151,11 @@ extension AppDelegate {
         if !details {
             let status = keyboardModes.blocksFunctionKeyChanges ? "Reading connected keyboards…" : keyboardModes.needsAccess ? "Some external controls need Input Monitoring. Open keyboard details for the affected devices and access setup." : keyboardModes.results.contains(where: { !$0.verified }) || !keyboardModes.modifierErrors.isEmpty ? "Some keyboard controls need attention. Keyboard details lists the affected devices and the next step." : !nativeKeyboards.contains(where: { !$0.builtIn }) ? "No external keyboard is connected. Its controls become available when one connects." : externalModes.isEmpty ? "External F1–F12 status is unavailable. Recheck keyboards, or open details for supported controls and access setup." : "Connected keyboard controls are available. Navigation keys and app exceptions are optional choices below."
             if keyboardModes.needsAccess && !keyboardModes.blocksFunctionKeyChanges {
-                text("macOS is not allowing external Fn access. Check Perch in Input Monitoring. If already enabled, quit and reopen Perch from Finder.", 282, 54, color: StatusColors.warning)
+                text(LaunchAccessRecovery.summary, 282, 54, color: StatusColors.warning)
                 let access = SettingsActionButton(title: "Open macOS Input Monitoring") { [weak self] in self?.openKeyboardPreferences(permission: true) }
-                access.frame = NSRect(x: 0, y: 249, width: 572, height: 32); view.addSubview(access)
+                access.frame = NSRect(x: 0, y: 249, width: 282, height: 32); view.addSubview(access)
+                let recovery = SettingsActionButton(title: "Already enabled? Review launch…") { [weak self] in self?.keyboardAccessRecovery() }
+                recovery.frame = NSRect(x: 290, y: 249, width: 282, height: 32); view.addSubview(recovery)
             } else { text(status, 250, 70, color: .secondaryLabelColor) }
             let navigation = SettingsActionButton(title: "Navigation keys…") { [weak self] in self?.navigationSettings() }
             navigation.frame = NSRect(x: 0, y: 205, width: 572, height: 32); view.addSubview(navigation)
@@ -207,8 +210,8 @@ extension AppDelegate {
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
         if keyboardModes.needsAccess {
-            let drag = PermissionDragItem(title: "Drag Perch → Input Monitoring, then enable it") { Bundle.main.bundleURL }
-            drag.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(drag)
+            let recovery = SettingsActionButton(title: "Already enabled? Review this launch’s access…") { [weak self] in self?.keyboardAccessRecovery() }
+            recovery.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(recovery)
         }
         SettingsWindow.shared.show(.init(title: "Keyboard details", detail: "Read the result for the affected keyboard. Recheck only reads device state; it does not reapply saved choices. Navigation recognition is separate from function keys and modifier swaps.", view: view, refresh: { [weak self] in self?.keyboardDetails() }))
     }

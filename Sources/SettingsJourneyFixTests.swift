@@ -116,9 +116,9 @@ func runSettingsJourneyFixTests() throws {
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-monitor-mapping-ready.png")
     host.goBack()
 
-    app.awakeItem.state = .off; app.lidItem.state = .off; app.applyLidSleepPresentation(); app.menu.update()
+    UserDefaults.standard.set(false, forKey: SleepMasterChange.lidPreferenceKey); app.observedSleep = SleepStatus(perchActive: false, caffeinateProcesses: []); app.observedLidDisabled = false; app.applyLidSleepPresentation(); app.menu.update()
     try check(!app.lidItem.isEnabled, "Native menu validation re-enabled a disabled lid row")
-    app.awakeItem.state = .mixed; app.lidItem.state = .mixed; app.applyLidSleepPresentation(); app.menu.update()
+    app.observedSleep = nil; app.observedLidDisabled = nil; app.applyLidSleepPresentation(); app.menu.update()
     try check(!app.lidItem.isEnabled && !app.awakeItem.isEnabled, "Native validation re-enabled unknown sleep controls")
     app.trackpadItem.state = .off; app.wheelItem.state = .on
     app.refreshScrolling(input: .init(trusted: true, active: false), checking: false)

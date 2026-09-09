@@ -32,6 +32,7 @@ final class NavigationProbePage: NSObject {
     private var open: SettingsActionButton!
     private var drag: PermissionDragItem!
     private var retrySave: SettingsActionButton!
+    private var launchRecovery: SettingsActionButton!
 
     init(enumerate: @escaping () -> [NavigationProbeKeyboard] = NavigationProbeKeyboard.connected,
          hasAccess: @escaping () -> Bool = { NavigationProbeHID.hasAccess },
@@ -58,6 +59,10 @@ final class NavigationProbePage: NSObject {
             SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) }
         }
         open.frame = NSRect(x: 344, y: 333, width: 220, height: 30); view.addSubview(open)
+        launchRecovery = SettingsActionButton(title: "Already enabled? Review keyboard access…") {
+            (NSApp.delegate as? AppDelegate)?.keyboardAccessRecovery()
+        }
+        launchRecovery.frame = NSRect(x: 195, y: 5, width: 369, height: 32); view.addSubview(launchRecovery)
         reset = SettingsActionButton(title: "Reset saved layout…") { [weak self] in self?.resetProfile() }
         reset.frame = NSRect(x: 8, y: 333, width: 230, height: 30); view.addSubview(reset)
         instruction.font = .systemFont(ofSize: 16, weight: .semibold); instruction.textColor = .labelColor
@@ -89,6 +94,7 @@ final class NavigationProbePage: NSObject {
             return saved ? "The layout for \(name) is saved. Use Back to return to the previous settings page."
                 : "Setup for \(name) finished, but the layout was not saved. Your previous layout is still in use."
         }
+        if !hasAccess() { return LaunchAccessRecovery.summary + " Use the access recovery below before learning a layout. Your saved layout is kept." }
         return "Press and release each requested key, or mark it absent. The layout saves automatically after the last key. Back stops unfinished setup and keeps your previous layout."
     }
     func show() {
@@ -179,6 +185,8 @@ final class NavigationProbePage: NSObject {
         permission.textColor = offline || (ready && !access) ? .secondaryLabelColor : access ? StatusColors.success : StatusColors.warning
         permission.isHidden = complete
         drag.isHidden = complete || access || profileReadError != nil || offline; open.isHidden = complete || access || offline
+        launchRecovery.isHidden = complete || access || offline
+        launchRecovery.toolTip = LaunchAccessRecovery.summary
         reset.isHidden = complete || (!access && profileReadError == nil && !offline)
         reset.isEnabled = !active && (!profiles.isEmpty || profileReadError != nil)
         picker.isHidden = complete; recheck.isHidden = complete

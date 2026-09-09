@@ -67,7 +67,7 @@ struct SetupSnapshot {
 
         let keyboardNeedsWork = keyboardAccessNeeded || keyboardErrors || (config.navigation?.enabled == true && navigationNeedsLearning)
         add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
-            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? "Some external controls need Input Monitoring for Perch. Navigation learning is separate and optional." : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
+            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
 
         let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
         add("displays", "Display input switching", monitorState,
@@ -89,7 +89,7 @@ struct SetupSnapshot {
         } else if !config.keepAwake && lidDisabled == true {
             add("awake", "Keep awake", .attention, "macOS has the lid override on while Perch’s keep-awake request is off. Review the actual sleep behavior.", "Review sleep…", .awake)
         } else if guardian?.keepAwakeActive != true || (lidWanted && lidGuard?.armed != true) {
-            add("awake", "Keep awake", .attention, "The observed sleep state does not confirm all of your saved choices.", "Review sleep…", .awake)
+            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Review Keep awake for status and Resume lid protection." : "The observed sleep state does not confirm your saved keep-awake request.", "Review sleep…", .awake)
         } else {
             add("awake", "Keep awake", .ready, lidDisabled == true ? "Lid-closed override is active, including on battery. Keep the Mac ventilated." : "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Adjust sleep…", .awake)
         }

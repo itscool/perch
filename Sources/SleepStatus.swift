@@ -34,6 +34,14 @@ struct SleepStatus {
     let caffeinateProcesses: [CaffeinateProcess]
     var caffeinateActive: Bool { !caffeinateProcesses.isEmpty }
 
+    static func isPerchKeepAwake(_ item: [String: Any]) -> Bool {
+        guard (item[kIOPMAssertionLevelKey] as? NSNumber)?.intValue ?? 0 != 0,
+              item[kIOPMAssertionNameKey] as? String == "Perch: keep Mac awake",
+              let type = item[kIOPMAssertionTypeKey] as? String else { return false }
+        return [kIOPMAssertionTypePreventUserIdleSystemSleep, kIOPMAssertionTypePreventUserIdleDisplaySleep,
+                kIOPMAssertionTypePreventSystemSleep, kIOPMAssertionTypeNoDisplaySleep].contains(type)
+    }
+
     static func read() throws -> SleepStatus {
         var assertions: Unmanaged<CFDictionary>?
         let status = IOPMCopyAssertionsByProcess(&assertions)
@@ -50,8 +58,9 @@ struct SleepStatus {
                 return [kIOPMAssertionTypePreventUserIdleSystemSleep, kIOPMAssertionTypePreventUserIdleDisplaySleep, kIOPMAssertionTypePreventSystemSleep, kIOPMAssertionTypeNoDisplaySleep, "UserIsActive"].contains(type)
             }
             guard active else { continue }
-            if pid == getpid() { current = true }
-            if pid == getpid() || items.contains(where: { ($0[kIOPMAssertionNameKey] as? String) == "Perch: keep Mac awake" && (($0[kIOPMAssertionLevelKey] as? NSNumber)?.intValue ?? 0) != 0 }) { own = true }
+            let requested = items.contains(where: isPerchKeepAwake)
+            if pid == getpid() && requested { current = true }
+            if requested { own = true }
             if let process = CaffeinateProcess.inspect(pid) { caffeine.append(process) }
         }
         return SleepStatus(perchActive: own, currentProcessActive: current, caffeinateProcesses: caffeine)

@@ -19,7 +19,7 @@ func script(_ source: String) throws -> NSAppleEventDescriptor {
     var error: NSDictionary?
     guard let script = NSAppleScript(source: source) else { throw AppError(message: "Could not prepare the system command.") }
     let result = script.executeAndReturnError(&error)
-    if let error { throw AppError(message: error[NSAppleScript.errorMessage] as? String ?? "System command failed.") }
+    if let error { throw AppError(message: LaunchAccessRecovery.automationFailure(error[NSAppleScript.errorMessage] as? String ?? "System command failed.", code: error[NSAppleScript.errorNumber] as? Int)) }
     return result
 }
 
@@ -119,7 +119,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var lastStatusCritical: Bool?
     var awakeItem: NSMenuItem!
     var lidItem: NSMenuItem!
+    var observedSleep: SleepStatus?
     var observedLidDisabled: Bool?
+    var renderedSleep: SleepPresentation?
+    let lidSleepNotice = LidSleepNotice()
+    var startupKeyboardAccessNotice = StartupKeyboardAccessNotice()
+    var accessNoticeStarted = false
+    var accessNoticeDeadline = Date.distantPast
     var settingsRefresh: (() -> Void)?
     var keyboardActionTestDriver: ((String, Bool) -> Void)?
     var audioItem: NSMenuItem!
@@ -133,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         buildMenu()
         installApplicationMenu()
         status.menu = menu
+        accessNoticeStarted = true; accessNoticeDeadline = Date().addingTimeInterval(30)
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
         keyboardModes.start()
         monitorInputs.onChange = { [weak self] in self?.refreshMonitorInputItem() }
@@ -140,6 +147,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         monitorInputs.groups.onNeedsDestination = { [weak self] in self?.monitorGroupSettings() }
         observeHelperPresentation()
         LidGuardClient.shared.start()
+        lidSleepNotice.show = { [weak self] _, detail, acknowledge in
+            guard let self else { return }
+            self.withMenuClosed {
+                SettingsWindow.shared.afterInteraction {
+                    let alert = NSAlert(); alert.messageText = "Your Mac slept with the lid closed"
+                    alert.informativeText = detail; alert.alertStyle = .informational
+                    alert.addButton(withTitle: "View lid activity"); alert.addButton(withTitle: "Close")
+                    let result = SettingsWindow.shared.run(alert)
+                    acknowledge()
+                    if result == .alertFirstButtonReturn { self.configureSettings(); self.lidActivity() }
+                }
+            }
+        }
+        lidSleepNotice.start()
         AppUpdate.completeLaunch { [weak self] in
             if !GuardianInstall.messagingInstalled {
                 do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
@@ -312,21 +333,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
         do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
         catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable") }
-        awakeItem.isEnabled = true
-        do {
-            let sleep = try SleepStatus.read()
-            awakeItem.state = (sleep.perchActive || sleep.caffeinateActive) ? .on : .off
-            label(awakeItem, "Keep awake", hint: sleep.caffeinateActive ? "caffeinate active" : "Mac only")
-        } catch {
-            awakeItem.state = .mixed
-            label(awakeItem, "Keep awake", hint: "Unavailable")
-        }
-        do {
-            let disabled = try legacySleepDisabled()
-            observedLidDisabled = disabled
-            LidGuardClient.shared.refresh()
-            refreshLidStatus(legacyDisabled: disabled)
-        } catch { observedLidDisabled = nil; label(lidItem, "Including with lid closed", hint: "Unavailable"); lidItem.state = .mixed }
+        observedSleep = try? SleepStatus.read()
+        observedLidDisabled = try? legacySleepDisabled()
+        LidGuardClient.shared.refresh()
         applyLidSleepPresentation()
         do {
             let muted = try AudioStatus.muted()
@@ -356,23 +365,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     func refreshLidStatus(legacyDisabled: Bool) {
+        observedLidDisabled = legacyDisabled
+    }
+    var actualLidState: NSControl.StateValue {
+        LidGuardClient.controlState(legacyDisabled: observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.recorded)
+    }
+    func sleepPresentation() -> SleepPresentation {
         let client = LidGuardClient.shared
-        lidItem.state = LidGuardClient.controlState(legacyDisabled: legacyDisabled, status: client.status, recordedSession: LidGuardOwnership.recorded)
-        let hint = legacyDisabled ? "Old override · review sleep settings" : client.active ? (client.status?.remaining.map { "Requested · \($0)s remaining" } ?? "Requested · unverified") : lidItem.state == .mixed || client.status?.error != nil ? "Review lid protection" : "Normal lid sleep"
-        label(lidItem, "Including with lid closed", hint: hint, hintColor: legacyDisabled ? StatusColors.warning : .secondaryLabelColor)
+        return SleepPresentation(ordinary: observedSleep, actualLid: actualLidState,
+            savedLid: UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey),
+            masterWanted: SafetyConfiguration.load().keepAwake, legacy: observedLidDisabled == true,
+            changing: client.changing, remaining: client.status?.remaining)
     }
     func applyLidSleepPresentation() {
-        let actualLid = lidItem.state
-        if actualLid == .on { awakeItem.state = .on }
-        awakeItem.isEnabled = actualLid != .mixed && awakeItem.state != .mixed && !LidGuardClient.shared.changing
-        lidItem.isEnabled = awakeItem.isEnabled && awakeItem.state == .on
-        if !lidItem.isEnabled && actualLid == .off && awakeItem.state == .off {
-            lidItem.state = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) ? .on : .off
-            label(lidItem, "Including with lid closed", hint: "Applies when Keep awake is on")
-        }
-        if actualLid == .on { label(awakeItem, "Keep awake", hint: "Lid mode requested") }
+        guard awakeItem != nil, lidItem != nil else { return }
+        let value = sleepPresentation()
+        // Do not apply provisional labels or states during a background read.
+        // Unchanged polling leaves the native row entirely alone.
+        guard value != renderedSleep else { return }
+        renderedSleep = value
+        awakeItem.state = value.awake; awakeItem.isEnabled = value.awakeEnabled
+        lidItem.state = value.lid; lidItem.isEnabled = value.lidEnabled
+        label(awakeItem, "Keep awake", hint: value.awakeHint)
+        label(lidItem, "Including with lid closed", hint: value.lidHint, hintColor: observedLidDisabled == true ? StatusColors.warning : .secondaryLabelColor)
         awakeItem.toolTip = "Master switch for idle-sleep prevention and supervised lid operation. Turning off releases lid protection and also stops your active caffeinate sessions."
-        lidItem.toolTip = "Keep awake with the lid closed on external power, with 60 seconds to open the lid or reconnect after undocking. This also blocks manual Sleep while enabled; turn it off to sleep immediately. Independent recovery restores normal sleep if supervision ends."
+        lidItem.toolTip = "Your saved choice stays checked when a session ends. Review Keep awake settings to resume stopped protection. While active, lid protection blocks manual Sleep and allows 60 seconds to open the lid or reconnect after undocking."
+    }
+    @objc func resumeLidProtection() {
+        withMenuClosed { [weak self] in
+            guard let self, UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey),
+                  SafetyConfiguration.load().keepAwake, !LidGuardClient.shared.active,
+                  !LidGuardClient.shared.changing else { return }
+            self.changeSupervisedLid(true) { result in
+                self.refresh()
+                if case .failure(let error) = result { self.showError(error) }
+            }
+        }
     }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }
@@ -419,23 +447,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             } catch { self.refresh(); self.showError(error) }
         }
     }
-    @objc func toggleLid() {
+    @objc func toggleLid() { changeLidChoice() }
+    func changeLidChoice(readSleep: @escaping () throws -> (SleepStatus, Bool) = { (try SleepStatus.read(), try legacySleepDisabled()) }) {
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read(), legacy = try legacySleepDisabled()
-                guard legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
-                let enabling = !(legacy || LidGuardClient.shared.active)
+                let (state, legacy) = try readSleep()
+                let saved = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+                guard saved || legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
+                let enabling = !(saved || legacy)
+
                 if legacy { try setSleepDisabled(false) }
                 let finish: (Result<Void, Error>) -> Void = { result in
                     do {
                         try result.get()
                         UserDefaults.standard.set(enabling, forKey: SleepMasterChange.lidPreferenceKey)
-                        var config = SafetyConfiguration.load(); config.keepAwake = true; try config.save()
+                        var config = SafetyConfiguration.load(); if enabling { config.keepAwake = true; try config.save() }
                         self.refresh(); self.settingsRefresh?()
                     } catch { self.refresh(); self.showError(error) }
                 }
-                if legacy && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
+                if !enabling && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
                 else { self.changeSupervisedLid(enabling, completion: finish) }
             } catch { self.refresh(); self.showError(error) }
         }

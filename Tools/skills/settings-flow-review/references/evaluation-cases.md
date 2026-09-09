@@ -101,3 +101,18 @@ permissions. Put the unavailable capability and recovery beside the control,
 including the already-enabled case. Do not claim the permission was never
 granted or render an unreadable setting as off. A genuinely absent permission
 still needs the direct OS grant route; provenance checking does not replace it.
+
+## Saved choice after a stopped session
+
+Scenario: a checkbox opts into a supervised feature. A timeout ends the current
+session and unchecks the box. After changing the renderer to keep it checked,
+clicking it starts a session because the action still toggles runtime state.
+A recovery notice uses today's checkbox to explain yesterday's interruption.
+
+Expected: preserve saved intent, clearly label inactive or unknown protection,
+and make the checked-but-inactive click clear intent. Offer explicit Resume when
+automatic rearming is unsafe. Capture the enabled choice and relevant evidence
+at the interruption, persist and deduplicate the notice, and show no notice when
+the choice was off. Do not describe a sent request as a verified outcome. Test
+both menu and page through Back/reopen, and keep unknown actual state distinct
+from a known saved choice.

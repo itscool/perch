@@ -265,3 +265,38 @@ Expected: use an independent modeless About dialog, or a normal navigable page
 with no exclusive interaction lock. Verify the existing settings page, draft,
 and focus survive opening and closing it. Keep real confirmation/test ownership
 when a competing action would be unsafe.
+
+
+### A new feature exceeds the setup overview's row capacity
+
+Scenario: a new sharing page works on its own. Setup & status now emits eight
+checks, but its native view still creates seven labels and seven action buttons.
+Refresh indexes the parallel arrays using the model's length.
+
+Expected: identify the first-use crash, build rows from the model or otherwise
+remove the capacity mismatch, and test that the last feature stays visible by
+scrolling and navigates correctly. Preserve control identity and scroll position
+on unchanged refresh. A genuinely fixed, exhaustively validated enum is not a
+reason to redesign every fixed-size form.
+
+
+### Add saves but the child list does not refresh
+
+Scenario: Add keyboard commits a new record and syncs it to another computer.
+The open child view observes connection status but not the group containing its
+list, so the new record appears only after closing and reopening.
+
+Expected: trace the action, persisted record and view observation separately.
+Fix the missing model observation and verify one click creates one immediately
+visible item, including remote additions. Do not disable the working button,
+add a second Save step or mistake a successful backend write for a working flow.
+
+### Embedded editor without an Edit menu
+
+A menu-bar application hosts native text fields inside SwiftUI sheets. Typing and
+clicking work, but Command-A does not select text; the app only installs a Quit
+command. Its isolated fixture also omits the application menu. Review should
+trace shared native command dispatch, supply standard responder-chain editing
+actions, align the fixture with production, and replay real selection/replacement
+and child exit. It should not rewrite each field or declare keyboard acceptance
+from manually assigning an NSTextView selected range.

@@ -116,6 +116,10 @@ func runReleaseUITests() throws {
     // Exercise the production toggle action route with a harmless local target.
     let target = ReleaseToggleTarget()
     let appMenu = AppDelegate.applicationMenu(quitTarget: target, quitAction: #selector(ReleaseToggleTarget.toggle(_:)))
+    let editMenu = appMenu.items.first { $0.title == "Edit" }?.submenu
+    try check(editMenu?.items.contains(where: { $0.action == #selector(NSText.selectAll(_:)) && $0.keyEquivalent == "a" && $0.target == nil && $0.keyEquivalentModifierMask == .command }) == true,
+              "Hosted settings lost the native responder-chain Select All command")
+    try check(editMenu?.items.filter { $0.target == nil }.count == 6, "Editing commands must target the current responder, including child dialogs")
     let cmdQ = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil, characters: "q", charactersIgnoringModifiers: "q", isARepeat: false, keyCode: 12)!
     try check(appMenu.performKeyEquivalent(with: cmdQ) && target.presses == 1, "Command-Q did not reach the application menu's quit target")
     let shortcutApp = AppDelegate(); shortcutApp.buildMenu(); shortcutApp.menuOpen = true

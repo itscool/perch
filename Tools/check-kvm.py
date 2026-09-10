@@ -13,6 +13,6 @@ with tempfile.TemporaryDirectory(prefix='perch-kvm-') as temporary:
     out = a.output.resolve() if a.output else Path(temporary) / 'check-kvm'
     out.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors',
-                    *[str(repo / 'Sources' / f) for f in ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift']],
+                    *[str(repo / 'Sources' / f) for f in ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'KVMInput.swift']],
                     str(repo / 'Tools/check-kvm.swift'), '-o', str(out)], check=True)
     subprocess.run([str(out)], check=True)

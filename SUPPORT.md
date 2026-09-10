@@ -143,3 +143,38 @@ monitor problems include model, cable/control path and which preset failed. For
 lid problems include the power/lid order and a relevant Lid activity excerpt.
 Review screenshots/logs for private computer names or unrelated information.
 Never include passwords, pairing approvals, Keychain exports or private keys.
+
+
+## Perch 2.0 input sharing
+
+Open Desk → Desk settings → Keyboard & mouse sharing on each participating Mac.
+Enable sharing for the current session; it starts off after Perch restarts.
+Perch itself needs Accessibility and Input Monitoring. The existing Perch Helper
+permission is a different grant. The page links to each relevant system page;
+if access is already enabled, reopen the installed copy from Finder before
+attempting any permission repair. No permission reset is part of normal setup.
+
+Choose the preset that is actually showing, then Control here beside a confirmed
+screen. This selection does not change monitor inputs. Play in Desk performs
+that operation, and an enabled input session resumes only after fresh readback.
+Touching screen edges transfer the pointer and keyboard focus. Gaps, corners with
+multiple possible destinations, unassigned inputs and unverified pictures do not.
+The desk owner must be connected; there is one transient coordinator, with no
+automatic competing coordinator if it disappears. Press **Ctrl–Opt–Esc** on a
+connected keyboard to return to local control. Closing Settings retains the
+session; quitting Perch or losing readiness ends it. Reconnect, then explicitly
+choose a screen again. Saved monitor mappings and keyboard attachments are kept.
+
+Pointer speed saves immediately on this Mac and affects devices connected here.
+In Follow a keyboard's host switch, add a name once, select the same physical
+keyboard's attachment on each Mac, and enable Follow. Perch needs observed detach
+and attach transitions; a Bluetooth slot number or idle keyboard is not proof.
+Ambiguous/duplicate native identities are not guessed. Some keyboard drivers
+retain an attachment after a host switch; those require physical validation and
+may not support automatic following. This does not change native key settings.
+
+**Secure password entry and the lock screen need a local keyboard.** The event-tap
+adapter stops when secure input or an inactive user session is observed. It does
+not disable secure entry, store typed text, or install a virtual keyboard driver.
+After returning to the desktop, choose a screen to resume. Logged-out sessions
+and FileVault preboot are outside this adapter's scope.

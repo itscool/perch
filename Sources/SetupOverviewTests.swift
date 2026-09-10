@@ -22,7 +22,23 @@ func runSetupOverviewTests() throws {
     snapshot.collectorInstalled = true; snapshot.keyboardAccessNeeded = true; snapshot.keyboardSetupWanted = true
     snapshot.monitorConfigured = true; snapshot.monitorAvailable = false; snapshot.monitorDetail = "Desk display is disconnected. Saved input choices are kept."
     try check(item("scrolling").state == .attention && item("scrolling").route == .inputAccess && item("keyboards").state == .attention && item("events").state == .attention && item("displays").state == .attention, "Reset/disconnection recovery does not identify affected features")
+    var overviewRoute = ""
+    let overview = SetupOverviewPage(firstVisit: false, read: { snapshot }, recheck: {}, navigate: { _, id in overviewRoute = id })
+    overview.refresh()
+    let overviewScroll = overview.view.subviews.compactMap { $0 as? NSScrollView }.first!
+    let overviewButtons = overviewScroll.documentView!.subviews.compactMap { $0 as? SettingsActionButton }
+    try check(overviewButtons.count == snapshot.checks.count, "Setup overview has a fixed row capacity instead of every feature")
+    try check(overviewScroll.documentView!.frame.height > overviewScroll.contentSize.height, "Expanded setup lost scrolling to its last feature")
+    overviewButtons.last!.performClick(nil)
+    try check(overviewRoute == snapshot.checks.last?.id, "Last setup row navigates to the wrong feature")
     let recovery = snapshot
+    snapshot.deskInputEnabled = true
+    try check(item("desk-input").state == .unverified, "Enabled input sharing was counted as an active session")
+    snapshot.deskInputActive = true
+    try check(item("desk-input").state == .ready, "Active desk input was not reported")
+    snapshot.deskInputProblem = "Secure entry is active"
+    try check(item("desk-input").state == .attention, "Input recovery was hidden by enabled preference")
+    snapshot.deskInputEnabled = false; snapshot.deskInputActive = false; snapshot.deskInputProblem = nil
     snapshot.monitorAvailable = true; snapshot.monitorNeedsVerification = true
     try check(item("displays").state == .unverified && item("displays").detail.contains("inputs are saved"), "Configured display with unknown input was counted as ready before visiting monitor settings")
     snapshot.monitorBusy = true

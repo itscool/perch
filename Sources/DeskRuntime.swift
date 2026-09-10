@@ -14,6 +14,8 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     let canControl: Bool
     var inputs: [MonitorInput]
     var mode: String
+    var pointWidth: Double? = nil
+    var pointHeight: Double? = nil
 }
 enum DeskDeviceMessage: Codable {
     case displays([DeskDetectedDisplay])
@@ -34,6 +36,8 @@ enum DeskShortcutKey {
 final class DeskRuntime: ObservableObject {
     let node: KVMDeskNode
     let switching: KVMMonitorSwitch
+    let input: KVMInputSession
+    let inputAdapter: DeskInputAdapter
     let model: DeskModel
     @Published var displays: [UUID: [DeskDetectedDisplay]] = [:]
     @Published var discoveryProblem: String?
@@ -46,11 +50,13 @@ final class DeskRuntime: ObservableObject {
     private var hotKeys: [PanicHotKey] = []
     private var registeredShortcuts: [KVMShortcut] = []
     private var identifyWindows: [NSWindow] = []
+    private var inputAfterSwitch: (UUID, UUID)?
     init(node: KVMDeskNode) {
         self.node = node; switching = KVMMonitorSwitch(node: node)
+        input = KVMInputSession(node: node); inputAdapter = DeskInputAdapter(session: input)
         model = DeskModel(store: node.storage.deletingLastPathComponent().appendingPathComponent("unused-preview.json"))
         model.group = node.group; model.selected = node.group.monitors.first?.id
-        model.live = DeskLiveActions(edit: { [weak node] in try node?.edit($0) }, activate: { [weak self] in self?.switching.activate($0) }, readiness: { [weak self] in self?.switching.readiness($0) },
+        model.live = DeskLiveActions(edit: { [weak node] in try node?.edit($0) }, activate: { [weak self] in self?.activatePreset($0) }, readiness: { [weak self] in self?.switching.readiness($0) },
             mappingOptions: { [weak self] in self?.mappingOptions ?? [] }, map: { [weak self] in self?.map($0, choice: $1) },
             identify: { [weak self] in self?.identify($0) }, sheet: { [weak self] kind, selection, close in
                 guard let self else { return AnyView(EmptyView()) }; return AnyView(DeskLiveSheet(runtime: self, kind: kind, selection: selection, close: close))
@@ -59,12 +65,26 @@ final class DeskRuntime: ObservableObject {
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
         switching.readForVerification = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
-        switching.otherMessage = { [weak self] peer, data in self?.receiveDevices(data, peer: peer) }
+        input.readMonitor = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
+        input.motionScale = { [weak self] focus in
+            guard let self, let geometry = self.node.group.monitors.first(where: { $0.id == focus.monitor })?.geometry,
+                  let connection = self.node.group.connections.first(where: { $0.monitor == focus.monitor && $0.computer == focus.computer }),
+                  let computer = connection.computer,
+                  let display = self.displays[computer]?.first(where: { $0.id == connection.localDisplay }),
+                  let width = display.pointWidth, let height = display.pointHeight, width > 0, height > 0 else { return .init(x: 0.25, y: 0.25) }
+            return .init(x: geometry.displayedWidth / width, y: geometry.displayedHeight / height)
+        }
+        switching.otherMessage = { [weak self] peer, data in
+            guard let self else { return }
+            if !self.input.receive(data, peer: peer) { self.receiveDevices(data, peer: peer) }
+        }
         node.peersChanged = { [weak self] in self?.publishDisplays(); self?.updateModel() }
+        inputAdapter.presetShortcut = { [weak self] in self?.activatePreset($0) }
         updateModel()
     }
     deinit { refreshTimer?.invalidate() }
     func stop() {
+        inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
         hotKeys.forEach { $0.unregister() }; hotKeys = []; registeredShortcuts = []
         node.stop()
@@ -77,6 +97,10 @@ final class DeskRuntime: ObservableObject {
         timer.tolerance = 3; refreshTimer = timer; RunLoop.main.add(timer, forMode: .common)
     }
     private func updateModel() {
+        if let (preset, monitor) = inputAfterSwitch, !switching.busy {
+            inputAfterSwitch = nil
+            if switching.activePreset == preset { input.resumeAfterPreset(preset, monitor: monitor) }
+        }
         model.group = node.group; model.online = node.online
         model.conflict = node.conflicts.first ?? node.recoveredDraft
         model.problem = switching.problem ?? node.problem ?? discoveryProblem ?? shortcutProblem
@@ -88,6 +112,14 @@ final class DeskRuntime: ObservableObject {
         registerShortcuts()
         objectWillChange.send()
     }
+    func activatePreset(_ preset: UUID) {
+        if switching.busy && switching.request?.preset == preset { return }
+        guard switching.readiness(preset) == nil else { switching.activate(preset); return }
+        let monitor = input.focus?.monitor ?? model.selected ?? node.group.monitors.first?.id
+        input.stop()
+        switching.activate(preset)
+        if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
+    }
     var mappingOptions: [DeskMappingOption] {
         node.group.computers.flatMap { computer in
             var options = (displays[computer.id] ?? []).map { DeskMappingOption(id: computer.id.uuidString + "|" + $0.id, label: computer.name + " · " + $0.name) }
@@ -98,6 +130,21 @@ final class DeskRuntime: ObservableObject {
             }
             return options
         }
+    }
+    func suggestedScreens(computer: UUID, display: DeskDetectedDisplay) -> [KVMMonitor] {
+        let observations = displays.flatMap { computer, values in values.map {
+            KVMDisplayObservation(computer: computer, localDisplay: $0.id, vendor: $0.vendor, model: $0.model,
+                                  numericSerial: $0.serial, textSerial: nil)
+        } }
+        let detected = KVMDisplayObservation(computer: computer, localDisplay: display.id, vendor: display.vendor,
+                                            model: display.model, numericSerial: display.serial, textSerial: nil)
+        let matches = detected.suggestedMatches(in: observations)
+        let ids = Set(node.group.connections.filter { connection in
+            matches.contains { $0.computer == connection.computer && $0.localDisplay == connection.localDisplay }
+        }.map(\.monitor))
+        // More than one saved physical identity is a conflict to inspect, not a
+        // useful automatic suggestion. The explicit picker remains available.
+        return ids.count == 1 ? node.group.monitors.filter { ids.contains($0.id) } : []
     }
     func map(_ connection: UUID, choice: String) {
         model.edit { group in
@@ -126,7 +173,8 @@ final class DeskRuntime: ObservableObject {
                         let size = CGDisplayScreenSize(display.displayID)
                         return DeskDetectedDisplay(id: display.id, name: display.name, vendor: display.vendor, model: display.model,
                             serial: CGDisplaySerialNumber(display.displayID), width: max(1, size.width), height: max(1, size.height), canControl: display.ddcAvailable,
-                            inputs: profile?.inputs ?? [15, 16, 17, 18].map { MonitorInput(code: $0, name: MonitorInput.name($0)) }, mode: profile?.alternate == true ? "lg" : "standard")
+                            inputs: profile?.inputs ?? [15, 16, 17, 18].map { MonitorInput(code: $0, name: MonitorInput.name($0)) }, mode: profile?.alternate == true ? "lg" : "standard",
+                            pointWidth: CGDisplayBounds(display.displayID).width, pointHeight: CGDisplayBounds(display.displayID).height)
                     }
                     self.publishDisplays()
                 case .failure(let error): self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
@@ -171,6 +219,7 @@ final class DeskRuntime: ObservableObject {
         case .displays(let values):
             guard values.count <= 16, Set(values.map(\.id)).count == values.count,
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
+            guard values.allSatisfy({ value in [value.pointWidth, value.pointHeight].allSatisfy { $0.map { $0.isFinite && (1...100_000).contains($0) } ?? true } }) else { return }
             displays[peer] = values; updateModel()
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
@@ -242,6 +291,11 @@ final class DeskRuntime: ObservableObject {
             else if let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identify(display, screen.name)) { node.sendApplication(bytes, peer: peer) }
         }
     }
+    func identifyDetected(_ display: String, computer: UUID, name: String) {
+        guard displays[computer]?.contains(where: { $0.id == display }) == true else { return }
+        if computer == node.localID { showIdentification(display, name: name) }
+        else if let data = try? JSONEncoder().encode(DeskDeviceMessage.identify(display, name)) { node.sendApplication(data, peer: computer) }
+    }
     private func showIdentification(_ display: String, name: String) {
         guard !SettingsWindow.shared.testing, let screen = NSScreen.screens.first(where: {
             guard let number = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
@@ -271,7 +325,7 @@ final class DeskRuntime: ObservableObject {
                 let panic = SafetyConfiguration.load().shortcut
                 guard !panic.enabled || panic.key != key || panic.modifiers != modifiers else { throw KVMError("\(shortcut.label) is already the Agent Kill Switch shortcut. Choose another Desk shortcut.") }
                 try hotkey.register(chosen)
-                hotkey.action = { [weak self] in guard let self else { return }; self.switching.activate(self.node.group.presets[i].id) }
+                hotkey.action = { [weak self] in guard let self else { return }; self.activatePreset(self.node.group.presets[i].id) }
                 hotKeys.append(hotkey)
             }
             shortcutProblem = nil

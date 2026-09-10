@@ -14,6 +14,7 @@ struct DeskLiveActions {
 // Interactive product prototype. Never discovers devices or requests permissions.
 // All names, readiness, input routes and pairing outcomes are explicitly simulated.
 final class DeskModel: ObservableObject {
+    static let presetActivationHelp = "Switch the physical monitor inputs. If keyboard and mouse sharing is enabled, resume it only after the selected screen confirms."
     @Published var live: DeskLiveActions?
     @Published var group: KVMGroup
     @Published var selected: UUID?

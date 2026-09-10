@@ -12,6 +12,15 @@ struct KVMComputer: Codable, Equatable, Identifiable {
     var platform = "macOS"
 }
 
+struct KVMSharedKeyboard: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var name: String
+    // Confirmed independently on each host; a host-local settings key is not
+    // itself a cross-host physical identity. Ambiguous attachments are blocked.
+    var bindings: [UUID: String] = [:]
+    var follow = false
+}
+
 struct KVMPoint: Codable, Equatable {
     var x: Double
     var y: Double
@@ -105,6 +114,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
     var monitors: [KVMMonitor] = []
     var connections: [KVMConnection] = []
     var presets: [KVMPreset] = (1...3).map(KVMPreset.empty)
+    var sharedKeyboards: [KVMSharedKeyboard]? = nil
 
     func validated() throws -> Self {
         func require(_ condition: Bool, _ message: String) throws { if !condition { throw KVMError(message) } }
@@ -117,6 +127,17 @@ struct KVMGroup: Codable, Equatable, Identifiable {
         try require((1...16).contains(computers.count), "A desk can contain up to 16 computers.")
         try require(monitors.count <= 16, "A desk can contain up to 16 physical screens.")
         try require(connections.count <= 256, "This desk has too many screen connections.")
+        let keyboards = sharedKeyboards ?? []
+        try require(keyboards.count <= 16 && Set(keyboards.map(\.id)).count == keyboards.count, "A desk can follow up to 16 named keyboards.")
+        for keyboard in keyboards {
+            try require(nameOK(keyboard.name) && keyboard.bindings.count <= 16 && keyboard.bindings.allSatisfy { computer, key in
+                computers.contains { $0.id == computer } && !key.isEmpty && key.utf8.count <= 1024
+            }, "Give the shared keyboard a name and choose its attachment on each computer.")
+        }
+        for computer in computers {
+            let bindings = keyboards.compactMap { $0.bindings[computer.id] }
+            try require(Set(bindings).count == bindings.count, "This keyboard attachment is already assigned to another shared keyboard.")
+        }
         try require(presets.count == 3 && Set(presets.map(\.slot)) == Set(1...3), "A desk has three preset slots.")
         try require(Set(computers.map(\.id)).count == computers.count && Set(monitors.map(\.id)).count == monitors.count &&
                     Set(connections.map(\.id)).count == connections.count && Set(presets.map(\.id)).count == presets.count, "Desk identifiers must be unique.")
@@ -163,6 +184,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
     mutating func removeComputer(_ id: UUID) throws {
         guard computers.count > 1 else { throw KVMError("Keep at least one computer in the desk.") }
         computers.removeAll { $0.id == id }
+        if sharedKeyboards != nil { for index in sharedKeyboards!.indices { sharedKeyboards![index].bindings[id] = nil } }
         for i in monitors.indices where monitors[i].control?.computer == id { monitors[i].control = nil }
         // Physical inputs remain selectable when their computer leaves the group.
         for i in connections.indices where connections[i].computer == id { connections[i].computer = nil; connections[i].localDisplay = nil }

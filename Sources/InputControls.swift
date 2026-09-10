@@ -90,7 +90,7 @@ final class InputControls {
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                 controls.navigation.reset()
                 if let tap = controls.tap, controls.wanted { CGEvent.tapEnable(tap: tap, enable: true) }
-            } else {
+            } else if event.getIntegerValueField(.eventSourceUserData) != KVMNativeEvent.eventTag {
                 InputTransform.apply(event, type: type, trackpad: controls.reverseTrackpad, wheel: controls.reverseWheel, swap: controls.swapModifiers)
                 controls.navigation.apply(event, type: type)
             }

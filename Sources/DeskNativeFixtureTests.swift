@@ -44,7 +44,7 @@ func runDeskNativeFixture() throws {
         service.readForVerification = { _, completion in completion(17) }
     }
     DeskCoordinator.shared.runtime = runtime
-    let app = AppDelegate(); app.buildMenu(); app.installSettingsNavigation()
+    let app = AppDelegate(); app.installApplicationMenu(); app.buildMenu(); app.installSettingsNavigation()
     DeskNativeFixtureState.retained = [a, b, runtime, other, app]
     try DesktopTestSession.check()
     NSApp.setActivationPolicy(.regular)

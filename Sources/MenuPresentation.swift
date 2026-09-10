@@ -7,6 +7,20 @@ extension AppDelegate {
         let quit = NSMenuItem(title: "Quit Perch", action: quitAction, keyEquivalent: "q")
         quit.keyEquivalentModifierMask = .command; quit.target = quitTarget
         app.addItem(quit); root.submenu = app; main.addItem(root)
+        // SwiftUI fields hosted by an AppKit menu-bar app still need the
+        // application Edit menu for standard text-editing key equivalents.
+        // Nil targets let AppKit choose the current field/editor or sheet.
+        let edit = NSMenu(title: "Edit"), editRoot = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        for (title, action, key, shift) in [
+            ("Undo", "undo:", "z", false), ("Redo", "redo:", "z", true),
+            ("Cut", "cut:", "x", false), ("Copy", "copy:", "c", false),
+            ("Paste", "paste:", "v", false), ("Select All", "selectAll:", "a", false)
+        ] {
+            let item = NSMenuItem(title: title, action: Selector(action), keyEquivalent: key)
+            item.keyEquivalentModifierMask = shift ? [.command, .shift] : .command
+            edit.addItem(item)
+        }
+        editRoot.submenu = edit; main.addItem(editRoot)
         return main
     }
     func installApplicationMenu() {

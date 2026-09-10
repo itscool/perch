@@ -116,7 +116,13 @@ it. Do not silently change the user's OS preference to pass the test. Verify
 the actual first responder, not only makeFirstResponder's return value: read-only
 labels/scroll containers can refuse focus. Include long explanations, nested
 scroll lists, disabled/hidden controls, ordinary fields and multiline editors.
-Preserve native default Return, OS sheets, text-editing keys and VoiceOver chords;
+Preserve native default Return, OS sheets, text-editing keys and VoiceOver chords.
+For embedded fields in a menu-bar app or custom window host, verify the application
+Edit menu and native responder chain: Select All, Cut, Copy, Paste, Undo and Redo.
+Typing successfully or setting selected ranges programmatically does not prove
+these shortcuts work. Use the production application-menu setup in UI fixtures;
+a fixture that omits it can misrepresent both failures and fixes.
+Then
 provide a discoverable keyboard exit from multiline editing.
 
 Accessible names/roles/values, page identity and meaningful change notifications

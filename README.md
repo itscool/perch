@@ -4,17 +4,17 @@ A native Mac menu bar app for sleep, sound, input controls, and an emergency sto
 
 Setup and recovery: [Support guide](SUPPORT.md). Dependencies: [Third-party notices](THIRD-PARTY-NOTICES.md).
 
-Release notes: [1.2 local preview](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are tracked in [the 1.2 review](V1.2-REVIEW.md).
+Release notes: [2.0 development](RELEASE-2.0.md) · [1.2 local preview](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are tracked in [the 1.2 review](V1.2-REVIEW.md).
 
 Perch is a local Apple Silicon/macOS 26 app. The current [1.2 local preview](RELEASE-1.2.md) includes the grouped Settings, reusable setup overview, multi-monitor switching, and supervised lid grace. The [1.1 release](RELEASE-1.1.md) remains recorded separately. This repository is not yet a notarized, general-purpose installer or Homebrew package. Building currently requires a local signing certificate as described below.
 
 **Keyboard controls** offer independent built-in/external modifier and Fn choices, plus optional external Home/End and Page Up/Down modes. The external heading shows a connected keyboard’s name or a count; absent devices hide their controls and unknown layouts show setup guidance. Twenty-eight bundled layout profiles retain their evidence/confidence labels. Registration does not certify physical event delivery on every device. See [KEYBOARDS.md](KEYBOARDS.md).
 
-**Monitor input switching** lists connected monitors, prefers documented detection, and offers custom inputs, cycle ordering and an optional shortcut. Settings save immediately; unchecked inputs remain available. Restore detected includes Undo. Current-input readback is preferred, with explicit guided identification only when unavailable. The catalog contains 93 monitor profiles, 162 LG firmware-family identities and 23 MSI firmware mappings; these are not claims of universal hardware validation. See [MONITOR-INPUTS.md](MONITOR-INPUTS.md) and [profile provenance](catalog/DEVICE-PROFILES.md).
+**Desk** groups up to 16 computers and 16 physical monitors, with three shared presets and an editable physical layout. Play switches monitor inputs; editing saves setup. The 2.0 input session routes keyboards and mice over authenticated connections, supports pointer-edge handoff and explicitly confirmed keyboard host following, and returns control locally when readiness is lost. Input sharing starts off each run. Secure password entry requires a local keyboard. See [the 2.0 implementation and QA boundary](RELEASE-2.0.md), [setup/recovery](SUPPORT.md), and [monitor profile provenance](catalog/DEVICE-PROFILES.md). The protocol catalog remains available underneath Desk; the old standalone cycling workflow is retired.
 
 ## Build and run
 
-Each build reserves the next integer `CFBundleVersion` in `Info.plist`; About shows both the release version and build number. Failed builds may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
+Each build reserves the next integer `CFBundleVersion` in `Info.plist`; Displayed versions use major.minor.build, such as 2.0.92. Failed builds may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
 
 This local package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.
 
@@ -119,7 +119,7 @@ Self-tests use synthetic ancestry and disposable local shell/sleep processes. Th
 
 `bash Tools/check-release.sh` verifies signing and runs both safe suites. AppKit checks exercise live menu updates during tracking, Settings navigation, light/dark rendering, input-readiness states, and shortcut-test cancellation/success/timeout/cleanup using isolated requests. They do not prove physical keyboard delivery or a real system-wide privacy reset.
 
-See `V1-NOTES.md` for measured performance and validation limits, and `EVENT-COLLECTOR.md` for the collector architecture. `REVIEW.md` is an earlier implementation review. The whole-app review and its resulting changes are assigned to **1.2**; its pending scope is recorded in [V1.2-REVIEW.md](V1.2-REVIEW.md).
+See `V1-NOTES.md` for measured performance and validation limits, and `EVENT-COLLECTOR.md` for the collector architecture. `REVIEW.md` is an earlier implementation review. The original whole-app review is recorded in [V1.2-REVIEW.md](V1.2-REVIEW.md); current 2.0 work, QA, release gates and backlog are in [TODO.md](TODO.md).
 
 
 ### Central reset controls

@@ -48,7 +48,7 @@ struct DeskView: View {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
                                 .buttonStyle(.bordered).tint(.teal).disabled(model.readinessIssue(for: index) != nil)
                                 .accessibilityLabel("Switch to \(preset.name)")
-                                .help(model.readinessIssue(for: index) ?? (model.live == nil ? "Switch to this preset now. The Desk Lab simulates the switch." : "Switch the physical monitor inputs to this preset. Keyboard and mouse stay on their current computer."))
+                                .help(model.readinessIssue(for: index) ?? (model.live == nil ? "Switch to this preset now. The Desk Lab simulates the switch." : DeskModel.presetActivationHelp))
                             Text(preset.shortcut.label).font(.system(size: 10)).foregroundStyle(.secondary)
                         }
                     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)

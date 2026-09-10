@@ -20,6 +20,16 @@ import CryptoKit
         var group = KVMGroup(name: "Desk", computers: [alice, bob], monitors: [left, right], connections: [a, b])
         group.presets[0].assignments = [.init(monitor: left.id, connection: a.id), .init(monitor: right.id, connection: b.id)]
         _ = try group.validated(); count += 1
+        var renamedInput = group; renamedInput.name = "New desk label"; renamedInput.monitors[0].name = "New screen label"
+        try check(KVMInputConfiguration.revision(renamedInput) == KVMInputConfiguration.revision(group), "cosmetic edits preserve input session identity")
+        renamedInput.monitors[0].geometry.width -= 10
+        try check(KVMInputConfiguration.revision(renamedInput) != KVMInputConfiguration.revision(group), "routing geometry changes invalidate input identity")
+        var bindingsA = group
+        let sharedKey = KVMSharedKeyboard(name: "Keyboard", bindings: [alice.id: "a", bob.id: "b"], follow: true)
+        bindingsA.sharedKeyboards = [sharedKey]
+        var bindingsB = bindingsA
+        bindingsB.sharedKeyboards![0].bindings = Dictionary(uniqueKeysWithValues: sharedKey.bindings.reversed())
+        try check(KVMInputConfiguration.revision(bindingsA) == KVMInputConfiguration.revision(bindingsB), "input configuration hash is independent of UUID dictionary iteration order")
         let encoded = try JSONEncoder().encode(group)
         let decoded = try JSONDecoder().decode(KVMGroup.self, from: encoded).validated()
         try check(decoded == group, "portable configuration round trip")
@@ -198,6 +208,57 @@ import CryptoKit
         try rejects("zero-size coordinate conversion rejected") {
             _ = try KVMGeometry(x: 0, y: 0, width: 0, height: 1).nativePoint(.init(x: 0, y: 0), pixelWidth: 1, pixelHeight: 1)
         }
-        print("PASS: \(count) KVM checks — limits, identity, geometry, signed sync, 16 peers, framing and fenced handoffs. No UI, network or hardware used.")
+        let grant = KVMInputGrant(id: UUID(), epoch: UUID(), revision: "revision", preset: group.presets[0].id,
+                                  participants: [alice.id, bob.id], focus: .init(monitor: left.id, computer: alice.id, position: .init(x: 300, y: 170)))
+        try check(grant.valid(group: group, epoch: grant.epoch, revision: "revision"), "focus resolves to the selected physical connection")
+        try check(!grant.valid(group: group, epoch: grant.epoch, revision: "new"), "changed configuration invalidates input grant")
+        var inputLease = KVMInputLease()
+        var nonce = inputLease.challenge(now: 1000)
+        try check(!inputLease.accept(grant, challenge: UUID(), now: 1000.1), "unsolicited input grant rejected")
+        try check(inputLease.accept(grant, challenge: nonce, now: 1000.1), "grant accepted only for outstanding challenge")
+        try check(!inputLease.accept(grant, challenge: nonce, now: 1000.2), "renewal replay rejected")
+        try check(inputLease.accepts(source: alice.id, grant: grant.id, sequence: 1, now: 1000.3), "participant event accepted")
+        try check(!inputLease.accepts(source: UUID(), grant: grant.id, sequence: 1, now: 1000.3), "unapproved source rejected")
+        try check(!inputLease.accepts(source: alice.id, grant: grant.id, sequence: 1, now: 1000.3), "replayed input rejected")
+        try check(!inputLease.accepts(source: alice.id, grant: UUID(), sequence: 2, now: 1000.3), "old focus event rejected")
+        nonce = inputLease.challenge(now: 1000.9)
+        try check(!inputLease.accept(grant, challenge: nonce, now: 1001.1), "late renewal cannot resurrect expired control")
+        inputLease.release(); nonce = inputLease.challenge(now: 1002)
+        try check(!inputLease.accept(grant, challenge: nonce, now: 1003.1), "queued grant cannot extend from arrival time")
+        inputLease.release(); nonce = inputLease.challenge(now: 1004)
+        try check(!inputLease.accept(grant, challenge: nonce, now: 1003), "backwards clock rejected")
+        var held = KVMInputHeld()
+        let down = KVMInputEvent(kind: .keyDown, code: 12)
+        let up = KVMInputEvent(kind: .keyUp, code: 12)
+        try check(held.apply(down, source: alice.id) != nil, "first physical keyboard presses key")
+        try check(held.apply(down, source: bob.id) == nil, "second keyboard shares held key without a second down")
+        try check(held.apply(up, source: alice.id) == nil, "one keyboard cannot release another's key")
+        try check(held.apply(up, source: bob.id) != nil, "last physical release produces one up")
+        try check(held.apply(up, source: bob.id) == nil, "stray up rejected")
+        for _ in 0..<10_000 { for peer in large.computers { _ = held.apply(down, source: peer.id) } }
+        try check(held.count <= 17, "160000 events retain only bounded current held state")
+        let releases = held.releaseAll()
+        try check(releases.filter { $0.kind == .keyUp }.count == 1 && held.count == 0, "disconnect cleanup releases once and forgets input")
+        var invalidEvent = down; invalidEvent.code = 128
+        try check(!invalidEvent.valid, "unsupported key code rejected")
+        invalidEvent = .init(kind: .motion, x: .infinity)
+        try check(!invalidEvent.valid, "nonfinite pointer movement rejected")
+        invalidEvent = .init(kind: .buttonDown, code: 5)
+        try check(!invalidEvent.valid, "unbounded mouse button rejected")
+        invalidEvent = .init(kind: .keyDown, flags: UInt64.max)
+        try check(!invalidEvent.valid, "unknown native flags cannot be injected")
+        let keyboard = UUID(); var follow = KVMKeyboardFollow()
+        try check(follow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id]) == nil, "initial discovery is not a keyboard handoff")
+        _ = follow.observe(keyboard: keyboard, computer: alice.id, attached: false, online: [alice.id,bob.id])
+        try check(follow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [alice.id,bob.id]) == bob.id, "confirmed detach then arrival follows keyboard")
+        try check(follow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id]) == nil, "ambiguous dual attachment does not switch focus")
+        var reversedFollow = KVMKeyboardFollow()
+        _ = reversedFollow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id])
+        try check(reversedFollow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [alice.id,bob.id]) == nil, "new arrival waits for old attachment to leave")
+        try check(reversedFollow.observe(keyboard: keyboard, computer: alice.id, attached: false, online: [alice.id,bob.id]) == bob.id, "arrival-before-detach network order still follows once")
+        var offlineFollow = KVMKeyboardFollow()
+        _ = offlineFollow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id])
+        try check(offlineFollow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [bob.id]) == nil, "offline computer is not a confirmed keyboard detachment")
+        print("PASS: \(count) KVM checks — limits, identity, geometry, signed sync, 16 peers, framing, fenced input, held-key cleanup and keyboard host following. No UI, network or hardware used.")
     }
 }

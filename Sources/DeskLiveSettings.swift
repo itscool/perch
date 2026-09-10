@@ -22,6 +22,7 @@ struct DeskLiveSheet: View {
     @State private var profileName = ""
     @State private var customInput = false
     @State private var inputName = "USB-C"
+    @State private var nameDrafts: [UUID: String] = [:]
     init(runtime: DeskRuntime, kind: String, selection: UUID?, close: @escaping () -> Void) {
         self.runtime = runtime; node = runtime.node; self.kind = kind; self.selection = selection; self.close = close
     }
@@ -113,6 +114,16 @@ struct DeskLiveSheet: View {
             if let detected = selectedDisplay {
                 if detected.serial != 0 { Text("Serial \(detected.serial)").font(.caption).foregroundStyle(.secondary) }
                 if !detected.canControl { Text("DDC/CI is unavailable through this cable. After adding the screen, choose its USB, network or serial control connection in Monitor control.").font(.callout).foregroundStyle(.orange) }
+                if let computer, let suggestion = runtime.suggestedScreens(computer: computer, display: detected).first {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("May be your \(suggestion.name) screen").font(.headline)
+                        Text("Its model and serial match a display on another computer. Confirm with Identify before saving; a serial can still be duplicated.").font(.caption)
+                        HStack {
+                            Button("Identify this display") { runtime.identifyDetected(display, computer: computer, name: detected.name) }
+                            Button("Use \(suggestion.name)") { screen = suggestion.id }
+                        }
+                    }.padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                }
                 Picker("Physical screen", selection: $screen) {
                     Text("A new screen").tag(nil as UUID?)
                     ForEach(node.group.monitors) { Text($0.name).tag(Optional($0.id)) }
@@ -145,22 +156,32 @@ struct DeskLiveSheet: View {
     var deskSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Desk settings").font(.title2.bold())
-            TextField("Desk name", text: Binding(get: { node.group.name }, set: { value in perform { var group = node.group; group.name = value; try node.edit(group) } })).textFieldStyle(.roundedBorder)
+            TextField("Desk name", text: nameBinding(node.group.id, current: node.group.name) { $0.name = $1 }).textFieldStyle(.roundedBorder)
             ForEach(node.group.presets.indices, id: \.self) { i in
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Preset \(i+1)", text: Binding(get: { node.group.presets[i].name }, set: { value in perform { var group = node.group; group.presets[i].name = value; try node.edit(group) } })).textFieldStyle(.roundedBorder)
+                    TextField("Preset \(i+1)", text: nameBinding(node.group.presets[i].id, current: node.group.presets[i].name) { $0.presets[i].name = $1 }).textFieldStyle(.roundedBorder)
                     HStack {
                         Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(DeskShortcutKey.names, id: \.self) { Text($0).tag($0) } }.frame(width: 100)
                         modifier("Ctrl", \.control, i); modifier("Opt", \.option, i); modifier("Cmd", \.command, i); modifier("Shift", \.shift, i)
                     }
                 }
             }
-            Text("These names, presets and shortcuts are shared with the desk. Keyboard and mouse sharing is not enabled; a preset changes monitor inputs only.").font(.callout).foregroundStyle(.secondary)
+            Text("These names, presets and shortcuts are shared with the desk. Play changes monitor inputs; input sharing below is enabled separately on each Mac.").font(.callout).foregroundStyle(.secondary)
+            DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
             if !node.pendingPeers.isEmpty { Text("Saved here. Waiting for \(node.group.computers.filter { node.pendingPeers.contains($0.id) }.map(\.name).joined(separator: ", ")) to acknowledge the latest change.").font(.callout).foregroundStyle(.orange) }
             if let issue = runtime.shortcutProblem { Text(issue).foregroundStyle(.orange) }
         }
     }
     func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); try node.edit(group) } }
+    func nameBinding(_ id: UUID, current: String, change: @escaping (inout KVMGroup, String) -> Void) -> Binding<String> {
+        Binding(get: { nameDrafts[id] ?? current }, set: { value in
+            nameDrafts[id] = value
+            do {
+                var group = node.group; change(&group, value); try node.edit(group)
+                nameDrafts[id] = nil; error = nil
+            } catch { self.error = "The previous name is still saved. " + error.localizedDescription }
+        })
+    }
     func modifier(_ title: String, _ key: WritableKeyPath<KVMShortcut, Bool>, _ i: Int) -> some View {
         Toggle(title, isOn: Binding(get: { node.group.presets[i].shortcut[keyPath: key] }, set: { value in changeShortcut(i) { $0[keyPath: key] = value } }))
     }
@@ -278,7 +299,7 @@ extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
         view.frame = NSRect(x: 0, y: 0, width: 1000, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Shared monitor layouts and presets. Editing saves your setup; Play switches the actual inputs. Keyboard and mouse sharing comes later.", view: view, preferredBodyWidth: 1000))
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Enable keyboard and mouse sharing for each Mac in Desk settings.", view: view, preferredBodyWidth: 1000))
     }
 }
 
@@ -293,11 +314,11 @@ extension AppDelegate {
             label(item, preset.name, hint: runtime.switching.activePreset == preset.id ? "Confirmed" : "")
             (item.view as? MenuRowView)?.shortcutHint = preset.shortcut.label
             item.isEnabled = issue == nil
-            item.menuHelp = issue ?? "Switch the monitor inputs to \(preset.name). Keyboard and mouse stay on their current computer."
+            item.menuHelp = issue ?? DeskModel.presetActivationHelp
         }
     }
     @objc func useDeskPreset(_ item: NSMenuItem) {
         guard let runtime = DeskCoordinator.shared.runtime, runtime.node.group.presets.indices.contains(item.tag) else { return }
-        withMenuClosed { runtime.switching.activate(runtime.node.group.presets[item.tag].id) }
+        withMenuClosed { runtime.activatePreset(runtime.node.group.presets[item.tag].id) }
     }
 }

@@ -1,6 +1,11 @@
 # Coordinated Perch KVM — replacement feature todo
 
-Status: version 1.2.87 implements the monitor-only runtime in the main app:
+Status: 2.0 now includes the input-session implementation described in
+RELEASE-2.0.md. Real TLS fixtures cover 16 members/screens, all input sources,
+three-computer pointer traversal, held-input cleanup and confirmed keyboard host
+following. Native hardware/latency/permission acceptance is still separate.
+
+Version 1.2.87 established the monitor-only runtime in the main app:
 authenticated discovery/joining, durable shared edits/conflicts, membership
 revocation/recovery, monitor preparation/control/readback and Desk navigation.
 The native editor and Menu Appearance have focused click-through evidence.

@@ -1,6 +1,7 @@
 # Perch work checklist
 
-Reconciled September 9, 2026 for version 1.2.87. See RELEASE-1.2.md for installation evidence. Categories are distinct: known defects,
+2.0 development, September 10, 2026. Prepared Developer ID candidate: 2.0.92 (not installed/notarized).
+Last installed preview: 1.2.87. See RELEASE-1.2.md for installation evidence. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
@@ -20,6 +21,10 @@ The installed local test build is still 1.2.87. These defects are fixed in the
    signatures, and rejects redirected/extra links. Publisher mismatch queues
    a helper update rather than claiming the old helper is current.
 
+2.0 additionally fixes setup-summary overflow, stale shared-keyboard rows,
+standard text-editing shortcuts and input handoff/ordering failures described in
+RELEASE-2.0.md. These changes await installation too.
+
 23/23 isolated regression suites pass. Actual hardware and broader native QA
 remain open; this is not a claim that untested behavior is defect-free.
 
@@ -34,15 +39,14 @@ remain open; this is not a claim that untested behavior is defect-free.
    lid handoff and visible failure/retry. Real signed disposable installation and
    mock handoff/retry passed. Public signing/hosting and live acceptance remain
    below. SPARKLE-REVIEW.md; DISTRIBUTION.md.
-3. [ ] **Coordinated Perch KVM, replacing monitor cycling.** Support named groups
+3. [x] **Coordinated Perch KVM implementation, replacing monitor cycling.** Support named groups
    of 2–16 computers; pairing authorizes individual membership. One intuitive
    group setup is editable from any member and stays synchronized, including
    monitor identities, mappings, arrangements and shared shortcuts. Up to three
    presets (default Ctrl–Opt–Cmd–F1/F2/F3), physical layout including rotation,
    and pointer-boundary handoff independent of input-device attachment. Handle
-   offline catch-up, concurrent edits, revocation and per-host prerequisites. Settle
-   monitor-only grouping, authenticated synchronization and real preset switching
-   first; defer input capture/forwarding and pointer/keyboard focus transfer. Support hotkeys,
+   offline catch-up, concurrent edits, revocation and per-host prerequisites. Monitor-only grouping, authenticated synchronization and real preset switching
+   preceded the 2.0 input implementation. Support hotkeys,
    optional same-keyboard host-button detection, one monitor, either/both of two,
    and mixed arrangements, with up to 16 distinct physical monitors per group.
    Establish shared physical identity across computers using serial/model
@@ -56,11 +60,16 @@ remain open; this is not a claim that untested behavior is defect-free.
    conflict recovery and revocation; real monitor adapters, two-phase reservations,
    mapped-peer fallback and readback; production Desk/sidebar/menu integration.
    Matching remains explicit: displays with identical specs are never auto-merged.
-   Strong-identity match suggestions are a follow-up; manual shared-screen
-   confirmation is available now. See KVM-LIVE-REVIEW.md for evidence limits.
-   **Remaining feature work:** keyboard/mouse forwarding and focus handoff,
-   same-keyboard host following, locked-session input feasibility and larger-group
-   refinement. These follow monitor-only physical acceptance.
+   Strong-serial suggestions now supplement manual shared-screen confirmation;
+   weak or conflicting identity still requires explicit matching. See KVM-LIVE-REVIEW.md for evidence limits.
+   **2.0 implementation:** opt-in session input routing, shared keyboard host
+   following with explicit per-host attachment confirmation, three-computer
+   pointer traversal, fresh input readback, native event construction, local
+   recovery, and strong-serial monitor suggestions. Sixteen real TLS fixture
+   members exercise synchronization and routing. See RELEASE-2.0.md for limits.
+   Secure-entry/locked-session input is not supported by this event-tap adapter;
+   a local keyboard is required. Physical latency, lock/unlock, real mouse/button
+   behavior and host-button observations remain QA gates, not passed tests.
 4. [x] **Menu Appearance (1.2.87).** Immediate-save rainbow and separate System
    controls for border sides/scope/thickness/intensity, colored or grey backgrounds,
    title/full/none highlights, corner radius, title tint/icons and spacing.
@@ -112,7 +121,9 @@ remain open; this is not a claim that untested behavior is defect-free.
    production-route/dynamic-list journeys and coordinated OS
    permission/authorization handoffs. See ACCESSIBILITY-REVIEW-81.md and
    SETTINGS-SIDEBAR-82.md. Metadata and harmless-lab input are not full acceptance.
-9. [ ] **Performance and memory.** Idle, open menu, input activity, process bursts
+9. [ ] **Performance and memory.** A read-only 30-second installed 1.2.87 baseline
+   passed (30/30 healthy, combined app/helpers excluding observer about 1.23% CPU);
+   this does not measure the new input adapter. Idle, open menu, input activity, process bursts
    and recovery; wakeups, event backlog, sustained memory growth and combined
    collector CPU. Prior bounded measurements do not establish release-wide cost.
 10. [ ] **Sparkle acceptance after implementation.** Signed feed/archive delivery,
@@ -123,8 +134,10 @@ remain open; this is not a claim that untested behavior is defect-free.
     cross-Mac edits, restart/reconnect and conflict recovery, identify/match screens,
     map actual ports, and use all presets in both directions. Test one/two screens,
     mixed arrangements, offline control hosts, partial failure and competing
-    commands. Test Bonjour/nearby Wi-Fi and explicit routed addresses. Keyboard/
-    mouse forwarding tests follow that feature’s implementation. Validate reused DDC/USB MCCS/MSI USB/
+    commands. Test Bonjour/nearby Wi-Fi and explicit routed addresses. Then accept 2.0 keyboard/mouse sharing: Control here, pointer boundary handoff,
+    rotation/Retina scaling, separate input hosts, modifiers, buttons/drag/scroll,
+    host-selection first key, access loss, lock/unlock and Ctrl–Opt–Esc recovery.
+    Local keyboards are required for secure entry. Validate reused DDC/USB MCCS/MSI USB/
     NEC LAN/serial and LG identification on available hardware. Catalog research
     is not certified support. Retired standalone cycling has no separate QA gate.
 12. [ ] **Destructive action acceptance in a separately authorized disposable

@@ -54,7 +54,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Displays", detail: "Use Desk to group computers and switch monitor presets. Turning displays off is a separate action.", height: 240)
         page.add("Open Desk…", detail: "Arrange shared screens, map connections and use three monitor presets.") { [weak self] in self?.deskSettings() }
         page.add("Turn display off now", detail: "Turns off connected displays. Move the mouse or press a key to wake them.") { [weak self] in self?.turnDisplayOff() }
-        page.update = { [weak page] in page?.status.stringValue = DeskCoordinator.shared.runtime.map { "\($0.node.group.monitors.count) screens in \($0.node.group.name). Keyboard and mouse sharing is not enabled." } ?? "Desk is optional. Set it up when you want to switch monitor inputs between computers." }
+        page.update = { [weak page] in page?.status.stringValue = DeskCoordinator.shared.runtime.map { "\($0.node.group.monitors.count) screens in \($0.node.group.name). " + ($0.input.enabled ? ($0.input.active ? "Keyboard and mouse sharing is active." : "Input sharing is enabled. Open Desk settings to review readiness.") : "Keyboard and mouse sharing can be enabled in Desk settings.") } ?? "Desk is optional. Set it up when you want to use computers and screens together." }
         page.show(delegate: self)
     }
     @objc func scrollingSettings() {

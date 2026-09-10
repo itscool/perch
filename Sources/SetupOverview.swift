@@ -32,6 +32,9 @@ struct SetupSnapshot {
     var monitorWarning = false
     var monitorNeedsVerification = false
     var monitorDetail = "Connect an external monitor to set up input switching."
+    var deskInputEnabled = false
+    var deskInputActive = false
+    var deskInputProblem: String?
     var collectorInstalled = false
     var collectorNeedsRepair = false
     var collectorWaitingForSession = false
@@ -75,6 +78,8 @@ struct SetupSnapshot {
         add("displays", "Desk monitor presets", monitorState,
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
+        add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
+            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Desk settings. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk settings to choose a confirmed screen to control."), "Open Desk…", .displays)
 
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Review sleep…", .awake)
@@ -139,21 +144,16 @@ final class SetupOverviewPage {
     private var labels: [NSTextField] = []
     private var buttons: [SettingsActionButton] = []
     private var next: SettingsActionButton!
+    private let scroll = NSScrollView()
+    private let rows = NSView()
     init(firstVisit: Bool, read: @escaping () -> SetupSnapshot, recheck: @escaping () -> Void, navigate: @escaping (SetupRoute, String) -> Void) {
         self.firstVisit = firstVisit; self.read = read; self.recheck = recheck; self.navigate = navigate
         summary.font = .systemFont(ofSize: 14, weight: .semibold)
         summary.frame = NSRect(x: 8, y: 541, width: 556, height: 26); view.addSubview(summary)
-        for index in 0..<7 {
-            let label = NSTextField(wrappingLabelWithString: "")
-            label.frame = NSRect(x: 8, y: 428-index*68, width: 372, height: 59)
-            label.font = .systemFont(ofSize: 12); labels.append(label); view.addSubview(label)
-            let button = SettingsActionButton(title: "Checking…") { [weak self] in
-                guard let self, self.checks.indices.contains(index) else { return }
-                let item = self.checks[index]; self.navigate(item.route, item.id)
-            }
-            button.frame = NSRect(x: 390, y: 442-index*68, width: 182, height: 30)
-            buttons.append(button); view.addSubview(button)
-        }
+        scroll.frame = NSRect(x: 0, y: 0, width: 572, height: 486)
+        scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay; scroll.drawsBackground = false
+        scroll.documentView = rows; view.addSubview(scroll)
         let check = SettingsActionButton(title: "Recheck") { [weak self] in self?.recheck(); self?.refresh() }
         check.frame = NSRect(x: 0, y: 497, width: 278, height: 32); view.addSubview(check)
         next = SettingsActionButton(title: "Continue setup") { [weak self] in
@@ -178,6 +178,18 @@ final class SetupOverviewPage {
     func refresh() {
         let snapshot = read(); checks = snapshot.checks; summary.stringValue = snapshot.summary
         summary.textColor = checks.contains { $0.state == .attention } ? StatusColors.warning : .labelColor
+        if labels.count != checks.count {
+            rows.subviews.forEach { $0.removeFromSuperview() }; labels = []; buttons = []
+            for index in checks.indices {
+                let label = NSTextField(wrappingLabelWithString: "")
+                label.font = .systemFont(ofSize: 12); labels.append(label); rows.addSubview(label)
+                let button = SettingsActionButton(title: "Checking…") { [weak self] in
+                    guard let self, self.checks.indices.contains(index) else { return }
+                    let item = self.checks[index]; self.navigate(item.route, item.id)
+                }
+                buttons.append(button); rows.addSubview(button)
+            }
+        }
         for (index, item) in checks.enumerated() {
             let color: NSColor = item.state == .attention || item.state == .unverified ? StatusColors.warning : item.state == .ready ? StatusColors.success : .labelColor
             let text = NSMutableAttributedString(string: item.title + " · " + item.state.rawValue + "\n", attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: color])
@@ -186,6 +198,21 @@ final class SetupOverviewPage {
             labels[index].toolTip = item.detail
             buttons[index].title = item.action
             buttons[index].setAccessibilityLabel(item.action + " " + item.title)
+        }
+        let heights = labels.map { max(76, ceil($0.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 372, height: 10000)).height ?? 0) + 16) }
+        let top = max(0, rows.frame.height - scroll.contentView.bounds.maxY)
+        let height = max(scroll.contentSize.height, heights.reduce(0, +))
+        let changedHeight = rows.frame.height != height
+        rows.frame = NSRect(x: 0, y: 0, width: 572, height: height)
+        var y = height
+        for index in labels.indices {
+            y -= heights[index]
+            labels[index].frame = NSRect(x: 8, y: y + 8, width: 372, height: heights[index] - 16)
+            buttons[index].frame = NSRect(x: 390, y: y + heights[index] - 38, width: 164, height: 30)
+        }
+        if changedHeight {
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - scroll.contentSize.height - top)))
+            scroll.reflectScrolledClipView(scroll.contentView)
         }
         next.title = checks.contains { $0.state == .attention } ? (firstVisit ? "Continue setup" : "Fix next issue") : "App settings"
     }
@@ -218,6 +245,9 @@ extension AppDelegate {
             result.monitorDetail = "\(group.name): \(group.members.count) selected displays. " + monitorInputs.groups.message
         }
         } else if let desk = DeskCoordinator.shared.runtime {
+            result.deskInputEnabled = desk.input.enabled
+            result.deskInputActive = desk.input.active
+            result.deskInputProblem = desk.inputAdapter.accessProblem ?? desk.input.problem
             result.monitorConfigured = !desk.node.group.monitors.isEmpty
             result.monitorAvailable = desk.node.group.presets.contains { desk.switching.readiness($0.id) == nil }
             result.monitorBusy = desk.switching.busy

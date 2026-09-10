@@ -1,4 +1,4 @@
-# Current Perch backlog
+# Current Perch work and backlog
 
 Reconciled September 9, 2026 after the build 81 keyboard/accessibility work; build 77 remains installed. This is the planned
 execution order, not the dates issues were first reported. It supersedes stale
@@ -87,6 +87,12 @@ acceptance gaps below are not automatically established defects.
     rollback and uninstall. Confirm compatibility without this development Mac's
     grants/jobs. Review the concrete release before any separately authorized
     publication; public publishing is not authorized by this backlog.
+## Backlog — optional future work
+
+These items are outside current required feature work and release gates. The
+current guarded lid implementation and eslogger collector still require the QA
+listed above; optional replacements do not defer that validation.
+
 15. **Later: real release update checker.** Build 80 adds the reusable local
     replacement step now: detect a newer signed app at the running copy's path,
     show running/on-disk versions and Restart in the menu, and notify once per
@@ -94,10 +100,29 @@ acceptance gaps below are not automatically established defects.
     assumed. Release discovery and delivery remain future work; the development
     file-picker Updates flow stays retired. Native replacement/notice acceptance
     remains separate from the isolated tests and active-session restart checks.
-16. **Optional/deferred research and metrics.** A supported native expiring lid
-    assertion may simplify recovery, but is not required if the guarded override
-    meets acceptance. Retain older optional thermal-alert/swap-rate ideas; numeric
-    temperature requires a reliable sensor. These are not current bug blockers.
+16. **Direct process events.** Investigate replacing eslogger with a minimal
+    native Endpoint Security collector for structured events and filtering.
+    This requires Apple's restricted Endpoint Security entitlement, separate
+    from user-granted Full Disk Access. See EVENT-COLLECTOR.md. The implemented
+    native identity launcher is still an eslogger launcher, not this replacement.
+17. **Native lid research.** Find a supported, third-party-accessible macOS
+    assertion that prevents closed-lid sleep on battery and expires automatically,
+    potentially simplifying helper/watchdog recovery. The identified private
+    options require Apple-internal power entitlements; Endpoint Security approval
+    would not grant them. This research is optional, not a prerequisite for the
+    current guarded implementation. Current lid validation remains QA above.
+18. **Thermal alerts.** Optionally notify the user when macOS reports high thermal
+    pressure using the public thermal-state API already read by Perch. No special
+    Apple feature entitlement is needed; define useful thresholds and quiet,
+    non-repeating notification behavior before implementation.
+19. **Temperature readings.** Research a reliably identified CPU/GPU temperature
+    sensor source and hardware coverage before displaying degrees. This is
+    separate from thermal-pressure alerts; do not infer temperatures from the
+    existing qualitative thermal state.
+20. **Swap-rate metrics.** Optionally display how quickly macOS swaps memory,
+    with clear units and sampling semantics, distinct from current swap usage.
+
+## Ongoing maintenance and completed evidence
 
 Ongoing: update the settings-flow skill when new confirmed lessons emerge;
 review the agent catalog monthly against official sources, preserving explicit

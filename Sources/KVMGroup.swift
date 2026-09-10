@@ -51,10 +51,17 @@ struct KVMGeometry: Codable, Equatable {
     }
 }
 
+struct KVMMonitorControl: Codable, Equatable {
+    var computer: UUID
+    var localDisplay: String
+    var mode = "standard"
+}
+
 struct KVMMonitor: Codable, Equatable, Identifiable {
     var id = UUID()
     var name: String
     var geometry: KVMGeometry
+    var control: KVMMonitorControl? = nil
 }
 
 struct KVMConnection: Codable, Equatable, Identifiable {
@@ -115,6 +122,9 @@ struct KVMGroup: Codable, Equatable, Identifiable {
                     Set(connections.map(\.id)).count == connections.count && Set(presets.map(\.id)).count == presets.count, "Desk identifiers must be unique.")
         try require(computers.allSatisfy { nameOK($0.name) && nameOK($0.platform) } && monitors.allSatisfy { nameOK($0.name) }, "Each computer and screen needs a valid name.")
         for monitor in monitors {
+            if let control = monitor.control {
+                try require(computers.contains { $0.id == control.computer } && UUID(uuidString: control.localDisplay) != nil && control.mode.utf8.count <= 2048 && (control.mode == "standard" || control.mode == "lg" || control.mode.hasPrefix("route:")), "Choose a valid monitor control connection.")
+            }
             let g = monitor.geometry
             try require([g.x, g.y, g.width, g.height].allSatisfy(\.isFinite) && abs(g.x) <= 100_000 && abs(g.y) <= 100_000 &&
                         (1...10_000).contains(g.width) && (1...10_000).contains(g.height), "Screen positions and physical sizes must be valid.")
@@ -153,6 +163,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
     mutating func removeComputer(_ id: UUID) throws {
         guard computers.count > 1 else { throw KVMError("Keep at least one computer in the desk.") }
         computers.removeAll { $0.id == id }
+        for i in monitors.indices where monitors[i].control?.computer == id { monitors[i].control = nil }
         // Physical inputs remain selectable when their computer leaves the group.
         for i in connections.indices where connections[i].computer == id { connections[i].computer = nil; connections[i].localDisplay = nil }
     }

@@ -1,19 +1,17 @@
 # Perch work checklist
 
-Reconciled September 9, 2026 for build 82. Build 77 remains installed; newer
-candidates are prepared separately. Categories are distinct: known defects,
+Reconciled September 9, 2026 for version 1.2.87. See RELEASE-1.2.md for installation evidence. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-- [ ] **P3: legacy monitor guidance is dense and its next action is unclear.**
-  The persistent sidebar improves access but does not replace the old monitor
-  editor's nested guidance. Resolve through the coordinated KVM replacement;
-  retain this as a known usability defect until the replacement resolves it.
-  See WHOLE-APP-REVIEW-79.md. No other confirmed unresolved functional defect
-  is currently recorded for the candidate. QA gaps are not established defects.
+No confirmed unresolved defect is currently recorded for 1.2.87. The old monitor
+usability defect is resolved by replacing its production entry points with Desk.
+The native Appearance preview overlap and removed-member recovery gap found in
+this pass were fixed before installation. Physical and broader native QA below
+remain open; this statement is not a claim that untested behavior is defect-free.
 
 ## Features
 
@@ -43,18 +41,21 @@ This supersedes stale open-item wording in dated review checkpoints.
    requests, sleeping peers and partial failures. No legacy migration is required.
    Preserve the monitor profile/API/protocol library and use it to replace the old monitor pages, switching groups, cycling shortcuts and guidance
    with one Desk workflow, reusing low-level monitor transports. Detailed order: KVM-PLAN.md.
-   First milestone implemented: portable group/port/preset/geometry models,
-   signed conflict-preserving sync, bounded framing and a handoff state machine;
-   separate native Desk Lab with tile controls, connections and three preset
-   choices together. Unassigned ports allow picture-only switching; no None mode.
-   This is simulated, not installed KVM. Next: paired transport and membership
-   authority, durable network sync, monitor-only coordinator/adapters, production
-   Settings replacement and physical acceptance. Input sharing follows.
-4. [ ] **Menu Appearance.** Immediate-save controls for rainbow sections and a
-   separately configured System area: border sides/thickness/intensity and
-   title/full-section scope, title/full/none backgrounds with intensity and grey
-   or matching colors, sharp/rounded corners and tinted/normal title text.
-   Preserve the tuned defaults; include presets and Restore defaults.
+   **Monitor-only milestone implemented in 1.2.87:** mutual TLS discovery/joining,
+   two-sided approval, pinned membership, durable signed synchronization, offline
+   conflict recovery and revocation; real monitor adapters, two-phase reservations,
+   mapped-peer fallback and readback; production Desk/sidebar/menu integration.
+   Matching remains explicit: displays with identical specs are never auto-merged.
+   Strong-identity match suggestions are a follow-up; manual shared-screen
+   confirmation is available now. See KVM-LIVE-REVIEW.md for evidence limits.
+   **Remaining feature work:** keyboard/mouse forwarding and focus handoff,
+   same-keyboard host following, locked-session input feasibility and larger-group
+   refinement. These follow monitor-only physical acceptance.
+4. [x] **Menu Appearance (1.2.87).** Immediate-save rainbow and separate System
+   controls for border sides/scope/thickness/intensity, colored or grey backgrounds,
+   title/full/none highlights, corner radius, title tint/icons and spacing.
+   Includes shared-renderer preview, style presets and Restore defaults. Native
+   checkbox changes, independent System values, scrolling and Restore passed.
 5. [ ] **Finish the Sparkle release feed.** Configure the production public key,
    stable HTTPS feed and signed release artifacts; complete signing/notarization
    and verification before requesting final publication approval. Integration
@@ -62,12 +63,12 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## QA — implementation acceptance, with defects returned to the first section
 
-1. [ ] **Install and accept build 82.** Check persistent navigation, direct menu
+1. [ ] **Accept version 1.2.87 on both Macs.** Check persistent navigation, direct menu
    entry, same-category return from children, validation/discard, Back/Close,
    small-screen scrolling, keyboard focus and sidebar behavior during operations.
    Check the new tooltip content (78+) and shared Esc labels. The original Back,
    tooltip-ownership and flicker fixes remain accepted; do not reopen without a
-   new failure. Installation is separate from preparing a signed candidate.
+   new failure. The local replacement is recorded separately in RELEASE-1.2.md. Desk child Close/Escape, immediate name saving, preset Play with injected monitor commands and Appearance controls were exercised; broader journeys remain.
 2. [ ] **First use and access repair.** Blocked-access startup notice,
    already-enabled recovery, scoped Automation errors and helper-specific guidance;
    Setup & status must agree with feature pages. Normal launch and Restart already
@@ -97,7 +98,8 @@ This supersedes stale open-item wording in dated review checkpoints.
    the optional direct Endpoint Security collector in Backlog.
 8. [ ] **Keyboard and spoken VoiceOver acceptance.** Implementation is complete
    for the reviewed settings set, including the new sidebar. Finish spoken
-   VoiceOver, broader production-route/dynamic-list journeys and coordinated OS
+   VoiceOver, standard text-editing shortcuts in the new SwiftUI fields, broader
+   production-route/dynamic-list journeys and coordinated OS
    permission/authorization handoffs. See ACCESSIBILITY-REVIEW-81.md and
    SETTINGS-SIDEBAR-82.md. Metadata and harmless-lab input are not full acceptance.
 9. [ ] **Performance and memory.** Idle, open menu, input activity, process bursts
@@ -107,9 +109,12 @@ This supersedes stale open-item wording in dated review checkpoints.
     bad signatures, interruption, cancellation, retry, replacement, permission
     continuity, active lid handoff, helper compatibility and external Homebrew
     replacement. See DISTRIBUTION.md for install-on-quit and identity requirements.
-11. [ ] **KVM/hardware acceptance after implementation.** Two real Perch computers,
-    multiple display arrangements, split keyboard/mouse hosts, identical keyboard
-    models, reconnects and partial failures. Validate reused DDC/USB MCCS/MSI USB/
+11. [ ] **Desk monitor-only acceptance — next.** Join the two real Macs; verify
+    cross-Mac edits, restart/reconnect and conflict recovery, identify/match screens,
+    map actual ports, and use all presets in both directions. Test one/two screens,
+    mixed arrangements, offline control hosts, partial failure and competing
+    commands. Test Bonjour/nearby Wi-Fi and explicit routed addresses. Keyboard/
+    mouse forwarding tests follow that feature’s implementation. Validate reused DDC/USB MCCS/MSI USB/
     NEC LAN/serial and LG identification on available hardware. Catalog research
     is not certified support. Retired standalone cycling has no separate QA gate.
 12. [ ] **Destructive action acceptance in a separately authorized disposable
@@ -118,8 +123,8 @@ This supersedes stale open-item wording in dated review checkpoints.
 ## Release — signing, packaging and distribution
 
 1. [ ] **Public signing identity, before release.** Establish Apple
-   Developer Program membership/Developer ID signing. Only the local Perch
-   certificate was available on September 9. Review stable identities, helper
+   Developer Program membership/Developer ID signing. The 1.2.87 test build uses the local Perch
+   signing certificate; verify Developer ID availability before public signing. Review stable identities, helper
    trust and clean-install permissions. Migration from development certificates
    is not required. See DISTRIBUTION.md; membership confirmation is pending.
 2. [ ] **Distribution build pipeline.** Direct-download package plus our own
@@ -170,7 +175,8 @@ launch, existing-install replacement and uninstall/recovery as one journey.
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.
 Build 82 evidence is recorded in SETTINGS-SIDEBAR-82.md. Version 1.2.84 passed
-23/23 isolated suites; Sparkle fixture evidence is in SPARKLE-REVIEW.md. Whole-app review fixes,
+23/23 isolated suites; Desk integration also passed 23/23 suites, 66 portable
+KVM checks, 26 model journeys and real TLS/monitor-coordinator fixtures; Sparkle fixture evidence is in SPARKLE-REVIEW.md. Whole-app review fixes,
 local replacement detection/restart and keyboard/accessibility implementation
 are complete at their stated boundaries; pending QA above remains explicit.
 

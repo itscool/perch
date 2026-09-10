@@ -1,10 +1,11 @@
 # Coordinated Perch KVM — replacement feature todo
 
-Status: implementation started September 9, 2026. The portable configuration,
-signed synchronization graph, geometry and handoff state machine have headless
-tests; a separate native Desk Lab exercises simulated user journeys. Live
-pairing/network/input/monitor adapters and production integration remain open.
-See KVM-ARCHITECTURE.md and KVM-REVIEW.md. The installed app does not yet support KVM.
+Status: version 1.2.87 implements the monitor-only runtime in the main app:
+authenticated discovery/joining, durable shared edits/conflicts, membership
+revocation/recovery, monitor preparation/control/readback and Desk navigation.
+The native editor and Menu Appearance have focused click-through evidence.
+Two real Macs and their monitors are the next acceptance gate. Input forwarding
+remains deferred. See KVM-LIVE-REVIEW.md for exact test boundaries.
 
 ## Current milestone and replacement boundary
 
@@ -21,8 +22,8 @@ to configure and operate Desk. No migration of old preferences or mappings is
 required (user decision September 9); start the new setup directly. Ambiguous
 physical identity still requires confirmation. Retire old entry points and
 hotkeys when replacing the old workflow so two independent monitor systems
-cannot compete. Keep the current controls working until the
-replacement is actually ready; the separate simulation is not that replacement.
+cannot compete. Production entry points now use Desk. Old controller classes remain only for
+isolated regression fixtures; their polling and hotkeys are not started by the app.
 
 ## Intended experience
 

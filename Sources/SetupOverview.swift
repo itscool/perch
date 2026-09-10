@@ -72,8 +72,8 @@ struct SetupSnapshot {
             keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
 
         let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
-        add("displays", "Display input switching", monitorState,
-            monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Choose a display and its inputs if you want to switch between computers." : monitorState == .unverified ? "Your inputs are saved. Current input unknown; read or confirm it in monitor settings before cycling." : monitorDetail,
+        add("displays", "Desk monitor presets", monitorState,
+            monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
 
         if lidDisabled == true {
@@ -201,6 +201,7 @@ extension AppDelegate {
         result.keyboardErrors = keyboardModes.results.contains { !$0.verified } || !keyboardModes.modifierErrors.isEmpty || keyboardModes.registrationError != nil
         result.keyboardSetupWanted = config.navigation?.enabled == true || NativeFunctionKeys.externalIntent() != nil || UserDefaults.standard.object(forKey: NativeModifierKeys.intentKey(false)) != nil
         result.navigationNeedsLearning = keyboardModes.registrationNeedsSetup
+        if legacyMonitorFixture {
         result.monitorConfigured = !monitorInputs.plan.display.isEmpty && !(monitorInputs.plan.availableInputs ?? monitorInputs.plan.inputs).isEmpty
         result.monitorAvailable = monitorInputs.canSwitch
         result.monitorBusy = monitorInputs.checkingDisplays || monitorInputs.busy || monitorInputs.groups.busy
@@ -216,6 +217,15 @@ extension AppDelegate {
             result.monitorWarning = monitorInputs.groups.hasAttention
             result.monitorDetail = "\(group.name): \(group.members.count) selected displays. " + monitorInputs.groups.message
         }
+        } else if let desk = DeskCoordinator.shared.runtime {
+            result.monitorConfigured = !desk.node.group.monitors.isEmpty
+            result.monitorAvailable = desk.node.group.presets.contains { desk.switching.readiness($0.id) == nil }
+            result.monitorBusy = desk.switching.busy
+            result.monitorWarning = desk.model.problem != nil
+            result.monitorNeedsVerification = false
+            result.monitorDetail = desk.model.problem ?? "\(desk.node.group.name): \(desk.node.group.monitors.count) screens. Open Desk to review connections and presets."
+        }
+
         result.collectorInstalled = EventCollectorSetup.shared.installed
         result.collectorNeedsRepair = EventCollectorSetup.shared.needsRepair
         result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
@@ -241,7 +251,7 @@ extension AppDelegate {
         let first = !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey)
         UserDefaults.standard.set(true, forKey: SetupOverviewPage.seenKey)
         let page = SetupOverviewPage(firstVisit: first, read: { [weak self] in self?.setupSnapshot() ?? SetupSnapshot(config: SafetyConfiguration()) }, recheck: { [weak self] in
-            self?.keyboardModes.recheck(); self?.monitorInputs.refresh()
+            self?.keyboardModes.recheck(); DeskCoordinator.shared.runtime?.refreshAllDisplays()
             HelperStatusIPC.guardianClient.refresh(); HelperStatusIPC.inputClient.refresh()
             self?.refresh()
         }, navigate: { [weak self] route, id in self?.openSetupRoute(route, id: id) })
@@ -253,7 +263,7 @@ extension AppDelegate {
         case .maintenance: advancedSafetySettings()
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboards: keyboardSettings()
-        case .displays: if monitorInputs.groups.active != nil { monitorGroupSettings() } else { displaySettings() }
+        case .displays: deskSettings()
         case .awake: keepAwakeSettings()
         case .agents: configurePanic()
         case .events: processEventSetup()

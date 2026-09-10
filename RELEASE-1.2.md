@@ -1,6 +1,46 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, version 1.2.84 candidate; build 77 remains the last recorded installed build. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, version **1.2.87** installed local test build. The whole-app and
+physical acceptance checks remain in TODO.md and V1.2-REVIEW.md. The previous
+release is 1.1. This is not a published or notarized release.
+
+## Version 1.2.87: shared Desk and Menu Appearance
+
+Desk is now part of the main app. Approve both computers to join a trusted group,
+edit one synchronized arrangement, map actual monitor inputs, and use three
+presets with Ctrl–Opt–Cmd–F1/F2/F3 defaults. Editing does not switch the monitors;
+Play does. Shared physical-screen identity is explicitly confirmed, including
+identical models. The existing monitor profile and DDC/USB/network/serial library
+serves Desk. Remote capability reads and catalog/custom input choices support
+setup when generic input detection is incomplete. Old production cycling pages,
+groups and shortcuts are replaced; no old setup is migrated.
+
+Connections use mutual TLS 1.3, pinned device identities, a comparison approved
+on both Macs, signed membership and durable conflict-preserving synchronization.
+Removed peers lose access; their saved setup is preserved with a new-desk recovery
+route. Monitor operations prepare all control hosts, reject competing or stale
+requests, use a mapped peer when the original video path disappears, and report
+confirmed/unverified/failed per screen. Keyboard and mouse forwarding is deferred.
+
+Menu Appearance saves immediately, with independent System and rainbow settings:
+border edges/scope/thickness/intensity, title/full/no highlights, grey or section
+colors, intensity, corner radius, title text tint/icons and spacing. Its live
+preview uses the actual row renderer; presets and Restore defaults are included.
+Native testing caught and fixed overlapping preview rows before installation.
+
+Evidence: 23/23 isolated regression suites passed at integration; 66 portable KVM
+checks, 26 desk-model journeys and real TLS two-peer synchronization, revocation,
+recovery and monitor-coordinator fixtures passed. Native Desk child Close/Escape,
+name saving, sidebar return and Play were exercised using simulated monitors.
+Appearance checkbox saving, separate System state, scrolling and Restore passed.
+Actual two-Mac discovery, hardware switching and full accessibility remain QA.
+Static Apple certificate dependency licenses/notices ship in the bundle.
+Production compilation and strict nested signatures passed. Installation: replaced build 77 at the existing build/Perch.app path, retained
+a backup, and launched through LaunchServices. The main process changed from
+61677 to 6086; the input/safety helper bundle is build 87. Before replacement,
+the lid was closed on AC with no owned lid session and SleepDisabled off. The
+saved sleep.includeLid preference was true before and after; no active session
+was transferred, ended or started. This does not close active-session restart QA.
 
 ## Unreleased source: remove development-era migration
 

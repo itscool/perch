@@ -71,9 +71,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var homeEndItem: NSMenuItem!
     var pageKeysItem: NSMenuItem!
     var monitorInputItem: NSMenuItem!
+    var deskPresetItems: [NSMenuItem] = []
+    let legacyMonitorFixture: Bool
     let monitorInputs: MonitorInputController
-    override convenience init() { self.init(monitorInputs: MonitorInputController()) }
-    init(monitorInputs: MonitorInputController) { self.monitorInputs = monitorInputs; super.init() }
+    override convenience init() { self.init(monitorInputs: MonitorInputController(), legacyMonitorFixture: false) }
+    init(monitorInputs: MonitorInputController, legacyMonitorFixture: Bool = true) { self.monitorInputs = monitorInputs; self.legacyMonitorFixture = legacyMonitorFixture; super.init() }
     var safetyItem: NSMenuItem!
     var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
@@ -123,9 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         accessNoticeStarted = true; accessNoticeDeadline = Date().addingTimeInterval(30)
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
         keyboardModes.start()
-        monitorInputs.onChange = { [weak self] in self?.refreshMonitorInputItem() }
-        monitorInputs.start()
-        monitorInputs.groups.onNeedsDestination = { [weak self] in self?.monitorGroupSettings() }
+        DeskCoordinator.shared.resumeIfConfigured()
         observeHelperPresentation()
         LidGuardClient.shared.start()
         lidSleepNotice.show = { [weak self] _, detail, acknowledge in
@@ -188,8 +188,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         section("Display")
         let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
-        monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput), help: ControlHelp.monitor)
-        refreshMonitorInputItem()
+        if legacyMonitorFixture {
+            monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput), help: ControlHelp.monitor)
+            if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu() }
+        } else {
+            monitorInputItem = add("Desk…", #selector(deskSettings), help: "Group Perch computers, arrange screens and choose monitor input presets.")
+            for i in 0..<3 { let item = add("Preset \(i+1)", #selector(useDeskPreset(_:)), help: "Switch monitor inputs to this Desk preset. Keyboard and mouse stay on their current computer."); item.tag = i; deskPresetItems.append(item) }
+            refreshDeskMenu()
+        }
         audioSection = section("Audio")
         audioItem = add("Mute audio", #selector(toggleAudio), help: ControlHelp.audio)
         section("Scrolling")
@@ -228,6 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self?.lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         }
         (loginItem.view as? MenuRowView)?.opensAnotherInterface = { SMAppService.mainApp.status == .requiresApproval }
+        MenuAppearanceStore.shared.changed = { [weak self] in self?.styleMenuSections(); self?.menu.items.forEach { $0.view?.needsDisplay = true } }
         styleMenuSections()
         systemMonitor.processCPU.onUpdate = { [weak self] in
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
@@ -261,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         refreshAppReplacement(showNotice: false)
         appReplacement.check()
         menuOpen = true; menuGeneration &+= 1
-        monitorInputs.prepareForMenu() // Keep confirmed readiness unless macOS reports a change.
+        if legacyMonitorFixture { monitorInputs.prepareForMenu() } // // Keep confirmed readiness unless macOS reports a change.
         beginMenuKeyboardHandling()
         let generation = menuGeneration
         refreshMenuAppearance()
@@ -321,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         refreshSafety()
         refreshNavigationItems()
-        refreshMonitorInputItem()
+        if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu() }
         let loginStatus = SMAppService.mainApp.status
         loginItem.state = loginStatus == .enabled ? .on : (loginStatus == .requiresApproval ? .mixed : .off)
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
@@ -515,7 +522,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         // their exclusive action scope without a native modal window.
         if SettingsWindow.shared.modal { return false }
         if item === replacementRestartItem { return appReplacement.state.available != nil && !RestartSettingsSnapshot.current.busy }
-        if item === monitorInputItem { return monitorInputMenuEnabled }
+        if item === monitorInputItem { return legacyMonitorFixture ? monitorInputMenuEnabled : true }
+        if deskPresetItems.contains(item) { return DeskCoordinator.shared.runtime.map { $0.switching.readiness($0.node.group.presets[item.tag].id) == nil } ?? false }
         if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }
         if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardDetails) || keyboardModes.results.contains { $0.standard != nil }) }

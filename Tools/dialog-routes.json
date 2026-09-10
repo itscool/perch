@@ -356,5 +356,13 @@
     "kind": "task-page",
     "review": "SPARKLE-REVIEW.md: Updates sidebar; autosaved checking preference; shared ownership handed to standard Sparkle UI.",
     "acceptance": "23/23 isolated suites passed including Updates unavailable-state/Back; real Sparkle signed fixture install and mock handoff failure/retry passed. Production helper/permission continuity and broader native acceptance remain release QA."
+  },
+  "MenuAppearance.swift:appearanceSettings:page:1": {
+    "review": "KVM-LIVE-REVIEW.md \u2014 independent System/rainbow controls and same-renderer preview; ordinary values save immediately.",
+    "acceptance": "Source review in progress; native appearance, scroll, focus and sidebar return checks pending."
+  },
+  "DeskLiveSettings.swift:deskSettings:page:1": {
+    "review": "KVM-LIVE-REVIEW.md \u2014 shared sidebar Desk, scoped SwiftUI sheets, pairing approval, screen identity, controls, conflicts and removal.",
+    "acceptance": "Implementation review in progress. Native journeys and actual monitor acceptance pending."
   }
 }

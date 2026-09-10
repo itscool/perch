@@ -21,12 +21,12 @@ struct DeskView: View {
                     Text("\(model.group.computers.count) computers · \(model.group.monitors.count) screens").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Menu {
+                if model.live == nil { Menu {
                     Text("Simulated devices only — no network or hardware actions")
                     Toggle("Fail next switch", isOn: $model.failNextSwitch)
                     Button("Simulate concurrent edit") { model.simulateConflict() }
                     Button("First-use desk…") { draftName = "My new desk"; sheet = "newDesk" }
-                } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize()
+                } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
                 Button { draftName = model.group.name; sheet = "desk" } label: { Label("Desk settings", systemImage: "slider.horizontal.3") }
             }.padding(24)
@@ -48,7 +48,7 @@ struct DeskView: View {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
                                 .buttonStyle(.bordered).tint(.teal).disabled(model.readinessIssue(for: index) != nil)
                                 .accessibilityLabel("Switch to \(preset.name)")
-                                .help(model.readinessIssue(for: index) ?? "Switch to this preset now. The Desk Lab simulates the switch.")
+                                .help(model.readinessIssue(for: index) ?? (model.live == nil ? "Switch to this preset now. The Desk Lab simulates the switch." : "Switch the physical monitor inputs to this preset. Keyboard and mouse stay on their current computer."))
                             Text(preset.shortcut.label).font(.system(size: 10)).foregroundStyle(.secondary)
                         }
                     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
@@ -61,7 +61,7 @@ struct DeskView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Editing \(model.preset.name)").font(.headline)
-                            Text("Match your desk. Touching edges let the pointer cross.").font(.callout).foregroundStyle(.secondary)
+                            Text(model.live == nil ? "Match your desk. Touching edges let the pointer cross." : "Arrange the screens to match your desk.").font(.callout).foregroundStyle(.secondary)
                             if let issue = model.problem ?? model.readinessIssue {
                                 Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                             }
@@ -88,7 +88,7 @@ struct DeskView: View {
                                         Image(systemName: "desktopcomputer")
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(computer.name).font(.system(size: 12, weight: .medium))
-                                            Text(model.online.contains(computer.id) ? "Online · demo" : "Offline · demo").font(.system(size: 10)).foregroundStyle(.secondary)
+                                            Text(model.online.contains(computer.id) ? (model.live == nil ? "Online · demo" : "Online") : (model.live == nil ? "Offline · demo" : "Offline")).font(.system(size: 10)).foregroundStyle(.secondary)
                                         }
                                     }.padding(9)
                                 }.buttonStyle(.bordered).help("View this computer and its screen connections.")
@@ -99,7 +99,7 @@ struct DeskView: View {
                 Button { draftName = "Mac mini"; sheet = "computer" } label: { Label("Add computer", systemImage: "plus") }.disabled(model.group.computers.count >= 16)
             }.padding(.horizontal, 24).padding(.vertical, 16)
 
-        }.frame(minWidth: 960, minHeight: 740)
+        }.frame(minWidth: 960, minHeight: 620)
             .onChange(of: model.selected) { _, _ in rename = model.selectedMonitor?.name ?? "" }
             .onAppear { rename = model.selectedMonitor?.name ?? "" }
             .onChange(of: sheet) { _, next in if next != nil { model.problem = nil; showRemove = false } }
@@ -121,15 +121,28 @@ struct DeskView: View {
                             VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 5) {
                                 Text(connection.inputName).font(.system(size: 11, weight: .medium)).frame(width: 63, alignment: .leading)
+                                if let live = model.live {
+                                    Picker("Computer for \(connection.inputName)", selection: Binding(get: { connection.computer.map { $0.uuidString + "|" + (connection.localDisplay ?? "") } ?? "" }, set: { live.map(connection.id, $0) })) {
+                                        Text("Unassigned").tag("")
+                                        ForEach(live.mappingOptions()) { Text($0.label).tag($0.id) }
+                                    }.labelsHidden().frame(maxWidth: .infinity)
+                                } else {
                                 Picker("Computer for \(connection.inputName)", selection: Binding<UUID?>(get: { connection.computer }, set: { model.mapConnection(connection.id, computer: $0) })) {
                                     Text("Unassigned").tag(nil as UUID?); ForEach(model.group.computers) { Text($0.name).tag(Optional($0.id)) }
                                 }.labelsHidden().frame(maxWidth: .infinity)
+                                }
                                     Button { expandedConnection = expandedConnection == connection.id ? nil : connection.id } label: { Image(systemName: expandedConnection == connection.id ? "chevron.up" : "pencil") }
                                     .accessibilityLabel("\(expandedConnection == connection.id ? "Collapse" : "Edit") \(connection.inputName) connection").help("Change the input name or correct its physical screen.")
                             }
                             if expandedConnection == connection.id {
                                 VStack(alignment: .leading, spacing: 8) {
                                     TextField("Input name", text: Binding(get: { connection.inputName }, set: { model.changeConnection(connection.id, input: $0) })).textFieldStyle(.roundedBorder).accessibilityLabel("Input name")
+                                    if model.live != nil {
+                                        TextField("Input code", text: Binding(get: { connection.inputCode.map(String.init) ?? "" }, set: { value in
+                                            if let code = UInt16(value), code > 0 { model.edit { group in if let i = group.connections.firstIndex(where: { $0.id == connection.id }) { group.connections[i].inputCode = code } } }
+                                        })).textFieldStyle(.roundedBorder).accessibilityLabel("Monitor input code")
+                                        Button("Monitor control…") { sheet = "control" }
+                                    }
                                     Button("Correct physical screen…") { draftConnection = connection.id; draftScreen = connection.monitor; sheet = "correctConnection" }
                                     Button("Remove connection…", role: .destructive) { draftConnection = connection.id; sheet = "removeConnection" }
                                 }.padding(.vertical, 6)
@@ -140,6 +153,7 @@ struct DeskView: View {
                         }
                         Button("Add connection…") { draftScreen = monitor.id; draftComputer = nil; draftInput = "HDMI 1"; sheet = "connections" }
                     }
+                    if let result = model.monitorResults[monitor.id] { Text(result).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Preset connections").font(.system(size: 12, weight: .semibold))
                         ForEach(0..<3, id: \.self) { index in
@@ -161,7 +175,7 @@ struct DeskView: View {
                                 }
                             }
                         }
-                        Text("Choices save immediately. Press play on a preset to switch.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("Choices save immediately. Press play on a preset to switch.").font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -172,13 +186,16 @@ struct DeskView: View {
 
     var sheetView: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack { Text("DESK LAB").font(.caption).foregroundStyle(.secondary); Spacer(); Button { sheet = nil; showRemove = false } label: { Image(systemName: "xmark") }.accessibilityLabel("Close").help("Close this temporary step.").keyboardShortcut(.cancelAction) }
-            sheetContents
+            HStack { Text(model.live == nil ? "DESK LAB" : "DESK").font(.caption).foregroundStyle(.secondary); Spacer(); Button { sheet = nil; showRemove = false } label: { Image(systemName: "xmark") }.accessibilityLabel("Close").help("Close this temporary step.").keyboardShortcut(.cancelAction) }
+            ScrollView { sheetContents }.frame(maxHeight: 560)
             if let problem = model.problem { Text(problem).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
         }.padding(25).frame(width: 440)
     }
 
     @ViewBuilder var sheetContents: some View {
+        if let live = model.live, let sheet, ["computer", "screen", "computerDetails", "conflict", "connections", "correctConnection", "removeConnection", "desk", "control"].contains(sheet) {
+            live.sheet(sheet, sheet == "computerDetails" ? draftComputer : (sheet == "removeConnection" || sheet == "correctConnection" ? draftConnection : model.selected), { self.sheet = nil })
+        } else {
         switch sheet {
         case "desk":
             Text("Desk settings").font(.title2).fontWeight(.semibold)
@@ -237,7 +254,7 @@ struct DeskView: View {
         case "removeScreen":
             Text("Remove \(model.selectedMonitor?.name ?? "screen")?").font(.title2).fontWeight(.semibold)
             Text("This removes the screen, its cable connections and its assignments from all three presets. Other screens stay as they are.")
-            Button("Remove demo screen", role: .destructive) { if let id = model.selected { model.removeScreen(id); if model.problem == nil { sheet = nil } } }
+            Button(model.live == nil ? "Remove demo screen" : "Remove screen", role: .destructive) { if let id = model.selected { model.removeScreen(id); if model.problem == nil { sheet = nil } } }
         case "conflict":
             Text("Review both changes").font(.title2).fontWeight(.semibold)
             Text("Two computers edited this desk while apart. Both versions are kept until you choose. This scenario changes the desk name only.").foregroundStyle(.secondary)
@@ -262,6 +279,7 @@ struct DeskView: View {
                 }
             }
         default: EmptyView()
+        }
         }
     }
 }

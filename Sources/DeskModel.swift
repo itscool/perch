@@ -1,8 +1,20 @@
 import SwiftUI
 
+struct DeskMappingOption: Identifiable { let id: String; let label: String }
+struct DeskLiveActions {
+    let edit: (KVMGroup) throws -> Void
+    let activate: (UUID) -> Void
+    let readiness: (UUID) -> String?
+    let mappingOptions: () -> [DeskMappingOption]
+    let map: (UUID, String) -> Void
+    let identify: (UUID?) -> Void
+    let sheet: (String, UUID?, @escaping () -> Void) -> AnyView
+}
+
 // Interactive product prototype. Never discovers devices or requests permissions.
 // All names, readiness, input routes and pairing outcomes are explicitly simulated.
 final class DeskModel: ObservableObject {
+    @Published var live: DeskLiveActions?
     @Published var group: KVMGroup
     @Published var selected: UUID?
     @Published var presetIndex = 0
@@ -13,6 +25,7 @@ final class DeskModel: ObservableObject {
     @Published var active: KVMPreset?
     @Published var activeGroup: KVMGroup?
     @Published var activeFocus: String?
+    @Published var monitorResults: [UUID: String] = [:]
     @Published var identifying: UUID?
     @Published var conflict: KVMGroup?
     let store: URL
@@ -57,6 +70,7 @@ final class DeskModel: ObservableObject {
     var selectedMonitor: KVMMonitor? { group.monitors.first { $0.id == selected } }
     var unsent: Int { group.computers.filter { !online.contains($0.id) }.count }
     var saveStatus: String {
+        if live != nil { return unsent == 0 ? "Saved" : "Saved here · waiting for other computers" }
         if loadFailed { return "Could not open saved demo" }
         return unsent == 0 ? "Saved in this demo" : "Saved here · waiting for \(unsent) offline computer\(unsent == 1 ? "" : "s") (simulated)"
     }
@@ -75,6 +89,7 @@ final class DeskModel: ObservableObject {
     }
     func readinessIssue(for index: Int) -> String? {
         let preset = group.presets[index]
+        if let live { return live.readiness(preset.id) }
         if loadFailed { return "The saved demo couldn't be opened. Its original file is preserved." }
         if conflict != nil { return "Review the competing desk changes before using a preset." }
         if preset.assignments.isEmpty { return "Choose this preset's connections in the screen details." }
@@ -113,6 +128,7 @@ final class DeskModel: ObservableObject {
         var draft = group
         do {
             try change(&draft); _ = try draft.validated()
+            if let live { try live.edit(draft); group = draft; problem = nil; return }
             let bytes = try JSONEncoder().encode(draft)
             try FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
             try bytes.write(to: store, options: [.atomic])
@@ -142,6 +158,7 @@ final class DeskModel: ObservableObject {
         edit { g in g.presets[index].assignments.removeAll { $0.monitor == monitor }; if let connection { g.presets[index].assignments.append(.init(monitor: monitor, connection: connection)) } }
     }
     func identify() {
+        if let live { live.identify(selected); return }
         let token = UUID(); identifyGeneration = token; identifying = selected
         notice = "The numbered screen is highlighted in the demo only."
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
@@ -149,6 +166,7 @@ final class DeskModel: ObservableObject {
         }
     }
     func usePreset() {
+        if let live { live.activate(preset.id); return }
         guard canUse else { problem = readinessIssue; return }
         let focus = selected.flatMap { id in preset.assignments.contains { $0.monitor == id } ? id : nil } ?? preset.assignments.first!.monitor
         var handoff = KVMHandoff()

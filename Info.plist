@@ -11,15 +11,21 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.84</string>
+	<string>1.2.87</string>
 	<key>CFBundleVersion</key>
-	<string>84</string>
+	<string>87</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_perch-desk._tcp</string>
+	</array>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Perch finds and connects to computers you approve for your shared Desk and monitor presets.</string>
 	<key>PerchLidHelperVersion</key>
 	<integer>2</integer>
 	<key>PerchLidProtocolVersion</key>

@@ -1,6 +1,7 @@
 import AppKit
 
 func runSettingsTests() throws {
+    try runMenuAppearanceTests()
     try DesktopTestSession.check()
     try runDialogOwnershipTests()
     try runSettingsAccessibilityTests()

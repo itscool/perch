@@ -51,12 +51,10 @@ final class SettingsTaskPage {
 
 extension AppDelegate {
     @objc func displaySettings() {
-        let page = SettingsTaskPage(title: "Displays", detail: "Display power and input switching are separate choices. Switching an input shows another connected computer; turning the display off leaves the Mac running.", height: 310)
-        page.add("Monitor input switching…", detail: "Choose a display, inputs and shortcut. Connection setup has its own Save/Cancel editor.") { [weak self] in self?.monitorInputSettings() }
-        page.add("Switching groups…", detail: "Switch one display or several to a named computer, with a separate input mapping for each.") { [weak self] in self?.monitorGroupSettings() }
+        let page = SettingsTaskPage(title: "Displays", detail: "Use Desk to group computers and switch monitor presets. Turning displays off is a separate action.", height: 240)
+        page.add("Open Desk…", detail: "Arrange shared screens, map connections and use three monitor presets.") { [weak self] in self?.deskSettings() }
         page.add("Turn display off now", detail: "Turns off connected displays. Move the mouse or press a key to wake them.") { [weak self] in self?.turnDisplayOff() }
-        page.update = { [weak self, weak page] in guard let self else { return }
-            page?.status.stringValue = self.monitorInputs.plan.display.isEmpty ? "Input switching has not been set up. Choose a display and its inputs below." : self.monitorInputs.currentSummary }
+        page.update = { [weak page] in page?.status.stringValue = DeskCoordinator.shared.runtime.map { "\($0.node.group.monitors.count) screens in \($0.node.group.name). Keyboard and mouse sharing is not enabled." } ?? "Desk is optional. Set it up when you want to switch monitor inputs between computers." }
         page.show(delegate: self)
     }
     @objc func scrollingSettings() {

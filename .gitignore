@@ -10,3 +10,7 @@ build/
 
 # Python tooling caches
 __pycache__/
+
+# Pinned Swift package build artifacts; Package.resolved remains tracked.
+Vendor/PerchCertificates/.build/
+Vendor/PerchCertificates/.swiftpm/

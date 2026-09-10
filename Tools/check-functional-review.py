@@ -63,6 +63,10 @@ declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Curr
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.contains("--desk-native-fixture") {
+    do { try runDeskNativeFixture(); NSApp.run(); exit(0) }
+    catch { fputs("NATIVE FIXTURE FAILED: \\(error)\\n", stderr); exit(1) }
+}
 if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--lid-lock-fixture" {
     do { try runLidLockFixture(CommandLine.arguments[2]); exit(0) }
     catch { fputs("LOCK FIXTURE FAILED: \\(error)\\n", stderr); exit(1) }
@@ -148,9 +152,10 @@ def run(*command, cwd=repo):
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'EventParser.c'), '-o', str(root / 'EventParser.o'))
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'DDCWire.c'), '-o', str(root / 'DDCWire.o'))
 run('xcrun', 'clang', '-fmodules', '-fmodules-cache-path=' + str(root / 'ClangModuleCache'), '-O2', '-DMAX_DISPLAYS=16', '-I', 'Vendor/m1ddc', '-I', str(src), str(src / 'PerchDisplay.m'), str(src / 'MonitorTransport.m'), 'Vendor/m1ddc/ioregistry.m', str(root / 'DDCWire.o'), '-framework', 'CoreDisplay', '-framework', 'IOKit', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-o', str(app / 'MacOS/PerchDisplay'))
+certificates = subprocess.check_output(['python3', str(repo / 'Tools/certificate-dependency.py')], text=True).strip()
 sparkle = subprocess.check_output(['python3', str(repo / 'Tools/sparkle-dependency.py')], text=True).strip()
 run('python3', str(repo / 'Tools/embed-sparkle.py'), str(app.parent), '--identity', '-')
-run('xcrun', 'swiftc', '-F', sparkle, '-framework', 'Sparkle', '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization', cwd=root)
+run('xcrun', 'swiftc', '-I', certificates + '/Modules', '-L', certificates, '-lPerchCertificates', '-F', sparkle, '-framework', 'Sparkle', '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization', cwd=root)
 run('codesign', '--force', '--sign', '-', str(app / 'MacOS/PerchDisplay'))
 run('codesign', '--force', '--sign', '-', str(app.parent))
 print('Isolated review artifacts:', root, flush=True)

@@ -22,6 +22,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         var refresh: (() -> Void)?
         var backTitle: String? = nil
         var preferredBodyHeight: CGFloat = 490
+        var preferredBodyWidth: CGFloat = 572
         var beforeBack: (() -> Bool)? = nil
         var scrollFromTop: CGFloat = 0
         var focusIdentifier: NSUserInterfaceItemIdentifier? = nil
@@ -234,21 +235,26 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let bodyHeight = hasSidebar ? max(96, stableHeight-explanationHeight-114) : max(96, min(page.preferredBodyHeight, page.view.frame.height, availableHeight - explanationHeight - 174))
         let height = hasSidebar ? stableHeight : 72 + explanationHeight + 18 + bodyHeight + 24
         let top = window.frame.maxY
-        window.setContentSize(NSSize(width: 620 + sidebarWidth, height: height))
-        window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top-window.frame.height))
+        let availableWidth = (window.screen ?? NSScreen.main)?.visibleFrame.width ?? 1440
+        let bodyWidth = min(max(572, page.preferredBodyWidth), max(572, availableWidth-sidebarWidth-64))
+        window.setContentSize(NSSize(width: bodyWidth + 48 + sidebarWidth, height: height))
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
+        let x = visible.map { min(max(window.frame.minX, $0.minX), max($0.minX, $0.maxX-window.frame.width)) } ?? window.frame.minX
+        window.setFrameOrigin(NSPoint(x: x, y: top-window.frame.height))
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
         back.isHidden = hasSidebar && activeAlert == nil && page.backTitle == nil &&
             sidebar.destinations.contains { $0.pageTitles.contains(page.title) }
         back.frame.origin = NSPoint(x: sidebarWidth+20, y: height-47)
         heading.frame = NSRect(x: sidebarWidth + (back.isHidden ? 24 : 108), y: height-48, width: back.isHidden ? 572 : 486, height: 30)
         detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
-        contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: 592, height: bodyHeight)
+        contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: bodyWidth + 20, height: bodyHeight)
+        contentScroll.hasHorizontalScroller = page.view.frame.width > bodyWidth
         contentScroll.autohidesScrollers = page.view.frame.height <= bodyHeight
         contentScroll.tile()
         layoutDetail()
         window.defaultButtonCell = nil
         if container.subviews.count != 1 || container.subviews.first !== page.view { container.subviews.forEach { $0.removeFromSuperview() } }
-        container.frame = NSRect(x: 0, y: 0, width: contentScroll.contentSize.width, height: max(contentScroll.contentSize.height, page.view.frame.height))
+        container.frame = NSRect(x: 0, y: 0, width: max(contentScroll.contentSize.width, page.view.frame.width), height: max(contentScroll.contentSize.height, page.view.frame.height))
         page.view.setFrameOrigin(NSPoint(x: max(0,(container.bounds.width-page.view.frame.width)/2), y: max(0,container.bounds.height-page.view.frame.height)))
         if page.view.superview !== container { container.addSubview(page.view) }
         contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height-page.scrollFromTop)))

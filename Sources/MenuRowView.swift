@@ -20,6 +20,8 @@ extension NSMenuItem {
 final class MenuRowView: NSView {
     enum Kind { case toggle, command, information, section }
     enum PanelPart { case top, middle, bottom }
+    var appearanceOverride: MenuAppearance?
+    var appearanceStyle: MenuSectionAppearance { (appearanceOverride ?? MenuAppearanceStore.shared.value).style(panelSection ?? item?.title) }
     var panelPart: PanelPart? { didSet { needsDisplay = true } }
     var panelSection: String? { didSet { if oldValue != panelSection { needsDisplay = true } } }
     weak var item: NSMenuItem?
@@ -174,7 +176,7 @@ final class MenuRowView: NSView {
         }
         if kind == .section {
             let result = NSMutableAttributedString(attributedString:text)
-            let tint = sectionTint.blended(withFraction:0.55,of:.labelColor) ?? NSColor.labelColor
+            let tint = appearanceStyle.tintTitle ? (NSColor.labelColor.blended(withFraction: appearanceStyle.titleIntensity, of: sectionTint) ?? .labelColor) : NSColor.labelColor
             result.addAttribute(.foregroundColor,value:tint,range:NSRange(location:0,length:result.length))
             return result
         }
@@ -185,15 +187,7 @@ final class MenuRowView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            if kind == .section, let panelSection {
-                // Keep the existing three-point gap; decorate only the title.
-                let title = NSRect(x: 4, y: 0, width: bounds.width - 8, height: bounds.height - 3)
-                let tint = Self.tint(for: panelSection)
-                tint.withAlphaComponent(0.075).setFill()
-                title.fill()
-                (tint.blended(withFraction: 0.25, of: .labelColor) ?? tint).setFill()
-                NSRect(x: title.minX, y: title.maxY - 2, width: title.width, height: 2).fill()
-            }
+            if panelSection != nil { drawDecoration(appearanceStyle) }
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
                 NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 4, yRadius: 4).fill()
@@ -203,7 +197,7 @@ final class MenuRowView: NSView {
                 let mark = item?.state == .on ? "✓" : item?.state == .mixed ? "−" : ""
                 (mark as NSString).draw(at: NSPoint(x: 7, y: 4), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: color])
             }
-            if let sectionSymbol {
+            if appearanceStyle.showIcon, let sectionSymbol {
                 let tinted = sectionSymbol.copy() as! NSImage
                 tinted.isTemplate = false
                 tinted.lockFocus()
@@ -232,11 +226,11 @@ extension AppDelegate {
         var section = "System", rows: [MenuRowView] = []
         func finish() {
             for (index, row) in rows.enumerated() {
-                let part: MenuRowView.PanelPart? = section == "System" ? nil : index == 0 ? .top : index == rows.count-1 ? .bottom : .middle
+                let part: MenuRowView.PanelPart? = index == 0 ? .top : index == rows.count-1 ? .bottom : .middle
                 if row.panelPart != part { row.panelPart = part }
-                row.panelSection = section == "System" ? nil : section
+                row.panelSection = section
                 if row.kind == .section {
-                    let height: CGFloat = section == "System" ? 22 : 25
+                    let height: CGFloat = 22 + MenuAppearanceStore.shared.value.style(section).gap
                     if row.frame.height != height { row.setFrameSize(NSSize(width: row.frame.width, height: height)) }
                 }
             }

@@ -1,16 +1,12 @@
 # KVM implementation contract
 
-September 9, 2026. The first milestone is a native, interactive desk lab and
-reusable, headless group/synchronization/handoff code. It is deliberately not
-connected to live discovery, permissions, monitor commands or input events.
-The installed Perch and its existing monitor controls continue to work.
-
-The next milestone is authenticated computer grouping, synchronized setup and
-real monitor-only preset switching. Input sharing is deferred. Production Desk
-will replace the old monitor setup/cycling/groups workflow and retire competing
-shortcuts while reusing the monitor profile/API/protocol library and command
-backends. The user does not need legacy settings migration. See KVM-PLAN.md
-for replacement boundaries.
+September 9, 2026. Version 1.2.87 integrates the monitor-only runtime and Desk
+editor into the main app. Device identity and TLS transport, signed membership,
+durable conflict-preserving synchronization and coordinated monitor adapters
+are implemented. Keyboard/mouse forwarding is deferred. The old production
+monitor entry points are retired; their low-level library is reused. No legacy
+settings migration is required. See KVM-LIVE-REVIEW.md for tested boundaries and
+KVM-PLAN.md for physical acceptance and remaining input-sharing work.
 
 ## The experience, before implementation
 

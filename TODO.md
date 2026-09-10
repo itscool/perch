@@ -42,6 +42,13 @@ This supersedes stale open-item wording in dated review checkpoints.
    Track observed versus requested input; handle competing
    requests, sleeping peers and partial failures. Migrate useful mappings and
    replace dense legacy monitor guidance. Detailed order: KVM-PLAN.md.
+   First milestone implemented: portable group/port/preset/geometry models,
+   signed conflict-preserving sync, bounded framing and a handoff state machine;
+   separate native Desk Lab with tile controls, connections and three preset
+   choices together. Unassigned ports allow picture-only switching; no None mode.
+   This is simulated, not installed KVM. Next: paired transport and membership
+   authority, durable network sync, live coordinator, monitor/input adapters,
+   production Settings integration/migration, then physical acceptance.
 
 ## QA — implementation acceptance, with defects returned to the first section
 

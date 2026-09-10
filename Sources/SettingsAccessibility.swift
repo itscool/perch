@@ -4,6 +4,11 @@ import AppKit
 /// buttons from Tab. Native sheets, text editing and VoiceOver chords stay native.
 final class SettingsPanel: NSPanel {
     var keyboardNavigationAllowed: () -> Bool = { true }
+    var cancelNavigation: (() -> Void)?
+    override func cancelOperation(_ sender: Any?) {
+        if attachedSheet == nil, keyboardNavigationAllowed(), let cancelNavigation { cancelNavigation() }
+        else { super.cancelOperation(sender) }
+    }
     override func sendEvent(_ event: NSEvent) {
         if handleSettingsKey(event) { return }
         super.sendEvent(event)

@@ -1,8 +1,10 @@
 # Coordinated Perch KVM — replacement feature todo
 
-Status: requested September 8, 2026; design and implementation pending. This
-replaces standalone monitor input cycling as the product direction. It is a
-planning change, not a claim that the installed app already supports it.
+Status: implementation started September 9, 2026. The portable configuration,
+signed synchronization graph, geometry and handoff state machine have headless
+tests; a separate native Desk Lab exercises simulated user journeys. Live
+pairing/network/input/monitor adapters and production integration remain open.
+See KVM-ARCHITECTURE.md and KVM-REVIEW.md. The installed app does not yet support KVM.
 
 ## Intended experience
 
@@ -43,6 +45,24 @@ details for the selected computer/monitor. Keep Identify, Add, Remove and Change
 obvious. Technical identifiers, transport/protocol details and diagnostics stay
 in contextual details/recovery rather than dominating first setup. Information
 hierarchy must remain clear at both a two-computer desk and the 16-member limit.
+
+September 9 refinements: each screen tile has an X for scoped removal and a
+clockwise rotation button; drag the rest to move it. Keep exact position/size
+entry available contextually for keyboard access. The selected screen's details
+have two compact lists: connections with their mapped computers, and all three
+preset connection choices together. Each choice is **Connection — Computer** or
+**Connection — Unassigned**. An unassigned physical input remains selectable
+with a small picture-only warning; it does not grant remote input ownership.
+There is no operational None option. Choose connection is an incomplete-setup
+placeholder, and each preset must choose a real connection for every screen
+before activation. Removing a computer unmaps its inputs without removing those
+physical inputs or their preset selections. New screens require explicit choices
+before a preset can switch them; they do not silently join existing actions.
+Selecting a preset card changes what is being edited. Its own small Play button,
+beside the shortcut, switches to it. An Active badge indicates the running preset;
+editing remains distinct from activation. There is no bottom status bar; exceptional problems appear contextually.
+Ordinary connection editing expands inline. Stable Settings pages rely on the
+left navigation list rather than also offering a Back/Close header button.
 
 Before building the KVM UI, prototype complete first-use, daily-switching, edit,
 add/remove, monitor-identification correction, offline-member and failure/retry
@@ -138,6 +158,11 @@ each computer’s local display identifier and cable/input connection.
 - Compare manufacturer/model plus meaningful numeric and textual serials from
   EDID/DisplayID when available. Exchange observations only among trusted group
   members. Treat a strong match as a proposed shared monitor; detect collisions.
+- Physical input ports exist independently of their computer mapping. Keep an
+  unmapped input available for consoles, devices outside the group, or a computer
+  not yet mapped. Switching its picture requires a trusted member with a verified
+  control/readback path. Pointer crossing into it is blocked; selecting it as the
+  focus screen by preset keeps input local. Never invent a remote computer owner.
 - A monitor network-interface MAC is not a universal display identity. Some hub
   monitors provide Ethernet, but HDMI/DisplayPort endpoints need not expose it.
   Host-specific display IDs, registry paths and USB location IDs also cannot

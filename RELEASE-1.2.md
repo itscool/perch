@@ -2,6 +2,21 @@
 
 September 9, 2026, version 1.2.84 candidate; build 77 remains the last recorded installed build. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
 
+## Unreleased source: KVM foundation and desk prototype
+
+The first KVM milestone adds portable group, physical-input, preset and geometry
+models; signed conflict-preserving synchronization; bounded framing; and a handoff
+state machine that requires verified monitor outcomes. A separate native Desk Lab
+has draggable screen tiles with rotation/removal, inline connection mapping,
+all three preset choices together, and per-preset Play controls. Unassigned inputs
+allow picture-only switching; None is not a preset operating mode. This is a
+simulation, not a live KVM feature in the installed app. Pairing, transport,
+input/monitor adapters and production integration remain open in KVM-PLAN.md.
+
+Stable Settings sidebar destinations no longer duplicate navigation with a
+Back/Close header button. Scoped operational exits are retained. This source
+change is not included in the already-packaged 1.2.84 candidate.
+
 ## Version 1.2.84: Sparkle updates and consistent version display
 
 Updates now has a Settings sidebar page with an immediate-save automatic-check

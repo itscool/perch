@@ -16,12 +16,14 @@ func runSettingsSidebarTests() throws {
     host.navigate(to: keyboard)
     let size = host.window.frame.size
     try require(opened == 1 && host.pages.count == 1 && host.sidebar.table.selectedRow == 0, "direct entry")
+    try require(host.back.isHidden && !host.window.settingsKeyViews().contains { $0 === host.back }, "sidebar destination has no redundant Back/Close control or hidden Tab stop")
     host.navigate(to: keyboard)
     try require(opened == 1, "same destination must not rebuild")
     var child = page("Child")
     child.leave = { left += 1 }
     host.show(child)
     try require(host.sidebar.table.selectedRow == 0, "child retains its feature")
+    try require(!host.back.isHidden, "temporary child keeps its scoped exit")
     host.navigate(to: awake)
     try require(opened == 2 && left == 1 && host.pages.count == 1, "switch cleans up child once without growing stack")
     try require(host.window.frame.size == size, "short and long pages keep window size")
@@ -44,10 +46,12 @@ func runSettingsSidebarTests() throws {
     host.modalTestDriver = nil
     let alert = NSAlert(); alert.messageText = "Operation"; alert.addButton(withTitle: "Cancel")
     host.present(alert)
+    try require(!host.back.isHidden, "operation cancellation remains visible")
     host.navigate(to: awake)
     try require(host.modal && opened == 3 && !host.sidebar.table.isEnabled, "active operation excludes navigation without queueing it")
     host.finish(alert, response: .alertFirstButtonReturn)
     try require(host.sidebar.table.isEnabled && opened == 3, "finishing operation restores sidebar without surprise navigation")
+    try require(host.back.isHidden && host.window.firstResponder !== host.back, "returning to sidebar page hides redundant exit and preserves valid focus")
     host.show(page("Child"))
     host.navigate(to: keyboard)
     try require(host.pages.count == 1 && host.pages.last?.title == "Keyboard", "same category returns from its child")

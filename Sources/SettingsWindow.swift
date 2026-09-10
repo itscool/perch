@@ -67,6 +67,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             guard let self else { return false }
             return !self.authorizing && !self.picking && !self.externalHandoff
         }
+        window.cancelNavigation = { [weak self] in
+            guard let self else { return }
+            if self.back.isHidden { self.window.performClose(nil) } else { self.goBack() }
+        }
         heading.setAccessibilityRole(NSAccessibility.Role(rawValue: "AXHeading")) // macOS 26 heading role; also builds with older SDK overlays.
         contentScroll.setAccessibilityLabel("Settings controls")
         detailScroll.setAccessibilityLabel("Page explanation")
@@ -233,8 +237,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.setContentSize(NSSize(width: 620 + sidebarWidth, height: height))
         window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top-window.frame.height))
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
+        back.isHidden = hasSidebar && activeAlert == nil && page.backTitle == nil &&
+            sidebar.destinations.contains { $0.pageTitles.contains(page.title) }
         back.frame.origin = NSPoint(x: sidebarWidth+20, y: height-47)
-        heading.frame.origin = NSPoint(x: sidebarWidth+108, y: height-48)
+        heading.frame = NSRect(x: sidebarWidth + (back.isHidden ? 24 : 108), y: height-48, width: back.isHidden ? 572 : 486, height: 30)
         detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
         contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: 592, height: bodyHeight)
         contentScroll.autohidesScrollers = page.view.frame.height <= bodyHeight
@@ -258,8 +264,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             if let selection = page.selection, let editor = (target as? NSTextField)?.currentEditor() as? NSTextView,
                NSMaxRange(selection) <= (editor.string as NSString).length { editor.setSelectedRange(selection) }
         } else if let focused = window.firstResponder as? NSView,
-                  focused !== back, focused !== sidebar.table, !focused.isDescendant(of: page.view) { window.makeFirstResponder(back) }
-        if window.firstResponder === window || window.firstResponder == nil { window.makeFirstResponder(back) }
+                  (focused === back && back.isHidden) || (focused !== back && focused !== sidebar.table && !focused.isDescendant(of: page.view)) {
+            window.makeFirstResponder(back.isHidden ? sidebar.table : back)
+        }
+        if window.firstResponder === window || window.firstResponder == nil { window.makeFirstResponder(back.isHidden ? sidebar.table : back) }
         window.recalculateKeyViewLoop()
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         updateSidebar()

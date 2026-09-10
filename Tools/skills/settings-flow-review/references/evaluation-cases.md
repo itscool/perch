@@ -214,3 +214,33 @@ clean up page work, and make same-category clicks return to the root. Verify
 mouse/arrow/Tab navigation and actual focus after cancelling, not only selected
 row metadata. The legitimate exception is a confirmation or operation that must
 finish/cancel before navigation, with a clear explanation and no queued surprise.
+
+### Editing, activation and redundant chrome
+
+Scenario: a preset editor has three cards, an Active badge and a large footer
+repeating which preset is active plus Choose/Use buttons. Removing Apply causes
+clicking a card to execute hardware changes, although users only wanted to edit.
+The app recently gained a sidebar, but stable pages retain Back buttons and
+ordinary connection edits still open nested dialogs. A None choice could mean
+skip the device, turn it off, or merely leave a device mapping unassigned.
+
+Expected: preserve distinct editing and activation, colocate a compact explicit
+activation action with its preset where suitable, and retain independent active
+state. Remove redundant persistent status/navigation, move ordinary edits inline,
+and define meaningful operational choices separately from incomplete setup.
+Do not hide useful pending/error information or remove scoped draft/operation
+exits. Persistent progress during a long operation is a legitimate exception;
+an Active badge repeated in a footer is not additional evidence of completion.
+
+### Expanded editor loses its owner
+
+Scenario: each connection row has a pencil. Clicking it inserts a text field,
+computer dropdown and repair actions between that row and the next, with no
+shared visual boundary. The common computer mapping requires expanding this
+editor even though the complete choice fits in a dropdown.
+
+Expected: expose the simple mapping choice directly, and visually group the
+expanded advanced fields with their owning row using restrained contrast and a
+readable boundary. Preserve the row identity and an obvious collapse action.
+Do not add decorative containers to every unexpanded row or replace native
+dropdowns with more dialogs.

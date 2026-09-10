@@ -191,3 +191,12 @@ public release, publication-gate waiver or repository-history rewrite was made.
 Prepared candidate: Developer ID signed 2.0.94, zero compiler warnings. The
 production build's signature/resource checks passed. It has not been installed,
 notarized or published. 2.0.92/2.0.93 candidates are superseded for this correction.
+
+## Owner publication decision — September 10, 2026
+
+Scott confirmed that retaining the table is acceptable and authorized its release.
+The project publication decision is closed for the exact table hash recorded in
+publication-decisions.json. The legal analysis above remains qualified; this does
+not claim LG permission or legal clearance. A separate hash-bound decision lets
+the already signed/notarized 2.0.94 app remain byte-for-byte intact. The app is now
+installed locally; both its app and DMG notarization submissions are Accepted.

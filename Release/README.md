@@ -20,12 +20,33 @@ certificate does not itself authenticate notarytool.
 
 ## Pipeline
 
-Notarization is opt-in: request it explicitly for the intended app and/or installer.
-Routine builds, signing, installation, release preparation and credential setup
-do not trigger or authorize submissions. `submit-app` and `submit-dmg` are separate
-submission stages; authorizing the app alone does not authorize the DMG or later
-builds. Checking an existing submission and stapling its accepted ticket do not
-submit another artifact.
+Notarization is opt-in. An explicit notarization request covers the complete app
+and installer process for that version, without another confirmation between
+stages. Routine builds, signing, installation and credential setup do not trigger
+notarization. Later versions require a new explicit request. Publication is
+selected explicitly with --publish.
+
+One command runs the full process and resumes the same output folder safely:
+
+    python Tools/release-all.py --output /absolute/release-folder --profile Perch --publish
+
+Use the Python environment described below. The command builds/signs, commits
+only its generated Info.plist version bump, submits the app, waits for Apple,
+staples/packages, submits the DMG, waits, verifies signatures/checksums, pushes
+source and publishes the complete GitHub release/feed. It requires a clean
+reviewed checkout before starting and never installs or restarts the live app.
+Omit --publish to prepare a verified release without publishing. Run --help for
+options. Apple waits default to one hour per artifact; rerun the same command
+if they time out. Saved IDs prevent duplicate submissions. Ambiguous submission
+failures still require the history recovery below; rejected artifacts require a
+fresh corrected version. An existing GitHub draft requires inspection before
+resuming its upload, rather than silently overwriting it.
+
+For a candidate prepared from an earlier commit, add --source-ref COMMIT once.
+Every snapshotted input must exactly match that commit, which becomes the release
+tag target. The runner saves it for subsequent retries. Tooling/documentation
+can advance without pretending the accepted app was built from a newer commit.
+The individual stages remain available for troubleshooting:
 
 Create a Python 3.10+ virtual environment and install Release/requirements.txt.
 Use its python for packaging (the other stages also work with system Python).
@@ -82,8 +103,12 @@ Release/dependencies.json inventory ship in the signed app's Resources folder,
 alongside the full license/notice texts and editable catalog JSON. Build-time
 checks compare file hashes and pinned Swift dependency revisions. Catalog changes
 must update their provenance and review inventory rather than bypass the check.
-See DEPENDENCY-REVIEW.md for findings, including the open LG redistribution basis.
-A build can be prepared while review is open, but public publication is blocked.
+See DEPENDENCY-REVIEW.md for findings. Publication decisions are recorded in
+publication-decisions.json and bound to the exact resource SHA-256. Scott approved
+retaining/distributing the LG table on September 10; this supersedes the original
+open decision in the signed dependency inventory without rewriting an accepted
+app or claiming legal clearance. New unresolved issues or changed table bytes
+remain blocked.
 
 Run `python3 Tools/check-release-assets.py` and
 `python3 Tools/check-release-pipeline.py` for offline failure/packaging checks.

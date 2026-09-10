@@ -47,7 +47,14 @@ def check(app, publication=False):
         if not path.is_file() or path.is_symlink() or digest(path) != digest(REPO/source):
             raise SystemExit('Release resource missing or changed: '+destination)
     if publication:
-        issues = [x for x in inventory['publicationIssues'] if x['status'] != 'resolved']
+        decisions = json.loads((REPO/'Release/publication-decisions.json').read_text())
+        def approved(issue):
+            return any(d.get('issue') == issue.get('id') and d.get('status') == 'approved'
+                       and d.get('resource') == issue.get('resource')
+                       and (resources/d['resource']).is_file()
+                       and d.get('sha256') == digest(resources/d['resource'])
+                       for d in decisions)
+        issues = [x for x in inventory['publicationIssues'] if x['status'] != 'resolved' and not approved(x)]
         if issues: raise SystemExit('Dependency review still open: '+'; '.join(x['detail'] for x in issues))
     return len(files)
 

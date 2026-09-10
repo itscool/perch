@@ -52,6 +52,21 @@ def source_snapshot():
             (name.startswith(('Sources/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
              name in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements','Release/dependencies.json','Release/notes.md','SUPPORT.md','THIRD-PARTY-NOTICES.md'))}
 
+def release_commit(root, ref):
+    """Verify the original compiled source, even when release tooling advances."""
+    commit = run('git','rev-parse','--verify',ref+'^{commit}',capture=True)
+    snapshot = json.loads((root/'source-snapshot.json').read_text())
+    names = run('git','ls-tree','-r','--name-only','-z',commit,capture=True).split('\0')
+    names = [n for n in names if n and (n.startswith(('Sources/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
+        n in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements','Release/dependencies.json','Release/notes.md','SUPPORT.md','THIRD-PARTY-NOTICES.md'))]
+    if set(names) != set(snapshot):
+        raise SystemExit('Release source file set does not match the requested commit.')
+    for name in names:
+        data = subprocess.check_output(['git','show',commit+':'+name],cwd=REPO)
+        if hashlib.sha256(data).hexdigest() != snapshot[name]:
+            raise SystemExit('Release source differs from requested commit: '+name)
+    return commit
+
 def verify_feed(root, version):
     feed = root/'appcast.xml'
     signer = REPO/'build/dependencies/sparkle-2.9.6/bin/sign_update'
@@ -94,6 +109,7 @@ p.add_argument('stage',choices=['build','submit-app','package','submit-dmg','fin
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--profile',help='Existing notarytool Keychain profile; never a password')
 p.add_argument('--notes',type=Path,default=REPO/'Release/notes.md')
+p.add_argument('--source-ref',default='HEAD',help='Publication tag target; must match every file in the candidate source snapshot')
 a=p.parse_args(); root=a.output.resolve(); app=root/'Perch.app'
 if root == REPO/'build': p.error('Use a separate release output directory.')
 if a.stage in ['submit-app','package','submit-dmg','finish'] and not a.profile: p.error('This stage requires --profile.')
@@ -150,7 +166,7 @@ elif a.stage == 'finish':
     print('Verified release ready. Publication is the explicit final stage.')
 elif a.stage == 'publish':
     if run('git','status','--porcelain',capture=True): p.error('Commit and push the reviewed release source before publishing.')
-    if json.loads((root/'source-snapshot.json').read_text()) != source_snapshot(): p.error('Source changed after this build. Build and verify a fresh candidate.')
+    target = release_commit(root,a.source_ref)
     receipt=json.loads((root/'verified-release.json').read_text())
     if receipt['notesSHA256'] != hashlib.sha256(a.notes.read_bytes()).hexdigest(): p.error('Release notes changed after verification.')
     if receipt['version'] != version: p.error('Release verification is for another version.')
@@ -162,7 +178,7 @@ elif a.stage == 'publish':
     if existing.returncode == 0:
         if not json.loads(existing.stdout)['isDraft']: p.error('This release is already public; published assets are immutable.')
         p.error('A draft already exists. Inspect it and resume explicitly without duplicate uploads.')
-    run('gh','release','create',tag,dmg,zip_path,root/'appcast.xml',root/'SHA256SUMS','--repo',CONFIG['repository'],'--draft','--title','Perch '+version,'--notes-file',a.notes,'--target',run('git','rev-parse','HEAD',capture=True))
+    run('gh','release','create',tag,dmg,zip_path,root/'appcast.xml',root/'SHA256SUMS','--repo',CONFIG['repository'],'--draft','--title','Perch '+version,'--notes-file',a.notes,'--target',target)
     # Draft upload completes before making any appcast reachable to users.
     run('gh','release','edit',tag,'--repo',CONFIG['repository'],'--draft=false','--latest')
     print('Published https://github.com/'+CONFIG['repository']+'/releases/tag/'+tag)

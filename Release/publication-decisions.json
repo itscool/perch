@@ -1,0 +1,11 @@
+[
+  {
+    "issue": "lg-table-redistribution",
+    "status": "approved",
+    "resource": "lg-firmware-families.json",
+    "sha256": "74882a32d948aaefa73406862cc61467bf1a08e4fc32de879b5f52ab48f37297",
+    "date": "2026-09-10",
+    "decision": "Scott approved retaining and publicly distributing this exact factual/interoperability table after review. This closes the project release decision; it is not a claim of LG permission or legal clearance.",
+    "review": "Release/LG-LICENSE-REVIEW.md"
+  }
+]

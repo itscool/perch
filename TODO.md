@@ -171,12 +171,12 @@ remain open; this is not a claim that untested behavior is defect-free.
    DMG notarization, public feed and real download/update acceptance remain.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.
-3. [ ] **Dependency and catalog release review.** Audit completed September 10;
+3. [x] **Dependency and catalog release review.** Audit completed September 10;
    missing BoringSSL/MSI notices fixed, NEC attribution added, catalog provenance
    and maintenance documented, and 22 bundled resources checked automatically.
-   **Open:** resolve the redistribution basis for the extracted LG firmware-family
-   table or omit/replace it for public distribution. Publication checks enforce
-   the open review. See Release/DEPENDENCY-REVIEW.md.
+   Scott approved retaining and distributing the LG firmware-family table on
+   September 10. Publication checks bind that decision to the exact resource
+   hash; this does not claim legal clearance. See Release/DEPENDENCY-REVIEW.md.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.

@@ -17,7 +17,10 @@ This review does not certify hardware support or close lifecycle/accessibility Q
    the review does not invent one. Perch distributes the editable JSON source.
    DDCControl-derived JSON likewise carries its license, source permalinks and
    modification notice. No GPL monitor driver program is linked into Perch.
-3. **Open public-release decision: LG table.** Exact installer agreement now
+3. **Approved owner release decision: LG table (September 10).** Scott approved
+   retaining and distributing the exact table, recorded by SHA-256 in
+   publication-decisions.json. This closes the project gate without claiming
+   legal clearance. The following analysis preserves the underlying uncertainty. Exact installer agreement now
    inspected: see [LG-LICENSE-REVIEW.md](LG-LICENSE-REVIEW.md). It contains
    distribution restrictions and no express grant for our extracted table;
    factual-data status and contract applicability remain distinct questions.
@@ -27,8 +30,7 @@ This review does not certify hardware support or close lifecycle/accessibility Q
    interoperability basis for retaining the data, with compilation and contract
    applicability still unresolved; it is not a legal clearance. General
    LG website/service terms do not establish the precise license for that artifact
-   and were not treated as proof either way. Resolve a redistribution basis or
-   omit/replace this table for the public release. No runtime data or monitor
+   and were not treated as proof either way. The owner elected retention/distribution on the documented basis. No runtime data or monitor
    behavior was removed during this review. Functional facts and protocol
    compatibility are not automatically copyrighted expression; this review does
    not make that legal determination or silently choose Perch's overall license.
@@ -69,8 +71,8 @@ NEC reference terms:
 https://github.com/NECDisplaySolutions/necpdsdk/blob/0175ffdb989119df2d64d970f903509c27f35d1e/LICENSE.rst
 
 LG provenance: catalog/LG-IDENTITY-RESEARCH.md and lg-firmware-families.json.
-No proprietary LG executable is redistributed. The table's legal/distribution
-status remains open rather than inferred from that fact alone.
+No proprietary LG executable is redistributed. The underlying legal uncertainty is documented separately from the owner's
+approved publication decision.
 
 The build-only dmgbuild 1.6.7 environment does not ship. Its runtime dependencies
 (ds_store/mac_alias) remain build tools. Apple system frameworks/tools and fonts

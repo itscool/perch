@@ -1,10 +1,11 @@
 # Notarization authorization
 
 Submit artifacts to Apple for notarization only when the user explicitly requests
-notarization for those artifacts. Building, signing, installing, preparing a
-release, or storing credentials does not authorize a notarization submission.
-Do not automatically notarize subsequent builds or the DMG after an app submission.
-An explicit request covering both app and installer authorizes both stages.
+notarization. That request authorizes the whole release notarization process,
+including the app and its installer; do not ask again between those stages.
+Building, signing, installing, preparing a release, or storing credentials alone
+does not authorize notarization, nor does authorization carry to later versions.
+An explicit request to publish authorizes completing the release publication flow.
 Status/log checks for an existing submission and stapling its accepted ticket do
 not create a new submission. This preference does not cancel existing submissions.
 

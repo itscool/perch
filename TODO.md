@@ -1,12 +1,19 @@
 # Perch work checklist
 
 2.0 development, September 10, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. Public publication remains pending; see RELEASE-2.0.md for evidence. Categories are distinct: known defects,
+in /Applications. 2.0.94 is published; setup defects and live acceptance remain open. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [ ] **2.0.94 setup review: seven open findings.** Fix keyboard recovery loops
+  and external-handoff navigation lockout first (P1), then missing permission
+  drag/copy controls, wrong-helper target selection, missing collector-launcher
+  recovery, publisher-aware helper readiness, and stale Desk onboarding (P2).
+  Source-only review; no native reproduction or app fix yet. Evidence and route
+  coverage: SETUP-REVIEW-2.0.94.md.
 
 - [x] Fresh-Mac builds failed fetching Sparkle when Python lacked issuer
   certificates. Downloads now use system curl with HTTPS and checksum verification;
@@ -167,8 +174,10 @@ remain open; this is not a claim that untested behavior is defect-free.
    Apple notarization credentials (Keychain profile Perch) were validated on
    September 10; the 2.0.94 app was accepted, stapled and passed Gatekeeper
    assessment (Notarized Developer ID), and is installed in /Applications. The
-   signed DMG and verified Sparkle ZIP/appcast are prepared. Explicitly requested
-   DMG notarization, public feed and real download/update acceptance remain.
+   DMG is accepted/stapled, and the signed Sparkle ZIP/appcast are published.
+   Anonymous public downloads/checksums and the stable feed passed verification.
+   The resumable Tools/release-all.py handles the full flow. Real update/restart
+   acceptance remains QA.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.
 3. [x] **Dependency and catalog release review.** Audit completed September 10;

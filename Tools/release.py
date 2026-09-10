@@ -82,6 +82,25 @@ def verify_feed(root, version):
         raise SystemExit('Appcast archive URL or size is incorrect.')
     run('xcrun','swift','Tools/verify-update-signature.swift',CONFIG['publicKey'],archive,enclosure.get(namespace+'edSignature',''))
 
+def verify_public(root, version, target):
+    tag = 'v'+version
+    published = run('gh','api','repos/'+CONFIG['repository']+'/commits/'+tag,'--jq','.sha',capture=True)
+    if published != target: raise SystemExit('Published tag does not match the verified source commit.')
+    receipt = json.loads((root/'verified-release.json').read_text())
+    with tempfile.TemporaryDirectory(prefix='perch-public-check-') as temporary:
+        downloaded = Path(temporary)
+        def fetch(url, path):
+            run('/usr/bin/curl','-q','--fail','--silent','--show-error','--location',
+                '--proto','=https','--proto-redir','=https','--retry','3','--max-time','90',url,'-o',path)
+        for name in [*release_checksums.names(version),'SHA256SUMS']:
+            fetch('https://github.com/'+CONFIG['repository']+'/releases/download/'+tag+'/'+name,downloaded/name)
+        release_checksums.verify(downloaded,version,receipt['artifacts'])
+        fetch(CONFIG['feedURL'],downloaded/'latest-appcast.xml')
+        if (downloaded/'latest-appcast.xml').read_bytes() != (downloaded/'appcast.xml').read_bytes():
+            raise SystemExit('The latest update feed does not match this release.')
+        verify_feed(downloaded,version)
+    print('Verified public downloads, source tag and stable Sparkle feed.')
+
 def submission(root, artifact, profile, label):
     record = root/(label+'-submission.json')
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
@@ -176,9 +195,12 @@ elif a.stage == 'publish':
     verify(app,notarized=True)
     existing=subprocess.run(['gh','release','view',tag,'--repo',CONFIG['repository'],'--json','isDraft'],capture_output=True,text=True)
     if existing.returncode == 0:
-        if not json.loads(existing.stdout)['isDraft']: p.error('This release is already public; published assets are immutable.')
+        if not json.loads(existing.stdout)['isDraft']:
+            verify_public(root,version,target)
+            print('Release already public; verified without modifying published assets.'); sys.exit(0)
         p.error('A draft already exists. Inspect it and resume explicitly without duplicate uploads.')
     run('gh','release','create',tag,dmg,zip_path,root/'appcast.xml',root/'SHA256SUMS','--repo',CONFIG['repository'],'--draft','--title','Perch '+version,'--notes-file',a.notes,'--target',target)
     # Draft upload completes before making any appcast reachable to users.
     run('gh','release','edit',tag,'--repo',CONFIG['repository'],'--draft=false','--latest')
     print('Published https://github.com/'+CONFIG['repository']+'/releases/tag/'+tag)
+    verify_public(root,version,target)

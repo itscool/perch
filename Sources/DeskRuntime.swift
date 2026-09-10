@@ -16,6 +16,32 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     var mode: String
     var pointWidth: Double? = nil
     var pointHeight: Double? = nil
+    var lgIdentity: UInt16? = nil
+    var lgExtendedIdentity: UInt16? = nil
+    static let reportedInputsChoice = "__reported_inputs__"
+    var firmwareFamily: String? {
+        vendor == 7789 ? LGFirmwareProfiles.family(identity: lgIdentity, extended: lgExtendedIdentity)?.name : nil
+    }
+    func profile(choice: String) -> MonitorProfile? {
+        if choice == Self.reportedInputsChoice { return nil }
+        if !choice.isEmpty { return MonitorProfiles.entries.first { $0.vendor == vendor && $0.name == choice } }
+        return vendor == 7789 ? LGFirmwareProfiles.inputs(identity: lgIdentity, extended: lgExtendedIdentity) : nil
+    }
+    func sameDevice(as other: Self) -> Bool {
+        id == other.id && vendor == other.vendor && model == other.model && serial == other.serial && name == other.name
+    }
+    mutating func retainIdentity(from old: Self?) {
+        guard let old, sameDevice(as: old) else { return }
+        lgIdentity = old.lgIdentity; lgExtendedIdentity = old.lgExtendedIdentity
+    }
+    mutating func applyInspection(_ result: MonitorInspection) {
+        lgIdentity = vendor == 7789 ? result.lgIdentity : nil
+        lgExtendedIdentity = vendor == 7789 ? result.lgExtendedIdentity : nil
+        let reported = result.transportInputs ?? MonitorCapabilities.inputs(result.capabilities ?? "").map {
+            MonitorInput(code: $0, name: MonitorInput.name($0, alternate: mode == "lg"))
+        }
+        inputs = MonitorCapabilities.merge(inputs, reported: reported)
+    }
 }
 enum DeskDeviceMessage: Codable {
     case displays([DeskDetectedDisplay])
@@ -171,10 +197,12 @@ final class DeskRuntime: ObservableObject {
                     self.displays[self.node.localID] = values.map { display in
                         let profile = MonitorProfiles.match(display)
                         let size = CGDisplayScreenSize(display.displayID)
-                        return DeskDetectedDisplay(id: display.id, name: display.name, vendor: display.vendor, model: display.model,
+                        var detected = DeskDetectedDisplay(id: display.id, name: display.name, vendor: display.vendor, model: display.model,
                             serial: CGDisplaySerialNumber(display.displayID), width: max(1, size.width), height: max(1, size.height), canControl: display.ddcAvailable,
                             inputs: profile?.inputs ?? [15, 16, 17, 18].map { MonitorInput(code: $0, name: MonitorInput.name($0)) }, mode: profile?.alternate == true ? "lg" : "standard",
                             pointWidth: CGDisplayBounds(display.displayID).width, pointHeight: CGDisplayBounds(display.displayID).height)
+                        detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
+                        return detected
                     }
                     self.publishDisplays()
                 case .failure(let error): self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
@@ -192,9 +220,9 @@ final class DeskRuntime: ObservableObject {
         queue(display).async { [weak self] in
             let result = try? JSONDecoder().decode(MonitorInspection.self, from: MonitorDisplayBackend().run(["inspect", display, d.mode]))
             DispatchQueue.main.async {
-                guard let self, let result, let i = self.displays[computer]?.firstIndex(where: { $0.id == display }) else { return }
-                let reported = result.transportInputs ?? MonitorCapabilities.inputs(result.capabilities ?? "").map { MonitorInput(code: $0, name: MonitorInput.name($0, alternate: d.mode == "lg")) }
-                self.displays[computer]?[i].inputs = MonitorCapabilities.merge(d.inputs, reported: reported)
+                guard let self, let result, let i = self.displays[computer]?.firstIndex(where: { $0.id == display }),
+                      self.displays[computer]?[i].sameDevice(as: d) == true else { return }
+                self.displays[computer]?[i].applyInspection(result)
                 self.publishDisplays()
             }
         }

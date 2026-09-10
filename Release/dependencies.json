@@ -190,7 +190,7 @@
       "id": "lg-table-redistribution",
       "status": "open",
       "resource": "lg-firmware-families.json",
-      "detail": "162 extracted LG firmware-family records lack a documented redistribution basis. Resolve that basis or omit/replace the table before public distribution."
+      "detail": "162 extracted LG firmware-family records have a preliminary factual/interoperability retention analysis in LG-LICENSE-REVIEW.md. Resolve compilation protection and contract applicability before public distribution; no clearance is claimed."
     }
   ]
 }

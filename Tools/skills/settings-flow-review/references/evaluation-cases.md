@@ -300,3 +300,13 @@ trace shared native command dispatch, supply standard responder-chain editing
 actions, align the fixture with production, and replay real selection/replacement
 and child exit. It should not rewrite each field or declare keyboard acceptance
 from manually assigning an NSTextView selected range.
+
+### Retained library with no path from the replacement setup
+
+A device wizard is replaced by a shared settings page. The protocol library and
+model-identification table still ship and pass tests, but the new page only reads
+generic device names. Two models with the same generic name need different port
+codes. Expected: trace detection through suggestion, override and saved setup in
+the new page, including remote devices and late results. Do not call retention
+complete from library tests, silently replace a manual choice, infer unique
+physical identity from a model family, or restore intentionally retired features.

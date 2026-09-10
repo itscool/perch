@@ -43,6 +43,10 @@ func runDeskNativeFixture() throws {
         service.execute = { _, valid, completion in completion(valid() ? .confirmed : .failed, "Simulated monitor readback in native UI fixture") }
         service.readForVerification = { _, completion in completion(17) }
     }
+    if CommandLine.arguments.contains("--lg-inspection-fixture") {
+        runtime.displays[a.localID, default: []].append(.init(id: UUID().uuidString, name: "LG HDR 4K", vendor: 7789, model: 7706, serial: 0,
+            width: 600, height: 340, canControl: true, inputs: [.init(code: 17, name: "HDMI 1"), .init(code: 210, name: "USB-C")], mode: "lg", lgIdentity: 0x5124))
+    }
     DeskCoordinator.shared.runtime = runtime
     let app = AppDelegate(); app.installApplicationMenu(); app.buildMenu(); app.installSettingsNavigation()
     DeskNativeFixtureState.retained = [a, b, runtime, other, app]

@@ -23,7 +23,9 @@ This review does not certify hardware support or close lifecycle/accessibility Q
    factual-data status and contract applicability remain distinct questions.
    The 162 extracted firmware-family
    records come from proprietary OnScreen Control 7.20. The original artifact hash
-   and method are recorded, but no redistribution basis was documented. General
+   and method are recorded. Follow-up research documents a preliminary factual/
+   interoperability basis for retaining the data, with compilation and contract
+   applicability still unresolved; it is not a legal clearance. General
    LG website/service terms do not establish the precise license for that artifact
    and were not treated as proof either way. Resolve a redistribution basis or
    omit/replace this table for the public release. No runtime data or monitor

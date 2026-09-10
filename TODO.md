@@ -8,6 +8,13 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+- [x] Desk omitted the retained LG firmware-ID-to-profile lookup. Explicit setup
+  inspection now carries identity to local/remote profile suggestions, preserves
+  manual choices and offers the owner-evidenced USB-C 209 profile. Isolated
+  transaction tests and native fixture clicks passed; new live hardware
+  acceptance remains part of the protocol QA below. Duplicate refresh errors in
+  the Add screen dialog are also removed. Source fix; not installed locally.
+
 The installed local test build is still 1.2.87. These defects are fixed in the
 1.2.91 release candidate and await installation:
 

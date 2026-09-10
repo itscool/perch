@@ -30,6 +30,8 @@ Keep one coverage ledger in the task's existing review record or a suitable arti
 
 For each relevant feature, follow first use, ordinary use, adjustment, repair, add/remove, and learn/relearn. Cover missing prerequisites, loading, ready, editing, running, success, failure, retry, leaving, reopening and external changes where applicable. Do not manufacture irrelevant combinations. Record a short reason for an omitted material state; do not silently call an unexamined page consistent.
 
+When replacing a workflow, trace each retained capability from its old entry point into the new journey, including detection, profile suggestions, overrides and recovery. A bundled library or passing unit test does not prove the new page calls it or saves its result. Record intentional retirements separately; do not restore rejected features or invent migration requirements. Check an ambiguous/unknown case as well as the easy default, and ensure delayed suggestions preserve explicit choices.
+
 At each transition answer in the user's terms:
 
 1. Where am I, and which device, app or scope does this affect?

@@ -1,6 +1,7 @@
 import Foundation
 
 func runSettingsResetTests() throws {
+    try runDeskInspectionTests()
     let fm = FileManager.default, domain = "local.scott.perch.reset-test." + UUID().uuidString
     let base = fm.temporaryDirectory.appendingPathComponent(domain)
     let defaults = UserDefaults(suiteName:domain)!

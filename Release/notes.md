@@ -2,6 +2,8 @@ Perch 2.0 adds shared keyboard and mouse control to Desk. It also brings shared 
 
 Desk groups your Perch computers, arranges up to 16 physical screens and saves three monitor presets. The default shortcuts are Ctrl–Option–Command–F1/F2/F3. Editing saves the setup; Play switches physical inputs. Shared screens are explicitly matched, including identical models. Offline changes are preserved, and conflicting arrangements can be reviewed before switching.
 
+Desk screen setup now suggests evidenced LG input profiles from firmware identification, while retaining manual choices and explicit physical-screen matching.
+
 Menu Appearance provides separate controls for System and the colored sections: borders, highlights, corner shape, title styling and spacing, with an immediate preview. Settings uses persistent navigation on the left. About opens its own window.
 
 Settings now supplies native text-editing shortcuts throughout hosted fields and child dialogs. Shared-keyboard additions update immediately, and Setup & status scrolls as its checks grow.

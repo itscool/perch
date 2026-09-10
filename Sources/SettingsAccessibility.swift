@@ -27,6 +27,7 @@ final class SettingsPanel: NSPanel {
         func walk(_ view: NSView) -> [NSView] {
             guard !view.isHiddenOrHasHiddenAncestor else { return [] }
             if let control = view as? NSControl, !control.isEnabled { return [] }
+            if view is NSTableView { return [view] }
             if view is NSButton { return [view] }
             if let text = view as? NSTextField { return text.isEditable ? [text] : [] }
             if let text = view as? NSTextView { return text.isSelectable && !text.isFieldEditor ? [text] : [] }

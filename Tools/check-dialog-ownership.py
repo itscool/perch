@@ -21,8 +21,8 @@ final class AppDelegate: NSObject {
 }
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
-do { try runDialogOwnershipTests(); try runSettingsAccessibilityTests() }
+do { try runDialogOwnershipTests(); try runSettingsAccessibilityTests(); try runSettingsSidebarTests() }
 catch { fputs("FAIL: \\(error)\\n", stderr); exit(1) }
 ''')
-subprocess.run(['xcrun','swiftc',str(repo/'Sources/SettingsWindow.swift'),str(repo/'Sources/SettingsAccessibility.swift'),str(repo/'Sources/DialogOwnershipTests.swift'),str(repo/'Sources/SettingsAccessibilityTests.swift'),str(repo/'Sources/PermissionDragItem.swift'),str(root/'main.swift'),'-framework','AppKit','-o',str(root/'dialog-ownership')],check=True)
+subprocess.run(['xcrun','swiftc',str(repo/'Sources/SettingsWindow.swift'),str(repo/'Sources/SettingsAccessibility.swift'),str(repo/'Sources/SettingsSidebar.swift'),str(repo/'Sources/DialogOwnershipTests.swift'),str(repo/'Sources/SettingsSidebarTests.swift'),str(repo/'Sources/SettingsAccessibilityTests.swift'),str(repo/'Sources/PermissionDragItem.swift'),str(root/'main.swift'),'-framework','AppKit','-o',str(root/'dialog-ownership')],check=True)
 subprocess.run([str(root/'dialog-ownership')],check=True)

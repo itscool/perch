@@ -80,6 +80,9 @@ Use these checks to find concrete failures in the actual product, not as a manda
 
 ## Grouping, wording and presentation
 
+- When the category list disappears on entry, assess whether persistent sidebar navigation would make the full settings set understandable. Give stable destinations direct access; transient tests, confirmations and coherent drafts still belong to their feature. Keep the current category selected through children, and let clicking that same category return to its root. Keep window geometry and the list position stable through refreshes and page changes.
+- A sidebar is another exit path: respect validation and draft discard, stop or detach page-owned work, preserve ongoing operation ownership, and reject busy clicks without queueing a surprise navigation later. Exercise actual mouse selection, arrow navigation, Tab into the page, same-category return, and cancellation followed by retry. A selected row alone does not prove the destination opened or that focus can leave the list.
+
 - Ask a first-time user to find a task: adjust behavior, check readiness, change a device, add/remove an exception, or fix a failure. Is its category based on that goal or on an internal component name? Do advanced users still have direct access without repeating a tutorial?
 - Put the status and the immediate useful action together. Keep detailed diagnostics, protocols and implementation names available through relevant details rather than dominating ordinary use.
 - Use concrete labels naming the object and consequence: Change this computer's input, Retry saving, Reset these permissions. State saving and activation timing when it could be uncertain.

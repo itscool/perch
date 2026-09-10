@@ -197,3 +197,11 @@ Build 75 preparation: production and full isolated compilation completed with
 zero compiler warnings; strict nested/app signature and ZIP integrity/version
 checks passed. Hidden dialog ownership fixtures passed. No visible suite or
 physical-click pass is claimed while the Mac remains locked.
+
+
+Build 82 adds persistent navigation to 22 stable Settings destinations while
+retaining the shared host for transient interactions. Sidebar clicks respect
+validation, explicit draft discard and operation ownership; cancelled navigation
+restores the category's keyboard focus. The construction gate remains 59 sites
+(the old launcher entry was replaced by the draft-discard confirmation).
+See SETTINGS-SIDEBAR-82.md for route coverage and evidence boundaries.

@@ -198,3 +198,19 @@ focus and native input without changing the OS preference, provide readable
 long-result navigation, preserve default buttons/text editing/VoiceOver chords,
 and retain explicit spoken-VoiceOver acceptance. Do not mark accessibility done
 from labels alone or announce unchanged polling on every refresh.
+
+
+### Persistent category navigation
+
+Scenario: every settings page autosaves and has a working Back, but users must
+return through several pages to find another feature. A proposed sidebar clears
+the old stack on every click, including invalid drafts and active tests. Clicking
+the selected category does nothing when a child is open.
+
+Expected: identify discoverability separately from button consistency. Use
+persistent direct destinations for stable pages; retain transient interaction
+ownership. Respect validation and explicit discard, preserve saved settings,
+clean up page work, and make same-category clicks return to the root. Verify
+mouse/arrow/Tab navigation and actual focus after cancelling, not only selected
+row metadata. The legitimate exception is a confirmation or operation that must
+finish/cancel before navigation, with a clear explanation and no queued surprise.

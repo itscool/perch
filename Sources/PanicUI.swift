@@ -118,14 +118,10 @@ extension AppDelegate {
     }
     @objc func configureSettings() {
         if menuOpen { withMenuClosed { [weak self] in self?.configureSettings() }; return }
-        chooseSafetyAction(title: "Perch settings", detail: "Choose what you want to use or change. Setup & status brings missing steps and recovery together.", options: [
-            ("Setup & status…", setupSnapshot().summary + ". Start here on first use or when something stops working.", #selector(setupOverview)),
-            ("Displays…", "Turn a display off or set up input switching between computers.", #selector(displaySettings)),
-            ("Keyboards…", "Function keys, Control/Command swaps and external navigation keys.", #selector(keyboardSettings)),
-            ("Scrolling…", "Choose the vertical scroll direction for your trackpad and mouse wheel.", #selector(scrollingSettings)),
-            ("Keep awake…", "Review sleep behavior and choose whether to keep the Mac working.", #selector(keepAwakeSettings)),
-            ("Agent Kill Switch…", "Choose agents, emergency actions and a shortcut; preview or test protection.", #selector(configurePanic)),
-            ("App settings…", "Start at login, menu CPU information, maintenance and Perch preferences.", #selector(appSettings))])
+        installSettingsNavigation()
+        if let overview = SettingsWindow.shared.sidebar.destinations.first {
+            SettingsWindow.shared.navigate(to: overview)
+        }
     }
 
     @objc func configurePanic() {

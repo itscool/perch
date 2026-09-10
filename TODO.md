@@ -1,137 +1,148 @@
-# Current Perch work and backlog
+# Perch work checklist
 
-Reconciled September 9, 2026 after the build 81 keyboard/accessibility work; build 77 remains installed. This is the planned
-execution order, not the dates issues were first reported. It supersedes stale
-open-item wording in dated review checkpoints. Functional bugs come first;
-acceptance gaps below are not automatically established defects.
+Reconciled September 9, 2026 for build 82. Build 77 remains installed; newer
+candidates are prepared separately. Categories are distinct: known defects,
+features, QA, release and backlog. Order within each category is planned work
+order. Dependencies take precedence: public signing precedes Sparkle integration.
+This supersedes stale open-item wording in dated review checkpoints.
 
-1. **Back fix accepted by the user on build 77.** The user confirmed item 1 works.
-   Esc spelling differed between Settings and menu; the follow-up now uses one
-   shared shortcut title and key label. Broader sibling/native-lab coverage stays
-   under item 3, not an unresolved claim about the reported Back defect.
-2. **Menu interaction fix accepted by the user on build 77.** The user confirmed
-   item 2 is perfect, then reported incomplete and inconsistent tooltip content.
-   Build 78 adds required help for all 21 action rows, shared explanations and
-   state-specific context. Its content changes still need native hover acceptance;
-   the original tooltip ownership/selection defect is not being reopened.
-3. **Full isolated suite and limited native dialog lab completed for build 79.**
-   All 21 suites pass. Real harmless-lab confirmation/Escape, result Back, picker
-   cancellation and parent action passed with AGENT MODE. This closes the pending
-   full-suite run, not native acceptance on every production route. See item 9.
-4. **Accept first-use and access-repair journeys.** Verify the new blocked-access
-   startup notice and already-enabled recovery route on the affected launch,
-   including scoped Automation errors and correct helper-specific explanations.
-   Normal launch and Restart already restored keyboard access. Do not reset
-   live permissions to manufacture a failure. Check Setup & status as a useful
-   first-run/repair summary, not only individual pages.
-5. **Accept saved lid intent and wake explanations.** A stopped session must not
-   uncheck the saved choice or silently rearm. Verify Resume, an explanation only
-   when lid protection was requested, sequence-specific evidence, acknowledgement,
-   and View lid activity. Confirm the 24-hour/1024-entry log contract. Source and
-   deterministic tests exist; actual sleep/wake notification order remains open.
-6. **Validate active-session Restart and separate helper maintenance.** Check
-   successful transfer, expired/unclaimed transfer cleanup, preserved grace
-   deadlines, and the visible queued-helper update/open-lid completion flow.
-   Inactive restart passed; build 77 installation also had no active session.
-7. **Finish lid safety edge/failure acceptance.** Cover just-before/after expiry
-   opening/replugging, repeated power changes, unknown power, and uncovered
-   battery-open → close → plug → open ordering. Exercise supervisor and watchdog
-   failures, both absent with independent recovery, and reboot recovery in a
-   coordinated safe session. Confirm actual OS sleep/restoration, not just logs.
-   Ordinary powered close/open, short grace/replug, full 60-second expiry,
+## Known defects — fix before shipping; target zero
+
+- [ ] **P3: legacy monitor guidance is dense and its next action is unclear.**
+  The persistent sidebar improves access but does not replace the old monitor
+  editor's nested guidance. Resolve through the coordinated KVM replacement;
+  retain this as a known usability defect until the replacement resolves it.
+  See WHOLE-APP-REVIEW-79.md. No other confirmed unresolved functional defect
+  is currently recorded for the candidate. QA gaps are not established defects.
+
+## Features
+
+1. [x] **Persistent Settings navigation (build 82).** One window with a left
+   category list, direct access to stable pages, Setup & status as home, stable
+   geometry, keyboard navigation and explicit draft discard. Tests and operational
+   confirmations retain their own interaction scope. See SETTINGS-SIDEBAR-82.md.
+2. [ ] **Sparkle updater, after public signing.** Direct-download and Homebrew
+   installations use the same app. Integrate authenticated downloads, install and
+   restart, existing lid handoff, separate helper maintenance, quiet availability
+   notices and recovery. This is now planned feature work, not optional backlog.
+   Signing identity and integration prerequisites are in DISTRIBUTION.md.
+3. [ ] **Coordinated Perch KVM, replacing monitor cycling.** Settle pairing and
+   input capture/forwarding feasibility, then authenticated handoffs, computer/port
+   mappings and arrangements. Support pointer/keyboard focus transfer, hotkeys,
+   optional same-keyboard host-button detection, one monitor, either/both of two,
+   and mixed arrangements. Track observed versus requested input; handle competing
+   requests, sleeping peers and partial failures. Migrate useful mappings and
+   replace dense legacy monitor guidance. Detailed order: KVM-PLAN.md.
+
+## QA — implementation acceptance, with defects returned to the first section
+
+1. [ ] **Install and accept build 82.** Check persistent navigation, direct menu
+   entry, same-category return from children, validation/discard, Back/Close,
+   small-screen scrolling, keyboard focus and sidebar behavior during operations.
+   Check the new tooltip content (78+) and shared Esc labels. The original Back,
+   tooltip-ownership and flicker fixes remain accepted; do not reopen without a
+   new failure. Installation is separate from preparing a signed candidate.
+2. [ ] **First use and access repair.** Blocked-access startup notice,
+   already-enabled recovery, scoped Automation errors and helper-specific guidance;
+   Setup & status must agree with feature pages. Normal launch and Restart already
+   restored keyboard access. Do not reset live grants to manufacture a failure.
+3. [ ] **Local replacement detection and restart notice.** Test actual newer-copy
+   replacement, one notice per run, deferral while interacting, dismissal, manual
+   restart and failed/partial replacement. Build 80 implementation and isolated
+   tests are complete; see APP-REPLACEMENT-REVIEW.md.
+4. [ ] **Saved lid intent and wake explanations.** Stopped protection retains the
+   choice without silently rearming. Verify Resume, sequence-specific explanation
+   only when requested, acknowledgement and View lid activity. Confirm actual
+   sleep/wake notification order and the 24-hour/1024-entry log contract.
+5. [ ] **Active-session restart and separate helper maintenance.** Successful
+   transfer, expired/unclaimed cleanup, unchanged grace deadlines and visible
+   queued update/open-lid completion. Inactive restart passed; installation of
+   build 77 did not exercise active-session handoff.
+6. [ ] **Lid safety edges and failures.** Just-before/after expiry opening/replugging,
+   repeated power changes, unknown power and uncovered battery-open → close →
+   plug → open ordering. Coordinate supervisor/watchdog failures, both absent
+   with independent recovery, and reboot recovery. Confirm actual OS sleep and
+   restoration. Powered close/open, short grace/replug, full 60-second expiry,
    menu-process-loss cleanup and explicit disable already have recorded passes.
-8. **Finish native event-collector migration acceptance.** Install the implemented
-   identity launcher through the collector maintenance route when coordinated;
-   check Full Disk Access attribution, event delivery, exact CPU accounting,
-   collector restart/PID reuse and reboot. Direct-eslogger delivery is supported;
-   new native launcher installation/FDA/reboot acceptance is still outstanding.
-9. **Keyboard/accessibility implementation complete for the reviewed settings set; release acceptance remains.**
-   Build 81 supplies local Tab/Shift-Tab navigation even with the system's
-   button-navigation preference off; native default Return, text editing,
-   VoiceOver chords and OS sheets are preserved. Long explanations scroll by
-   keyboard. Page identity, change notifications and remaining scoped labels
-   are implemented. Actual harmless-lab keyboard journeys passed. See
-   ACCESSIBILITY-REVIEW-81.md for coverage and the remaining test checklist:
-   spoken VoiceOver, broader per-route keyboard/dynamic-list acceptance and
-   coordinated external permission/authorization handoffs. No known code work
-   from this pass is deferred; test-discovered defects still require fixes.
-   WHOLE-APP-REVIEW-79.md retains the earlier review findings. Physical lid,
-   collector and clean-install acceptance remain items 4–8 and 14. Destructive
-   panic/privacy testing requires a separately authorized disposable environment.
-10. **Measure current performance and memory.** Idle, open menu, input activity,
-    process bursts and recovery; wakeups, event backlog and sustained memory
-    growth; honest combined collector CPU attribution. Prior bounded measurements
-    exist, but do not establish release-wide performance or near-zero overhead.
-11. **Design and build coordinated Perch KVM.** First settle pairing and input
-    capture/forwarding feasibility, then authenticated handoffs, computer/port
-    mappings and saved arrangements. Support pointer/focus transfer, hotkeys and
-    optional same-keyboard host-button detection; one monitor, either/both of two,
-    and mixed arrangements. Track observed versus requested monitor input and
-    handle concurrency, sleeping peers and partial failure. Replace old cycling
-    UI/settings once ready; migrate useful mappings. Replace the legacy dense, nested-scrolling monitor
-    guidance with clear arrangement/status/next-action pages. Detailed order:
-    KVM-PLAN.md.
-12. **Validate KVM and hardware support.** Two real Perch computers, multiple
-    display arrangements, split keyboard/mouse hosts, identical keyboard models,
-    reconnect and partial failures. Validate reused DDC/USB MCCS/MSI USB/NEC
-    LAN/serial transports and proprietary LG identification where hardware is
-    available. Research catalog entries are not certified support. Retired
-    standalone cycling acceptance is not a separate prerequisite.
-13. **Prepare distribution.** Choose the initial Homebrew tap/cask or appropriate
-    source formula; remove machine-specific identity/path/certificate assumptions;
-    decide signing/notarization and supported Mac/macOS scope. Audit dependency
-    and catalog provenance/licenses; define catalog/profile maintenance. Prepare
-    packaging, checksums, support/recovery documentation and release/cask drafts.
-14. **Verify clean installation and release lifecycle.** Clean Mac/account setup,
-    Perch's own permission grants, helpers/collector, login behavior, upgrade,
-    rollback and uninstall. Confirm compatibility without this development Mac's
-    grants/jobs. Review the concrete release before any separately authorized
-    publication; public publishing is not authorized by this backlog.
-## Backlog — optional future work
+7. [ ] **Native event-collector identity migration.** Install the implemented
+   launcher through coordinated maintenance; test Full Disk Access attribution,
+   event delivery, combined CPU accounting, restart/PID reuse and reboot.
+   Direct-eslogger delivery remains supported. This launcher is separate from
+   the optional direct Endpoint Security collector in Backlog.
+8. [ ] **Keyboard and spoken VoiceOver acceptance.** Implementation is complete
+   for the reviewed settings set, including the new sidebar. Finish spoken
+   VoiceOver, broader production-route/dynamic-list journeys and coordinated OS
+   permission/authorization handoffs. See ACCESSIBILITY-REVIEW-81.md and
+   SETTINGS-SIDEBAR-82.md. Metadata and harmless-lab input are not full acceptance.
+9. [ ] **Performance and memory.** Idle, open menu, input activity, process bursts
+   and recovery; wakeups, event backlog, sustained memory growth and combined
+   collector CPU. Prior bounded measurements do not establish release-wide cost.
+10. [ ] **Sparkle acceptance after implementation.** Signed feed/archive delivery,
+    bad signatures, interruption, cancellation, retry, replacement, permission
+    continuity, active lid handoff, helper compatibility and external Homebrew
+    replacement. See DISTRIBUTION.md for install-on-quit and identity requirements.
+11. [ ] **KVM/hardware acceptance after implementation.** Two real Perch computers,
+    multiple display arrangements, split keyboard/mouse hosts, identical keyboard
+    models, reconnects and partial failures. Validate reused DDC/USB MCCS/MSI USB/
+    NEC LAN/serial and LG identification on available hardware. Catalog research
+    is not certified support. Retired standalone cycling has no separate QA gate.
+12. [ ] **Destructive action acceptance in a separately authorized disposable
+    environment.** Actual Panic/privacy reset must not target the live workspace.
 
-These items are outside current required feature work and release gates. The
-current guarded lid implementation and eslogger collector still require the QA
-listed above; optional replacements do not defer that validation.
+## Release — signing, packaging and distribution
 
-15. **Later: real release update checker.** Build 80 adds the reusable local
-    replacement step now: detect a newer signed app at the running copy's path,
-    show running/on-disk versions and Restart in the menu, and notify once per
-    process run. See APP-REPLACEMENT-REVIEW.md. No download/install method is
-    assumed. Release discovery and delivery remain future work; the development
-    file-picker Updates flow stays retired. Native replacement/notice acceptance
-    remains separate from the isolated tests and active-session restart checks.
-16. **Direct process events.** Investigate replacing eslogger with a minimal
-    native Endpoint Security collector for structured events and filtering.
-    This requires Apple's restricted Endpoint Security entitlement, separate
-    from user-granted Full Disk Access. See EVENT-COLLECTOR.md. The implemented
-    native identity launcher is still an eslogger launcher, not this replacement.
-17. **Native lid research.** Find a supported, third-party-accessible macOS
-    assertion that prevents closed-lid sleep on battery and expires automatically,
-    potentially simplifying helper/watchdog recovery. The identified private
-    options require Apple-internal power entitlements; Endpoint Security approval
-    would not grant them. This research is optional, not a prerequisite for the
-    current guarded implementation. Current lid validation remains QA above.
-18. **Thermal alerts.** Optionally notify the user when macOS reports high thermal
-    pressure using the public thermal-state API already read by Perch. No special
-    Apple feature entitlement is needed; define useful thresholds and quiet,
-    non-repeating notification behavior before implementation.
-19. **Temperature readings.** Research a reliably identified CPU/GPU temperature
-    sensor source and hardware coverage before displaying degrees. This is
-    separate from thermal-pressure alerts; do not infer temperatures from the
-    existing qualitative thermal state.
-20. **Swap-rate metrics.** Optionally display how quickly macOS swaps memory,
-    with clear units and sampling semantics, distinct from current swap usage.
+1. [ ] **Public signing identity and migration, before Sparkle.** Establish Apple
+   Developer Program membership/Developer ID signing. Only the local Perch
+   certificate was available on September 9. Review stable identities, helper
+   trust and migration from the local certificate without silently resetting
+   permissions. See DISTRIBUTION.md; membership confirmation is pending.
+2. [ ] **Distribution build pipeline.** Direct-download package plus our own
+   Homebrew cask tap; remove machine-specific identity/path/certificate assumptions.
+   Decide supported Mac/macOS scope; sign nested code, notarize and staple.
+3. [ ] **Dependency and catalog release review.** Audit provenance/licenses;
+   define catalog/profile maintenance; include required notices and package checks.
+4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
+   helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
+   on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
+5. [ ] **Release artifacts and documentation.** Checksums, appcast/release assets,
+   support/recovery documentation, release notes and cask drafts.
+6. [ ] **Publish only after explicit approval** of the concrete release, relevant
+   QA passing and zero known defects. Commit/push is not public release approval.
 
-## Ongoing maintenance and completed evidence
+## Backlog — optional future work, outside current release gates
 
-Ongoing: update the settings-flow skill when new confirmed lessons emerge;
-review the agent catalog monthly against official sources, preserving explicit
-user choices and reviewing changed matches. Commit/push completed work; build
-and installation are separate from public publication.
+1. [ ] **Direct process events.** Investigate a minimal native Endpoint Security
+   collector replacing eslogger. Requires Apple's restricted Endpoint Security
+   entitlement, separate from user-granted Full Disk Access. EVENT-COLLECTOR.md.
+2. [ ] **Native lid research.** Find a supported third-party assertion that
+   prevents closed-lid sleep on battery and automatically expires. Identified
+   private options require Apple-internal power entitlements; Endpoint Security
+   approval does not grant them. Optional simplification of helper/watchdog
+   recovery; current guarded implementation still requires QA above.
+3. [ ] **Thermal alerts.** Notify on high macOS thermal pressure using the public
+   API already read by Perch. Define useful thresholds and quiet notification
+   behavior. No special Apple feature entitlement is needed.
+4. [ ] **Temperature readings.** Find a reliable CPU/GPU temperature sensor source
+   and hardware coverage before displaying degrees. Separate from thermal alerts;
+   do not infer numerical temperatures from qualitative pressure.
+5. [ ] **Swap-rate metrics.** Show how quickly macOS swaps memory, with clear units
+   and sampling semantics, distinct from current swap usage.
 
-Already confirmed: flicker resolved; CPU colors correct; password entry works;
-physical keyboard behaviors accepted by the user; external Fn access recovered
-without changing grants; Quit/Command-Q has recorded installed dispatch evidence;
-shortcut detection and Add app/executable work. Do not reopen these generically
-without a new failure. The saved shortcut is preserved; new installations default
-to Control–Option–Command–Escape, displayed with Esc.
+## Completed evidence and ongoing maintenance
+
+Build 81's 22/22 isolated suites passed; its production build was warning-free.
+Build 82 evidence is recorded in SETTINGS-SIDEBAR-82.md. Whole-app review fixes,
+local replacement detection/restart and keyboard/accessibility implementation
+are complete at their stated boundaries; pending QA above remains explicit.
+
+User-confirmed: flicker resolved; CPU colors correct; password entry works;
+physical external keyboard behavior works; original Back/menu interaction fixes
+accepted on 77. External Fn access recovered without grant changes. Quit/Command-Q
+has recorded installed dispatch evidence; shortcut detection and Add app/executable
+work. Existing shortcuts are preserved; new installs default to Ctrl–Opt–Cmd–Esc.
+
+Continue updating the settings-flow skill for confirmed lessons; review the agent
+catalog monthly against official sources while preserving user choices and
+reviewing changed matches. Commit and push completed work. No uncoordinated live
+permission reset, Panic, hardware change, sleep/reboot/failure injection or public
+publication is authorized by this checklist.

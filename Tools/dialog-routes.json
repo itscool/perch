@@ -323,12 +323,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "PanicUI.swift:configureSettings:menu-entry:1": {
-    "file": "PanicUI.swift",
-    "kind": "menu-entry",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "PanicUI.swift:configurePanic:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
@@ -352,5 +346,9 @@
     "kind": "alert",
     "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
+  },
+  "SettingsWindow.swift:navigate:alert:1": {
+    "review": "Sidebar draft exit preserves saved setup; Cancel retains editor, explicit discard switches destination.",
+    "acceptance": "Build 82: isolated cancel/discard/busy/actual-focus tests and native lab Escape/retry/Tab/Return discard. Broader production draft routes remain QA; SETTINGS-SIDEBAR-82.md."
   }
 }

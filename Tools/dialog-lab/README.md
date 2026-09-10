@@ -36,3 +36,11 @@ the focused Back button. Native sheets keep their own keyboard behavior.
 Use `--bundle-id local.perch.unique-lab-name` for a separate test copy when an
 older lab process may still exist. AX roles/names and key dispatch are observable
 here; spoken VoiceOver acceptance still requires VoiceOver itself.
+
+Persistent-sidebar checks: click Keyboard practice, use Down to enter Draft
+practice, then Up to request a category change. Escape/Back must retain the
+draft and category; retry and choose Discard draft to navigate. Tab from the
+category list must enter page controls. From the lab overview enter Child page,
+then click the already-selected Lab overview category to return to its root.
+The window must retain its size throughout. Transient confirmations disable
+category switching, and finishing them must not replay an earlier busy click.

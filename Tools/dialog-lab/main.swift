@@ -4,7 +4,17 @@ enum StatusColors { static let critical = NSColor.systemRed, warning = NSColor.s
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var count = 0
     let status = NSTextField(labelWithString: "No actions yet")
-    func applicationDidFinishLaunching(_ note: Notification) { configureSettings() }
+    func applicationDidFinishLaunching(_ note: Notification) {
+        let host = SettingsWindow.shared
+        host.configureNavigation([
+            .init(id: "home", title: "Lab overview", pageTitles: ["Perch dialog lab"], open: { self.configureSettings() }),
+            .init(id: "keyboard", title: "Keyboard practice", pageTitles: ["Keyboard practice"], open: { self.keyboardControls() }),
+            .init(id: "draft", title: "Draft practice", pageTitles: ["Draft practice"], open: {
+                host.show(.init(title: "Draft practice", detail: "Switching categories asks before discarding. Cancel retains this draft; Discard opens the category. This fixture saves nothing.", view: NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 100)), backTitle: "Cancel"))
+            })
+        ])
+        configureSettings()
+    }
     func record(_ text: String) { count += 1; status.stringValue = "\(count): \(text)"; try? status.stringValue.write(to: Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("dialog-results.txt"), atomically: true, encoding: .utf8) }
     @objc func configureSettings() {
         let host = SettingsWindow.shared

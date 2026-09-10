@@ -1,6 +1,29 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 81 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, build 82 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Build 82: persistent Settings sidebar
+
+Settings opens Setup & status with a persistent left-hand category list. Go
+directly to 22 stable pages, including keyboard layouts, agent choices, lid
+activity and maintenance. Category selection follows child pages; switching
+categories replaces the navigation stack and keeps window size stable.
+
+Independent choices still save immediately. Explicit drafts ask before discard,
+invalid drafts retain their explanation, and tests/confirmations/OS handoffs
+retain interaction ownership. Arrow keys navigate the list; Tab enters the page.
+The main status-menu design and hardware/helper behavior are unchanged.
+
+The final isolated suite passes 22/22 and production compilation is warning-free.
+Harmless native sidebar navigation and draft cancel/discard were exercised under
+AGENT MODE; light/dark production-view renders were inspected. Broader native
+and spoken VoiceOver acceptance remain QA. Build 82 includes builds 78–81 and
+is prepared separately, not installed. See SETTINGS-SIDEBAR-82.md.
+
+The user selected direct download/Homebrew plus Sparkle, after public signing.
+Only the local signing certificate is currently available; public identity
+migration and the Sparkle installation/handoff implementation remain separate
+work in DISTRIBUTION.md. No network updater or release was activated.
 
 ## Build 81: keyboard and accessibility implementation
 

@@ -189,7 +189,7 @@ final class SetupOverviewPage {
             buttons[index].title = item.action
             buttons[index].setAccessibilityLabel(item.action + " " + item.title)
         }
-        next.title = checks.contains { $0.state == .attention } ? (firstVisit ? "Continue setup" : "Fix next issue") : "Open settings"
+        next.title = checks.contains { $0.state == .attention } ? (firstVisit ? "Continue setup" : "Fix next issue") : "App settings"
     }
 }
 
@@ -229,7 +229,7 @@ extension AppDelegate {
     }
     func showFirstSetupIfNeeded() {
         guard !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey), !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.interactionBusy else { return }
-        configureSettings(); setupOverview()
+        configureSettings()
     }
     @objc func setupOverview() {
         if menuOpen { withMenuClosed { [weak self] in self?.setupOverview() }; return }
@@ -259,7 +259,7 @@ extension AppDelegate {
         case .awake: keepAwakeSettings()
         case .agents: configurePanic()
         case .events: processEventSetup()
-        case .settings: if id == "scrolling" { scrollingSettings() } else { configureSettings() }
+        case .settings: if id == "scrolling" { scrollingSettings() } else { appSettings() }
         }
     }
 }

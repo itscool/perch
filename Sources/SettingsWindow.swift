@@ -11,6 +11,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     let detailScroll = SettingsExplanationScroll(frame: NSRect(x: 24, y: 532, width: 572, height: 108))
     let container = NSView(frame: NSRect(x: 24, y: 24, width: 572, height: 490))
     let contentScroll = NSScrollView(frame: NSRect(x: 14, y: 24, width: 592, height: 490))
+    let sidebar = SettingsSidebar(frame: .zero)
+    var hasSidebar: Bool { !sidebar.destinations.isEmpty }
+    private var sidebarWidth: CGFloat { hasSidebar ? 228 : 0 }
     struct Page {
         let title: String
         let detail: String
@@ -36,14 +39,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private var alertCompletion: ((NSApplication.ModalResponse) -> Void)?
     private var alertRefresh: Timer?
     private var drivingAlertFixture = false
+    private var restoreSidebarAfterAlert = false
     private var activePicker: NSOpenPanel?
     private var needsPageDisplay = false
     private(set) var modalResponseRequested: NSApplication.ModalResponse?
-    private(set) var modal = false
-    private(set) var picking = false
-    private(set) var externalHandoff = false
+    private(set) var modal = false { didSet { updateSidebar() } }
+    private(set) var picking = false { didSet { updateSidebar() } }
+    private(set) var externalHandoff = false { didSet { updateSidebar() } }
     var interactionBusy: Bool { authorizing || modal || picking || externalHandoff }
-    private(set) var authorizing = false
+    private(set) var authorizing = false { didSet { updateSidebar() } }
     private var authorizationDepth = 0
     private var authorizationRestore: (() -> Void)?
     private var authorizationCompletions: [() -> Void] = []
@@ -84,7 +88,48 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         contentScroll.hasVerticalScroller = true; contentScroll.autohidesScrollers = true
         contentScroll.scrollerStyle = .legacy
         contentScroll.drawsBackground = false; contentScroll.documentView = container
-        [back,heading,detailScroll,detailHint,contentScroll].forEach { window.contentView?.addSubview($0) }
+        sidebar.isHidden = true
+        sidebar.choose = { [weak self] destination in self?.navigate(to: destination) }
+        [sidebar,back,heading,detailScroll,detailHint,contentScroll].forEach { window.contentView?.addSubview($0) }
+    }
+    func configureNavigation(_ destinations: [SettingsDestination]) {
+        sidebar.configure(destinations); sidebar.isHidden = destinations.isEmpty
+        updateSidebar()
+    }
+    func updateSidebar() {
+        let selected = pages.reversed().compactMap { page in
+            sidebar.destinations.first(where: { $0.pageTitles.contains(page.title) })?.id
+        }.first
+        sidebar.update(selected: selected, busy: interactionBusy)
+    }
+    func navigate(to destination: SettingsDestination) {
+        guard !interactionBusy else { updateSidebar(); return }
+        if pages.count == 1, destination.pageTitles.contains(pages[0].title) { updateSidebar(); return }
+        // A destination change must respect the same draft validation as Back.
+        // Check before removing any pages so a refused exit retains its context.
+        for page in pages.reversed() {
+            guard page.beforeBack?() != false else { updateSidebar(); return }
+        }
+        if pages.contains(where: { $0.backTitle == "Cancel" }) {
+            let alert = NSAlert()
+            alert.messageText = "Discard this draft?"
+            alert.informativeText = "Your saved setup will be kept. Discard the unfinished draft to open \(destination.title)."
+            alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Discard draft")
+            present(alert) { [weak self] response in
+                if response == .alertSecondButtonReturn { self?.openDestination(destination) }
+                else { self?.updateSidebar() }
+            }
+            return
+        }
+        openDestination(destination)
+    }
+    private func openDestination(_ destination: SettingsDestination) {
+        pages.reversed().forEach { $0.leave?() }; pages.removeAll()
+        feedback = nil
+        destination.open()
+        updateSidebar()
+        // Arrow navigation in the category list must remain in that list.
+        window.makeFirstResponder(sidebar.table)
     }
     func layoutDetail() {
         let width: CGFloat = 556
@@ -181,14 +226,17 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         detail.font = .systemFont(ofSize: 13, weight: issue == nil ? .regular : .semibold)
         let explanationHeight: CGFloat = min(200, max(48, ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: 556, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8))
         let availableHeight = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
-        let bodyHeight = max(96, min(page.preferredBodyHeight, page.view.frame.height, availableHeight - explanationHeight - 174))
-        let height = 72 + explanationHeight + 18 + bodyHeight + 24
+        let stableHeight = min(760, max(460, availableHeight - 54))
+        let bodyHeight = hasSidebar ? max(96, stableHeight-explanationHeight-114) : max(96, min(page.preferredBodyHeight, page.view.frame.height, availableHeight - explanationHeight - 174))
+        let height = hasSidebar ? stableHeight : 72 + explanationHeight + 18 + bodyHeight + 24
         let top = window.frame.maxY
-        window.setContentSize(NSSize(width: 620, height: height))
+        window.setContentSize(NSSize(width: 620 + sidebarWidth, height: height))
         window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top-window.frame.height))
-        back.frame.origin.y = height-47; heading.frame.origin.y = height-48
-        detailScroll.frame = NSRect(x: 24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
-        contentScroll.frame = NSRect(x: 14, y: 24, width: 592, height: bodyHeight)
+        sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
+        back.frame.origin = NSPoint(x: sidebarWidth+20, y: height-47)
+        heading.frame.origin = NSPoint(x: sidebarWidth+108, y: height-48)
+        detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
+        contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: 592, height: bodyHeight)
         contentScroll.autohidesScrollers = page.view.frame.height <= bodyHeight
         contentScroll.tile()
         layoutDetail()
@@ -210,10 +258,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             if let selection = page.selection, let editor = (target as? NSTextField)?.currentEditor() as? NSTextView,
                NSMaxRange(selection) <= (editor.string as NSString).length { editor.setSelectedRange(selection) }
         } else if let focused = window.firstResponder as? NSView,
-                  focused !== back, !focused.isDescendant(of: page.view) { window.makeFirstResponder(back) }
+                  focused !== back, focused !== sidebar.table, !focused.isDescendant(of: page.view) { window.makeFirstResponder(back) }
         if window.firstResponder === window || window.firstResponder == nil { window.makeFirstResponder(back) }
         window.recalculateKeyViewLoop()
         back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
+        updateSidebar()
         if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
         notifyAccessibilityPage()
     }
@@ -307,6 +356,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     func present(_ alert: NSAlert, allowsCancel: Bool = true,
                  completion: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) {
         guard !interactionBusy else { completion(.abort); return }
+        restoreSidebarAfterAlert = hasSidebar && window.firstResponder === sidebar.table
         rememberScroll()
         modal = true; activeAlert = alert; modalResponseRequested = nil
         alertCompletion = completion; modalAllowsCancel = allowsCancel
@@ -384,6 +434,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         guard activeAlert === alert else { return }
         alertRefresh?.invalidate(); alertRefresh = nil
         let completion = alertCompletion; alertCompletion = nil
+        let restoreSidebar = restoreSidebarAfterAlert; restoreSidebarAfterAlert = false
         activeAlert = nil; modalResponseRequested = nil
         back.isEnabled = true; modalAllowsCancel = true
         // Restore before releasing presentation ownership. The completion may
@@ -391,6 +442,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         if let page = pages.last { render(page) }
         else { window.defaultButtonCell = nil; window.orderOut(nil) }
         modal = false
+        if restoreSidebar && hasSidebar { window.makeFirstResponder(sidebar.table) }
         completion?(response)
         drainPresentationQueue()
     }

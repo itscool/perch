@@ -119,7 +119,7 @@ func runKeyboardRegistrationUITests() throws {
     app.refreshKeyboardAttention()
     try check(!app.keyboardSetupItem.isHidden && app.keyboardSetupItem.action == #selector(AppDelegate.keyboardSettings) && app.menuTitleSources[app.safetySettingsItem]?.string.contains("Keyboard setup needed") == true, "Unknown keyboard has no direct menu/settings route")
     app.configureSettings()
-    let root = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title.contains("Keyboards…") }
+    let root = host.sidebar.destinations.first { $0.id == "keyboard" }
     try check(root != nil, "Root Settings does not offer the keyboard task")
     app.keyboardSettings(); app.keyboardDetails()
     let scroll = host.pages.last!.view.subviews.compactMap { $0 as? NSScrollView }.first!
@@ -127,7 +127,7 @@ func runKeyboardRegistrationUITests() throws {
     try check(firstEntry.stringValue.contains("Unknown keyboard") && scroll.contentView.bounds.contains(firstEntry.frame), "Keyboard needing attention started outside the visible list")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-keyboard-registration.png")
     host.goBack(); host.goBack()
-    try check(host.pages.last?.title == "Perch settings", "Keyboard setup Back failed")
+    try check(host.pages.last?.title == "Setup & status", "Keyboard setup Back failed")
     app.currentProtectionIssue = .init(severity: .critical, title: "Emergency shortcut unavailable", detail: "test", route: "shortcut")
     app.label(app.safetySettingsItem, "Settings…", hint: "⛔ Emergency shortcut unavailable", hintColor: StatusColors.critical)
     app.refreshKeyboardAttention()

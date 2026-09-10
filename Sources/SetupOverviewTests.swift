@@ -64,8 +64,8 @@ func runSetupOverviewTests() throws {
     host.testing = true
     let app = AppDelegate(); app.buildMenu(); app.configureSettings()
     defer { host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window)) }
-    let rootButtons = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }
-    try check(rootButtons.map(\.title) == ["Setup & status…", "Displays…", "Keyboards…", "Scrolling…", "Keep awake…", "Agent Kill Switch…", "App settings…"], "Settings categories mix setup or maintenance with tasks")
+    try check(host.pages.last?.title == "Setup & status" && host.sidebar.destinations.first?.id == "overview", "Settings must start with its reusable overview and persistent categories")
+    try check(Set(host.sidebar.destinations.map(\.id)).count == host.sidebar.destinations.count, "Sidebar destination identities must be unique")
     let configBefore = try? Data(contentsOf: SafetyFiles.config)
     let preferencesBefore = UserDefaults.standard.dictionaryRepresentation()
     var current = recovery, rechecks = 0, routed: SetupRoute?
@@ -79,15 +79,15 @@ func runSetupOverviewTests() throws {
     let next = controls.first { $0.title == "Fix next issue" }!
     try check(next.visibleRect.height > 0, "Next setup action is below the fold")
     next.performClick(nil)
-    try check(routed == .inputAccess && host.pages.count == 3, "Next issue skipped the applicable access repair")
+    try check(routed == .inputAccess && host.pages.count == 2, "Next issue skipped the applicable access repair")
     current.input = InputHelperStatus(trusted: true, active: true)
     host.goBack()
     try check(host.pages.last?.view === page.view && page.checks.first { $0.id == "scrolling" }?.state == .ready, "Returning from repair lost overview or retained stale status")
     controls.first { $0.title == "Recheck" }!.performClick(nil)
-    try check(rechecks == 1 && host.pages.count == 2, "Recheck navigated or repeated its request")
+    try check(rechecks == 1 && host.pages.count == 1, "Recheck navigated or repeated its request")
     try check((try? Data(contentsOf: SafetyFiles.config)) == configBefore && (UserDefaults.standard.dictionaryRepresentation() as NSDictionary).isEqual(to: preferencesBefore), "Viewing setup or rechecking changed feature choices")
-    host.goBack()
-    try check(page.timer == nil && host.pages.count == 1, "Leaving setup retained its refresh timer")
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
+    try check(page.timer == nil && host.pages.isEmpty, "Leaving setup retained its refresh timer")
 
     let seen = UserDefaults.standard.object(forKey: SetupOverviewPage.seenKey)
     defer { if let seen { UserDefaults.standard.set(seen, forKey: SetupOverviewPage.seenKey) } else { UserDefaults.standard.removeObject(forKey: SetupOverviewPage.seenKey) } }
@@ -95,11 +95,11 @@ func runSetupOverviewTests() throws {
     app.showFirstSetupIfNeeded()
     try check(host.pages.last?.title == "Setup & status" && host.detail.stringValue.contains("Welcome"), "First launch did not open a reusable setup overview")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-setup-first-use.png")
-    host.goBack(); app.showFirstSetupIfNeeded()
-    try check(host.pages.count == 1, "Seen setup became a mandatory tour on every launch")
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window)); app.showFirstSetupIfNeeded()
+    try check(host.pages.isEmpty, "Seen setup became a mandatory tour on every launch")
     app.setupOverview()
     app.advancedSafetySettings(); app.setupOverview()
-    try check(host.pages.count == 2, "Returning to setup duplicated its navigation stack")
+    try check(host.pages.count == 1, "Returning to setup duplicated its navigation stack")
     try check(!host.detail.stringValue.contains("Welcome"), "Reopened setup did not become a status/recovery page")
     var canLeave = false, checks = 0
     let invalidDraft = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 150))
@@ -107,8 +107,7 @@ func runSetupOverviewTests() throws {
     app.setupOverview()
     try check(checks == 1 && host.pages.last?.view === invalidDraft, "Setup return ignored refused Back or repeatedly invoked validation")
     canLeave = true; app.setupOverview()
-    try check(host.pages.count == 2 && host.pages.last?.title == "Setup & status", "Setup return did not recover after valid Back")
-    host.goBack()
+    try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status", "Setup return did not recover after valid Back")
 
     for (name, open) in [("displays", app.displaySettings), ("scrolling", app.scrollingSettings), ("awake", app.keepAwakeSettings), ("app", app.appSettings), ("keyboard", app.keyboardSettings), ("navigation", app.navigationSettings), ("maintenance", app.advancedSafetySettings)] {
         open()

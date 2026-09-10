@@ -2,28 +2,44 @@
 set -euo pipefail
 export MACOSX_DEPLOYMENT_TARGET=26.0
 cd "$(dirname "$0")"
-python3 Tools/check-dialog-contract.py
 APP="$PWD/build/Perch.app"
+CHECK_DEPENDENCIES=0
 if [[ $# -gt 0 ]]; then
-    if [[ $# -ne 2 || "$1" != "--output" || "$2" != *.app ]]; then
-        echo "Usage: $0 [--output /path/to/Perch.app]" >&2
+    if [[ $# -eq 1 && "$1" == "--check-dependencies" ]]; then
+        CHECK_DEPENDENCIES=1
+    elif [[ $# -eq 2 && "$1" == "--output" && "$2" == *.app ]]; then
+        APP="$2"
+        [[ "$APP" == /* ]] || APP="$PWD/$APP"
+    else
+        echo "Usage: $0 [--output /path/to/Perch.app | --check-dependencies]" >&2
         exit 1
     fi
-    APP="$2"
-    [[ "$APP" == /* ]] || APP="$PWD/$APP"
 fi
 SIGN_IDENTITY="${PERCH_SIGN_IDENTITY:-Perch Local Code Signing}"
 SIGN_OPTIONS=(--timestamp=none)
 SPARKLE_OPTIONS=()
 APP_ENTITLEMENTS=()
 if [[ "${PERCH_RELEASE_BUILD:-0}" == 1 ]]; then
-    [[ $# -eq 2 && "$APP" != "$PWD/build/Perch.app" ]] || { echo 'Release builds require a separate --output app.' >&2; exit 1; }
+    [[ "$CHECK_DEPENDENCIES" == 1 || ( $# -eq 2 && "$APP" != "$PWD/build/Perch.app" ) ]] || { echo 'Release builds require a separate --output app.' >&2; exit 1; }
     [[ "$SIGN_IDENTITY" == 'Developer ID Application: '* ]] || { echo 'Release builds require Developer ID Application.' >&2; exit 1; }
     [[ -n "${PERCH_UPDATE_FEED_URL:-}" && -n "${PERCH_UPDATE_PUBLIC_KEY:-}" ]] || { echo 'Release builds require production update configuration.' >&2; exit 1; }
     SIGN_OPTIONS=(--options runtime --timestamp)
     SPARKLE_OPTIONS=(--release)
     APP_ENTITLEMENTS=(--entitlements Release/Perch.entitlements)
 fi
+# Bootstrap without invoking a missing developer-tools Python shim.
+[[ "$(uname -s)" == Darwin ]] || { echo 'Perch builds require macOS on Apple silicon.' >&2; exit 1; }
+if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
+    echo 'Apple developer tools are missing. Install Xcode 26+ or current Command Line Tools (xcode-select --install), then rerun this build.' >&2
+    exit 1
+fi
+command -v python3 >/dev/null || { echo 'Python 3.9+ is required. Install current Apple developer tools or Python 3, then retry.' >&2; exit 1; }
+if [[ "$CHECK_DEPENDENCIES" == 1 ]]; then
+    python3 Tools/build-preflight.py --dependencies-only
+else
+    python3 Tools/build-preflight.py --identity "$SIGN_IDENTITY"
+fi
+python3 Tools/check-dialog-contract.py
 # Serialize builds so the persisted counter cannot be reused by concurrent runs.
 mkdir -p build
 if ! mkdir build/.build-lock 2>/dev/null; then
@@ -31,14 +47,21 @@ if ! mkdir build/.build-lock 2>/dev/null; then
     exit 1
 fi
 trap 'rmdir build/.build-lock' EXIT
+# Fetch/repair pinned dependency caches before reserving a version or touching the app.
+echo 'Preparing build dependencies (the first run downloads Sparkle and pinned Swift packages)…'
+SPARKLE=$(python3 Tools/sparkle-dependency.py)
+CERTIFICATES=$(python3 Tools/certificate-dependency.py)
+python3 Tools/build-preflight.py --verify-resolved
+if [[ "$CHECK_DEPENDENCIES" == 1 ]]; then
+    echo 'Dependencies ready. Run ./build.sh to build Perch.'
+    exit 0
+fi
 BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)
 [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "CFBundleVersion must be an integer" >&2; exit 1; }
 BUILD_NUMBER=$((10#$BUILD_NUMBER + 1))
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
 RELEASE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist | cut -d. -f1-2)
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $RELEASE_VERSION.$BUILD_NUMBER" Info.plist
-SPARKLE=$(python3 Tools/sparkle-dependency.py)
-CERTIFICATES=$(python3 Tools/certificate-dependency.py)
 mkdir -p "$APP/Contents/MacOS"
 xcrun clang -std=c11 -O2 -Wall -Wextra -Werror Sources/PerchEventLauncher.c -o "$APP/Contents/MacOS/PerchEventLauncher"
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/EventParser.c -o build/EventParser.o

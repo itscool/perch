@@ -14,9 +14,21 @@ Perch is a local Apple Silicon/macOS 26 app. The current [1.2 local preview](REL
 
 ## Build and run
 
-Each build reserves the next integer `CFBundleVersion` in `Info.plist`; Displayed versions use major.minor.build, such as 2.0.92. Failed builds may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
+Each build reserves the next integer `CFBundleVersion` in `Info.plist`; Displayed versions use major.minor.build, such as 2.0.92. Dependency checks and preparation run before reserving a version; later compilation failures may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
 
-This local package targets Apple Silicon and macOS 26+. Building requires Xcode Command Line Tools. This local build also requires the existing **Perch Local Code Signing** certificate in the login Keychain. The build fails if it cannot use that identity; it does not fall back to ad-hoc signing.
+This package targets Apple silicon and macOS 26+. Building requires Xcode 26+ or matching Command Line Tools (macOS SDK 26+, Swift 6.2+) and Python 3.9+. The build checks these requirements before compiling.
+
+Missing dependencies are prepared automatically: Sparkle 2.9.6 downloads through macOS system `curl` with HTTPS validation and its pinned SHA-256; corrupt downloads and edited/incomplete extracted frameworks are repaired. This avoids depending on a Python installation’s certificate bundle. The certificate library’s pinned Swift packages are fetched as needed and stale build artifacts are rebuilt. Package versions remain locked, and modified dependency source checkouts are not reset. GitHub access is needed for missing downloads; a valid Sparkle archive can be reused offline.
+
+To prepare/check dependencies without building, changing the app version, or requiring signing credentials:
+
+```sh
+./build.sh --check-dependencies
+```
+
+A runnable local build needs **this Mac’s own** code-signing certificate/private key, default name **Perch Local Code Signing**, in its Keychain. It does not need the release Mac’s Developer ID identity, notarization password, or Sparkle publishing key. Use Keychain Access’s Certificate Assistant to create a local Code Signing identity if needed, then configure its local trust and confirm it appears in `security find-identity -v -p codesigning`. An existing local signing identity can be selected with `PERCH_SIGN_IDENTITY='identity name or hash' ./build.sh`. Keep the same identity for subsequent builds so access grants remain associated with that local app. The build reports missing/ambiguous identities before compilation and does not silently fall back to ad-hoc signing.
+
+Official Developer ID signing, notarization and publication remain separate steps on the release Mac; see [Release/README.md](Release/README.md). A local build does not contact Apple’s notarization service or install certificates automatically.
 
 ```sh
 ./build.sh

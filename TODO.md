@@ -8,6 +8,13 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+- [x] Fresh-Mac builds failed fetching Sparkle when Python lacked issuer
+  certificates. Downloads now use system curl with HTTPS and checksum verification;
+  missing/corrupt caches repair automatically. Toolchain and local signing checks
+  run before version allocation or app writes. `./build.sh --check-dependencies`
+  prepares pinned dependencies without signing/notarization credentials. Fresh
+  Sparkle download, clean Swift package resolution and failure/repair tests passed.
+
 - [x] Desk omitted the retained LG firmware-ID-to-profile lookup. Explicit setup
   inspection now carries identity to local/remote profile suggestions, preserves
   manual choices and offers the owner-evidenced USB-C 209 profile. Isolated

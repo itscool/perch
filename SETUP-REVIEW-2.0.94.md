@@ -153,9 +153,58 @@ and shared-window ownership; it is not a native click or hardware pass.
 
 ## Limits and disposition
 
-All seven findings are open; no application fixes were made. The strongest
+At the review checkpoint, all seven findings were open and no application fixes had been made. The strongest
 code-supported explanations for today's experience are S1–S3. The exact OS grant
 failure and native dialog event sequence remain unknown. Static review cannot
 establish that the signed release works on a fresh account or prove that every
 native control is clickable. This report replaces any claim of zero known setup
 defects and keeps live QA separate.
+
+## Source corrections after the static review
+
+The user authorized fixes and reported an additional lid-menu dead end (S8):
+trying to enable lid protection before helper setup displayed an informational
+Close-only alert that occupied the shared settings window. First-use setup did
+not make the missing lid prerequisite explicit enough.
+
+Implemented in source, not yet installed or live-accepted:
+
+- S1/S3: keyboard recovery now describes denied current-copy access without
+  diagnosing the launch cause. Main Keyboard settings, details, recovery and
+  Desk access routes provide the current app drag/copy target. Desk links use
+  the shared external handoff. Existing-grant recovery includes the changed-copy
+  case; no automatic privacy reset is performed.
+- S2/S8: explicit menu navigation and mouse/key return release a passive external
+  handoff. Genuine authorization, alerts and pickers remain protected. Ordinary
+  errors are inline/modeless; lid setup opens Keep awake with its working sidebar.
+  Retired backing panels were removed from input/event setup; those pages retain
+  their own controls across leave/reopen.
+- Settings navigation: stable sidebar pages have no header Close/Back control.
+  Opening a prerequisite from Setup & status preserves a Back to setup route;
+  nested tasks return one level at a time. Lid repair failures preserve that
+  checklist context, and returning clears child-page error text. Standalone recovery returns to setup instead of closing
+  Settings. Window close and scoped operation cancellation remain available.
+- S4/S6: the input helper drag target comes from the recognized input launch job,
+  not presence of an old protected file. Unknown jobs route to repair. Initial
+  helper readiness also verifies publisher compatibility. IPC trust is unchanged.
+- S5: Full Disk Access recovery offers the installed collector launcher as a
+  second drag/copy target. Source geometry reserves space for both routes.
+- S7: Desk welcome accurately describes optional per-session input sharing.
+- S8/first use: requesting lid protection preserves its saved choice and opens
+  helper setup. Helper installation starts only from its explicit setup/repair
+  control, not unexpectedly from the checkbox. Resume waits for a fresh helper.
+  The overview lists missing lid setup and marks it required when requested;
+  connected keyboards lacking access are no longer dismissed as optional.
+  Startup revisits outstanding required checks, and the overview does not offer
+  the normal continuation while required checks are still pending.
+
+Verification: the UI-construction ownership gate and whitespace checks passed.
+The full isolated app/regression fixture is compiled only; its native suites
+were not executed because the user requested no desktop control. New compiled
+cases cover missing-notification menu return, click/key return, preserving real
+OS-authorization ownership, stale publisher rejection, active-helper target
+selection, first-use requirements, lid-error navigation and reopening setup.
+Native click/permission/lid acceptance, including setup return versus direct
+sidebar entry, remains necessary before calling these
+user-facing regressions resolved. The public and installed 2.0.94 app still
+contains the reviewed defects; no new release/notarization/installation was run.

@@ -20,12 +20,24 @@ isolated QA and hardware acceptance.
 - AGENT MODE was shown and then stopped. Native desktop inspection timed out, so
   this records process/version/signature verification, not a successful UI or
   physical lid test. No live permissions were reset or hardware tests triggered.
-- The signed DMG passes hdiutil verification. The notarized-app Sparkle ZIP and
-  appcast pass signature/version/archive-reference verification. DMG notarization
-  has not been requested/submitted. No GitHub release or public feed exists yet.
-- Publication remains gated by the explicit DMG notarization preference and the
-  open LG table redistribution review. A real published-version update/restart
-  remains QA, including protected-lid handoff and failed/retried installation.
+- The signed, notarized and stapled DMG passes hdiutil verification. The
+  notarized-app Sparkle ZIP and appcast pass signature/version/archive-reference
+  verification. The 2.0.94 GitHub release and public feed downloads are verified.
+  The user approved retaining the recorded LG table. A real published-version
+  update/restart remains QA, including protected-lid handoff and failed/retried
+  installation.
+
+## Pending setup corrections
+
+Source fixes after 2.0.94 address permission recovery, consistent drag/copy paths,
+external-window return, publisher-aware helper readiness, persistent setup views,
+and explicit lid setup/resume. First use revisits missing required prerequisites.
+Settings uses sidebar navigation without Close buttons; prerequisite pages opened
+from the setup checklist offer Back to setup and retain that context on failure.
+See SETUP-REVIEW-2.0.94.md for the per-finding changes and verification boundary.
+The fix fixture is compile-only under the user's no-control instruction; no
+updated live app or public release is being claimed. 2.0.94's app and installer
+are notarized and public, with verified anonymous downloads and update feed.
 
 ## Implemented
 

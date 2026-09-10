@@ -3,8 +3,8 @@ import AppKit
 /// Public capability checks establish current access, not TCC's responsible
 /// identity. In particular, parent PID is not proof of inherited permission.
 enum LaunchAccessRecovery {
-    static let summary = "macOS is not allowing keyboard access in this launch. If Perch is already enabled in Input Monitoring, quit and reopen it from Finder."
-    static let detail = "Some external Fn controls and navigation-key learning need Input Monitoring for Perch. Opening Perch from a terminal or another app can affect access in that launch.\n\nIf Perch is already enabled, try reopening it from Finder before changing permissions. Scrolling and remapping use Perch Helper’s separate access."
+    static let summary = "Input Monitoring is not available to this copy of Perch. Open Keyboard access to add the current app or repair an outdated permission entry."
+    static let detail = "External Fn controls and navigation-key learning need Input Monitoring for Perch. Add the app below in System Settings and enable it.\n\nIf Perch is already enabled but access still fails, the entry may refer to an older signed copy. Remove only that Perch entry and add this copy again. Follow any macOS quit/reopen prompt.\n\nOpening from Finder can help with launch attribution, but does not repair an outdated grant. Scrolling uses Perch Helper’s Accessibility access; Desk sharing needs access for Perch itself."
 
     static func automationFailure(_ message: String, code: Int?) -> String {
         guard code == -1743 else { return message }
@@ -29,29 +29,27 @@ extension AppDelegate {
         withMenuClosed { [weak self] in
             SettingsWindow.shared.afterInteraction {
                 guard let self, self.keyboardModes.needsAccess else { return }
-                let alert = NSAlert(); alert.messageText = "Keyboard access is unavailable in this launch"
-                alert.informativeText = LaunchAccessRecovery.summary + " Your saved keyboard choices are unchanged."
-                alert.addButton(withTitle: "Review keyboard access"); alert.addButton(withTitle: "Close")
-                SettingsWindow.shared.present(alert) { response in
-                    if response == .alertFirstButtonReturn { self.configureSettings(); self.keyboardAccessRecovery() }
-                }
+                // Present the actionable overview, not an informational modal blocking its sidebar.
+                if !SettingsWindow.shared.window.isVisible { self.configureSettings() }
             }
         }
     }
     @objc func keyboardAccessRecovery() {
-        let page = SettingsTaskPage(title: "Keyboard access", detail: LaunchAccessRecovery.detail, height: 350, statusHeight: 100)
+        let page = SettingsTaskPage(title: "Keyboard access", detail: LaunchAccessRecovery.detail, height: 400, statusHeight: 70)
         page.add("Show Perch in Finder", detail: "Choose Quit Perch, then double-click the selected app. Quitting ends an active lid session.") {
             SettingsWindow.shared.handoffToExternalApp {
                 NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]); return true
             }
         }
-        page.add("Open macOS Input Monitoring", detail: "If Perch is already enabled, leave it enabled and use the Finder relaunch above.") { [weak self] in self?.openKeyboardPreferences(permission: true) }
+        page.add("Open macOS Input Monitoring", detail: "Add this copy of Perch. If an old enabled entry still fails, replace only that entry with the app below.") { [weak self] in self?.openKeyboardPreferences(permission: true) }
         page.add("Recheck keyboard access", detail: "Read access and device status again without changing your saved choices.") { [weak self] in self?.keyboardModes.recheck() }
         page.update = { [weak page] in
             let granted = NavigationProbeHID.hasAccess
             page?.status.stringValue = granted ? "✓ Input Monitoring is available to this Perch process. Return to Keyboard settings to check the connected devices." : LaunchAccessRecovery.summary
             page?.status.textColor = granted ? StatusColors.success : StatusColors.warning
         }
+        let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+        drag.frame = NSRect(x: 8, y: 8, width: 556, height: 42); page.view.addSubview(drag)
         page.show(delegate: self)
     }
 }

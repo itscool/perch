@@ -5,8 +5,15 @@ func runSetupOverviewTests() throws {
     var config = SafetyConfiguration()
     config.reverseTrackpad = false; config.reverseWheel = false; config.navigation = nil
     config.keepAwake = false; config.targets = []; config.shortcut.enabled = false
+    let unused = SetupSnapshot(config: config)
     var snapshot = SetupSnapshot(config: config)
     try check(snapshot.checks.allSatisfy { $0.state == .optional }, "Unused optional features demand setup")
+    snapshot.lidWanted = true
+    try check(snapshot.checks.first { $0.id == "lid-setup" }?.state == .attention, "Saved lid choice hid unfinished helper setup")
+    snapshot.lidWanted = false
+    snapshot.keyboardCount = 1; snapshot.keyboardAccessNeeded = true
+    try check(snapshot.checks.first { $0.id == "keyboards" }?.state == .attention, "First-use keyboard access was hidden as optional")
+    snapshot.keyboardCount = 0; snapshot.keyboardAccessNeeded = false
     snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
     try check(snapshot.checks.first { $0.id == "awake" }?.state == .unverified && snapshot.summary.contains("1 unverified"), "An accepted lid command was counted as ready or as a repairable missing setup step")
     snapshot.lidGuard = nil
@@ -108,11 +115,13 @@ func runSetupOverviewTests() throws {
     let seen = UserDefaults.standard.object(forKey: SetupOverviewPage.seenKey)
     defer { if let seen { UserDefaults.standard.set(seen, forKey: SetupOverviewPage.seenKey) } else { UserDefaults.standard.removeObject(forKey: SetupOverviewPage.seenKey) } }
     UserDefaults.standard.removeObject(forKey: SetupOverviewPage.seenKey)
-    app.showFirstSetupIfNeeded()
+    app.showFirstSetupIfNeeded(snapshot: unused)
     try check(host.pages.last?.title == "Setup & status" && host.detail.stringValue.contains("Welcome"), "First launch did not open a reusable setup overview")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-setup-first-use.png")
-    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window)); app.showFirstSetupIfNeeded()
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window)); app.showFirstSetupIfNeeded(snapshot: unused)
     try check(host.pages.isEmpty, "Seen setup became a mandatory tour on every launch")
+    app.showFirstSetupIfNeeded(snapshot: recovery)
+    try check(host.pages.last?.title == "Setup & status", "Seen setup hid missing required access on the next launch")
     app.setupOverview()
     app.advancedSafetySettings(); app.setupOverview()
     try check(host.pages.count == 1, "Returning to setup duplicated its navigation stack")

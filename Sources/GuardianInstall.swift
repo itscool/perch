@@ -33,13 +33,26 @@ enum GuardianInstall {
         }
         return true
     }
-    static func buildMatches(executable: URL, appInfo: [String: Any]) -> Bool {
+    static func buildMatches(executable: URL, appInfo: [String: Any], verifyPublisher: (URL) -> Bool = LidGuardInstall.publisherMatches) -> Bool {
         let info = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Info.plist")
         guard let expectedBuild = appInfo["CFBundleVersion"] as? String, !expectedBuild.isEmpty,
               let expectedID = appInfo["CFBundleIdentifier"] as? String, !expectedID.isEmpty,
               let data = try? Data(contentsOf: info),
               let installed = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return false }
-        return installed["CFBundleVersion"] as? String == expectedBuild && installed["CFBundleIdentifier"] as? String == expectedID
+        return installed["CFBundleVersion"] as? String == expectedBuild && installed["CFBundleIdentifier"] as? String == expectedID &&
+            verifyPublisher(executable.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
+    }
+    static func inputPermissionApp(arguments: [String]?) -> URL? {
+        guard let executable = arguments?.first,
+              [SafetyFiles.binary.path, protectedBinary.path].contains(executable),
+              arguments?.dropFirst().first == "--input-helper" else { return nil }
+        return URL(fileURLWithPath: executable).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+    static var inputPermissionApp: URL? {
+        let path = plist.deletingLastPathComponent().appendingPathComponent("local.scott.perch.input.plist")
+        guard let data = try? Data(contentsOf: path),
+              let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return nil }
+        return inputPermissionApp(arguments: job["ProgramArguments"] as? [String])
     }
     static func install() throws {
         try SafetyFiles.prepare()

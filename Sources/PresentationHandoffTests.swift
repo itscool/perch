@@ -60,7 +60,7 @@ func runPresentationHandoffTests() throws {
     try DesktopTestSession.check()
     host.window.orderFront(nil)
     let priorLevel = host.window.level, priorFloating = host.window.isFloatingPanel
-    let permission = PermissionSetup()
+    let permission = PermissionSetup(helperApp: { SafetyFiles.helperApp })
     let routes: [() -> Void] = [permission.openSettings, permission.revealHelper, EventCollectorSetup.shared.openPrivacySettings, EventCollectorSetup.shared.showFile]
     for route in routes {
         let before = opens, oldNotices = notices
@@ -87,6 +87,19 @@ func runPresentationHandoffTests() throws {
     let before = opens; button.performClick(nil)
     try check(opens == before + 1 && host.externalHandoff, "Navigation route bypassed the shared handoff")
     host.returnedToApp(); flush()
+    // Missing activation notifications must not strand a status-menu return.
+    permission.openSettings()
+    app.configureSettings()
+    try check(!host.externalHandoff && !host.interactionBusy && host.pages.last?.title == "Setup & status", "Explicit Settings menu return stayed blocked")
+    permission.openSettings()
+    host.window.userReturned?()
+    try check(!host.interactionBusy, "Click/key return did not release external handoff")
+    let restoreAuthorization = host.beginAuthorization()
+    host.window.userReturned?()
+    app.configureSettings()
+    try check(host.authorizing && host.interactionBusy, "Ordinary navigation released a real authorization owner")
+    restoreAuthorization()
+
     host.externalAppTestDriver = { false }
     permission.openSettings()
     try check(!host.interactionBusy && host.window.level == priorLevel, "Failed external open stranded Settings")

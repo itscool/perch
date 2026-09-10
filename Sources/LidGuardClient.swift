@@ -241,14 +241,11 @@ final class LidGuardClient {
 extension AppDelegate {
     func changeSupervisedLid(_ enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
         do {
-            let installed = enabled && LidGuardClient.shared.status?.fresh != true
-            if installed {
-                guard !LidHelperUpdate.shared.state.pending else { throw AppError(message: "A lid-helper update is queued. Open Keep awake and finish it with the lid open before enabling a new session.") }
-                try LidGuardInstall.install()
+            if enabled && (LidGuardClient.shared.status?.fresh != true || LidHelperUpdate.shared.state.pending) {
+                throw AppError(message: "Finish lid protection setup in Keep awake before starting a session. Your saved choice is kept.")
             }
             LidGuardClient.shared.start()
-            if installed { DispatchQueue.main.asyncAfter(deadline: .now()+0.8) { LidGuardClient.shared.change(enabled, completion: completion) } }
-            else { LidGuardClient.shared.change(enabled, completion: completion) }
+            LidGuardClient.shared.change(enabled, completion: completion)
         } catch { completion(.failure(error)) }
     }
 }

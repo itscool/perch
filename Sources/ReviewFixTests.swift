@@ -31,14 +31,20 @@ func runReviewFixTests() throws {
     let expected = ["CFBundleVersion": "41", "CFBundleIdentifier": "fixture.perch"]
     for (version, id, matches) in [("12", "fixture.perch", false), ("41", "fixture.perch", true), ("41", "wrong.app", false)] {
         try PropertyListSerialization.data(fromPropertyList: ["CFBundleVersion": version, "CFBundleIdentifier": id], format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-        try check(GuardianInstall.buildMatches(executable: executable, appInfo: expected) == matches, "Helper build/identity mismatch was accepted")
+        try check(GuardianInstall.buildMatches(executable: executable, appInfo: expected, verifyPublisher: { _ in true }) == matches, "Helper build/identity mismatch was accepted")
     }
+
+    try PropertyListSerialization.data(fromPropertyList: expected, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+    try check(!GuardianInstall.buildMatches(executable: executable, appInfo: expected, verifyPublisher: { _ in false }), "Same build from another publisher passed startup readiness")
+    try check(GuardianInstall.inputPermissionApp(arguments: [SafetyFiles.binary.path, "--input-helper"]) == SafetyFiles.helperApp, "User helper permission target ignored the active job")
+    try check(GuardianInstall.inputPermissionApp(arguments: [GuardianInstall.protectedBinary.path, "--input-helper"])?.path == "/Library/Application Support/Perch/Perch Helper.app", "Protected helper job did not select its own permission target")
+    try check(GuardianInstall.inputPermissionApp(arguments: ["/tmp/unrelated", "--input-helper"]) == nil, "Unknown executable became a permission target")
 
     let host = SettingsWindow.shared
     host.testing = true; host.pages = []
     defer { host.modalTestDriver = nil; host.pages = []; host.window.defaultButtonCell = nil }
     let app = AppDelegate(monitorInputs: MonitorInputController(displays: [])); app.configureSettings(); app.configurePanic(); app.configureSettings()
-    try check(host.pages.count == 1 && host.back.title == "Close", "Reopening Settings created a second home")
+    try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status" && host.back.isHidden, "Reopening Settings created a second home or a redundant exit")
     let previousLevel = host.window.level
     let previousFloating = host.window.isFloatingPanel
     try DesktopTestSession.check()

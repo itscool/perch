@@ -398,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                   !LidGuardClient.shared.changing else { return }
             self.changeSupervisedLid(true) { result in
                 self.refresh()
-                if case .failure(let error) = result { self.showError(error) }
+                if case .failure(let error) = result { self.showLidSetup(error.localizedDescription) }
             }
         }
     }
@@ -408,6 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func withMenuClosed(_ action: @escaping () -> Void) {
         if menuOpen {
+            SettingsWindow.shared.returnedToApp()
             menu.cancelTracking()
             // Permission prompts must start after AppKit's tracking loop unwinds.
             DispatchQueue.main.async(execute: action)
@@ -416,11 +417,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func showError(_ error: Error) {
         withMenuClosed {
             SettingsWindow.shared.afterInteraction {
-                NSApp.activate(ignoringOtherApps: true)
-                let alert = NSAlert()
-                alert.messageText = "Couldn’t change the setting"
-                alert.informativeText = error.localizedDescription
-                SettingsWindow.shared.present(alert)
+                let host = SettingsWindow.shared
+                if let page = host.pages.last {
+                    host.feedback = error.localizedDescription
+                    host.display(page)
+                } else {
+                    let page = SettingsTaskPage(title: "Setting needs attention", detail: error.localizedDescription, height: 160)
+                    page.add("Review setup", detail: "See the feature that needs attention and complete its setup.") { [weak self] in self?.configureSettings() }
+                    page.show()
+                }
             }
         }
     }
@@ -430,7 +435,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             do {
                 let state = try SleepStatus.read()
                 let enabling = !(LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
-                guard !enabling || GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Maintenance first.") }
+                guard !enabling || GuardianInstall.alive else {
+                    self.advancedSafetySettings()
+                    self.showError(AppError(message: "Keep awake needs the background helper. Choose Repair background helpers below, then return to Keep awake."))
+                    return
+                }
                 let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
                 let finish: (Result<Void, Error>) -> Void = { result in
                     do {
@@ -438,7 +447,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                         var config = SafetyConfiguration.load(); config.keepAwake = enabling; try config.save()
                         if !enabling { try state.stopCaffeinate() }
                         self.refresh()
-                    } catch { self.refresh(); self.showError(error) }
+                    } catch {
+                        self.refresh()
+                        if enabling && remembered { self.showLidSetup(error.localizedDescription) } else { self.showError(error) }
+                    }
                 }
                 if enabling && remembered { self.changeSupervisedLid(true, completion: finish) }
                 else if LidGuardClient.shared.status?.armed == true || LidGuardOwnership.recorded { self.changeSupervisedLid(false, completion: finish) }
@@ -447,6 +459,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func toggleLid() { changeLidChoice() }
+    func showLidSetup(_ explanation: String) {
+        let host = SettingsWindow.shared
+        host.returnedToApp()
+        host.afterInteraction { [weak self] in
+            guard let self else { return }
+            self.installSettingsNavigation()
+            if host.pages.last?.title == "Keep awake" {
+                // Keep the setup checklist beneath this page when repair fails.
+            } else if host.pages.first?.title == "Setup & status" {
+                self.keepAwakeSettings()
+            } else if let destination = host.sidebar.destinations.first(where: { $0.id == "awake" }) {
+                host.navigate(to: destination)
+            }
+            if let page = host.pages.last, page.title == "Keep awake" {
+                host.feedback = explanation
+                host.display(page)
+            }
+        }
+    }
     func changeLidChoice(readSleep: @escaping () throws -> SleepStatus = { try SleepStatus.read() }) {
         withMenuClosed { [weak self] in
             guard let self else { return }
@@ -456,13 +487,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 guard saved || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
                 let enabling = !saved
 
+                if enabling && (LidHelperUpdate.shared.state.pending || LidGuardClient.shared.status?.fresh != true) {
+                    var config = SafetyConfiguration.load(); config.keepAwake = true; try config.save()
+                    UserDefaults.standard.set(true, forKey: SleepPreferences.lidPreferenceKey)
+                    self.refresh()
+                    self.showLidSetup("Your lid choice is saved. Finish lid protection setup below, then choose Resume lid protection. Lid protection has not been confirmed.")
+                    return
+                }
+
                 let finish: (Result<Void, Error>) -> Void = { result in
                     do {
                         try result.get()
                         UserDefaults.standard.set(enabling, forKey: SleepPreferences.lidPreferenceKey)
                         var config = SafetyConfiguration.load(); if enabling { config.keepAwake = true; try config.save() }
                         self.refresh(); self.settingsRefresh?()
-                    } catch { self.refresh(); self.showError(error) }
+                    } catch { self.refresh(); self.showLidSetup(error.localizedDescription) }
                 }
                 if !enabling && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.armed != true { finish(.success(())) }
                 else { self.changeSupervisedLid(enabling, completion: finish) }

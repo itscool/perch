@@ -160,7 +160,7 @@ extension AppDelegate {
                 text(LaunchAccessRecovery.summary, 282, 54, color: StatusColors.warning)
                 let access = SettingsActionButton(title: "Open macOS Input Monitoring") { [weak self] in self?.openKeyboardPreferences(permission: true) }
                 access.frame = NSRect(x: 0, y: 249, width: 282, height: 32); view.addSubview(access)
-                let recovery = SettingsActionButton(title: "Already enabled? Review launch…") { [weak self] in self?.keyboardAccessRecovery() }
+                let recovery = SettingsActionButton(title: "Set up or repair access…") { [weak self] in self?.keyboardAccessRecovery() }
                 recovery.frame = NSRect(x: 290, y: 249, width: 282, height: 32); view.addSubview(recovery)
             } else { text(status, 250, 70, color: .secondaryLabelColor) }
             let navigation = SettingsActionButton(title: "Navigation keys…") { [weak self] in self?.navigationSettings() }
@@ -170,7 +170,11 @@ extension AppDelegate {
             diagnostics.frame = NSRect(x: 0, y: 123, width: 572, height: 32); view.addSubview(diagnostics)
             text("See each connected keyboard’s results, access setup and macOS settings.", 89, 28, color: .secondaryLabelColor)
             let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.recheck() }
-            retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 0, y: 15, width: 572, height: 32); view.addSubview(retry)
+            retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 0, y: 15, width: keyboardModes.needsAccess ? 278 : 572, height: 32); view.addSubview(retry)
+            if keyboardModes.needsAccess {
+                let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+                drag.frame = NSRect(x: 290, y: 10, width: 274, height: 42); view.addSubview(drag)
+            }
             SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Choose the keyboard group and behavior you want. Built-in and external choices are independent. Changes apply immediately.", view: view, refresh: { [weak self] in self?.keyboardSettings() }))
             return
         }
@@ -216,8 +220,10 @@ extension AppDelegate {
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
         if keyboardModes.needsAccess {
-            let recovery = SettingsActionButton(title: "Already enabled? Review this launch’s access…") { [weak self] in self?.keyboardAccessRecovery() }
-            recovery.frame = NSRect(x: 8,y: 2,width: 548,height: 40); view.addSubview(recovery)
+            let recovery = SettingsActionButton(title: "Set up or repair keyboard access…") { [weak self] in self?.keyboardAccessRecovery() }
+            recovery.frame = NSRect(x: 8,y: 2,width: 280,height: 40); view.addSubview(recovery)
+            let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+            drag.frame = NSRect(x: 298, y: 2, width: 258, height: 40); view.addSubview(drag)
         }
         SettingsWindow.shared.show(.init(title: "Keyboard details", detail: "Read the result for the affected keyboard. Recheck only reads device state; it does not reapply saved choices. Navigation recognition is separate from function keys and modifier swaps.", view: view, refresh: { [weak self] in self?.keyboardDetails() }))
     }

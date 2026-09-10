@@ -64,6 +64,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.delegate = self
+        window.userReturned = { [weak self] in self?.returnedToApp() }
         window.keyboardNavigationAllowed = { [weak self] in
             guard let self else { return false }
             return !self.authorizing && !self.picking && !self.externalHandoff
@@ -108,8 +109,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         sidebar.update(selected: selected, busy: interactionBusy)
     }
     func navigate(to destination: SettingsDestination) {
+        returnedToApp() // An explicit navigation request is also a return from Finder/Settings.
         guard !interactionBusy else { updateSidebar(); return }
-        if pages.count == 1, destination.pageTitles.contains(pages[0].title) { updateSidebar(); return }
+        if pages.count == 1, destination.pageTitles.contains(pages[0].title) {
+            updateSidebar()
+            if !testing { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+            return
+        }
         // A destination change must respect the same draft validation as Back.
         // Check before removing any pages so a refused exit retains its context.
         for page in pages.reversed() {
@@ -242,10 +248,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let x = visible.map { min(max(window.frame.minX, $0.minX), max($0.minX, $0.maxX-window.frame.width)) } ?? window.frame.minX
         window.setFrameOrigin(NSPoint(x: x, y: top-window.frame.height))
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
-        back.isHidden = hasSidebar && activeAlert == nil && page.backTitle == nil &&
+        let setupJourney = pages.count > 1 && pages.first?.title == "Setup & status"
+        back.isHidden = hasSidebar && !setupJourney && activeAlert == nil && page.backTitle == nil &&
             sidebar.destinations.contains { $0.pageTitles.contains(page.title) }
-        back.frame.origin = NSPoint(x: sidebarWidth+20, y: height-47)
-        heading.frame = NSRect(x: sidebarWidth + (back.isHidden ? 24 : 108), y: height-48, width: back.isHidden ? 572 : 486, height: 30)
+        back.title = page.backTitle ?? ((setupJourney && pages.count == 2) || (hasSidebar && pages.count <= 1) ? "Back to setup" : "Back")
+        back.frame = NSRect(x: sidebarWidth+20, y: height-47, width: max(75, ceil((back.title as NSString).size(withAttributes: [.font: back.font ?? NSFont.systemFont(ofSize: 13)]).width)+28), height: 28)
+        let headingInset: CGFloat = back.isHidden ? 24 : 20+back.frame.width+12
+        heading.frame = NSRect(x: sidebarWidth+headingInset, y: height-48, width: bodyWidth+24-headingInset, height: 30)
         detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
         contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: bodyWidth + 20, height: bodyHeight)
         contentScroll.hasHorizontalScroller = page.view.frame.width > bodyWidth
@@ -275,7 +284,6 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         }
         if window.firstResponder === window || window.firstResponder == nil { window.makeFirstResponder(back.isHidden ? sidebar.table : back) }
         window.recalculateKeyViewLoop()
-        back.title = page.backTitle ?? (pages.count > 1 ? "Back" : "Close")
         updateSidebar()
         if !testing && !interactionBusy && !window.isVisible { window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
         notifyAccessibilityPage()
@@ -317,8 +325,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         guard !picking, !authorizing else { return }
         if modal { if modalAllowsCancel, let activeAlert { finish(activeAlert, response: cancelCode) }; return }
         guard pages.last?.beforeBack?() != false else { return }
-        guard pages.count > 1 else { window.close(); return }
+        guard pages.count > 1 else {
+            if let overview = sidebar.destinations.first { navigate(to: overview) }
+            else { window.close() }
+            return
+        }
         pages.removeLast().leave?()
+        feedback = nil
         if let page = pages.last { display(page); page.refresh?() }
     }
     @discardableResult
@@ -403,8 +416,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let contentHeight = max(96, accessoryHeight + buttonY + 50)
         view.setFrameSize(NSSize(width: 572, height: contentHeight))
         if let accessory = alert.accessoryView { accessory.frame.origin.y = contentHeight-accessoryHeight }
-        render(Page(title: alert.messageText, detail: alert.informativeText, view: view))
-        back.title = pages.isEmpty ? "Close" : "Back"
+        var alertPage = Page(title: alert.messageText, detail: alert.informativeText, view: view)
+        alertPage.backTitle = pages.isEmpty && hasSidebar ? "Back to setup" : "Back"
+        render(alertPage)
         back.isEnabled = allowsCancel
         window.defaultButtonCell = view.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\r" }?.cell as? NSButtonCell
         if testing, let driver = modalTestDriver {
@@ -447,6 +461,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private func completeAlert(_ alert: NSAlert, response: NSApplication.ModalResponse) {
         guard activeAlert === alert else { return }
         alertRefresh?.invalidate(); alertRefresh = nil
+        let returnToSetup = pages.isEmpty && hasSidebar && response == cancelCode
         let completion = alertCompletion; alertCompletion = nil
         let restoreSidebar = restoreSidebarAfterAlert; restoreSidebarAfterAlert = false
         activeAlert = nil; modalResponseRequested = nil
@@ -458,6 +473,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         modal = false
         if restoreSidebar && hasSidebar { window.makeFirstResponder(sidebar.table) }
         completion?(response)
+        if returnToSetup, pages.isEmpty, !interactionBusy, let overview = sidebar.destinations.first { navigate(to: overview) }
         drainPresentationQueue()
     }
     @objc func modalChoice(_ sender: NSButton) {

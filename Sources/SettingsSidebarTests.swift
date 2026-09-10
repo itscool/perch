@@ -55,6 +55,20 @@ func runSettingsSidebarTests() throws {
     host.show(page("Child"))
     host.navigate(to: keyboard)
     try require(host.pages.count == 1 && host.pages.last?.title == "Keyboard", "same category returns from its child")
+    host.pages = []
+    let overview = SettingsDestination(id: "overview", title: "Setup & status", pageTitles: ["Setup & status"]) { host.show(page("Setup & status")) }
+    host.configureNavigation([overview, keyboard, awake])
+    host.navigate(to: overview)
+    host.show(page("Keyboard"))
+    try require(!host.back.isHidden && host.back.title == "Back to setup", "Setup repair lost its clear return route")
+    host.goBack()
+    try require(host.pages.count == 1 && host.pages.last?.title == "Setup & status" && host.back.isHidden, "Setup return did not restore the checklist")
+    host.navigate(to: keyboard)
+    try require(host.back.isHidden, "Ordinary category navigation acquired a wizard Back")
+    host.pages = []; host.show(page("Recovery"))
+    try require(host.back.title == "Back to setup", "Standalone settings recovery offered Close")
+    host.goBack()
+    try require(host.pages.last?.title == "Setup & status", "Recovery Back closed Settings instead of opening setup")
     host.window.close()
     print("PASS: sidebar direct/child navigation, stable geometry, keyboard focus, draft refusal/cancel/discard, operation ownership and cleanup")
 }

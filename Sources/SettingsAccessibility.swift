@@ -5,11 +5,13 @@ import AppKit
 final class SettingsPanel: NSPanel {
     var keyboardNavigationAllowed: () -> Bool = { true }
     var cancelNavigation: (() -> Void)?
+    var userReturned: (() -> Void)?
     override func cancelOperation(_ sender: Any?) {
         if attachedSheet == nil, keyboardNavigationAllowed(), let cancelNavigation { cancelNavigation() }
         else { super.cancelOperation(sender) }
     }
     override func sendEvent(_ event: NSEvent) {
+        if [.leftMouseDown, .rightMouseDown, .keyDown].contains(event.type) { userReturned?() }
         if handleSettingsKey(event) { return }
         super.sendEvent(event)
     }

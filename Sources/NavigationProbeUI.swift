@@ -93,11 +93,11 @@ final class NavigationProbePage: NSObject {
     private var pageDetail: String {
         if session.state.phase == .complete {
             let name = setupIdentity?.name ?? "this keyboard"
-            return saved ? "The layout for \(name) is saved. Use Back to return to the previous settings page."
+            return saved ? "The layout for \(name) is saved. Choose another settings category, or return to setup."
                 : "Setup for \(name) finished, but the layout was not saved. Your previous layout is still in use."
         }
         if !hasAccess() { return LaunchAccessRecovery.summary + " Use the access recovery below before learning a layout. Your saved layout is kept." }
-        return "Press and release each requested key, or mark it absent. The layout saves automatically after the last key. Back stops unfinished setup and keeps your previous layout."
+        return "Press and release each requested key, or mark it absent. The layout saves automatically after the last key. Leaving this page stops unfinished setup and keeps your previous layout."
     }
     func show() {
         let host = SettingsWindow.shared
@@ -170,7 +170,7 @@ final class NavigationProbePage: NSObject {
                     let profile = NavigationKeyboardProfile(identity: identity, keys: keys)
                     try saveProfile(profile)
                     profiles.removeAll { $0.identity == identity }; profiles.append(profile)
-                    saved = true; saveResult = "✓ Layout saved automatically. Use Back to return to the previous settings page."
+                    saved = true; saveResult = "✓ Layout saved automatically. Choose another settings category, or return to setup."
                 } catch { saveResult = "⚠ " + error.localizedDescription + " Your previous layout is still in use. Retry saving, or use Back to leave." }
             } else { saveResult = "⚠ Keyboard identity unavailable. Nothing was saved. Use Back, then recheck keyboards." }
         }

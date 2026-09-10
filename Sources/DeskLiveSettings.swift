@@ -292,7 +292,7 @@ struct DeskSettingsRoot: View {
             VStack(alignment: .leading, spacing: 18) {
                 Label("One desk, all your screens", systemImage: "display.2").font(.title.bold())
                 Text("Group your Perch computers, arrange up to 16 physical screens, and switch their monitor inputs with three shared presets.")
-                Text("This first version switches monitor pictures. Your keyboard and mouse keep working on the computer they are connected to.").foregroundStyle(.secondary)
+                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: enable it for each Mac in Desk settings when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
                 Button("Set up this desk") { coordinator.enable() }.buttonStyle(.borderedProminent)
                 if let problem = coordinator.problem { Text(problem).foregroundStyle(.orange); Button("Try opening Desk again") { coordinator.enable() } }
             }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -11,6 +11,7 @@ extension AppDelegate {
             item("navigation", "Navigation keys", ["Navigation keys"], #selector(navigationSettings), depth: 1),
             item("layouts", "Keyboard layouts", ["Set up navigation keys"], #selector(testNavigationKeys), depth: 1),
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
+            item("keyboard-access", "Keyboard access", ["Keyboard access"], #selector(keyboardAccessRecovery), depth: 1),
             item("keyboard-details", "Keyboard details", ["Keyboard details"], #selector(keyboardDetails), depth: 1),
             item("scrolling", "Scrolling", ["Scrolling"], #selector(scrollingSettings)),
             item("displays", "Displays", ["Displays"], #selector(displaySettings)),

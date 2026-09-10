@@ -114,12 +114,12 @@ extension AppDelegate {
             // The menu remembers the lid choice while Keep awake is off. This page
             // distinguishes that preference from the observed macOS override.
             let helper = readHelper()
-            repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : "Repair lid protection…"
+            repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
             repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
             let guarded = LidGuardClient.shared.active
             lid.state = presentation.lid
             lid.isEnabled = presentation.lidEnabled
-            resume.isEnabled = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self.observedLidDisabled == false && !LidGuardOwnership.recorded
+            resume.isEnabled = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self.observedLidDisabled == false && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.fresh == true && !helper.helper.pending
             let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
             page?.status.stringValue = self.observedLidDisabled == true ? "System sleep is disabled outside Perch’s current protection session. Perch cannot safely take ownership of that setting. Restore normal system sleep before enabling lid protection." : guarded || remembered || LidGuardClient.shared.changing || LidGuardClient.shared.status?.error != nil ? LidGuardClient.shared.detail : self.observedLidDisabled == nil || awake.state == .mixed ? "Sleep state is not confirmed. Review the helper status before relying on Keep awake." : awake.state == .on ? "Keep awake is active. Enable lid protection below to add the 60-second undocking interval." : "Keep awake is off. Normal macOS sleep behavior applies."
             if remembered && !guarded && self.actualLidState == .off && !LidGuardClient.shared.changing {
@@ -129,6 +129,15 @@ extension AppDelegate {
             }
             if remembered && self.actualLidState == .mixed {
                 page?.status.stringValue = "Your lid choice is saved, but the current protection state is unknown. Review the helper status before relying on it.\n" + LidGuardClient.shared.detail
+            }
+            if remembered && self.observedLidDisabled != true {
+                if !helper.helper.installed {
+                    page?.status.stringValue = "Your lid choice is saved. Choose Set up lid protection below, then Resume lid protection after the helper is ready. Protection has not been confirmed."
+                } else if helper.helper.pending {
+                    page?.status.stringValue = "Your lid choice is saved. Finish the helper update before starting a new session."
+                } else if LidGuardClient.shared.status?.fresh != true {
+                    page?.status.stringValue = "Your lid choice is saved. Waiting for the lid helper before Resume becomes available. If it does not connect, choose Repair lid protection."
+                }
             }
             if let result = helper.result { page?.status.stringValue += "\n" + result }
             else if helper.helper.pending { page?.status.stringValue += "\n" + helper.helper.notice }

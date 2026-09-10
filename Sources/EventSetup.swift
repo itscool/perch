@@ -1,15 +1,16 @@
 import AppKit
 
 // One persistent window, one next action, and observed results rather than an assumed grant.
-final class EventCollectorSetup: NSObject, NSWindowDelegate {
+final class EventCollectorSetup: NSObject {
     static let shared = EventCollectorSetup()
-    let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 410), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 450))
     let installState = SettingsStatusField(wrappingLabelWithString: "")
     let accessState = SettingsStatusField(wrappingLabelWithString: "")
     let readyState = SettingsStatusField(wrappingLabelWithString: "")
     let guidance = SettingsStatusField(wrappingLabelWithString: "")
     let primary = NSButton()
     var permissionDrag: PermissionDragItem!
+    var launcherDrag: PermissionDragItem!
     let intro = NSTextField(wrappingLabelWithString: "")
     var timer: Timer?
     var fromSettings = false
@@ -40,35 +41,32 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     }
     override init() {
         super.init()
-        panel.title = "Set up process event collection"
-        panel.isReleasedWhenClosed = false
-        panel.hidesOnDeactivate = false
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.delegate = self
         intro.stringValue = "Remember agent subprocesses as they start—even if their parents exit quickly. Setup and health are checked automatically."
-        intro.frame = NSRect(x: 24, y: 341, width: 512, height: 46)
-        panel.contentView?.addSubview(intro)
+        intro.frame = NSRect(x: 24, y: 381, width: 512, height: 46)
+        content.addSubview(intro)
         for (index, label) in [installState, accessState, readyState].enumerated() {
             label.font = .systemFont(ofSize: 14, weight: .medium)
-            label.frame = NSRect(x: 24, y: 300 - index * 35, width: 512, height: 27)
-            panel.contentView?.addSubview(label)
+            label.frame = NSRect(x: 24, y: 340 - index * 35, width: 512, height: 27)
+            content.addSubview(label)
         }
-        guidance.frame = NSRect(x: 24, y: 87, width: 512, height: 134)
-        panel.contentView?.addSubview(guidance)
+        guidance.frame = NSRect(x: 24, y: 110, width: 512, height: 154)
+        content.addSubview(guidance)
         primary.bezelStyle = .rounded; primary.target = self; primary.action = #selector(nextStep)
         primary.frame = NSRect(x: 306, y: 26, width: 230, height: 32)
-        panel.contentView?.addSubview(primary)
+        content.addSubview(primary)
         let drag = PermissionDragItem(title: "eslogger · drag / copy path") { URL(fileURLWithPath: "/usr/bin/eslogger") }
         permissionDrag = drag
         drag.frame = NSRect(x: 24, y: 22, width: 245, height: 42)
-        panel.contentView?.addSubview(drag)
+        content.addSubview(drag)
+        launcherDrag = PermissionDragItem(title: "Collector · drag / copy path") { URL(fileURLWithPath: CollectorIdentity.launcher) }
+        launcherDrag.frame = NSRect(x: 276, y: 65, width: 260, height: 32)
+        content.addSubview(launcherDrag)
         let openSettings = NSButton(title: "Open Full Disk Access…", target: self, action: #selector(openPrivacySettings))
         openSettings.isBordered = false
         openSettings.font = .systemFont(ofSize: 12)
         openSettings.contentTintColor = .linkColor
         openSettings.frame = NSRect(x: 20, y: 65, width: 230, height: 22)
-        panel.contentView?.addSubview(openSettings)
+        content.addSubview(openSettings)
 
     }
     func show(fromSettings: Bool) {
@@ -76,9 +74,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         timer?.invalidate()
         timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
         if let timer { RunLoop.main.add(timer, forMode: .common); RunLoop.main.add(timer, forMode: .modalPanel) }
-        if let content = panel.contentView {
-            SettingsWindow.shared.show(.init(title: "Process event collection", detail: "See current collection health or complete any missing setup. Status updates automatically; you can return here at any time.", view: content, leave: { [weak self] in self?.timer?.invalidate(); self?.timer = nil }))
-        }
+        SettingsWindow.shared.show(.init(title: "Process event collection", detail: "See current collection health or complete any missing setup. Status updates automatically; you can return here at any time.", view: content, leave: { [weak self] in self?.timer?.invalidate(); self?.timer = nil }))
         refresh()
     }
     static func collectionReady(_ state: SafetyStatus?, installed: Bool, needsRepair: Bool, waitingForSession: Bool, now: Date = Date()) -> Bool {
@@ -94,6 +90,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         let receiving = fresh && state?.eventConnected == true && (state?.eventLastSeen.map { Date().timeIntervalSince($0) < 45 } ?? false)
         let ready = Self.collectionReady(state, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession)
         permissionDrag.isHidden = ready || receiving || !installed
+        launcherDrag.isHidden = permissionDrag.isHidden || !FileManager.default.fileExists(atPath: CollectorIdentity.launcher)
         intro.stringValue = ready ? "Process event collection is ready. No further setup is needed." : "Remember agent subprocesses as they start—even if their parents exit quickly. Complete the missing step below."
         installState.stringValue = needsRepair ? "⚠  1. Collector update needed" : installed ? "✓  1. Collector installed" : "1. Install Apple’s collector"
         accessState.stringValue = receiving ? "✓  2. Full Disk Access confirmed by received events" : "⚠  2. Live access not yet confirmed"
@@ -133,7 +130,7 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
             guidance.stringValue = "Full Disk Access is working. Perch is now checking that a known process appears in the event stream. This can take up to 45 seconds; no further clicks are needed."
         } else {
             primary.title = "Open Full Disk Access"
-            guidance.stringValue = "Installation succeeded. Next:\n1. Open Full Disk Access.\n2. Drag the eslogger icon below, or focus it and press Space to copy its path.\n3. For keyboard setup: choose +, press ⌘⇧G, paste, then Open. Enable eslogger.\n\nLeave this window open. The next two checkmarks appear automatically once events arrive (allow up to 45 seconds). If events still do not arrive after enabling eslogger, macOS may also require Full Disk Access for the Perch collector launcher."
+            guidance.stringValue = "1. Open Full Disk Access.\n2. Drag eslogger below into the list and enable it.\n\nWith a keyboard: focus its icon and press Space to copy the path. In System Settings, choose +, press ⌘⇧G, paste, then Open.\n\nPerch checks incoming events automatically (allow up to 45 seconds). If none arrive, add and enable the Collector launcher below in the same list."
         }
     }
     @objc func nextStep() {
@@ -176,10 +173,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     }
     @objc func openPrivacySettings() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
     @objc func showFile() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: "/usr/bin/eslogger")]); return true } }
-    func windowWillClose(_ notification: Notification) {
-        timer?.invalidate(); timer = nil
-        fromSettings = false // This retired backing panel does not own a modal session.
-    }
 }
 
 extension AppDelegate {

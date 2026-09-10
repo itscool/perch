@@ -28,9 +28,11 @@ struct DeskInputSettings: View {
             if let issue = adapter.accessProblem {
                 Text(issue).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("Accessibility settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
-                    Button("Input Monitoring settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) }
+                    Button("Accessibility settings") { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) } }
+                    Button("Input Monitoring settings") { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) } }
                 }
+                Text("Add Perch itself to both lists. Drag the app below, or focus it and press Space to copy its path. An enabled entry for an older signed copy may need replacing.").font(.caption)
+                PerchPermissionDrag().frame(height: 42)
                 Button("Recheck access") { adapter.enable(true) }
             }
             if input.enabled {
@@ -105,4 +107,11 @@ struct DeskInputSettings: View {
             try node.edit(group); keyboardError = nil; return true
         } catch { keyboardError = "The previous setup is still saved. " + error.localizedDescription; return false }
     }
+}
+
+private struct PerchPermissionDrag: NSViewRepresentable {
+    func makeNSView(context: Context) -> PermissionDragItem {
+        PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+    }
+    func updateNSView(_ view: PermissionDragItem, context: Context) {}
 }

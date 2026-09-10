@@ -8,12 +8,15 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-- [ ] **2.0.94 setup review: seven open findings.** Fix keyboard recovery loops
-  and external-handoff navigation lockout first (P1), then missing permission
-  drag/copy controls, wrong-helper target selection, missing collector-launcher
-  recovery, publisher-aware helper readiness, and stale Desk onboarding (P2).
-  Source-only review; no native reproduction or app fix yet. Evidence and route
-  coverage: SETUP-REVIEW-2.0.94.md.
+- [ ] **Setup recovery acceptance before the next release.** Source fixes cover
+  all seven review findings plus the lid-menu setup dead end. The ownership gate
+  and compile-only regression build are checked; native tests are deferred under
+  the user's static-only/no-control instruction. Verify real permission recovery,
+  menu/window return, repeated input setup and explicit lid helper setup/resume.
+  Check contextual Back to setup, ordinary sidebar navigation without Close,
+  and return from nested repair failures.
+  Installed/public 2.0.94 still contains the defects. Evidence and scope:
+  SETUP-REVIEW-2.0.94.md.
 
 - [x] Fresh-Mac builds failed fetching Sparkle when Python lacked issuer
   certificates. Downloads now use system curl with HTTPS and checksum verification;
@@ -45,7 +48,8 @@ These fixes are included in the installed 2.0.94 app:
 standard text-editing shortcuts and input handoff/ordering failures described in
 RELEASE-2.0.md. They are included in the installed app; hardware acceptance remains open.
 
-23/23 isolated regression suites pass. Actual hardware and broader native QA
+The prior 2.0.94 checkpoint passed 23/23 isolated regression suites; the pending
+setup-fix fixture has only been compiled. Actual hardware and broader native QA
 remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features

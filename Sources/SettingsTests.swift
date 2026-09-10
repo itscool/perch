@@ -52,6 +52,9 @@ func runSettingsTests() throws {
     try render("/private/tmp/perch-input-preview.png")
     host.goBack()
     try check(host.pages.count == 1 && app.permissionSetup?.timer == nil, "Input Back did not return to parent")
+    app.inputPermissionsFromSettings()
+    try check(host.pages.last?.view === app.permissionSetup?.content && app.permissionSetup?.timer != nil, "Reopening input setup lost its retained controls or refresh timer")
+    host.goBack()
     app.keyboardSettings()
     try check(host.pages.count == 2 && host.pages.last?.title == "Keyboard settings", "Keyboard settings broke navigation")
     let swaps = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.contains("Swap Control") }

@@ -42,6 +42,7 @@ struct SetupSnapshot {
     var lidWanted = false
     var lidGuard: LidGuardStatus?
     var lidHelperUpdatePending = false
+    var lidHelperInstalled = false
 
     var checks: [SetupCheck] {
         let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
@@ -71,7 +72,7 @@ struct SetupSnapshot {
         }
 
         let keyboardNeedsWork = keyboardAccessNeeded || keyboardErrors || (config.navigation?.enabled == true && navigationNeedsLearning)
-        add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
+        add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted || (keyboardAccessNeeded && keyboardCount > 0) ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
             keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
 
         let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
@@ -80,6 +81,12 @@ struct SetupSnapshot {
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
             !deskInputEnabled ? "Optional: enable input sharing on each Mac in Desk settings. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk settings to choose a confirmed screen to control."), "Open Desk…", .displays)
+
+        if !lidHelperInstalled || lidHelperUpdatePending {
+            add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
+                lidHelperUpdatePending ? "Finish the queued lid helper update in Keep awake before relying on lid protection." : "Lid protection needs its own helper setup. Choose Keep awake to set it up before using the Mac with its lid closed.",
+                "Set up lid protection…", .awake)
+        }
 
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Review sleep…", .awake)
@@ -165,7 +172,7 @@ final class SetupOverviewPage {
     }
     func show() {
         let host = SettingsWindow.shared
-        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Start with the features you want; optional items can wait. Return here any time to check setup or restore missing access." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574))
+        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Complete the items marked Needs attention for the features you choose before relying on them. Optional features can wait. Lid protection has its own setup step below. Return here whenever access or setup changes." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574))
         refresh()
         self.timer?.invalidate()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -214,7 +221,10 @@ final class SetupOverviewPage {
             scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - scroll.contentSize.height - top)))
             scroll.reflectScrolledClipView(scroll.contentView)
         }
-        next.title = checks.contains { $0.state == .attention } ? (firstVisit ? "Continue setup" : "Fix next issue") : "App settings"
+        let needsAttention = checks.contains { $0.state == .attention }
+        let checking = checks.contains { $0.state == .checking }
+        next.isEnabled = needsAttention || !checking
+        next.title = needsAttention ? (firstVisit ? "Continue setup" : "Fix next issue") : checking ? "Checking setup…" : "App settings"
     }
 }
 
@@ -263,10 +273,16 @@ extension AppDelegate {
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status
         result.lidHelperUpdatePending = LidHelperUpdate.shared.state.pending
+        result.lidHelperInstalled = LidHelperUpdate.shared.state.installed
         return result
     }
-    func showFirstSetupIfNeeded() {
-        guard !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey), !SettingsWindow.shared.window.isVisible, !SettingsWindow.shared.interactionBusy else { return }
+    func showFirstSetupIfNeeded(snapshot: SetupSnapshot? = nil) {
+        guard !SettingsWindow.shared.window.isVisible else { return }
+        guard !SettingsWindow.shared.interactionBusy else {
+            SettingsWindow.shared.afterInteraction { [weak self] in self?.showFirstSetupIfNeeded(snapshot: snapshot) }; return
+        }
+        let needsSetup = (snapshot ?? setupSnapshot()).checks.contains { $0.state == .attention || $0.state == .checking }
+        guard !UserDefaults.standard.bool(forKey: SetupOverviewPage.seenKey) || needsSetup else { return }
         configureSettings()
     }
     @objc func setupOverview() {

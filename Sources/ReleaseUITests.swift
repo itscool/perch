@@ -51,10 +51,10 @@ func runReleaseUITests() throws {
     defer { host.modalTestDriver = nil; host.window.close() }
     var config = SafetyConfiguration(); config.reverseWheel = true
     var state = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: true, inputActive: true, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
-    let setup = PermissionSetup()
+    let setup = PermissionSetup(helperApp: { SafetyFiles.helperApp })
     setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.hasPrefix("✓") && setup.instructions.isHidden && setup.permissionDrag.isHidden && !setup.reviewButton.isHidden, "Ready input kept asking for permission")
-    try renderReleaseView(setup.panel.contentView!, path: "/private/tmp/perch-input-ready.png")
+    try renderReleaseView(setup.content, path: "/private/tmp/perch-input-ready.png")
     state.inputActive = false; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.hasPrefix("⚠") && ProtectionIssue.assess(state, config: config)?.route == "repair", "Granted but inactive input appeared ready")
     config.reverseWheel = false; config.reverseTrackpad = false; config.swapModifiers = false

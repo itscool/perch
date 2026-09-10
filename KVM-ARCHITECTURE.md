@@ -5,6 +5,12 @@ reusable, headless group/synchronization/handoff code. It is deliberately not
 connected to live discovery, permissions, monitor commands or input events.
 The installed Perch and its existing monitor controls continue to work.
 
+The next milestone is authenticated computer grouping, synchronized setup and
+real monitor-only preset switching. Input sharing is deferred. Production Desk
+will replace the old monitor setup/cycling/groups workflow and retire competing
+shortcuts while reusing its low-level monitor command backends. See KVM-PLAN.md
+for migration boundaries.
+
 ## The experience, before implementation
 
 One **Desk** page has three preset cards, the physical arrangement, a selected

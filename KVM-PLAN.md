@@ -6,6 +6,22 @@ tests; a separate native Desk Lab exercises simulated user journeys. Live
 pairing/network/input/monitor adapters and production integration remain open.
 See KVM-ARCHITECTURE.md and KVM-REVIEW.md. The installed app does not yet support KVM.
 
+## Current milestone and replacement boundary
+
+September 9 priority: first make real computers join a group, synchronize the
+shared desk and switch physical monitor inputs through the three presets.
+Keyboard/mouse capture, forwarding, pointer-edge handoff and same-keyboard
+following come afterward. Monitor-only operation must not depend on input-sharing
+permissions or pretend that changing a picture changes keyboard ownership.
+
+Desk replaces the existing monitor-input cycling pages, switching-group model,
+shortcuts and setup/recovery workflow. Keep the proven low-level DDC/USB/other
+monitor transports where useful. Migrate compatible saved names and input maps;
+ambiguous physical identity or control mappings require confirmation. Retire old
+entry points and hotkeys during the production migration so two independent
+monitor systems cannot compete. Keep the current controls working until the
+replacement is actually ready; the separate simulation is not that replacement.
+
 ## Intended experience
 
 A named group contains 2–16 computers running Perch. Pairing authorizes

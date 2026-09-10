@@ -33,22 +33,32 @@ This supersedes stale open-item wording in dated review checkpoints.
    presets (default Ctrl–Opt–Cmd–F1/F2/F3), physical layout including rotation,
    and pointer-boundary handoff independent of input-device attachment. Handle
    offline catch-up, concurrent edits, revocation and per-host prerequisites. Settle
-   input capture/forwarding feasibility, then authenticated handoffs, computer/port
-   mappings and arrangements. Support pointer/keyboard focus transfer, hotkeys,
+   monitor-only grouping, authenticated synchronization and real preset switching
+   first; defer input capture/forwarding and pointer/keyboard focus transfer. Support hotkeys,
    optional same-keyboard host-button detection, one monitor, either/both of two,
    and mixed arrangements, with up to 16 distinct physical monitors per group.
    Establish shared physical identity across computers using serial/model
    evidence and visual confirmation when ambiguous; retain per-host input maps.
    Track observed versus requested input; handle competing
    requests, sleeping peers and partial failures. Migrate useful mappings and
-   replace dense legacy monitor guidance. Detailed order: KVM-PLAN.md.
+   replace the old monitor pages, switching groups, cycling shortcuts and guidance
+   with one Desk workflow, reusing low-level monitor transports. Detailed order: KVM-PLAN.md.
    First milestone implemented: portable group/port/preset/geometry models,
    signed conflict-preserving sync, bounded framing and a handoff state machine;
    separate native Desk Lab with tile controls, connections and three preset
    choices together. Unassigned ports allow picture-only switching; no None mode.
    This is simulated, not installed KVM. Next: paired transport and membership
-   authority, durable network sync, live coordinator, monitor/input adapters,
-   production Settings integration/migration, then physical acceptance.
+   authority, durable network sync, monitor-only coordinator/adapters, production
+   Settings integration/migration and physical acceptance. Input sharing follows.
+4. [ ] **Menu Appearance.** Immediate-save controls for rainbow sections and a
+   separately configured System area: border sides/thickness/intensity and
+   title/full-section scope, title/full/none backgrounds with intensity and grey
+   or matching colors, sharp/rounded corners and tinted/normal title text.
+   Preserve the tuned defaults; include presets and Restore defaults.
+5. [ ] **Finish the Sparkle release feed.** Configure the production public key,
+   stable HTTPS feed and signed release artifacts; complete signing/notarization
+   and verification before requesting final publication approval. Integration
+   already exists, but the feed is not live.
 
 ## QA — implementation acceptance, with defects returned to the first section
 

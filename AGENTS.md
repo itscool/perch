@@ -6,8 +6,7 @@ release, or storing credentials does not authorize a notarization submission.
 Do not automatically notarize subsequent builds or the DMG after an app submission.
 An explicit request covering both app and installer authorizes both stages.
 Status/log checks for an existing submission and stapling its accepted ticket do
-not create a new submission. The current 2.0.94 app submission remains in progress;
-this preference does not request its cancellation.
+not create a new submission. This preference does not cancel existing submissions.
 
 # Live UI testing
 

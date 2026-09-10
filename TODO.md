@@ -166,8 +166,10 @@ remain open; this is not a claim that untested behavior is defect-free.
    Keychain key/config, branded DMG, signing, notarization submission/stapling,
    archive/feed verification and draft-to-public GitHub publishing are implemented.
    Apple notarization credentials (Keychain profile Perch) were validated on
-   September 10 and 2.0.94 was submitted. Apple acceptance, final artifacts,
-   public feed and real download/update acceptance remain.
+   September 10; the 2.0.94 app was accepted, stapled and passed Gatekeeper
+   assessment (Notarized Developer ID). Final installer/archive artifacts,
+   explicitly requested DMG notarization, public feed and real download/update
+   acceptance remain.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.
 3. [ ] **Dependency and catalog release review.** Audit completed September 10;

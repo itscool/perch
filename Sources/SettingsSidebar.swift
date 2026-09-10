@@ -53,7 +53,7 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     func update(selected id: String?, busy: Bool) {
         available = !busy
         table.isEnabled = !busy
-        hint.stringValue = busy ? "Finish or go Back from the current step to switch pages." : "Changes save as you make them. Drafts have an explicit Save."
+        hint.stringValue = busy ? "Finish or go Back from the current step to switch pages." : "Changes save automatically. Extra steps are explained on each page."
         synchronizing = true
         if let row = destinations.firstIndex(where: { $0.id == id }) {
             if table.selectedRow != row {

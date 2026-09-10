@@ -140,6 +140,7 @@ struct SafetyStatus: Codable {
     var eventDiagnostics: String? = nil
     var eventSessionID: String? = nil
     var maintenance: GuardianMaintenanceCounts? = nil
+    var registeredShortcut: PanicShortcut? = nil
     var compatible: Bool { HelperBuild.compatible(build: helperBuild, protocolVersion: statusProtocol) }
     var fresh: Bool { compatible && Date().timeIntervalSince(timestamp) < 4 }
 }

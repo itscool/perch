@@ -173,6 +173,10 @@ func runNavigationProbeUITests() throws {
         try check(saves == (index == 3 ? 4 : 3), "Absent-key setup saved before all four answers")
     }
     try check(profiles[0].keys == [nil,nil,nil,nil] && page.timer == nil && absent.stops == 1, "All-absent layout did not save and stop")
+    let nextKeyboard = page.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Choose another keyboard" }
+    try check(nextKeyboard?.isHidden == false, "Completed layout has no optional next-keyboard route")
+    nextKeyboard?.performClick(nil)
+    try check(!page.picker.isHidden && !page.session.state.listening && page.timer == nil && saves == 4, "Next keyboard started capture, rewrote a profile or left selection hidden")
     host.goBack()
     page.show()
     let closing = MockNavigationProbeSource()

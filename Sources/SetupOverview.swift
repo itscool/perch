@@ -1,7 +1,7 @@
 import AppKit
 
 enum SetupRoute: String {
-    case maintenance, inputAccess, keyboards, displays, awake, agents, events, settings
+    case maintenance, inputAccess, keyboards, displays, deskInput, awake, agents, events, settings
 }
 
 struct SetupCheck: Equatable {
@@ -80,7 +80,7 @@ struct SetupSnapshot {
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
-            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Desk settings. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk settings to choose a confirmed screen to control."), "Open Desk…", .displays)
+            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), "Review input sharing…", .deskInput)
 
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
@@ -310,6 +310,7 @@ extension AppDelegate {
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboards: keyboardSettings()
         case .displays: deskSettings()
+        case .deskInput: deskInputPreferences()
         case .awake: keepAwakeSettings()
         case .agents: configurePanic()
         case .events: processEventSetup()

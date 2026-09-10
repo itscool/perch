@@ -114,7 +114,7 @@ final class EventCollectorSetup: NSObject {
             guidance.stringValue = expired ? "The collector update finished, but the helper has not acknowledged the new observation session. Retry verification; if it still cannot respond, repair background protection in Settings." : "The collector update finished. Waiting for Perch to start a new observation session before checking readiness."
         } else if ready {
             primary.isHidden = true
-            guidance.stringValue = "Setup complete. Perch is receiving process events and its health check succeeded. Use Back to return, or close this window.\n\nPanic still performs a fresh sweep and verifies process identities before termination."
+            guidance.stringValue = "Setup complete. Perch is receiving process events and its health check succeeded. Choose another settings category, or close the window.\n\nPanic still performs a fresh sweep and verifies process identities before termination."
         } else if let until = retryUntil, until > Date() {
             primary.title = "Checking…"; primary.isEnabled = false
             guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the link below."

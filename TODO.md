@@ -1,54 +1,44 @@
 # Perch work checklist
 
 2.0 development, September 10, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; setup defects and live acceptance remain open. Categories are distinct: known defects,
+in /Applications. 2.0.94 is published; source corrections are awaiting native acceptance and installation. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-Full static Settings UX review at cb44f87: **one P1 and ten P2 findings**.
-Fix in this order; details and the complete page/child coverage ledger are in
-SETTINGS-UX-REVIEW-2.0.94.md. These are source findings, not new live-test results.
+Full static Settings UX review at cb44f87 found **one P1 and ten P2 issues**.
+All are corrected in source, along with D1–D3. Details and the coverage ledger are
+in SETTINGS-UX-REVIEW-2.0.94.md. Installed/public 2.0.94 predates these fixes;
+native acceptance remains in QA below, not a claim of runtime success.
 
-1. [ ] **U1 / P1:** Validate emergency-shortcut conflicts against live Desk presets;
+1. [x] **U1 / P1:** Validate emergency-shortcut conflicts against live Desk presets;
    preserve a working shortcut on failed registration and show actual readiness.
-2. [ ] **U2 / P2:** Correct reset scope: Device setup / Reset all currently retains
-   Desk arrangements and shortcuts. Define local versus shared reset explicitly.
-3. [ ] **U3 / P2:** Allow navigation behavior to be disabled when saved layouts
+2. [x] **U2 / P2:** Reset labels and confirmation explicitly cover local layouts/preferences,
+   retaining shared Desk arrangements, shortcuts and membership.
+3. [x] **U3 / P2:** Allow navigation behavior to be disabled when saved layouts
    cannot be read; disabling must not require resetting the layout store.
-4. [ ] **U4 / P2:** Complete the setup recovery route for blocked agents with the
+4. [x] **U4 / P2:** Complete the setup recovery route for blocked agents with the
    existing Resume action and blocked-state explanation in Settings.
-5. [ ] **U5 / P2:** Preserve validation/save errors when adding an agent; the
-   unconditional list rebuild currently clears them immediately.
-6. [ ] **U6 / P2:** Add an optional next-keyboard/relearn action after layout setup
+5. [x] **U5 / P2:** Preserve validation/save errors when adding an agent; rebuild the list
+   only after a successful save.
+6. [x] **U6 / P2:** Add an optional next-keyboard/relearn action after layout setup
    completes, without automatically restarting capture.
-7. [ ] **U7 / P2:** Make Desk input-name/code replacement editing retain incomplete
+7. [x] **U7 / P2:** Make Desk input-name/code replacement editing retain incomplete
    drafts and explain invalid input without silently rejecting keystrokes.
-8. [ ] **U8 / P2:** Refresh pristine screen-name fields after a remote rename;
+8. [x] **U8 / P2:** Refresh pristine screen-name fields after a remote rename;
    retain and reconcile actual local drafts separately.
-9. [ ] **U9 / P2:** Show all meaningful arrangement differences before resolving
+9. [x] **U9 / P2:** Show all meaningful arrangement differences before resolving
    a Desk conflict, including mappings, control routes and shortcuts.
-10. [ ] **U10 / P2:** Remove remaining instructions referring to nonexistent Back
+10. [x] **U10 / P2:** Remove remaining instructions referring to nonexistent Back
     controls on direct-sidebar pages and their error/completion states.
-11. [ ] **U11 / P2:** Add the missing custom-app creation/removal path in navigation
+11. [x] **U11 / P2:** Add the missing custom-app creation/removal path in navigation
     exceptions, preserving browser defaults and immediate saving.
 
-After functional corrections, consider review refinements D1–D3: direct access to
-ordinary Desk/input settings, context for inactive Appearance controls, and a
-readiness-first permission page. These are design recommendations, not claims
-of additional confirmed runtime failures.
-
-- [ ] **Setup recovery acceptance before the next release.** Source fixes cover
-  all seven review findings plus the lid-menu setup dead end. The ownership gate
-  and compile-only regression build are checked; native tests are deferred under
-  the user's static-only/no-control instruction. Verify real permission recovery,
-  menu/window return, repeated input setup and explicit lid helper setup/resume.
-  Check contextual Back to setup, ordinary sidebar navigation without Close,
-  and return from nested repair failures.
-  Installed/public 2.0.94 still contains the defects. Evidence and scope:
-  SETUP-REVIEW-2.0.94.md.
+**D1–D3 are also implemented:** direct Desk/input sidebar destinations, disabled
+Appearance controls when their area is absent, and Ready/optional-review keyboard
+access. Shared name fields all use the same remote-aware draft handling.
 
 - [x] Fresh-Mac builds failed fetching Sparkle when Python lacked issuer
   certificates. Downloads now use system curl with HTTPS and checksum verification;
@@ -137,6 +127,25 @@ remain open; this is not a claim that untested behavior is defect-free.
    already exists, but the feed is not live.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **Setup recovery acceptance before the next release.** Source fixes cover
+  all seven review findings plus the lid-menu setup dead end. The ownership gate
+  and compile-only regression build are checked; native tests are deferred under
+  the user's static-only/no-control instruction. Verify real permission recovery,
+  menu/window return, repeated input setup and explicit lid helper setup/resume.
+  Check contextual Back to setup, ordinary sidebar navigation without Close,
+  and return from nested repair failures.
+  Installed/public 2.0.94 still contains the defects. Evidence and scope:
+  SETUP-REVIEW-2.0.94.md.
+
+- [ ] **Full Settings correction acceptance.** Run the compiled native fixture
+  in an announced AGENT MODE session, then exercise affected real routes: shortcut
+  collision/replacement, app add/remove failures, completed layout → next keyboard,
+  Desk names/codes and incoming edits/conflict choice, both new sidebar pages,
+  Ready → lost permission recovery, and Appearance inactive controls. The pure
+  draft/conflict model tests and source gate passed; compilation does not establish
+  actual focus, buttons, OS pickers or hardware behavior. See the full review ledger.
+
 
 1. [ ] **Accept the latest release candidate on both Macs.** Check persistent navigation, direct menu
    entry, same-category return from children, validation/discard, Back/Close,

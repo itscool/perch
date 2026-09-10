@@ -20,11 +20,14 @@ final class AgentSettingsPage: NSObject {
     private var pending: Change?
     private var message = "Choices save automatically."
     private var shortcutIssue: String?
+    private var timer: Timer?
+    private let readStatus: () -> SafetyStatus?
 
     init(load: @escaping () -> SafetyConfiguration = SafetyConfiguration.load,
          save: @escaping (SafetyConfiguration) throws -> Void,
-         conflicts: @escaping (PanicShortcut) -> Bool, didSave: @escaping () -> Void = {}) {
-        self.load = load; self.save = save; self.conflicts = conflicts; self.didSave = didSave
+         conflicts: @escaping (PanicShortcut) -> Bool, didSave: @escaping () -> Void = {},
+         readStatus: @escaping () -> SafetyStatus? = { GuardianInstall.status }) {
+        self.load = load; self.save = save; self.conflicts = conflicts; self.didSave = didSave; self.readStatus = readStatus
         super.init()
         let config = load()
         func caption(_ text: String, _ y: CGFloat) {
@@ -78,10 +81,19 @@ final class AgentSettingsPage: NSObject {
         status.frame = NSRect(x: 8, y: 8, width: 412, height: 72); view.addSubview(status)
         retry.frame = NSRect(x: 430, y: 30, width: 134, height: 30); retry.bezelStyle = .rounded
         retry.target = self; retry.action = #selector(retrySaving); retry.isHidden = true; view.addSubview(retry)
+        // Registration failures and retained-shortcut explanations must fit alongside save feedback.
+        for child in view.subviews where child !== status && child !== retry { child.frame.origin.y += 150 }
+        view.frame.size.height += 150; status.frame.size.height += 150; retry.frame.origin.y += 75
         updateStatus()
     }
     func show() {
-        SettingsWindow.shared.show(.init(title: "Agents, shortcut & panic actions", detail: "Panic force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved work can be lost. The watcher cannot stop remote jobs, root processes or children it never observed.\n\nChanges save automatically. Incomplete shortcut edits keep the saved shortcut. Back discards unsaved shortcut edits.", view: view, refresh: { [self] in updateStatus() }))
+        SettingsWindow.shared.show(.init(title: "Agents, shortcut & panic actions", detail: "Panic force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved work can be lost. The watcher cannot stop remote jobs, root processes or children it never observed.\n\nChanges save automatically. Incomplete shortcut edits keep the saved shortcut. Leaving this page discards incomplete shortcut edits.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [self] in updateStatus() }))
+        self.timer?.invalidate()
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === self.view else { return }
+            self.updateStatus()
+        }
+        self.timer = timer; RunLoop.main.add(timer, forMode: .common)
     }
     private var shortcut: PanicShortcut {
         .init(key: PanicShortcut.keys[max(0, keys.indexOfSelectedItem)].1,
@@ -98,8 +110,11 @@ final class AgentSettingsPage: NSObject {
         let saved = load().shortcut
         let current = saved.enabled ? "Saved shortcut: \(saved.title)." : "Emergency shortcut is off."
         let unsaved = shortcut != saved ? " Shortcut edits are not saved. \(shortcutIssue ?? "The saved shortcut remains in effect.")" : ""
-        status.stringValue = message + "\n" + current + unsaved
-        status.textColor = pending != nil || !unsaved.isEmpty ? StatusColors.warning : .secondaryLabelColor
+        let state = readStatus()
+        let registered = state?.fresh == true && state?.registeredShortcut == saved && state?.shortcutActive == true
+        let readiness = !saved.enabled ? "" : registered ? " Registered and ready." : state?.fresh != true ? " Waiting for background protection to confirm registration." : " Not registered. " + (state?.error ?? "Background protection is applying the saved choice.")
+        status.stringValue = message + "\n" + current + readiness + unsaved
+        status.textColor = pending != nil || !unsaved.isEmpty || (saved.enabled && !registered) ? StatusColors.warning : .secondaryLabelColor
     }
     private func apply(_ change: Change) {
         var config = load()

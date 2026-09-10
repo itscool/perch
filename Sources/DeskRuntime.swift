@@ -75,6 +75,7 @@ final class DeskRuntime: ObservableObject {
     private var refreshTimer: Timer?
     private var hotKeys: [PanicHotKey] = []
     private var registeredShortcuts: [KVMShortcut] = []
+    private var registeredPanic: PanicShortcut?
     private var identifyWindows: [NSWindow] = []
     private var inputAfterSwitch: (UUID, UUID)?
     init(node: KVMDeskNode) {
@@ -86,7 +87,7 @@ final class DeskRuntime: ObservableObject {
             mappingOptions: { [weak self] in self?.mappingOptions ?? [] }, map: { [weak self] in self?.map($0, choice: $1) },
             identify: { [weak self] in self?.identify($0) }, sheet: { [weak self] kind, selection, close in
                 guard let self else { return AnyView(EmptyView()) }; return AnyView(DeskLiveSheet(runtime: self, kind: kind, selection: selection, close: close))
-            })
+            }, openSettings: { (NSApp.delegate as? AppDelegate)?.deskPreferences() })
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
@@ -127,6 +128,7 @@ final class DeskRuntime: ObservableObject {
             inputAfterSwitch = nil
             if switching.activePreset == preset { input.resumeAfterPreset(preset, monitor: monitor) }
         }
+        registerShortcuts()
         model.group = node.group; model.online = node.online
         model.conflict = node.conflicts.first ?? node.recoveredDraft
         model.problem = switching.problem ?? node.problem ?? discoveryProblem ?? shortcutProblem
@@ -135,7 +137,6 @@ final class DeskRuntime: ObservableObject {
         model.monitorResults = switching.results.mapValues { $0.state.rawValue.capitalized + ": " + $0.detail }
         if let selected = model.selected, !node.group.monitors.contains(where: { $0.id == selected }) { model.selected = node.group.monitors.first?.id }
         if model.selected == nil { model.selected = node.group.monitors.first?.id }
-        registerShortcuts()
         objectWillChange.send()
     }
     func activatePreset(_ preset: UUID) {
@@ -336,10 +337,12 @@ final class DeskRuntime: ObservableObject {
         identifyWindows.append(window); window.orderFront(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self, weak window] in window?.orderOut(nil); self?.identifyWindows.removeAll { $0 === window } }
     }
-    private func registerShortcuts() {
+    func registerShortcuts() {
         guard !SettingsWindow.shared.testing else { return }
         let shortcuts = node.group.presets.map(\.shortcut)
-        guard registeredShortcuts != shortcuts else { return }
+        let panic = SafetyConfiguration.load().shortcut
+        guard registeredShortcuts != shortcuts || registeredPanic != panic else { return }
+        registeredPanic = panic
         hotKeys.forEach { try? $0.register(PanicShortcut(enabled: false)) }; hotKeys = []; registeredShortcuts = shortcuts
         do {
             for (i, shortcut) in shortcuts.enumerated() {
@@ -350,7 +353,6 @@ final class DeskRuntime: ObservableObject {
                 if shortcut.control { modifiers |= UInt32(controlKey) }; if shortcut.option { modifiers |= UInt32(optionKey) }
                 if shortcut.command { modifiers |= UInt32(cmdKey) }; if shortcut.shift { modifiers |= UInt32(shiftKey) }
                 let chosen = PanicShortcut(key: key, modifiers: modifiers, enabled: true)
-                let panic = SafetyConfiguration.load().shortcut
                 guard !panic.enabled || panic.key != key || panic.modifiers != modifiers else { throw KVMError("\(shortcut.label) is already the Agent Kill Switch shortcut. Choose another Desk shortcut.") }
                 try hotkey.register(chosen)
                 hotkey.action = { [weak self] in guard let self else { return }; self.activatePreset(self.node.group.presets[i].id) }
@@ -383,5 +385,16 @@ final class DeskCoordinator: ObservableObject {
             let node = try KVMDeskNode(identity: identity, name: Host.current().localizedName ?? "This Mac", storage: Self.storage)
             let runtime = DeskRuntime(node: node); try runtime.start(); self.runtime = runtime; problem = nil
         } catch { problem = error.localizedDescription }
+    }
+}
+
+
+extension KVMShortcut {
+    func matches(_ shortcut: PanicShortcut) -> Bool {
+        guard shortcut.enabled, DeskShortcutKey.code(key) == shortcut.key else { return false }
+        return self.control == (shortcut.modifiers & UInt32(controlKey) != 0) &&
+            self.option == (shortcut.modifiers & UInt32(optionKey) != 0) &&
+            self.command == (shortcut.modifiers & UInt32(cmdKey) != 0) &&
+            self.shift == (shortcut.modifiers & UInt32(shiftKey) != 0)
     }
 }

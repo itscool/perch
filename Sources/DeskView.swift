@@ -9,7 +9,6 @@ struct DeskView: View {
     @State private var draftScreen: UUID?
     @State private var draftConnection: UUID?
     @State private var expandedConnection: UUID?
-    @State private var rename = ""
     @State private var showRemove = false
 
     var body: some View {
@@ -28,7 +27,7 @@ struct DeskView: View {
                     Button("First-use desk…") { draftName = "My new desk"; sheet = "newDesk" }
                 } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
-                Button { draftName = model.group.name; sheet = "desk" } label: { Label("Desk settings", systemImage: "slider.horizontal.3") }
+                Button { if let open = model.live?.openSettings { open() } else { draftName = model.group.name; sheet = "desk" } } label: { Label("Desk settings", systemImage: "slider.horizontal.3") }
             }.padding(24)
             HStack(alignment: .top, spacing: 12) {
                 ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { index, preset in
@@ -100,8 +99,6 @@ struct DeskView: View {
             }.padding(.horizontal, 24).padding(.vertical, 16)
 
         }.frame(minWidth: 960, minHeight: 620)
-            .onChange(of: model.selected) { _, _ in rename = model.selectedMonitor?.name ?? "" }
-            .onAppear { rename = model.selectedMonitor?.name ?? "" }
             .onChange(of: sheet) { _, next in if next != nil { model.problem = nil; showRemove = false } }
             .sheet(isPresented: Binding(get: { sheet != nil }, set: { if !$0 { sheet = nil } })) { sheetView }
     }
@@ -111,8 +108,10 @@ struct DeskView: View {
             InspectorScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        TextField("Screen name", text: $rename).textFieldStyle(.roundedBorder).font(.headline).accessibilityLabel("Screen name")
-                            .onChange(of: rename) { _, value in if value != model.selectedMonitor?.name { model.renameMonitor(value) } }
+                        DeskTextSetting("Screen name", saved: monitor.name) { value in
+                            model.edit { group in if let i = group.monitors.firstIndex(where: { $0.id == monitor.id }) { group.monitors[i].name = value } }
+                            if let problem = model.problem { throw KVMError(problem) }
+                        }.id(monitor.id).font(.headline)
                         Button("Identify") { model.identify() }
                     }
                     VStack(alignment: .leading, spacing: 6) {
@@ -136,11 +135,16 @@ struct DeskView: View {
                             }
                             if expandedConnection == connection.id {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    TextField("Input name", text: Binding(get: { connection.inputName }, set: { model.changeConnection(connection.id, input: $0) })).textFieldStyle(.roundedBorder).accessibilityLabel("Input name")
+                                    DeskTextSetting("Input name", saved: connection.inputName) { value in
+                                        model.changeConnection(connection.id, input: value)
+                                        if let problem = model.problem { throw KVMError(problem) }
+                                    }.id(connection.id.uuidString + "name")
                                     if model.live != nil {
-                                        TextField("Input code", text: Binding(get: { connection.inputCode.map(String.init) ?? "" }, set: { value in
-                                            if let code = UInt16(value), code > 0 { model.edit { group in if let i = group.connections.firstIndex(where: { $0.id == connection.id }) { group.connections[i].inputCode = code } } }
-                                        })).textFieldStyle(.roundedBorder).accessibilityLabel("Monitor input code")
+                                        DeskTextSetting("Input code", saved: connection.inputCode.map(String.init) ?? "", numeric: true) { value in
+                                            guard let code = UInt16(value), code > 0 else { throw KVMError("Enter an input code from 1 to 65535.") }
+                                            model.edit { group in if let i = group.connections.firstIndex(where: { $0.id == connection.id }) { group.connections[i].inputCode = code } }
+                                            if let problem = model.problem { throw KVMError(problem) }
+                                        }.id(connection.id.uuidString + "code")
                                         Button("Monitor control…") { sheet = "control" }
                                     }
                                     Button("Correct physical screen…") { draftConnection = connection.id; draftScreen = connection.monitor; sheet = "correctConnection" }

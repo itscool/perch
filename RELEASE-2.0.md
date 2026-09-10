@@ -39,6 +39,21 @@ The fix fixture is compile-only under the user's no-control instruction; no
 updated live app or public release is being claimed. 2.0.94's app and installer
 are notarized and public, with verified anonymous downloads and update feed.
 
+## Pending full Settings UX corrections
+
+The subsequent full static review’s U1–U11 and D1–D3 are implemented in source:
+current Desk/emergency shortcut conflict handling and retained working registration,
+explicit local reset scope, recovery while layout storage is damaged, the missing
+Resume route, retained add-agent errors, next-keyboard setup, complete shared Desk
+field drafts and conflict details, route-neutral navigation copy, custom app
+exceptions, direct Desk/input sidebar pages, contextual Appearance controls, and
+Ready/optional-review keyboard permission state. The main menu design is retained.
+
+Pure draft/conflict value tests and the source ownership gate passed. Native
+regressions are compiled only, with execution and real-route acceptance pending.
+These corrections are not included in installed/public 2.0.94. See
+SETTINGS-UX-REVIEW-2.0.94.md for the complete disposition and evidence boundary.
+
 ## Implemented
 
 - Desk input sessions run over existing mutually authenticated, pinned TLS links.

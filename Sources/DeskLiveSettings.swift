@@ -22,7 +22,6 @@ struct DeskLiveSheet: View {
     @State private var profileName = ""
     @State private var customInput = false
     @State private var inputName = "USB-C"
-    @State private var nameDrafts: [UUID: String] = [:]
     init(runtime: DeskRuntime, kind: String, selection: UUID?, close: @escaping () -> Void) {
         self.runtime = runtime; node = runtime.node; self.kind = kind; self.selection = selection; self.close = close
     }
@@ -31,8 +30,8 @@ struct DeskLiveSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             contents
-            // The sheet host already presents model.problem. Keep local form errors without repeating it.
-            if let error = error ?? node.problem, error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            // Temporary sheets already present model.problem; stable sidebar pages own their error display.
+            if let error = error ?? node.problem, ["desk", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
         }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "control" { loadControl() } }
             .onChange(of: node.completedPairing) { _, value in if kind == "computer", value != nil { close() } }
             .onDisappear { if kind == "computer" { node.closePairing() } }
@@ -43,6 +42,7 @@ struct DeskLiveSheet: View {
         case "computer": pairing
         case "screen": addScreen
         case "desk": deskSettings
+        case "input": DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
         case "computerDetails": computerDetails
         case "conflict": conflict
         case "connections":
@@ -159,33 +159,27 @@ struct DeskLiveSheet: View {
     }
     var deskSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Desk settings").font(.title2.bold())
-            TextField("Desk name", text: nameBinding(node.group.id, current: node.group.name) { $0.name = $1 }).textFieldStyle(.roundedBorder)
+            DeskTextSetting("Desk name", saved: node.group.name) { value in var group = node.group; group.name = value; try node.edit(group) }.id(node.group.id)
             ForEach(node.group.presets.indices, id: \.self) { i in
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Preset \(i+1)", text: nameBinding(node.group.presets[i].id, current: node.group.presets[i].name) { $0.presets[i].name = $1 }).textFieldStyle(.roundedBorder)
+                    let preset = node.group.presets[i]
+                    DeskTextSetting("Preset \(i+1)", saved: preset.name) { value in
+                        var group = node.group
+                        guard let index = group.presets.firstIndex(where: { $0.id == preset.id }) else { throw KVMError("This preset was replaced on another computer.") }
+                        group.presets[index].name = value; try node.edit(group)
+                    }.id(preset.id)
                     HStack {
                         Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(DeskShortcutKey.names, id: \.self) { Text($0).tag($0) } }.frame(width: 100)
                         modifier("Ctrl", \.control, i); modifier("Opt", \.option, i); modifier("Cmd", \.command, i); modifier("Shift", \.shift, i)
                     }
                 }
             }
-            Text("These names, presets and shortcuts are shared with the desk. Play changes monitor inputs; input sharing below is enabled separately on each Mac.").font(.callout).foregroundStyle(.secondary)
-            DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
+            Text("These names, presets and shortcuts are shared with every computer in this desk. Editing does not switch the screens. Keyboard & mouse sharing is a separate settings page.").font(.callout).foregroundStyle(.secondary)
             if !node.pendingPeers.isEmpty { Text("Saved here. Waiting for \(node.group.computers.filter { node.pendingPeers.contains($0.id) }.map(\.name).joined(separator: ", ")) to acknowledge the latest change.").font(.callout).foregroundStyle(.orange) }
             if let issue = runtime.shortcutProblem { Text(issue).foregroundStyle(.orange) }
         }
     }
-    func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); try node.edit(group) } }
-    func nameBinding(_ id: UUID, current: String, change: @escaping (inout KVMGroup, String) -> Void) -> Binding<String> {
-        Binding(get: { nameDrafts[id] ?? current }, set: { value in
-            nameDrafts[id] = value
-            do {
-                var group = node.group; change(&group, value); try node.edit(group)
-                nameDrafts[id] = nil; error = nil
-            } catch { self.error = "The previous name is still saved. " + error.localizedDescription }
-        })
-    }
+    func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); guard !group.presets[i].shortcut.matches(SafetyConfiguration.load().shortcut) else { throw KVMError("Those keys are used by Agent Kill Switch on this Mac. Choose another combination.") }; try node.edit(group) } }
     func modifier(_ title: String, _ key: WritableKeyPath<KVMShortcut, Bool>, _ i: Int) -> some View {
         Toggle(title, isOn: Binding(get: { node.group.presets[i].shortcut[keyPath: key] }, set: { value in changeShortcut(i) { $0[keyPath: key] = value } }))
     }
@@ -219,8 +213,11 @@ struct DeskLiveSheet: View {
     }
     func version(_ group: KVMGroup, title: String) -> some View {
         DisclosureGroup(title) {
-            Text(group.monitors.map { monitor in monitor.name + " · \(Int(monitor.geometry.x)), \(Int(monitor.geometry.y)) · \(monitor.geometry.rotation.rawValue)°" }.joined(separator: "\n")).font(.caption)
-            ForEach(group.presets) { preset in Text(preset.name + ": " + preset.assignments.compactMap { a in group.connections.first { $0.id == a.connection }.map { $0.inputName } }.joined(separator: ", ")).font(.caption) }
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(group.reviewDetails.enumerated()), id: \.offset) { _, line in
+                    Text(line).font(.caption).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                }
+            }
             Button("Keep this version") { perform { try node.resolve(group); close() } }.buttonStyle(.borderedProminent)
         }
     }
@@ -292,7 +289,7 @@ struct DeskSettingsRoot: View {
             VStack(alignment: .leading, spacing: 18) {
                 Label("One desk, all your screens", systemImage: "display.2").font(.title.bold())
                 Text("Group your Perch computers, arrange up to 16 physical screens, and switch their monitor inputs with three shared presets.")
-                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: enable it for each Mac in Desk settings when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
+                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: enable it for each Mac in Keyboard & mouse sharing when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
                 Button("Set up this desk") { coordinator.enable() }.buttonStyle(.borderedProminent)
                 if let problem = coordinator.problem { Text(problem).foregroundStyle(.orange); Button("Try opening Desk again") { coordinator.enable() } }
             }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -303,13 +300,14 @@ extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
         view.frame = NSRect(x: 0, y: 0, width: 1000, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Enable keyboard and mouse sharing for each Mac in Desk settings.", view: view, preferredBodyWidth: 1000))
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Keyboard & mouse sharing has its own page in the sidebar.", view: view, preferredBodyWidth: 1000))
     }
 }
 
 extension AppDelegate {
     func refreshDeskMenu() {
         let runtime = DeskCoordinator.shared.runtime
+        runtime?.registerShortcuts()
         for item in deskPresetItems {
             item.isHidden = runtime == nil
             guard let runtime else { continue }
@@ -324,5 +322,39 @@ extension AppDelegate {
     @objc func useDeskPreset(_ item: NSMenuItem) {
         guard let runtime = DeskCoordinator.shared.runtime, runtime.node.group.presets.indices.contains(item.tag) else { return }
         withMenuClosed { runtime.activatePreset(runtime.node.group.presets[item.tag].id) }
+    }
+}
+
+/// Ordinary settings remain navigable; only bounded operations use Desk sheets.
+struct DeskPreferencesRoot: View {
+    @ObservedObject var coordinator = DeskCoordinator.shared
+    let kind: String
+    var body: some View {
+        if let runtime = coordinator.runtime { DeskPreferencesMember(runtime: runtime, node: runtime.node, kind: kind) }
+        else { DeskSettingsRoot() }
+    }
+}
+struct DeskPreferencesMember: View {
+    let runtime: DeskRuntime
+    @ObservedObject var node: KVMDeskNode
+    let kind: String
+    var body: some View {
+        if node.isMember {
+            ScrollView {
+                DeskLiveSheet(runtime: runtime, kind: kind, selection: nil, close: {})
+                    .padding(16).frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else { DeskMemberRoot(runtime: runtime, node: node) }
+    }
+}
+extension AppDelegate {
+    @objc func deskPreferences() { presentDeskPreferences(input: false) }
+    @objc func deskInputPreferences() { presentDeskPreferences(input: true) }
+    private func presentDeskPreferences(input: Bool) {
+        let view = NSHostingView(rootView: DeskPreferencesRoot(kind: input ? "input" : "desk"))
+        view.frame = NSRect(x: 0, y: 0, width: 650, height: 610)
+        SettingsWindow.shared.show(.init(title: input ? "Keyboard & mouse sharing" : "Desk settings",
+            detail: input ? "Enable control on this Mac, review its access, and manage shared keyboards. Changes save immediately; sharing a session is a separate action." : "Desk and preset names and shortcuts are shared with every member. Changes save immediately without switching monitor inputs.",
+            view: view, preferredBodyWidth: 650))
     }
 }

@@ -25,7 +25,7 @@ func runPresentationHandoffTests() throws {
         pickerChecks = pickerChecks && host.run(other) == .abort && host.open(NSOpenPanel()) == .cancel && notices == pickerTitles.count - 1
         return .cancel
     }
-    for action in [{ app.addTarget(app: true) }, { app.addTarget(app: false) }, { app.importAgentCatalog() }] {
+    for action in [{ _ = app.addTarget(app: true) }, { _ = app.addTarget(app: false) }, { app.importAgentCatalog() }] {
         let expectedNotices = notices + 1
         action()
         let deadline = Date().addingTimeInterval(2)

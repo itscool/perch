@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 extension AppDelegate {
     @objc func navigationSettings() {
@@ -72,16 +73,17 @@ extension AppDelegate {
             if profiles != config.navigationProfiles { config.navigationProfiles = profiles; try config.save() }
         } catch { keyboardModes.registrationError = error.localizedDescription }
     }
-    func setNavigation(homeEnd: Bool) {
+    func setNavigation(homeEnd: Bool, load: () -> SafetyConfiguration = SafetyConfiguration.load, save: (SafetyConfiguration) throws -> Void = { try $0.save() }, readProfiles: (() throws -> [NavigationKeyboardProfile])? = nil) {
         do {
-            var config = SafetyConfiguration.load()
+            var config = load()
             var preferences = config.navigation ?? NavigationPreferences()
+            let disabling = homeEnd ? preferences.homeEnd : preferences.pageUpDown
             if homeEnd { preferences.homeEnd.toggle() } else { preferences.pageUpDown.toggle() }
             config.navigation = preferences
-            config.navigationProfiles = try navigationProfilesForHelper()
-            try config.save()
+            if !disabling { config.navigationProfiles = try readProfiles?() ?? navigationProfilesForHelper() }
+            try save(config)
         } catch { showError(error) }
-        refreshNavigationItems()
+        refreshNavigationItems(); settingsRefresh?()
     }
     @objc func toggleHomeEnd() { setNavigation(homeEnd: true) }
     @objc func togglePageKeys() { setNavigation(homeEnd: false) }
@@ -92,14 +94,25 @@ extension AppDelegate {
             navigation.excludedApps.removeAll { $0 == id }
             if excluded { navigation.excludedApps.append(id) }
             latest.navigation = navigation; try latest.save()
+        }, editApp: { id, name in
+            var latest = SafetyConfiguration.load()
+            var navigation = latest.navigation ?? NavigationPreferences()
+            navigation.excludedApps.removeAll { $0 == id }
+            var custom = navigation.customApps ?? [:]
+            if let name {
+                if !NavigationPreferences.defaultExceptions.contains(where: { $0.1 == id }) { custom[id] = name }
+                navigation.excludedApps.append(id)
+            } else { custom[id] = nil }
+            navigation.customApps = custom; latest.navigation = navigation; try latest.save()
         })
     }
-    func showNavigationExceptions(load: @escaping () -> NavigationPreferences, save: @escaping (String, Bool) throws -> Void) {
+    func showNavigationExceptions(load: @escaping () -> NavigationPreferences, save: @escaping (String, Bool) throws -> Void, editApp: ((String, String?) throws -> Void)? = nil) {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 490))
         let current = load()
-        let names = Dictionary(NavigationPreferences.defaultExceptions.map { ($0.1, $0.0) }, uniquingKeysWith: { first, _ in first })
+        let defaults = Dictionary(NavigationPreferences.defaultExceptions.map { ($0.1, $0.0) }, uniquingKeysWith: { first, _ in first })
+        let names = defaults.merging(current.customApps ?? [:], uniquingKeysWith: { first, _ in first })
         let all = Set(names.keys).union(current.excludedApps).sorted { (names[$0] ?? $0) < (names[$1] ?? $1) }
-        let scroll = NSScrollView(frame: NSRect(x: 0,y: 70,width: 572,height: 420))
+        let scroll = NSScrollView(frame: NSRect(x: 0,y: 105,width: 572,height: 385))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder
         let document = NSView(frame: NSRect(x: 0,y: 0,width: 546,height: CGFloat(all.count*29)))
         let status = NSTextField(wrappingLabelWithString: "Changes save automatically.")
@@ -122,11 +135,39 @@ extension AppDelegate {
             }
             checkbox = box; box.setButtonType(.switch)
             box.state = current.excludedApps.contains(id) ? .on : .off
-            box.frame = NSRect(x: 8,y: document.frame.height-CGFloat((index+1)*29),width: 525,height: 28)
+            box.frame = NSRect(x: 8,y: document.frame.height-CGFloat((index+1)*29),width: defaults[id] == nil && editApp != nil ? 415 : 525,height: 28)
             document.addSubview(box)
+            if defaults[id] == nil, let editApp {
+                let remove = SettingsActionButton(title: "Remove") { [weak self] in
+                    do { try editApp(id, nil); self?.showNavigationExceptions(load: load, save: save, editApp: editApp) }
+                    catch { status.stringValue = "Not removed. " + error.localizedDescription; status.textColor = StatusColors.warning }
+                }
+                remove.frame = NSRect(x: 440, y: box.frame.minY, width: 96, height: 28)
+                remove.setAccessibilityLabel("Remove " + (names[id] ?? id))
+                remove.toolTip = "Remove this custom exception. Perch navigation behavior will apply to this app."
+                document.addSubview(remove)
+            }
+        }
+        if let editApp {
+            let add = SettingsActionButton(title: "Add app…") { [weak self] in
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [.applicationBundle]; panel.canChooseDirectories = false
+                panel.allowsMultipleSelection = false; panel.prompt = "Add app"
+                guard SettingsWindow.shared.open(panel) == .OK, let url = panel.url else { return }
+                guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, !id.isEmpty else {
+                    status.stringValue = "This app has no bundle identifier. Choose an installed application."; status.textColor = StatusColors.warning; return
+                }
+                do {
+                    try editApp(id, FileManager.default.displayName(atPath: url.path))
+                    self?.showNavigationExceptions(load: load, save: save, editApp: editApp)
+                } catch { status.stringValue = "App not added. " + error.localizedDescription; status.textColor = StatusColors.warning }
+            }
+            add.frame = NSRect(x: 0, y: 70, width: 150, height: 30)
+            add.toolTip = "Choose an app to keep its own navigation behavior. The exception saves immediately."
+            view.addSubview(add)
         }
         scroll.documentView = document; view.addSubview(scroll)
         scroll.contentView.scroll(to: NSPoint(x: 0,y: max(0,document.bounds.height-scroll.contentSize.height))); scroll.reflectScrolledClipView(scroll.contentView)
-        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. Changes save automatically.", view: view))
+        SettingsWindow.shared.show(.init(title: "Navigation app exceptions", detail: "Checked apps keep their own Home/End and Page Up/Down behavior. Browsers are excluded because Command+arrow can navigate history outside a text field. Changes save automatically. Add an app to exclude it; uncheck to use Perch’s behavior, or remove a custom entry from this list.", view: view))
     }
 }

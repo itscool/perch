@@ -5,8 +5,8 @@ struct SettingsResetSelection {
     var sections: Set<String>
     var all: Bool { sections == Set(Self.options.map { $0.0 }) }
     static let options = [
-        ("devices", "Device setup — detected devices, learned layouts and custom mappings"),
-        ("preferences", "Perch preferences — feature choices, shortcuts and agent settings")
+        ("devices", "Learned navigation layouts on this Mac"),
+        ("preferences", "Local Perch preferences — keyboard modes, feature choices and agents")
     ]
     func removes(_ key: String) -> Bool {
         if all { return true }
@@ -117,13 +117,13 @@ extension AppDelegate {
         }
         reviewButton = next; next.isEnabled = false
         next.frame = NSRect(x:260,y:5,width:312,height:32); page.addSubview(next)
-        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Choose what to forget, then review before resetting and quitting. Device setup is detected afresh on next launch; bundled profiles remain. This forgets Perch’s own saved setup and preferences. Privacy and system permissions are not reset.",view:page))
+        SettingsWindow.shared.show(.init(title:"Reset settings",detail:"Choose what to forget, then review before resetting and quitting. Resetting learned layouts restores bundled layout defaults. This resets only the local choices selected above. Shared Desk computers, screen arrangements, connections and preset shortcuts are retained. Privacy and system permissions are not reset.",view:page))
     }
     func confirmSettingsReset(_ selection: SettingsResetSelection) {
         let page = NSView(frame:NSRect(x:0,y:0,width:572,height:180))
-        let status = NSTextField(wrappingLabelWithString:"This removes the selected saved choices. Device setup, if selected, returns to an undetected state until next launch. Perch’s emergency shortcut and input controls stop until you reopen Perch. A Perch keep-awake assertion is released when its helper stops. Back cancels.")
+        let status = NSTextField(wrappingLabelWithString:"This removes the selected saved choices. Learned layouts, if selected, return to bundled defaults. Perch’s emergency shortcut and input controls stop until you reopen Perch. A Perch keep-awake assertion is released when its helper stops. Back cancels.")
         status.frame = NSRect(x:0,y:60,width:572,height:110); status.textColor = StatusColors.warning
-        let action = SettingsActionButton(title:selection.all ? "Reset all settings and quit" : "Reset selected settings and quit") { [weak self] in
+        let action = SettingsActionButton(title:selection.all ? "Reset local settings and quit" : "Reset selected settings and quit") { [weak self] in
             guard let self, !SettingsWindow.shared.testing else { return }
             do {
                 try SettingsReset.stopHelpers()
@@ -138,6 +138,6 @@ extension AppDelegate {
         action.frame = NSRect(x:170,y:5,width:402,height:32)
         page.addSubview(status); page.addSubview(action)
         let names = SettingsResetSelection.options.filter { selection.sections.contains($0.0) }.map { $0.1 }.joined(separator:", ")
-        SettingsWindow.shared.show(.init(title:selection.all ? "Reset all settings?" : "Reset selected settings?",detail:names,view:page))
+        SettingsWindow.shared.show(.init(title:selection.all ? "Reset local settings?" : "Reset selected settings?",detail:names + "\nShared Desk setup and membership are kept on this and the other computers.",view:page))
     }
 }

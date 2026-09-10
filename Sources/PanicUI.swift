@@ -133,10 +133,15 @@ extension AppDelegate {
             ("Preview panic targets…", "Preview the currently tracked processes and recent actions. This does not terminate anything.", #selector(safetyReport)),
             (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut)),
             ("Stop agents & reset all app permissions…", "Emergency action with confirmation: stops selected agents and resets system privacy permissions, including unrelated apps.", #selector(broadLockdown))]
+        let state = GuardianInstall.status
+        let blocked = state?.locked == true || (state?.pendingLaunchJobs ?? 0) > 0
+        if blocked {
+            options.insert(("Resume agent activity…", "Stop blocking relaunches. This will not reopen agents or restore privacy permissions.", #selector(resumeAgents)), at: 0)
+        }
         if !GuardianInstall.alive {
             options.insert(("Repair background protection…", "The helper is not responding. Reinstall and restart it before relying on panic.", #selector(repairWatcher)), at: 0)
         }
-        chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? "✓ Background protection is running." : "⛔ Background protection is unavailable. Repair it below.", options: options)
+        chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? (blocked ? "Agent activity is blocked. Resume below when you are ready to allow agents to run again." : "✓ Background protection is running.") : "⛔ Background protection is unavailable. Repair it below.", options: options)
     }
     @objc func advancedSafetySettings() {
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
@@ -154,8 +159,8 @@ extension AppDelegate {
     @objc func manageAgents() {
         let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: max(180, 90 + targets.count * 60)))
-        let addApp = SettingsActionButton(title: "Add app…") { [weak self] in self?.addAgentApp(); self?.manageAgents() }
-        let addExecutable = SettingsActionButton(title: "Add executable…") { [weak self] in self?.addAgentExecutable(); self?.manageAgents() }
+        let addApp = SettingsActionButton(title: "Add app…") { [weak self] in if self?.addTarget(app: true) == true { self?.manageAgents() } }
+        let addExecutable = SettingsActionButton(title: "Add executable…") { [weak self] in if self?.addTarget(app: false) == true { self?.manageAgents() } }
         addApp.identifier = .init("agent.addApp"); addExecutable.identifier = .init("agent.addExecutable")
         addApp.frame = NSRect(x: 0, y: view.frame.height-32, width: 278, height: 32)
         addExecutable.frame = NSRect(x: 288, y: view.frame.height-32, width: 284, height: 32)
@@ -185,8 +190,12 @@ extension AppDelegate {
     func editSafetyForm(save: @escaping (SafetyConfiguration) throws -> Void) -> AgentSettingsPage {
         let page = AgentSettingsPage(save: save, conflicts: { [weak self] shortcut in
             guard let self else { return false }
+            if !self.legacyMonitorFixture {
+                return DeskCoordinator.shared.runtime?.node.group.presets.contains { $0.shortcut.matches(shortcut) } == true
+            }
             return [self.monitorInputs.plan.shortcut, self.monitorInputs.groups.active?.shortcut].compactMap { $0 }.contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
         }, didSave: { [weak self] in
+            DeskCoordinator.shared.runtime?.registerShortcuts()
             if self?.safetyItem != nil { self?.refreshSafety() }
         })
         page.show()
@@ -194,26 +203,26 @@ extension AppDelegate {
     }
     @objc func addAgentApp() { addTarget(app: true) }
     @objc func addAgentExecutable() { addTarget(app: false) }
-    func addTarget(app: Bool) {
+    @discardableResult func addTarget(app: Bool) -> Bool {
         let panel = NSOpenPanel()
         panel.title = app ? "Choose an agent app" : "Choose an agent executable"
         panel.message = app ? "Perch will include this app and its observed child processes." : "Choose the agent itself, not a general-purpose shell, node, or Python runtime."
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         if app { panel.allowedContentTypes = [.applicationBundle] }
-        guard SettingsWindow.shared.open(panel) == .OK, let url = panel.url else { return }
+        guard SettingsWindow.shared.open(panel) == .OK, let url = panel.url else { return false }
         var config = SafetyConfiguration.load()
         let target: AgentTarget
         if app {
-            guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, id != "local.scott.perch" else { showError(AppError(message: "Choose another application with a bundle identifier.")); return }
+            guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, id != "local.scott.perch" else { showError(AppError(message: "Choose another application with a bundle identifier.")); return false }
             target = AgentTarget(id: "custom-app:\(id)", name: url.deletingPathExtension().lastPathComponent, kind: "app", match: id)
         } else {
             let path = url.resolvingSymlinksInPath()
-            guard FileManager.default.isExecutableFile(atPath: path.path), !AgentTarget.isGeneralPurposeExecutable(path.lastPathComponent) else { showError(AppError(message: "Choose a specific agent executable, not a shared runtime or Perch.")); return }
+            guard FileManager.default.isExecutableFile(atPath: path.path), !AgentTarget.isGeneralPurposeExecutable(path.lastPathComponent) else { showError(AppError(message: "Choose a specific agent executable, not a shared runtime or Perch.")); return false }
             target = AgentTarget(id: "custom-exec:\(path.path)", name: path.lastPathComponent, kind: "executable", match: path.path)
         }
         if !config.targets.contains(where: { $0.id == target.id }) { config.targets.append(target) }
-        do { try config.save(); SettingsWindow.shared.feedback = "✓ Settings saved." } catch { showError(error) }
+        do { try config.save(); return true } catch { showError(error); return false }
     }
     @objc func testPanicShortcut() {
         runShortcutTest(readStatus: { GuardianInstall.status }, send: { try SafetyFiles.send($0) }, keepAlive: {
@@ -328,7 +337,7 @@ extension AppDelegate {
             else if Date().timeIntervalSince(started) > 5 { text.string = "The background helper did not return a preview. Check protection status in Settings."; poll?.invalidate() }
         }
         if let poll { RunLoop.main.add(poll, forMode: .common) }
-        SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Use Back to return to Agent Kill Switch.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
+        SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Choose a settings category when you are finished.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
     }
     @objc func repairWatcher() {
         do {

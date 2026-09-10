@@ -9,6 +9,7 @@ struct DeskLiveActions {
     let map: (UUID, String) -> Void
     let identify: (UUID?) -> Void
     let sheet: (String, UUID?, @escaping () -> Void) -> AnyView
+    var openSettings: (() -> Void)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.

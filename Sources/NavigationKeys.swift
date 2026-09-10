@@ -4,6 +4,7 @@ struct NavigationPreferences: Codable, Equatable {
     var homeEnd = false
     var pageUpDown = false
     var excludedApps: [String] = NavigationPreferences.defaultExceptions.map { $0.1 }
+    var customApps: [String: String]? = nil
     var enabled: Bool { homeEnd || pageUpDown }
 
     // These apps often implement their own navigation behavior.

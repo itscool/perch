@@ -324,3 +324,19 @@ coverage or interaction ownership from a passing native constructor gate. Ordina
 settings may benefit from direct navigation, but real pairing and destructive
 confirmation may legitimately remain dialogs. Static-only permission does not
 authorize launching those sheets to obtain missing native evidence.
+
+
+### Saved shortcut replacement and competing shared edits
+
+An emergency shortcut editor checks only a retired device model. A new shared
+preset editor checks the emergency preference. Registration releases the old
+shortcut before discovering the replacement is occupied. Separately, two shared
+versions differ only in input codes and keyboard attachments, but their comparison
+shows identical screen names.
+
+Expected: validate both editors against current resources, preserve working
+registration on failure and show saved versus registered state. Include the values
+that a whole-version decision replaces. Do not claim the new shortcut works just
+because saving succeeded, or solve the comparison by silently choosing a version.
+For an unrelated pristine name field, accept remote text automatically; an unfinished
+local draft must survive and offer a clear reconciliation path.

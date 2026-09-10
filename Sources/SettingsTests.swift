@@ -10,6 +10,7 @@ func runSettingsTests() throws {
     try runShortcutDialogBackTests()
     try runSleepPresentationTests()
     try runSettingsJourneyFixTests()
+    try runSettingsReviewFixTests()
     try runStatusColorTests()
     try runReleaseUITests()
     try runNavigationProbeUITests()

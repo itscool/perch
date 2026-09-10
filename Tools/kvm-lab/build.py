@@ -19,7 +19,7 @@ info = dict(
     NSHighResolutionCapable=True)
 if not a.installable: info['KVMStorePath'] = str(folder / 'demo-desk.json')
 (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(info))
-sources = [repo / 'Sources' / f for f in ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'DeskView.swift']]
+sources = [repo / 'Sources' / f for f in ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'DeskView.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']]
 sources += [repo / 'Tools/kvm-lab' / f for f in ['main.swift']]
 subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *map(str, sources), '-framework', 'AppKit', '-framework', 'SwiftUI', '-o', str(app / 'Contents/MacOS/PerchDeskLab')], check=True)
 subprocess.run(['codesign', '--force', '--sign', '-', str(app)], check=True)

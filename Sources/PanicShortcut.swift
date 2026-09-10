@@ -19,6 +19,8 @@ struct PanicShortcut: Codable, Equatable {
 final class PanicHotKey {
     private var reference: EventHotKeyRef?
     private var handler: EventHandlerRef?
+    private var registrationID: UInt32 = 0
+    private(set) var registeredShortcut: PanicShortcut?
     var action: (() -> Void)?
     var active: Bool { reference != nil }
     let signature: UInt32
@@ -30,19 +32,28 @@ final class PanicHotKey {
             var id = EventHotKeyID()
             let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
             let owner = Unmanaged<PanicHotKey>.fromOpaque(context).takeUnretainedValue()
-            guard status == noErr, id.signature == owner.signature, id.id == 1 else { return OSStatus(eventNotHandledErr) }
+            guard status == noErr, owner.active, id.signature == owner.signature, id.id == owner.registrationID else { return OSStatus(eventNotHandledErr) }
             owner.action?()
             return noErr
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
     func register(_ shortcut: PanicShortcut) throws {
-        unregister()
-        guard shortcut.enabled else { return }
+        guard shortcut.enabled else { unregister(); return }
+        if registeredShortcut == shortcut, active { return }
         guard handler != nil else { throw AppError(message: "Could not install the panic keyboard handler.") }
-        let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers, EventHotKeyID(signature: signature, id: 1), GetApplicationEventTarget(), 0, &reference)
-        guard status == noErr else { throw AppError(message: "That shortcut is unavailable or already in use. Choose another combination (\(status)).") }
+        var replacement: EventHotKeyRef?
+        let nextID = registrationID == UInt32.max ? 1 : registrationID + 1
+        let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers, EventHotKeyID(signature: signature, id: nextID), GetApplicationEventTarget(), 0, &replacement)
+        guard status == noErr, let replacement else {
+            let retained = registeredShortcut.map { " The previous shortcut \($0.title) remains active." } ?? ""
+            throw AppError(message: "That shortcut is unavailable or already in use. Choose another combination (\(status))." + retained)
+        }
+        // Acquire the replacement before releasing the working combination.
+        if let reference { UnregisterEventHotKey(reference) }
+        reference = replacement; registeredShortcut = shortcut; registrationID = nextID
     }
-    func unregister() { if let reference { UnregisterEventHotKey(reference) }; reference = nil }
+    func matches(_ shortcut: PanicShortcut) -> Bool { active && registeredShortcut == shortcut }
+    func unregister() { if let reference { UnregisterEventHotKey(reference) }; reference = nil; registeredShortcut = nil }
     deinit { unregister(); if let handler { RemoveEventHandler(handler) } }
 }
 
@@ -56,6 +67,13 @@ func runPanicHotKeyTests() throws {
     var conflictDetected = false
     do { try second.register(test) } catch { conflictDetected = true }
     guard conflictDetected else { first.unregister(); second.unregister(); throw AppError(message: "Shortcut collision was not detected.") }
+    let other = PanicShortcut(key: UInt32(kVK_F11), modifiers: test.modifiers, enabled: true)
+    try second.register(other)
+    do { try first.register(other); throw AppError(message: "Replacement collision was not detected.") }
+    catch { guard first.matches(test) else { throw AppError(message: "Failed replacement released the working shortcut.") } }
+    second.unregister()
+    try first.register(other)
+    guard first.matches(other) else { throw AppError(message: "Valid replacement did not become active.") }
     first.unregister()
     try second.register(test)
     second.unregister()

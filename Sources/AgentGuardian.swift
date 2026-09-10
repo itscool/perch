@@ -344,7 +344,7 @@ final class AgentGuardian {
             lastSaved = Date()
         }
         if Date().timeIntervalSince(lastStatus) >= 1 || !requests.isEmpty {
-            let status = SafetyStatus(locked: state.locked, pendingLaunchJobs: state.disabledJobs.count, shortcutActive: hotKey.active, inputTrusted: nil, inputActive: false, keepAwakeActive: awake.enabled, trackedCount: tracker.tracked.count, targets: statusTargets, message: message, testResultID: testResultID, testUntil: testUntil, error: launchRecoveryError ?? statusError ?? (events.healthy ? nil : events.failure), eventCoverage: events.healthy ? "Process events active" : "Degraded — process events unavailable or incomplete", processEventCount: events.eventCount, eventLastSeen: events.lastEvent, eventConnected: events.fd >= 0, eventSessionID: events.sessionID, maintenance: maintenance)
+            let status = SafetyStatus(locked: state.locked, pendingLaunchJobs: state.disabledJobs.count, shortcutActive: hotKey.matches(config.shortcut), inputTrusted: nil, inputActive: false, keepAwakeActive: awake.enabled, trackedCount: tracker.tracked.count, targets: statusTargets, message: message, testResultID: testResultID, testUntil: testUntil, error: launchRecoveryError ?? statusError ?? (events.healthy ? nil : events.failure), eventCoverage: events.healthy ? "Process events active" : "Degraded — process events unavailable or incomplete", processEventCount: events.eventCount, eventLastSeen: events.lastEvent, eventConnected: events.fd >= 0, eventSessionID: events.sessionID, maintenance: maintenance, registeredShortcut: hotKey.registeredShortcut)
             let diagnostics = events.diagnosticSnapshot
             statusServer?.publishSnapshot {
                 var result = status

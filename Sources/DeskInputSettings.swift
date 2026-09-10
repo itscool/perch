@@ -9,13 +9,12 @@ struct DeskInputSettings: View {
     @State private var presetIndex = 0
     @State private var keyboardName = "Shared keyboard"
     @State private var keyboardError: String?
-    @State private var keyboardNames: [UUID: String] = [:]
     init(runtime: DeskRuntime, input: KVMInputSession, adapter: DeskInputAdapter) {
         self.runtime = runtime; self.input = input; self.adapter = adapter; node = runtime.node
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Keyboard & mouse sharing").font(.headline)
+            Text("This Mac").font(.headline)
             Toggle("Enable sharing on this Mac for this session", isOn: Binding(get: { input.enabled }, set: { adapter.enable($0) }))
                 .help("Allows this Mac to send and receive keyboard and mouse input within your approved desk. Starts off after Perch restarts.")
             Text("Enable on the participating Macs, then choose the screen to control. Move across touching screen edges to change computers. Press Ctrl–Opt–Esc on a connected keyboard to return to local control.").font(.callout).foregroundStyle(.secondary)
@@ -60,14 +59,15 @@ struct DeskInputSettings: View {
             }
             DisclosureGroup("Follow a keyboard’s host switch") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Add a name once, then select that same physical keyboard on each Mac while it is connected there. Perch follows a confirmed disconnect and reconnect, not a guessed Bluetooth slot. Sharing must be enabled on both Macs; the destination needs a visible screen in the active preset.").font(.caption)
+                    Text("Keyboard names, attachment choices and follow behavior are shared with every computer in this desk. Add a name once, then select that same physical keyboard on each Mac while it is connected there. Perch follows a confirmed disconnect and reconnect, not a guessed Bluetooth slot. Sharing must be enabled on both Macs; the destination needs a visible screen in the active preset.").font(.caption)
                     ForEach(node.group.sharedKeyboards ?? []) { keyboard in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                TextField("Keyboard name", text: Binding(get: { keyboardNames[keyboard.id] ?? keyboard.name }, set: { value in
-                                    keyboardNames[keyboard.id] = value
-                                    if editKeyboards({ values in if let i = values.firstIndex(where: { $0.id == keyboard.id }) { values[i].name = value } }) { keyboardNames[keyboard.id] = nil }
-                                })).textFieldStyle(.roundedBorder).help("Names save immediately across the desk. An incomplete name keeps the previous saved value.")
+                                DeskTextSetting("Keyboard name", saved: keyboard.name) { value in
+                                    var group = node.group
+                                    guard let index = group.sharedKeyboards?.firstIndex(where: { $0.id == keyboard.id }) else { throw KVMError("This keyboard was removed from the desk.") }
+                                    group.sharedKeyboards?[index].name = value; try node.edit(group)
+                                }.id(keyboard.id).help("Names save immediately across the desk. An incomplete name keeps the previous saved value.")
                                 Spacer()
                                 Button("Remove") { editKeyboards { $0.removeAll { $0.id == keyboard.id } } }
                                     .help("Remove this keyboard’s follow setup from the shared desk. Native keyboard settings stay as they are.")

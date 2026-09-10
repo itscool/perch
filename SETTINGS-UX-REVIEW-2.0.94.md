@@ -10,16 +10,49 @@ The complete current Settings set has now received a source-based UX pass: all
 review. It follows first use, ordinary changes, repair, add/remove, learning,
 completion, leaving/reopening and external changes where applicable.
 
-**11 actionable findings remain: one P1 and ten P2.** Three additional design
-refinements are separated below. No application fixes, GUI interaction, permission
-changes, hardware actions, installation, notarization or publication were performed
-for this review. Source traces establish the findings; they do not establish native
-clickability, visual contrast, or actual permission/hardware behavior.
+**The initial review found 11 actionable issues: one P1 and ten P2.** The user
+authorized all corrections, including design refinements D1–D3. They are now
+implemented in source as described below. No GUI interaction, permission changes,
+hardware actions, installation, notarization or publication were performed during
+this correction pass. Native clickability, visual contrast and real permission/
+hardware acceptance remain separate from source and compile verification.
 
 Current release notes were read first. Installed/public 2.0.94 uses the earlier
 466b2ec source snapshot. The preceding setup corrections in cb44f87 have compiled
 but are not installed or natively accepted. Findings here apply to cb44f87 unless
 stated otherwise; they are not claims that the earlier corrections shipped.
+
+## Correction checkpoint — all findings implemented in source
+
+The original findings and source references below are historical evidence at
+cb44f87, not a description of the corrected source. The application currently
+installed/public is still 2.0.94; these changes have not shipped.
+
+| Finding | Implemented correction | Verification / remaining acceptance |
+| --- | --- | --- |
+| U1 | Both shortcut editors use current Desk presets and the emergency shortcut. Desk registration invalidates when the emergency choice changes. Emergency replacement acquires a new registration before releasing the working one, rejects queued events for obsolete registrations, and reports the actually registered keys separately from saved intent. | Registration replacement assertions and injected readiness regressions compile; physical key registration and use remain native QA. |
+| U2 | Reset is explicitly local. Labels name learned navigation layouts versus local preferences/keyboard modes/agents; confirmation expressly retains shared Desk membership, computers, screens, connections and preset shortcuts. | Traced defaults, Safety files and separate Desk storage. No live reset performed. |
+| U3 | Turning either navigation behavior off skips layout-store reads and preserves the other behavior and current helper payload. Enabling still validates profiles. | Added injected damaged-store disable/enable regression; compiled, not executed. |
+| U4 | Agent Kill Switch offers the existing Resume action and explains blocking when lockdown or unrecovered launch jobs remain. | Traced checklist → Agent page → existing confirmation; no agent operation executed. |
+| U5 | Add app/executable returns success/failure; only success rebuilds the custom-agent list. Cancellation and validation/storage errors retain the originating page and feedback. Removal already rebuilt only after success. | Static callback/lifetime trace; existing picker ownership fixtures updated and compiled. |
+| U6 | Completed, saved layout setup offers Choose another keyboard. It restores selection/relearn controls without automatically starting capture. Failed save retains its retry path and saved prior layout; missing identity offers the next-keyboard route. | Completion/reset source trace; native layout suite compiled. |
+| U7 | Input names retain invalid drafts with errors/retry. Input codes retain all typing and save on Return, focus loss or editor exit after complete validation. Intermediate digits are not automatically stored while typing. Leaving after a reported failure discards that draft rather than silently retrying it. | Nonpresenting draft tests passed; native text selection, focus loss and closing need acceptance. |
+| U8 | Pristine names follow incoming changes. Dirty drafts survive and expose Use saved / Keep my edit. The same component covers screen, connection, Desk, preset and shared-keyboard names. | Pure pristine/dirty/repeated-remote/own-acknowledgement transitions passed. Two-machine UI propagation remains QA. |
+| U9 | Each version lists identities, panel size/position/rotation, every input code/mapping, monitor-control host/display/protocol/endpoint/address/model, every preset assignment/shortcut, and shared keyboard attachments/follow choices. Whole-version resolution still requires an explicit choice. | Pure tests prove operational differences produce different review content; real conflict selection remains QA. |
+| U10 | Stable Agent, target preview, event collection and layout pages use route-neutral completion/leave language. Real test-result and destructive confirmation exits remain scoped operations. | Source sweep; contextual setup return and physical navigation remain native QA. |
+| U11 | App exceptions has Add app and custom Remove. Custom names remain listed when unchecked and on reopening. Changes merge into fresh preferences; failure keeps the previous row/value and visible error. | Injected toggle/reopen/remove-failure/success regression compiled; OS app picker acceptance remains QA. |
+| D1 | Desk settings and Keyboard & mouse sharing are stable sidebar pages. Shared names/presets and per-Mac/session controls have distinct scope wording; membership removal remains visible. Pairing/removal/conflict and per-screen control editing retain temporary dialogs. | Now 26 sidebar destinations and 10 reachable production Desk sheet journeys. Sidebar/recovery regression compiled. |
+| D2 | Border and highlight-dependent controls disable when their area is absent; border copy names the prerequisites. Saved choices, independent System styling and the shared preview remain. | Static condition/render trace; native clipping, contrast and keyboard access remain QA. |
+| D3 | Keyboard access leads with Ready and optional Review permission setup when granted. Lost access automatically exposes repair, current app drag/copy, Finder and System Settings actions. | Ready/review/hide/revoked fixture compiled; live permission handoff remains QA. |
+
+Validation: `Tools/check-settings-models.py` passed without creating windows,
+launching app/helpers, reading devices or writing live settings. The UI ownership
+gate inventories 61 native construction sites. The full regression fixture and standalone Desk Lab compile without warnings.
+The Desk Lab build treats warnings as errors. No native test
+binary was run under the static-only instruction. The reusable review skill now
+includes current-resource conflicts, complete conflict comparison, reset-store
+scope and synchronized field drafts; structural validation passed and its added
+scenario was reviewed locally, not by an independent agent.
 
 ## Findings in recommended correction order
 
@@ -248,6 +281,8 @@ listed paths. Shared findings and previous source corrections still apply.
 | Scrolling | Independent trackpad/wheel autosave, missing helper/access, saved-on disable, waiting application, recovery | Traced; no new finding beyond previous setup corrections |
 | Displays | Desk entry, current summary, separate turn-display-off action | Traced; no change to protected main menu proposed |
 | Desk | New desk, add/remove/match screens, mappings, presets/edit versus Play, rotation/position, grouped synchronization | U7, U8, U9, D1; child ledger below |
+| Desk settings (added correction) | Shared names/shortcuts, invalid draft, peer edit, pending acknowledgement, registration error | D1, U1, U8 corrected in source |
+| Keyboard & mouse sharing (added correction) | This-Mac/session scope, permission recovery, pointer speed, shared keyboards, membership loss | D1, U8 corrected in source |
 | Keep awake | Off/on/saved lid choice, helper absent/pending/fresh/error, explicit install/repair/resume, log and reset links | Previous S8 corrections traced; no live sleep claim |
 | Lid activity | Loading/history/error, live/pause, selecting/copying, retained scroll, leave and late reply | Traced; no additional finding |
 | Agent Kill Switch | Helper absent/ready, shortcut off/unavailable/test, blocked activity, repair and broad action entry | U4 |
@@ -272,13 +307,13 @@ were included; a single `.sheet` factory is not one user journey.
 | --- | --- |
 | Add computer | Invite/join, no discovery, manual address, expiry, codes/approve/reject, owner/16-member limits, leave cleanup; no extra confirmed finding |
 | Add/identify screen | Local/remote/offline choice, refresh, ambiguous identity, existing/new, profile/manual input, mapping conflict and save; no automatic shared-identity guess |
-| Desk settings | Shared names/preset shortcuts versus local/session input; D1 and U1 |
+| Desk settings (original sheet, now stable sidebar pages) | Shared names/preset shortcuts and local/session input moved to two destinations; D1 and U1 |
 | Computer details | Online/offline, owner/non-owner, removal confirmation; no new finding |
 | Conflict | Concurrent versions and recovered membership draft; U9 |
 | Add connection | Physical port, numeric input, unassigned allowed, validation failure and commit; creation legitimately needs one Add |
 | Remove connection | Explicit destructive scope across all presets, failure retained |
 | Correct physical screen | Choose existing screen, clear affected assignments, commit/return; no automatic rematch |
-| Monitor control | Computer/display, standard/LG/USB/network/serial, endpoint/address drafts, validation/save, no input switch from edit; D1 applies to stable settings placement |
+| Monitor control | Computer/display, standard/LG/USB/network/serial, endpoint/address drafts, validation/save, no input switch from edit; per-screen control remains a bounded editor |
 | Remove screen | Explicit screen/connections/preset deletion, confirmation and save failure |
 | Position & size | Exact dimensions versus drag/rotation, overlap/invalid geometry refusal, automatic valid save; native numeric editing remains acceptance |
 
@@ -326,8 +361,12 @@ input capture, pairing or monitor commands.
 
 ## Disposition
 
-The static UX review is up to date for this source revision, with the findings
-above open. Fix functional recovery and shortcut/reset scope first, then complete
-editing/return consistency, then refine grouping. Preserve immediate saving,
-meaningful operation confirmations, independent About, and the main menu design.
-No further application fixes were made in this review.
+U1–U11 and D1–D3 are resolved in source in this correction commit. The initial
+review remains above for traceability. Meaningful operation confirmations,
+immediate preference saving, independent About and main menu design are retained.
+No further confirmed implementation finding from this review is left open.
+
+Remaining acceptance is explicit: full native fixture execution, actual clicks
+and keyboard focus through the affected pages, two-Mac concurrent edits, OS grant
+recovery and physical shortcut behavior. Installed/public 2.0.94 still predates
+these corrections. Compilation is not evidence that those live journeys passed.

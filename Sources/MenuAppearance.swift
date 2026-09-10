@@ -112,17 +112,18 @@ struct MenuAppearancePage: View {
                 HStack { ForEach(MenuSectionAppearance.Side.allCases, id: \.self) { side in
                     Toggle(side.rawValue, isOn: Binding(get: { style.sides.contains(side) }, set: { enabled in var sides = style.sides; if enabled { sides.insert(side) } else { sides.remove(side) }; binding(\.sides).wrappedValue = sides }))
                 } }.disabled(style.borderScope == .none)
-                slider("Thickness", path: \.thickness, range: 0...6, suffix: "pt")
-                slider("Line intensity", path: \.borderIntensity, range: 0...1)
+                slider("Thickness", path: \.thickness, range: 0...6, suffix: "pt").disabled(style.borderScope == .none || style.sides.isEmpty)
+                slider("Line intensity", path: \.borderIntensity, range: 0...1).disabled(style.borderScope == .none || style.sides.isEmpty)
+                if style.borderScope == .none || style.sides.isEmpty { Text("Choose a border area and at least one side to use the saved line settings.").font(.caption).foregroundStyle(.secondary) }
                 HStack { Text("Background").font(.headline); Spacer(); Picker("Highlight area", selection: binding(\.backgroundScope)) { ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.frame(width: 200) }
-                Toggle("Use grey highlights", isOn: binding(\.greyBackground))
-                if style.greyBackground { slider("Grey shade", path: \.greyLevel, range: 0...1) }
-                slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1)
+                Toggle("Use grey highlights", isOn: binding(\.greyBackground)).disabled(style.backgroundScope == .none)
+                if style.greyBackground { slider("Grey shade", path: \.greyLevel, range: 0...1).disabled(style.backgroundScope == .none) }
+                slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1).disabled(style.backgroundScope == .none)
                 HStack { Text("Titles & shape").font(.headline); Spacer() }
                 Toggle("Tint title text to its section color", isOn: binding(\.tintTitle))
                 if style.tintTitle { slider("Title tint", path: \.titleIntensity, range: 0...1) }
                 Toggle("Show title icons", isOn: binding(\.showIcon))
-                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt")
+                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(style.backgroundScope == .none && (style.borderScope == .none || style.sides.isEmpty))
                 slider("Space above titles", path: \.gap, range: 0...8, suffix: "pt")
             }.disabled(store.problem != nil)
             HStack {

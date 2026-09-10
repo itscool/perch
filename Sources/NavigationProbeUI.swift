@@ -76,7 +76,11 @@ final class NavigationProbePage: NSObject {
         }
         status.font = .systemFont(ofSize: 13)
         status.frame = NSRect(x: 8, y: 48, width: 556, height: 72); view.addSubview(status)
-        start = SettingsActionButton(title: "Start setup") { [weak self] in self?.begin() }
+        start = SettingsActionButton(title: "Start setup") { [weak self] in
+            guard let self else { return }
+            if self.session.state.phase == .complete { self.session.reset(); self.setupIdentity = nil; self.reload() }
+            else { self.begin() }
+        }
         start.frame = NSRect(x: 8, y: 5, width: 179, height: 32); view.addSubview(start)
         skip = SettingsActionButton(title: "I don’t have this key") { [weak self] in
             self?.session.skipCurrent()
@@ -93,7 +97,7 @@ final class NavigationProbePage: NSObject {
     private var pageDetail: String {
         if session.state.phase == .complete {
             let name = setupIdentity?.name ?? "this keyboard"
-            return saved ? "The layout for \(name) is saved. Choose another settings category, or return to setup."
+            return saved ? "The layout for \(name) is saved. Choose another keyboard to manage layouts, or use the sidebar to continue."
                 : "Setup for \(name) finished, but the layout was not saved. Your previous layout is still in use."
         }
         if !hasAccess() { return LaunchAccessRecovery.summary + " Use the access recovery below before learning a layout. Your saved layout is kept." }
@@ -170,9 +174,9 @@ final class NavigationProbePage: NSObject {
                     let profile = NavigationKeyboardProfile(identity: identity, keys: keys)
                     try saveProfile(profile)
                     profiles.removeAll { $0.identity == identity }; profiles.append(profile)
-                    saved = true; saveResult = "✓ Layout saved automatically. Choose another settings category, or return to setup."
-                } catch { saveResult = "⚠ " + error.localizedDescription + " Your previous layout is still in use. Retry saving, or use Back to leave." }
-            } else { saveResult = "⚠ Keyboard identity unavailable. Nothing was saved. Use Back, then recheck keyboards." }
+                    saved = true; saveResult = "✓ Layout saved automatically. Choose another keyboard to manage layouts, or use the sidebar to continue."
+                } catch { saveResult = "⚠ " + error.localizedDescription + " Your previous layout is still in use. Retry saving, or leave this page to keep the previous layout." }
+            } else { saveResult = "⚠ Keyboard identity unavailable. Nothing was saved. Choose another keyboard below, then recheck." }
         }
     }
     private func update() {
@@ -195,9 +199,9 @@ final class NavigationProbePage: NSObject {
         reset.isEnabled = !active && (!profiles.isEmpty || profileReadError != nil)
         picker.isHidden = complete; recheck.isHidden = complete
         picker.isEnabled = !active && (!keyboards.isEmpty || !disconnected.isEmpty); recheck.isEnabled = !active
-        start.isHidden = active || complete
-        start.isEnabled = !active && access && selected?.identity.canRemember == true && profileReadError == nil
-        start.title = active ? "Setup in progress…" : session.state.phase == .idle ? (ready ? "Learn a different layout" : "Start setup") : "Set up again"
+        start.isHidden = active || (complete && !saved && setupIdentity != nil)
+        start.isEnabled = complete || (!active && access && selected?.identity.canRemember == true && profileReadError == nil)
+        start.title = complete ? "Choose another keyboard" : active ? "Setup in progress…" : session.state.phase == .idle ? (ready ? "Learn a different layout" : "Start setup") : "Set up again"
         skip.title = "I don’t have \(session.state.currentKey?.name ?? "this key")"
         skip.isHidden = !active
         skip.isEnabled = active && session.state.guided && !session.state.keys.contains { $0.held }
@@ -221,7 +225,7 @@ final class NavigationProbePage: NSObject {
             let key = session.state.currentKey?.name ?? "next key"
             instruction.stringValue = "Press and release \(key) on this keyboard."
             let remaining = max(0, Int(ceil(session.state.deadline - session.now())))
-            status.stringValue = session.state.notice ?? "Saves automatically after the last key · \(remaining) seconds left. Back stops setup and keeps your previous layout."
+            status.stringValue = session.state.notice ?? "Saves automatically after the last key · \(remaining) seconds left. Leaving stops setup and keeps your previous layout."
             status.textColor = session.state.notice == nil ? StatusColors.information : StatusColors.warning
         case .complete:
             instruction.stringValue = saved ? "Setup complete" : "The layout could not be saved"

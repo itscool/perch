@@ -2,6 +2,37 @@
 set -euo pipefail
 export MACOSX_DEPLOYMENT_TARGET=26.0
 cd "$(dirname "$0")"
+usage() {
+    cat <<'HELP'
+Usage: ./build.sh [--output /path/to/Perch.app | --check-dependencies]
+       ./build.sh --help
+
+With no options, prepare dependencies and build build/Perch.app.
+
+Options:
+  --output PATH          Build a separate candidate at PATH (must end in .app).
+  --check-dependencies   Prepare/repair dependencies, then stop. No app build,
+                         version change, or signing credentials required.
+  -h, --help             Show this help without checking or downloading anything.
+
+Every build automatically checks tools and repairs pinned dependency caches.
+The first run needs GitHub access to download missing dependencies.
+Requires Apple silicon, macOS SDK 26+, Swift 6.2+, and Python 3.9+.
+
+Local signing:
+  Uses this Mac's own "Perch Local Code Signing" identity by default.
+  Select another with PERCH_SIGN_IDENTITY='identity name or hash'.
+  An app build needs a usable signing certificate and private key.
+
+Release signing and notarization use the separate Tools/release.py pipeline
+on the release Mac. See README.md and Release/README.md for setup.
+Building does not launch or install Perch.
+HELP
+}
+if [[ $# -eq 1 && ( "$1" == --help || "$1" == -h ) ]]; then
+    usage
+    exit 0
+fi
 APP="$PWD/build/Perch.app"
 CHECK_DEPENDENCIES=0
 if [[ $# -gt 0 ]]; then
@@ -11,7 +42,7 @@ if [[ $# -gt 0 ]]; then
         APP="$2"
         [[ "$APP" == /* ]] || APP="$PWD/$APP"
     else
-        echo "Usage: $0 [--output /path/to/Perch.app | --check-dependencies]" >&2
+        echo "Invalid build options. Run $0 --help for usage." >&2
         exit 1
     fi
 fi

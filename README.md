@@ -14,6 +14,9 @@ Perch is a local Apple Silicon/macOS 26 app. The current [1.2 local preview](REL
 
 ## Build and run
 
+Run `./build.sh --help` (or `-h`) for build options and signing requirements.
+Help works without checking tools, downloading dependencies or building anything.
+
 Each build reserves the next integer `CFBundleVersion` in `Info.plist`; Displayed versions use major.minor.build, such as 2.0.92. Dependency checks and preparation run before reserving a version; later compilation failures may leave gaps. Concurrent builds are refused by `build/.build-lock`; remove a stale lock only after confirming no build is running.
 
 This package targets Apple silicon and macOS 26+. Building requires Xcode 26+ or matching Command Line Tools (macOS SDK 26+, Swift 6.2+) and Python 3.9+. The build checks these requirements before compiling.

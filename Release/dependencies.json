@@ -1,0 +1,196 @@
+{
+  "schema": 1,
+  "reviewedOn": "2026-09-10",
+  "components": [
+    {
+      "name": "Sparkle",
+      "version": "2.9.6",
+      "revision": null,
+      "origin": "https://github.com/sparkle-project/Sparkle/tree/2.9.6",
+      "license": "MIT plus bundled notices",
+      "files": [
+        {
+          "source": "build/dependencies/sparkle-2.9.6/LICENSE",
+          "resource": "Sparkle-LICENSE.txt",
+          "sha256": "389a4e4e9a32f059775b13a06e25a591445ba229d2838d26dd3e7c0c45127cfe"
+        }
+      ],
+      "notes": "Archive SHA-256 pinned in Tools/sparkle-dependency.py. Full combined upstream license retained."
+    },
+    {
+      "name": "m1ddc",
+      "version": null,
+      "revision": "04d949794102eb8df01ad3681afff6464a3eede2",
+      "origin": "https://github.com/waydabber/m1ddc",
+      "license": "MIT",
+      "files": [
+        {
+          "source": "Vendor/m1ddc/LICENSE",
+          "resource": "m1ddc-LICENSE.txt",
+          "sha256": "b01d3d1de4baa142bb3746588e70814d04eae071d104f8aff580f88e30bb4547"
+        }
+      ],
+      "notes": "Modified adapter only; see Vendor/m1ddc/README.md."
+    },
+    {
+      "name": "swift-asn1",
+      "version": "1.4.0",
+      "revision": "f70225981241859eb4aa1a18a75531d26637c8cc",
+      "origin": "https://github.com/apple/swift-asn1.git",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-asn1/LICENSE.txt",
+          "resource": "swift-asn1-LICENSE.txt",
+          "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac"
+        },
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-asn1/NOTICE.txt",
+          "resource": "swift-asn1-NOTICE.txt",
+          "sha256": "11dd3b3b783e6ec26098dd38ebc962986ea109b85447e28e62867b83bd0f8c5b"
+        }
+      ],
+      "notes": "Unmodified pinned package checkout; static dependency."
+    },
+    {
+      "name": "swift-certificates",
+      "version": "1.16.0",
+      "revision": "66a8512c4e7466582bab21e0e0c333f01974e5b6",
+      "origin": "https://github.com/apple/swift-certificates.git",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-certificates/LICENSE.txt",
+          "resource": "swift-certificates-LICENSE.txt",
+          "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac"
+        },
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-certificates/NOTICE.txt",
+          "resource": "swift-certificates-NOTICE.txt",
+          "sha256": "57d7797703d906b63c2be50d891cf70bdec307ae6f77a881638c33343f3dd195"
+        }
+      ],
+      "notes": "Unmodified pinned package checkout; static dependency."
+    },
+    {
+      "name": "swift-crypto",
+      "version": "4.0.0",
+      "revision": "bcd2b89f2a4446395830b82e4e192765edd71e18",
+      "origin": "https://github.com/apple/swift-crypto.git",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-crypto/LICENSE.txt",
+          "resource": "swift-crypto-LICENSE.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "source": "Vendor/PerchCertificates/.build/checkouts/swift-crypto/NOTICE.txt",
+          "resource": "swift-crypto-NOTICE.txt",
+          "sha256": "b3ddc2ae068e76b3beb71be03c0400f90090f9469aa491bf7b1ac42320af37b8"
+        }
+      ],
+      "notes": "Unmodified pinned package checkout; static dependency."
+    },
+    {
+      "name": "BoringSSL",
+      "version": null,
+      "revision": "0226f30467f540a3f62ef48d453f93927da199b6",
+      "origin": "https://github.com/google/boringssl",
+      "license": "Apache-2.0 plus support-code notice",
+      "files": [
+        {
+          "source": "Release/licenses/BoringSSL-LICENSE.txt",
+          "resource": "BoringSSL-LICENSE.txt",
+          "sha256": "827c8d8fc207c2392794eef9e00fe246f9f61fdcc132556c275be3dd8c3cd97f"
+        }
+      ],
+      "notes": "Via swift-crypto CryptoExtras; revision confirmed against CCryptoBoringSSL/hash.txt."
+    },
+    {
+      "name": "DDCControl database",
+      "version": null,
+      "revision": "1c7c3f1603332574d48b68e46dcf3d46e788de12",
+      "origin": "https://github.com/ddccontrol/ddccontrol-db",
+      "license": "GPL-2.0",
+      "files": [
+        {
+          "source": "catalog/ddccontrol-COPYING.txt",
+          "resource": "ddccontrol-COPYING.txt",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        }
+      ],
+      "notes": "Modified JSON source ships directly; catalog-NOTICE.md describes changes and per-record XML provenance."
+    },
+    {
+      "name": "msigd data",
+      "version": null,
+      "revision": "737a84fcfeb487226309e0cd585a05a08db6014a",
+      "origin": "https://github.com/couriersud/msigd",
+      "license": "GPL-2.0",
+      "files": [
+        {
+          "source": "Release/licenses/msigd-LICENSE.txt",
+          "resource": "msigd-LICENSE.txt",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        }
+      ],
+      "notes": "Revision is the review snapshot; original extraction revision was not recorded. No msigd program bundled."
+    },
+    {
+      "name": "NEC SDK reference",
+      "version": null,
+      "revision": "0175ffdb989119df2d64d970f903509c27f35d1e",
+      "origin": "https://github.com/NECDisplaySolutions/necpdsdk",
+      "license": "MIT",
+      "files": [
+        {
+          "source": "Release/licenses/NEC-SDK-LICENSE.txt",
+          "resource": "NEC-SDK-LICENSE.txt",
+          "sha256": "333319126bac7851afeebc4702871f9fb42b4db47f60ba99e86964365ca53ff4"
+        }
+      ],
+      "notes": "Protocol reference only; upstream SDK not bundled."
+    }
+  ],
+  "catalogs": [
+    {
+      "source": "catalog/monitor-profiles.json",
+      "resource": "monitor-profiles.json",
+      "sha256": "ea306fd9049dabf23ac17b5cfe437069be296be18a12db63293ae4a4bb8589a2",
+      "records": 93
+    },
+    {
+      "source": "catalog/msi-input-profiles.json",
+      "resource": "msi-input-profiles.json",
+      "sha256": "8ad8608017ed082f0093c71fc4fd5b571d29f5d08014daca2a38bffe8655d3f4",
+      "records": 23
+    },
+    {
+      "source": "catalog/lg-firmware-families.json",
+      "resource": "lg-firmware-families.json",
+      "sha256": "74882a32d948aaefa73406862cc61467bf1a08e4fc32de879b5f52ab48f37297",
+      "records": 162
+    },
+    {
+      "source": "catalog/keyboard-profiles.json",
+      "resource": "keyboard-profiles.json",
+      "sha256": "ae867186e4e34583a8a360995d8cb1bb13398c4ccea9316a6611dd681e586779",
+      "records": 28
+    },
+    {
+      "source": "catalog/agents.json",
+      "resource": "agents.json",
+      "sha256": "2104817d871bf10e2eb3a4613359d4230e61163f803569dee4d4977b2de099db",
+      "records": 8
+    }
+  ],
+  "publicationIssues": [
+    {
+      "id": "lg-table-redistribution",
+      "status": "open",
+      "resource": "lg-firmware-families.json",
+      "detail": "162 extracted LG firmware-family records lack a documented redistribution basis. Resolve that basis or omit/replace the table before public distribution."
+    }
+  ]
+}

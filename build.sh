@@ -64,6 +64,7 @@ for DEPENDENCY in swift-certificates swift-asn1 swift-crypto; do
     cp "Vendor/PerchCertificates/.build/checkouts/$DEPENDENCY/NOTICE.txt" "$APP/Contents/Resources/$DEPENDENCY-NOTICE.txt"
 done
 python3 Tools/embed-sparkle.py "$APP" --identity "$SIGN_IDENTITY" "${SPARKLE_OPTIONS[@]}"
+python3 Tools/release_assets.py install --app "$APP"
 codesign --force --sign "$SIGN_IDENTITY" --identifier local.scott.perch.event-launcher "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchEventLauncher"
 codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchDisplay"
 codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTIONS[@]}" "${APP_ENTITLEMENTS[@]}" "$APP"

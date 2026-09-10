@@ -1,6 +1,8 @@
-# Perch 1.1
+# Perch
 
 A native Mac menu bar app for sleep, sound, input controls, and an emergency stop for local AI agents.
+
+Setup and recovery: [Support guide](SUPPORT.md). Dependencies: [Third-party notices](THIRD-PARTY-NOTICES.md).
 
 Release notes: [1.2 local preview](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). The whole-app review, broader hardware validation and Homebrew/distribution investigation are tracked in [the 1.2 review](V1.2-REVIEW.md).
 
@@ -98,14 +100,12 @@ Permission reset command logs: `~/Library/Application Support/Perch/Panic/`.
 
 Lid activity: **Settings → Keep awake → Lid activity**, with live updates and Copy log. The root helper and watchdog share `/var/db/local.scott.perch.lid-activity/events.json`, retaining at most 1,024 events from the last 24 hours. Events describe observed lid/power changes, elapsed countdowns, command outcomes and separate macOS sleep/wake notifications. History remains readable when the helper is offline; gaps in observation and command acknowledgment alone do not prove physical sleep behavior.
 
-To stop the background helper deliberately:
-
-```sh
-launchctl bootout gui/$(id -u)/local.scott.perch.guardian
-launchctl bootout gui/$(id -u)/local.scott.perch.input
-```
-
-Remove those specific LaunchAgent plists to prevent it starting at login. This stops background awake/input controls and safety tracking; it does not reset persistent lid/mute/Fn settings. Reopening Perch repairs a missing helper. If you used the protected installation, its optional copy is under `/Library/Application Support/Perch/Perch Helper.app`.
+For removal, follow [Before removing Perch](SUPPORT.md#before-removing-perch).
+Open the lid, disable keep-awake/lid protection and confirm normal sleep is
+restored before removing privileged helpers or recovery jobs. If cleanup fails,
+retain recovery and use the support guide. Removing the app alone does not remove
+optional background services. Collector-specific removal is described in
+[EVENT-COLLECTOR.md](EVENT-COLLECTOR.md).
 
 ## Verification
 

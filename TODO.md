@@ -8,7 +8,7 @@ This supersedes stale open-item wording in dated review checkpoints.
 ## Known defects — fix before shipping; target zero
 
 The installed local test build is still 1.2.87. These defects are fixed in the
-1.2.89 release candidate source and await installation:
+1.2.91 release candidate and await installation:
 
 1. [x] About opened a Settings shell with unavailable navigation. It now uses
    the independent native modeless About panel.
@@ -73,7 +73,7 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## QA — implementation acceptance, with defects returned to the first section
 
-1. [ ] **Accept version 1.2.87 on both Macs.** Check persistent navigation, direct menu
+1. [ ] **Accept the latest release candidate on both Macs.** Check persistent navigation, direct menu
    entry, same-category return from children, validation/discard, Back/Close,
    small-screen scrolling, keyboard focus and sidebar behavior during operations.
    Check the new tooltip content (78+) and shared Esc labels. The original Back,
@@ -142,13 +142,19 @@ remain open; this is not a claim that untested behavior is defect-free.
    final artifacts, public feed and real download/update acceptance remain.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.
-3. [ ] **Dependency and catalog release review.** Audit provenance/licenses;
-   define catalog/profile maintenance; include required notices and package checks.
+3. [ ] **Dependency and catalog release review.** Audit completed September 10;
+   missing BoringSSL/MSI notices fixed, NEC attribution added, catalog provenance
+   and maintenance documented, and 22 bundled resources checked automatically.
+   **Open:** resolve the redistribution basis for the extracted LG firmware-family
+   table or omit/replace it for public distribution. Publication checks enforce
+   the open review. See Release/DEPENDENCY-REVIEW.md.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
-5. [ ] **Release artifacts and documentation.** Checksums, appcast/release assets,
-   support/recovery documentation, release notes and cask drafts.
+5. [ ] **Release artifacts and documentation.** Support/recovery guide, release
+   notes, attribution and dependency inventory are prepared and bundled. Final
+   checksum generation/verification is implemented and tested; actual checksum
+   values follow final notarization/stapling. Public assets and cask draft remain.
 6. [ ] **Publish only after explicit approval** of the concrete release, relevant
    QA passing and zero known defects. Commit/push is not public release approval.
 

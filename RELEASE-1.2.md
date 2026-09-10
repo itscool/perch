@@ -4,6 +4,19 @@ September 9, 2026, version **1.2.87** installed local test build. The whole-app 
 physical acceptance checks remain in TODO.md and V1.2-REVIEW.md. The previous
 release is 1.1. This is not a published or notarized release.
 
+## Version 1.2.91 candidate: release documents and dependency notices
+
+Includes the 1.2.89 fixes plus reviewed third-party notices, BoringSSL/MSI license
+texts, catalog provenance, release notes and a support/recovery guide in the signed
+app. All 22 resources are verified against source hashes. Final SHA256SUMS must
+match every expected artifact and the release receipt; it is generated only after
+notarization/stapling. Runtime catalog/document changes now invalidate stale builds.
+
+The Developer ID build and targeted packaging/checksum failure tests passed with
+no compiler warnings. No live settings or installation changed. Public release
+still needs the LG extracted-table redistribution decision, Apple notarization,
+final artifacts and remaining acceptance. See Release/DEPENDENCY-REVIEW.md.
+
 ## Version 1.2.89 candidate: first Developer ID distribution
 
 Prepared independently of the running 1.2.87 app. About now opens its own

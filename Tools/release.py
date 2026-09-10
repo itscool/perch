@@ -16,6 +16,8 @@ import sys
 import tempfile
 import shutil
 import xml.etree.ElementTree as ET
+import release_assets
+import release_checksums
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((REPO/'Release/config.json').read_text())
@@ -30,6 +32,7 @@ def info(app):
 
 def verify(app, notarized=False):
     run('codesign', '--verify', '--deep', '--strict', app)
+    release_assets.check(app)
     details = subprocess.run(['codesign','-dvvv',str(app)], capture_output=True, text=True, check=True).stderr
     if ('TeamIdentifier='+CONFIG['teamID']) not in details or 'runtime' not in details or 'Timestamp=' not in details:
         raise SystemExit('Release needs the expected Developer ID team, hardened runtime and secure timestamp.')
@@ -46,8 +49,8 @@ def source_snapshot():
     paths = run('git','ls-files','--cached','--others','--exclude-standard','-z',capture=True).split('\0')
     return {name: hashlib.sha256((REPO/name).read_bytes()).hexdigest()
             for name in sorted(set(paths)) if name and (REPO/name).is_file() and
-            (name.startswith(('Sources/','Vendor/','Resources/','Tools/')) or
-             name in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements'))}
+            (name.startswith(('Sources/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
+             name in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements','Release/dependencies.json','Release/notes.md','SUPPORT.md','THIRD-PARTY-NOTICES.md'))}
 
 def verify_feed(root, version):
     feed = root/'appcast.xml'
@@ -141,9 +144,8 @@ elif a.stage == 'finish':
     accepted(root,a.profile,'dmg');run('xcrun','stapler','staple',dmg)
     run('xcrun','stapler','validate',dmg);run('codesign','--verify',dmg);verify(app,notarized=True)
     run('hdiutil','verify',dmg);run('unzip','-tq',zip_path);verify_feed(root,version)
-    artifacts=[dmg,zip_path,root/'appcast.xml']
-    hashes={f.name:hashlib.sha256(f.read_bytes()).hexdigest() for f in artifacts}
-    (root/'SHA256SUMS').write_text(''.join(value+'  '+name+'\n' for name,value in hashes.items()))
+    hashes=release_checksums.write(root,version)
+    release_checksums.verify(root,version,hashes)
     (root/'verified-release.json').write_text(json.dumps({'version':version,'artifacts':hashes,'notesSHA256':hashlib.sha256(a.notes.read_bytes()).hexdigest()},indent=2)+'\n')
     print('Verified release ready. Publication is the explicit final stage.')
 elif a.stage == 'publish':
@@ -152,8 +154,9 @@ elif a.stage == 'publish':
     receipt=json.loads((root/'verified-release.json').read_text())
     if receipt['notesSHA256'] != hashlib.sha256(a.notes.read_bytes()).hexdigest(): p.error('Release notes changed after verification.')
     if receipt['version'] != version: p.error('Release verification is for another version.')
-    for name,digest in receipt['artifacts'].items():
-        if hashlib.sha256((root/name).read_bytes()).hexdigest()!=digest: p.error('Verified artifact changed: '+name)
+    try: release_checksums.verify(root,version,receipt['artifacts'])
+    except (ValueError,OSError) as error: p.error(str(error))
+    release_assets.check(app,publication=True)
     verify(app,notarized=True)
     existing=subprocess.run(['gh','release','view',tag,'--repo',CONFIG['repository'],'--json','isDraft'],capture_output=True,text=True)
     if existing.returncode == 0:

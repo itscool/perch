@@ -67,3 +67,26 @@ not replace physical monitor, permission, sleep/restart or accessibility QA.
 
 References: Apple notarization workflow and Sparkle publishing documentation,
 linked from DISTRIBUTION.md.
+
+## Release documents, notices and checksums
+
+SUPPORT.md, THIRD-PARTY-NOTICES.md, catalog/NOTICE.md, release notes and the pinned
+Release/dependencies.json inventory ship in the signed app's Resources folder,
+alongside the full license/notice texts and editable catalog JSON. Build-time
+checks compare file hashes and pinned Swift dependency revisions. Catalog changes
+must update their provenance and review inventory rather than bypass the check.
+See DEPENDENCY-REVIEW.md for findings, including the open LG redistribution basis.
+A build can be prepared while review is open, but public publication is blocked.
+
+Run `python3 Tools/check-release-assets.py` and
+`python3 Tools/check-release-pipeline.py` for offline failure/packaging checks.
+`python3 Tools/release_assets.py check --app /path/Perch.app --for-publication`
+checks existing resources and the recorded dependency review without altering the app.
+
+The finish stage generates SHA256SUMS for the final DMG, update ZIP and signed
+appcast after app/DMG notarization and stapling. The publish stage requires the
+complete expected artifact set, matching byte hashes and an unchanged SHA256SUMS.
+Do not label temporary layout/signing-fixture hashes as public release checksums.
+After downloading the published assets and SHA256SUMS into one directory, use
+`shasum -a 256 -c SHA256SUMS` there. A checksum verifies downloaded bytes against
+that manifest; Apple/Sparkle signatures provide their separate authenticity checks.

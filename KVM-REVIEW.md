@@ -41,6 +41,7 @@ policy, helper installation or public publishing were exercised for this work.
 | P2 | Returning from an editor could retain an unrelated error in another sheet. | Scope transient messages to the opened task; close confirmations to the inline editor. |
 | P3 | Back-button navigation and a permanent status bar repeated existing sidebar/Active state. | No redundant root Back/Close; no preview status footer; temporary X/Escape only in the prototype. |
 | P3 | Expanded connection fields visually lost their owning row. | Direct mapping dropdown; row and expanded fields share one restrained background and outline. |
+| P3 | Expanding a connection introduced a scrollbar that narrowed the whole inspector. | Owned native overlay scroll view, permanent 16-point margin and thin rectangular thumb. Native expand, scroll to lower choices, collapse while scrolled, continuous field typing and child-sheet X/Escape return passed in the isolated lab. |
 | P3 | The right pane hid some of the three preset choices behind excessive spacing. | Compact connection rows and three consistently labeled input pickers. |
 
 ## Evidence

@@ -8,8 +8,10 @@ The first KVM milestone adds portable group, physical-input, preset and geometry
 models; signed conflict-preserving synchronization; bounded framing; and a handoff
 state machine that requires verified monitor outcomes. A separate native Desk Lab
 has draggable screen tiles with rotation/removal, inline connection mapping,
-all three preset choices together, and per-preset Play controls. Unassigned inputs
-allow picture-only switching; None is not a preset operating mode. This is a
+all three preset choices together, and per-preset Play controls. The inspector
+keeps its width when an editor expands; its thin overlay scrollbar uses the
+existing right margin. Native scrolling and child editing were checked.
+Unassigned inputs allow picture-only switching; None is not a preset operating mode. This is a
 simulation, not a live KVM feature in the installed app. Pairing, transport,
 input/monitor adapters and production integration remain open in KVM-PLAN.md.
 

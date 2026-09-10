@@ -74,7 +74,7 @@ struct DeskView: View {
 
                 }.padding(24)
                 Divider()
-                inspector.frame(width: 260).padding(.horizontal, 16).padding(.vertical, 12)
+                inspector.frame(width: 276).padding(.leading, 16).padding(.vertical, 12)
             }.background(Color(nsColor: .textBackgroundColor))
             Divider()
             HStack(spacing: 14) {
@@ -108,7 +108,7 @@ struct DeskView: View {
 
     @ViewBuilder var inspector: some View {
         if let monitor = model.selectedMonitor {
-            ScrollView {
+            InspectorScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         TextField("Screen name", text: $rename).textFieldStyle(.roundedBorder).font(.headline).accessibilityLabel("Screen name")

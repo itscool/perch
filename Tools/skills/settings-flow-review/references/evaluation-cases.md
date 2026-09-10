@@ -244,3 +244,14 @@ expanded advanced fields with their owning row using restrained contrast and a
 readable boundary. Preserve the row identity and an obvious collapse action.
 Do not add decorative containers to every unexpanded row or replace native
 dropdowns with more dialogs.
+
+### Expansion introduces a scrollbar and reflows controls
+
+Scenario: an inspector fits without scrolling until a connection editor opens.
+The new scrollbar narrows all dropdowns, shifts the pencil buttons and wraps
+labels. Collapsing the editor while scrolled down can leave the top clipped.
+
+Expected: keep content width stable across overflow, using a fixed gutter or an
+overlay inside the margin. Verify expansion, scrolling, collapse and text-field
+focus. Preserve native scrolling/accessibility and avoid covering controls.
+Responsive reflow caused by deliberately resizing the window is legitimate.

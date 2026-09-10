@@ -1,6 +1,34 @@
 # Perch 1.2 — local preview
 
-September 9, 2026, build 82 candidate; build 77 installed. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+September 9, 2026, version 1.2.84 candidate; build 77 remains the last recorded installed build. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
+
+## Version 1.2.84: Sparkle updates and consistent version display
+
+Updates now has a Settings sidebar page with an immediate-save automatic-check
+preference and Sparkle’s native download, verification and installation flow.
+The pinned framework, its license and local update-packaging tools are included.
+Development builds without a release feed/key explain that checking is not yet
+configured; no public server has been activated.
+
+Installation uses independently signed replacement identity metadata and the
+existing bounded lid ticket. The final quit gate keeps the app running if a
+handoff fails; Settings returns with the reason and Retry installation. Compatible
+app updates retain the separate lid-helper maintenance path. Real signed fixture
+install/relaunch and injected handoff failure/retry passed with a mock helper.
+Physical sleep/permission continuity remains release QA, not inferred from mocks.
+
+Versions display as **1.2.84**, including About, installed-copy notices and
+Sparkle’s bundle/appcast display version. The internal build counter stays
+monotonic. All 23 isolated suites passed; production compilation was warning-free,
+and strict nested signatures and ZIP integrity passed. See SPARKLE-REVIEW.md and DISTRIBUTION.md
+for evidence and production signing/hosting dependencies. This candidate includes
+82’s sidebar and earlier changes; it is prepared separately, not installed.
+
+The KVM plan now specifies synchronized 2–16-computer groups, up to 16 distinct
+physical monitors, ambiguous-identity confirmation, rotated physical layouts,
+three presets with Ctrl–Opt–Cmd–F1/F2/F3 defaults and pointer/focus handoff
+independent of device attachment. Windows/Linux members are backlog work. These
+are requirements, not implemented KVM capabilities. See KVM-PLAN.md.
 
 ## Build 82: persistent Settings sidebar
 
@@ -20,10 +48,10 @@ AGENT MODE; light/dark production-view renders were inspected. Broader native
 and spoken VoiceOver acceptance remain QA. Build 82 includes builds 78–81 and
 is prepared separately, not installed. See SETTINGS-SIDEBAR-82.md.
 
-The user selected direct download/Homebrew plus Sparkle, after public signing.
-Only the local signing certificate is currently available; public identity
-migration and the Sparkle installation/handoff implementation remain separate
-work in DISTRIBUTION.md. No network updater or release was activated.
+At build 82, the user selected direct download/Homebrew plus Sparkle. Local
+Sparkle integration followed in 1.2.84 while Apple enrollment processes; public
+identity migration, notarization and release activation remain separate work in
+DISTRIBUTION.md. No public release was activated.
 
 ## Build 81: keyboard and accessibility implementation
 

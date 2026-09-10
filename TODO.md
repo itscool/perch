@@ -3,7 +3,7 @@
 Reconciled September 9, 2026 for build 82. Build 77 remains installed; newer
 candidates are prepared separately. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
-order. Dependencies take precedence: public signing precedes Sparkle integration.
+order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
@@ -21,16 +21,25 @@ This supersedes stale open-item wording in dated review checkpoints.
    category list, direct access to stable pages, Setup & status as home, stable
    geometry, keyboard navigation and explicit draft discard. Tests and operational
    confirmations retain their own interaction scope. See SETTINGS-SIDEBAR-82.md.
-2. [ ] **Sparkle updater, after public signing.** Direct-download and Homebrew
-   installations use the same app. Integrate authenticated downloads, install and
-   restart, existing lid handoff, separate helper maintenance, quiet availability
-   notices and recovery. This is now planned feature work, not optional backlog.
-   Signing identity and integration prerequisites are in DISTRIBUTION.md.
-3. [ ] **Coordinated Perch KVM, replacing monitor cycling.** Settle pairing and
+2. [x] **Sparkle updater integration.** Pinned 2.9.6, signed feed/archive/identity,
+   Updates sidebar, saved checking preference, native installation, exact-identity
+   lid handoff and visible failure/retry. Real signed disposable installation and
+   mock handoff/retry passed. Public signing/hosting and live acceptance remain
+   below. SPARKLE-REVIEW.md; DISTRIBUTION.md.
+3. [ ] **Coordinated Perch KVM, replacing monitor cycling.** Support named groups
+   of 2–16 computers; pairing authorizes individual membership. One intuitive
+   group setup is editable from any member and stays synchronized, including
+   monitor identities, mappings, arrangements and shared shortcuts. Up to three
+   presets (default Ctrl–Opt–Cmd–F1/F2/F3), physical layout including rotation,
+   and pointer-boundary handoff independent of input-device attachment. Handle
+   offline catch-up, concurrent edits, revocation and per-host prerequisites. Settle
    input capture/forwarding feasibility, then authenticated handoffs, computer/port
    mappings and arrangements. Support pointer/keyboard focus transfer, hotkeys,
    optional same-keyboard host-button detection, one monitor, either/both of two,
-   and mixed arrangements. Track observed versus requested input; handle competing
+   and mixed arrangements, with up to 16 distinct physical monitors per group.
+   Establish shared physical identity across computers using serial/model
+   evidence and visual confirmation when ambiguous; retain per-host input maps.
+   Track observed versus requested input; handle competing
    requests, sleeping peers and partial failures. Migrate useful mappings and
    replace dense legacy monitor guidance. Detailed order: KVM-PLAN.md.
 
@@ -91,7 +100,7 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Release — signing, packaging and distribution
 
-1. [ ] **Public signing identity and migration, before Sparkle.** Establish Apple
+1. [ ] **Public signing identity and migration, before release.** Establish Apple
    Developer Program membership/Developer ID signing. Only the local Perch
    certificate was available on September 9. Review stable identities, helper
    trust and migration from the local certificate without silently resetting
@@ -108,6 +117,12 @@ This supersedes stale open-item wording in dated review checkpoints.
    support/recovery documentation, release notes and cask drafts.
 6. [ ] **Publish only after explicit approval** of the concrete release, relevant
    QA passing and zero known defects. Commit/push is not public release approval.
+
+Installation experience: prepare a branded DMG with an obvious app-to-Applications
+layout, then the existing Setup & status first-launch journey. Ask for feature
+permissions in context. Developer ID Application covers app/DMG signing; a future
+PKG wizard additionally needs Developer ID Installer. Verify fresh install, first
+launch, existing-install replacement and uninstall/recovery as one journey.
 
 ## Backlog — optional future work, outside current release gates
 
@@ -128,10 +143,17 @@ This supersedes stale open-item wording in dated review checkpoints.
 5. [ ] **Swap-rate metrics.** Show how quickly macOS swaps memory, with clear units
    and sampling semantics, distinct from current swap usage.
 
+6. [ ] **Windows and Linux KVM members.** Extend Perch groups to mixed operating
+   systems. Keep group membership, authentication and handoff messages portable;
+   Apple peer-to-peer discovery is an optional Mac transport. Implement native
+   input capture/injection and monitor control per platform, with suitable
+   permissions, discovery/connectivity alternatives and mixed-platform QA.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.
-Build 82 evidence is recorded in SETTINGS-SIDEBAR-82.md. Whole-app review fixes,
+Build 82 evidence is recorded in SETTINGS-SIDEBAR-82.md. Version 1.2.84 passed
+23/23 isolated suites; Sparkle fixture evidence is in SPARKLE-REVIEW.md. Whole-app review fixes,
 local replacement detection/restart and keyboard/accessibility implementation
 are complete at their stated boundaries; pending QA above remains explicit.
 

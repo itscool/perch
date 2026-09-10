@@ -145,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         installApplicationMenu()
         status.menu = menu
         appReplacement.onChange = { [weak self] in self?.refreshAppReplacement() }
+        _ = PerchVersion.current // Capture the running version before external replacement.
         appReplacement.start()
         accessNoticeStarted = true; accessNoticeDeadline = Date().addingTimeInterval(30)
         keyboardModes.onChange = { [weak self] in self?.keyboardStatusChanged() }
@@ -170,11 +171,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         lidSleepNotice.start()
         AppUpdate.completeLaunch { [weak self] in
-            if !GuardianInstall.messagingInstalled {
-                do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
-            }
-            if CommandLine.arguments.contains("--complete-update") || CommandLine.arguments.contains("--show-updates") {
-                self?.configureSettings(); self?.appSettings()
+            PerchUpdater.shared.completeLaunch { [weak self] in
+                PerchUpdater.shared.showRecovery = { [weak self] in
+                    self?.configureSettings(); self?.updateSettings()
+                }
+                PerchUpdater.shared.start()
+                if !GuardianInstall.messagingInstalled {
+                    do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
+                }
+                if CommandLine.arguments.contains("--complete-update") || CommandLine.arguments.contains("--show-updates") {
+                    self?.configureSettings(); self?.appSettings()
+                }
             }
         }
         inputTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -605,15 +612,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc func about() {
         let alert = NSAlert()
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        alert.messageText = "Perch \(version) · build \(build)"
-        alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions.\n\nVersion \(version) (build \(build))"
+        alert.messageText = "Perch \(PerchVersion.current)"
+        alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions."
 
         SettingsWindow.shared.present(alert)
     }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if let reply = PerchUpdater.shared.terminationReply(sender, willExit: { [weak self] in self?.inputs.stop() }) { return reply }
         inputs.stop()
         return .terminateNow
     }

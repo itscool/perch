@@ -1,9 +1,10 @@
 # Restart Perch and separate lid-helper maintenance
 
 **App settings → Restart Perch** closes and reopens the installed app. There is
-no Updates page, file picker, download or installation in this action. Saved
-choices are kept. A real update checker and release distribution are deferred
-until release work.
+no file picker, download or installation in this restart action. Saved choices
+are kept. The separate Updates sidebar now uses Sparkle for release updates;
+see DISTRIBUTION.md and SPARKLE-REVIEW.md. Production hosting/signing and live
+release acceptance remain pending.
 
 ## Restart contract
 

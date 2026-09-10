@@ -22,7 +22,7 @@ final class LidHelperUpdate {
         LidHelperUpdateState(info: AppUpdate.appInfo(URL(fileURLWithPath: LidGuardInstall.bundle)), lidOpen: MacLidGuardHardware().observe().closed == false)
     }
     func finish() {
-        guard !busy, !SettingsWindow.shared.testing else { return }
+        guard !busy, !AppUpdate.shared.busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing else { return }
         guard state.pending, state.lidOpen else { result = "Open the lid before finishing the queued helper update."; return }
         busy = true; result = "Installing the lid helper. macOS will ask for administrator authorization."
         let resume = LidGuardClient.shared.active
@@ -67,6 +67,6 @@ struct RestartSettingsSnapshot {
     var busy = false
     var message = ""
     static var current: Self {
-        .init(busy: AppUpdate.shared.busy || LidHelperUpdate.shared.busy || LidGuardClient.shared.changing, message: AppUpdate.shared.message)
+        .init(busy: PerchUpdater.shared.busy || AppUpdate.shared.busy || LidHelperUpdate.shared.busy || LidGuardClient.shared.changing, message: AppUpdate.shared.message)
     }
 }

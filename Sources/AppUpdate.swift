@@ -61,7 +61,7 @@ final class AppUpdate {
         }
     }
     func restartCurrentApp() {
-        guard !busy, !SettingsWindow.shared.testing, !LidHelperUpdate.shared.busy,
+        guard !busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing, !LidHelperUpdate.shared.busy,
               !LidGuardClient.shared.changing else { return }
         do {
             let target = Bundle.main.bundleURL
@@ -270,7 +270,7 @@ final class AppUpdate {
                 switch result {
                 case .success:
                     success = true
-                    let outcome = c.restartOnly == true ? "Perch restarted." : "Updated to build \(c.build)."
+                    let outcome = c.restartOnly == true ? "Perch restarted." : "Updated to \(PerchVersion.current)."
                     message = outcome + (record.ticket == nil ? " Your saved choices were kept." : " The lid session resumed with its existing battery deadline. Continued sleep prevention remains unverified.")
                 case .failure(let error): success = false; message = "Perch opened, but the lid session was not resumed. " + error.localizedDescription
                 }

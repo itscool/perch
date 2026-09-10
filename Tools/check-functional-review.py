@@ -84,7 +84,7 @@ if CommandLine.arguments.count == 3 && ["--apply-update", "--complete-update"].c
 }
 SettingsWindow.shared.testing = true
 let suites: [(String, () throws -> Void)] = [
-    ("installed app replacement", runAppReplacementTests), ("catalog", runCatalogTests), ("launch-job recovery", runAgentJobRecoveryTests), ("CPU logic", runProcessCPUTests),
+    ("network update identity", runUpdateIdentityTests), ("installed app replacement", runAppReplacementTests), ("catalog", runCatalogTests), ("launch-job recovery", runAgentJobRecoveryTests), ("CPU logic", runProcessCPUTests),
     ("protection issues", runProtectionIssueTests), ("process events", runProcessEventTests),
     ("helper IPC", runHelperStatusTests), ("housekeeping", runHousekeepingTests),
     ("privacy plan with mock executor", runPanicTests), ("input transforms", runInputTests),
@@ -148,7 +148,9 @@ def run(*command, cwd=repo):
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'EventParser.c'), '-o', str(root / 'EventParser.o'))
 run('xcrun', 'clang', '-std=c11', '-O3', '-Wall', '-Wextra', '-Werror', '-c', str(src / 'DDCWire.c'), '-o', str(root / 'DDCWire.o'))
 run('xcrun', 'clang', '-fmodules', '-fmodules-cache-path=' + str(root / 'ClangModuleCache'), '-O2', '-DMAX_DISPLAYS=16', '-I', 'Vendor/m1ddc', '-I', str(src), str(src / 'PerchDisplay.m'), str(src / 'MonitorTransport.m'), 'Vendor/m1ddc/ioregistry.m', str(root / 'DDCWire.o'), '-framework', 'CoreDisplay', '-framework', 'IOKit', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-o', str(app / 'MacOS/PerchDisplay'))
-run('xcrun', 'swiftc', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization', cwd=root)
+sparkle = subprocess.check_output(['python3', str(repo / 'Tools/sparkle-dependency.py')], text=True).strip()
+run('python3', str(repo / 'Tools/embed-sparkle.py'), str(app.parent), '--identity', '-')
+run('xcrun', 'swiftc', '-F', sparkle, '-framework', 'Sparkle', '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', '-g', '-module-cache-path', str(root / 'ModuleCache'), '-import-objc-header', str(src / 'EventParser.h'), *map(str, sorted(src.glob('*.swift'))), str(root / 'EventParser.o'), str(root / 'DDCWire.o'), '-o', str(app / 'MacOS/Perch'), '-framework', 'AppKit', '-framework', 'IOKit', '-framework', 'ServiceManagement', '-framework', 'Carbon', '-framework', 'CoreAudio', '-framework', 'Security', '-O', '-whole-module-optimization', cwd=root)
 run('codesign', '--force', '--sign', '-', str(app / 'MacOS/PerchDisplay'))
 run('codesign', '--force', '--sign', '-', str(app.parent))
 print('Isolated review artifacts:', root, flush=True)

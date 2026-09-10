@@ -2,6 +2,8 @@ import AppKit
 
 func runAppReplacementTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    try check(PerchVersion.display(version: "1.2", build: "76") == "1.2.76", "Legacy version was not normalized")
+    try check(PerchVersion.display(version: "1.2.83", build: "83") == "1.2.83", "Three-part version duplicated the build")
     func info(_ version: String, _ build: String) -> [String: Any] { ["CFBundleIdentifier": "test.perch", "CFBundleShortVersionString": version, "CFBundleVersion": build] }
     let running = AppBuild(info("1.2", "79"))!, next = AppBuild(info("1.2", "80"))!
     try check(next.newer(than: running), "New build was missed")
@@ -47,6 +49,7 @@ func runAppReplacementTests() throws {
     try FileManager.default.removeItem(at: plist); try check(reader.read() == nil, "Missing app stayed ready")
 
     let host = SettingsWindow.shared; host.testing = true
+    defer { if let alert = host.activeAlert { host.finish(alert, response: .alertSecondButtonReturn) } }
     let app = AppDelegate(); app.buildMenu()
     app.appReplacement.state = .init(running: running)
     app.refreshAppReplacement(showNotice: false)
@@ -58,7 +61,7 @@ func runAppReplacementTests() throws {
     try check(!app.replacementRestartItem!.isHidden && app.validateMenuItem(app.replacementRestartItem!), "Cached newer app had no restart action")
     try check(app.replacementInfoItem!.title.contains("79") && app.replacementInfoItem!.menuHelp != nil, "Running version/help missing")
     app.considerAppReplacementNotice()
-    try check(host.activeAlert?.informativeText.contains("build 80") == true, "First notice did not explain both builds")
+    try check(host.activeAlert?.informativeText.contains("1.2.79") == true && host.activeAlert?.informativeText.contains("1.2.80") == true, "First notice did not explain both versions")
     if let alert = host.activeAlert { host.finish(alert, response: .alertSecondButtonReturn) }
     app.considerAppReplacementNotice()
     try check(host.activeAlert == nil && app.appReplacement.state.notified, "Later did not dismiss this run's notice")

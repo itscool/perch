@@ -7,3 +7,6 @@ build/
 *.p12
 *.pfx
 *.keychain-db
+
+# Python tooling caches
+__pycache__/

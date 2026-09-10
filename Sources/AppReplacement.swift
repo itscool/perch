@@ -29,7 +29,7 @@ struct AppBuild: Equatable {
         let versionOrder = Self.compare(version, other.version)
         return versionOrder > 0 || (versionOrder == 0 && Self.compare(build, other.build) > 0)
     }
-    var title: String { "\(version) · build \(build)" }
+    var title: String { PerchVersion.display(version: version, build: build) }
 }
 
 struct AppReplacementState {
@@ -127,7 +127,7 @@ extension AppDelegate {
         if let available, let running = appReplacement.state.running {
             label(info, "Running \(running.title)", hint: "On disk \(available.title)", hintColor: StatusColors.information)
             info.menuHelp = "A newer Perch is installed at this app’s location. Restart to use it."
-            label(restart, "Restart Perch", hint: "Use build \(available.build)")
+            label(restart, "Restart Perch", hint: "Use \(available.title)")
         }
         restart.isEnabled = available != nil && !RestartSettingsSnapshot.current.busy
         if showNotice { considerAppReplacementNotice() }

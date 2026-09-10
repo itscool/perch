@@ -350,5 +350,11 @@
   "SettingsWindow.swift:navigate:alert:1": {
     "review": "Sidebar draft exit preserves saved setup; Cancel retains editor, explicit discard switches destination.",
     "acceptance": "Build 82: isolated cancel/discard/busy/actual-focus tests and native lab Escape/retry/Tab/Return discard. Broader production draft routes remain QA; SETTINGS-SIDEBAR-82.md."
+  },
+  "PerchUpdater.swift:updateSettings:task-page:1": {
+    "file": "PerchUpdater.swift",
+    "kind": "task-page",
+    "review": "SPARKLE-REVIEW.md: Updates sidebar; autosaved checking preference; shared ownership handed to standard Sparkle UI.",
+    "acceptance": "23/23 isolated suites passed including Updates unavailable-state/Back; real Sparkle signed fixture install and mock handoff failure/retry passed. Production helper/permission continuity and broader native acceptance remain release QA."
   }
 }

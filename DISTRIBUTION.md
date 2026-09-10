@@ -1,72 +1,79 @@
-# Distribution and Sparkle plan
+# Distribution and Sparkle
 
-Decision, September 9, 2026: finish persistent Settings navigation, establish
-public signing, then integrate Sparkle. Direct downloads and a Homebrew cask
-will use the same app. This is a plan, not an implemented network updater or
-authorization to publish.
+September 9, 2026: direct download/Homebrew plus Sparkle. Local integration is
+implemented while Apple Developer enrollment processes. Public release still
+requires Developer ID signing, notarization and explicit publication approval.
+Nothing in the local preparation tools uploads or publishes an app.
 
-## Ordered prerequisites
+## Implemented locally
 
-1. Establish the owner's Apple Developer Program membership and Developer ID
-   Application certificate on the release machine. The September 9 read-only
-   identity check found only `Perch Local Code Signing` on this Mac. Do not
-   replace it or change live grants while preparing distribution.
-2. Choose the stable public app/helper identities and review migration from the
-   local certificate. Existing helper IPC trusts code identity; a certificate
-   change is not an ordinary compatible UI-only update. Test the explicit
-   maintenance path, retained preferences and permission attribution.
-3. Add a release build/sign/notarize pipeline, preserving the local build path.
-   Sign nested executables/frameworks, use hardened runtime, notarize and staple
-   the distribution artifact, then test clean-machine Gatekeeper behavior.
-4. Generate and securely back up the separate Sparkle EdDSA signing key. Only
-   its public key belongs in the app/repository. Configure an HTTPS appcast and
-   versioned downloads, initially hosted through GitHub Releases/static hosting.
-5. Integrate a pinned Sparkle version, its license and update-signing tools.
-   Provide Check for updates, available version/release notes, download,
-   verification, install/restart, cancellation, failure and retry. Automatic
-   checking is a saved preference; automatic installation is a separate choice.
-6. Add the Homebrew cask pointing to that same packaged release, declaring its
-   own updater with `auto_updates`. Test externally replaced app detection as
-   well as in-app installation; two installers must not race.
+Sparkle 2.9.6 is pinned by version and SHA-256 in Tools/sparkle-dependency.py.
+build.sh links and embeds it; Tools/embed-sparkle.py signs nested executables and
+bundles explicitly and includes its license. Updates lives in the Settings
+sidebar, uses native Sparkle dialogs, saves checking preferences immediately and
+requires the user to choose installation. See SPARKLE-REVIEW.md for handoff design,
+actual signed-fixture installation/retry evidence and remaining acceptance.
 
-## Perch-specific installation contract
+Builds without update configuration remain usable and explain that release
+checking is not configured. They do not contact a placeholder server. To prepare
+a configured build, set both public values before running build.sh --output APP:
 
-- Reuse the running-versus-installed version model and avoid duplicate notices
-  between Sparkle and the existing local-replacement detector.
-- Integrate all actual installation/termination paths, including install-on-quit
-  and cancelled termination. Sparkle's relaunch-postponement callback is not
-  guaranteed to run for every installation path; it alone is insufficient.
-- Before permitting active-session replacement, establish the verified candidate
-  identity required by Perch's existing exact-code-hash restart ticket, and a
-  bounded claim/completion mechanism after Sparkle relaunches the app. Do not
-  weaken that identity check or infer it from unsigned appcast metadata. Do not
-  depend on undocumented Sparkle cache paths or internal installer classes.
-- If a safe handoff cannot be established, retain the running app and explain
-  why installation is waiting. Never silently clear the user's saved lid choice
-  or extend the original battery deadline.
-- Keep lid-helper maintenance separate: compatible app updates retain it;
-  required replacement stays visible and waits for the existing open-lid,
-  explicitly authorized maintenance flow. Ordinary app updates must not trigger
-  unnecessary administrator prompts.
-- New public signing, Sparkle integration and the real replacement/handoff
-  protocol are implementation work. Invalid downloads/signatures, interruption,
-  rollback/recovery, permission continuity, helper compatibility and lid-session
-  scenarios are QA. Neither is complete just because the app builds.
+- PERCH_UPDATE_FEED_URL: the intended HTTPS appcast URL.
+- PERCH_UPDATE_PUBLIC_KEY: the base64 32-byte public Ed25519 key.
 
-## Distribution choices
+The build applies these before signing. Only the public key goes into the app;
+never put a private key in source or command arguments. The local build still
+uses Perch Local Code Signing. Developer ID release signing of the app and all
+nested code, hardened runtime, notarization and migration acceptance are the
+next release step after enrollment. The embed tool supports an explicit identity
+and --release signing options for that pipeline.
 
-- Direct download: signed, notarized app in a DMG for initial installation;
-  Sparkle-compatible signed archives for updates.
-- Homebrew: our own cask tap initially; a second installation route to the same
-  app, not a second updater implementation.
-- PKG/managed deployment: optional later distribution work if organizations
-  need it.
-- Mac App Store: unsuitable for the present root-helper/system-control
-  architecture under its sandbox and privilege rules.
+## Prepare an update without publishing
 
-Primary references checked September 9:
-[Apple Developer ID](https://developer.apple.com/developer-id/),
-[Sparkle setup](https://sparkle-project.org/documentation/),
+Start with the final signed app, including its feed/public key and version.
+Tools/prepare-update.py APP --output DIRECTORY --download-url HTTPS_ARCHIVE_URL
+requires either --account KEYCHAIN_ACCOUNT or --key-file PRIVATE_KEY_PATH.
+Prefer a dedicated Keychain account for production. Use --notes TEXT_FILE for
+release notes and --appcast EXISTING_FEED to retain previous releases.
+
+The tool verifies the app, creates the ZIP, generates an exact signed-app identity
+manifest, signs it, checks that its signature matches the public key embedded in
+the app, signs the archive, and emits a signed appcast. It refuses duplicate
+builds/archives and unsupported multi-architecture apps. It never uploads files.
+The URL must point to the resulting Perch-VERSION.zip. Signing output is captured
+on failure because upstream tools can echo malformed private-key input.
+
+Sparkle's archive/feed key is independent of Apple's code-signing identity.
+Generate and securely back up the production key before the first public build.
+Keep the same public key in subsequent versions unless following Sparkle's
+explicit key-rotation process. Disposable fixture keys are not production keys.
+
+## Remaining release order
+
+1. Finish Apple enrollment and obtain Developer ID Application. The September 9
+   identity check found only Perch Local Code Signing on this Mac.
+2. Finalize public app/helper identities and test migration from local signing.
+   Helper IPC trusts the publisher; changing certificates is not an ordinary
+   compatible UI-only update. The signed update manifest deliberately refuses
+   unplanned publisher/protocol migration.
+3. Complete and test the Developer ID/hardened-runtime/notarization pipeline,
+   including nested executables, framework and helper; staple artifacts and
+   verify clean-machine Gatekeeper and permissions. Preserve the local build path.
+4. Secure the production EdDSA key and finalize HTTPS appcast/archive hosting.
+   Build configured releases; exercise real update, interruption and lid/session
+   scenarios listed in TODO.md. No public feed has been activated yet.
+5. Prepare a polished branded DMG with a clear drag-to-Applications layout and
+   Setup & status on first launch. Keep feature permission requests contextual.
+   Developer ID Application signs app/DMG; a PKG wizard would also need Developer
+   ID Installer. Prepare an initial Homebrew cask/tap pointing to the
+   same app, with auto_updates. Test externally replaced app detection as well
+   as in-app installation; two installers must not race.
+6. Publish only after relevant QA, zero known defects and explicit approval.
+
+Optional later distribution: PKG/managed deployment. The current root-helper
+architecture does not fit the Mac App Store's sandbox/privilege model.
+
+References: [Sparkle setup](https://sparkle-project.org/documentation/),
 [Sparkle installation delegates](https://sparkle-project.org/documentation/api-reference/Protocols/SPUUpdaterDelegate.html),
-[Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook),
-[App Store requirements](https://developer.apple.com/app-store/review/guidelines/#software-requirements).
+[Sparkle gentle reminders](https://sparkle-project.org/documentation/gentle-reminders/),
+[Apple Developer ID](https://developer.apple.com/developer-id/).

@@ -25,6 +25,7 @@ extension AppDelegate {
             item("events", "Process event collection", ["Process event collection"], #selector(processEventSetup), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
+            item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
             item("maintenance", "Maintenance", ["Maintenance"], #selector(advancedSafetySettings)),
             item("input-access", "Input access", ["Input controls"], #selector(inputPermissionsFromSettings), depth: 1),
             item("reset", "Reset Perch settings", ["Reset settings"], #selector(resetSettingsPage), depth: 1)

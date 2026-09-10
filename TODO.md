@@ -1,7 +1,7 @@
 # Perch work checklist
 
-2.0 development, September 10, 2026. Prepared Developer ID candidate: 2.0.92 (not installed/notarized).
-Last installed preview: 1.2.87. See RELEASE-1.2.md for installation evidence. Categories are distinct: known defects,
+2.0 development, September 10, 2026. Developer ID 2.0.94 is notarized and installed
+in /Applications. Public publication remains pending; see RELEASE-2.0.md for evidence. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
@@ -20,10 +20,9 @@ This supersedes stale open-item wording in dated review checkpoints.
   manual choices and offers the owner-evidenced USB-C 209 profile. Isolated
   transaction tests and native fixture clicks passed; new live hardware
   acceptance remains part of the protocol QA below. Duplicate refresh errors in
-  the Add screen dialog are also removed. Source fix; not installed locally.
+  the Add screen dialog are also removed. Installed in 2.0.94; physical monitor acceptance remains open.
 
-The installed local test build is still 1.2.87. These defects are fixed in the
-1.2.91 release candidate and await installation:
+These fixes are included in the installed 2.0.94 app:
 
 1. [x] About opened a Settings shell with unavailable navigation. It now uses
    the independent native modeless About panel.
@@ -37,7 +36,7 @@ The installed local test build is still 1.2.87. These defects are fixed in the
 
 2.0 additionally fixes setup-summary overflow, stale shared-keyboard rows,
 standard text-editing shortcuts and input handoff/ordering failures described in
-RELEASE-2.0.md. These changes await installation too.
+RELEASE-2.0.md. They are included in the installed app; hardware acceptance remains open.
 
 23/23 isolated regression suites pass. Actual hardware and broader native QA
 remain open; this is not a claim that untested behavior is defect-free.
@@ -167,9 +166,9 @@ remain open; this is not a claim that untested behavior is defect-free.
    archive/feed verification and draft-to-public GitHub publishing are implemented.
    Apple notarization credentials (Keychain profile Perch) were validated on
    September 10; the 2.0.94 app was accepted, stapled and passed Gatekeeper
-   assessment (Notarized Developer ID). Final installer/archive artifacts,
-   explicitly requested DMG notarization, public feed and real download/update
-   acceptance remain.
+   assessment (Notarized Developer ID), and is installed in /Applications. The
+   signed DMG and verified Sparkle ZIP/appcast are prepared. Explicitly requested
+   DMG notarization, public feed and real download/update acceptance remain.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.
 3. [ ] **Dependency and catalog release review.** Audit completed September 10;

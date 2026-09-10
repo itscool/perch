@@ -1,10 +1,31 @@
 # Perch 2.0 development
 
-September 10, 2026. The last installed local preview remains 1.2.87; the separate
-1.2.91 Developer ID candidate was not installed or published. Developer ID candidate 2.0.92 builds without warnings and passes nested signature
-and bundled-resource verification. It is not installed or notarized. Version 2.0
-is now the active development line. This record distinguishes implementation, isolated
-QA and hardware acceptance.
+September 10, 2026. Developer ID 2.0.94 is now installed in /Applications and
+running through LaunchServices. Apple accepted its notarization; the stapled app
+passes strict nested signature verification and Gatekeeper as Notarized Developer ID.
+Version 2.0 is the active development line. This record distinguishes implementation,
+isolated QA and hardware acceptance.
+
+## 2.0.94 installation and release checkpoint
+
+- Installed the app from the verified signed DMG, replacing the running 1.2.87
+  development instance via a graceful application termination and LaunchServices.
+  Candidate source snapshot matches commit 466b2ec; later build-tool/documentation
+  commits are not represented as compiled into this app.
+- Before and after installation: the saved include-lid setting stayed enabled,
+  SleepDisabled remained 0, and normal Keep Awake was present after relaunch.
+  No active lid ownership record existed before replacement. The older helper was
+  not reinstalled; publisher compatibility must be resolved through the queued
+  helper-update flow before starting a new protected session.
+- AGENT MODE was shown and then stopped. Native desktop inspection timed out, so
+  this records process/version/signature verification, not a successful UI or
+  physical lid test. No live permissions were reset or hardware tests triggered.
+- The signed DMG passes hdiutil verification. The notarized-app Sparkle ZIP and
+  appcast pass signature/version/archive-reference verification. DMG notarization
+  has not been requested/submitted. No GitHub release or public feed exists yet.
+- Publication remains gated by the explicit DMG notarization preference and the
+  open LG table redistribution review. A real published-version update/restart
+  remains QA, including protected-lid handoff and failed/retried installation.
 
 ## Implemented
 

@@ -310,3 +310,17 @@ codes. Expected: trace detection through suggestion, override and saved setup in
 the new page, including remote devices and late results. Do not call retention
 complete from library tests, silently replace a manual choice, infer unique
 physical identity from a model family, or restore intentionally retired features.
+
+### Native inventory misses a family of declarative settings sheets
+
+Scenario: a source gate inventories every native alert and settings constructor.
+One hosted declarative root uses a string-selected sheet for pairing, ordinary
+preferences, conflict resolution, removal and device control. The native gate
+counts the root once, while old fixture-only pages contribute many extra sites.
+
+Expected: enumerate the production sheet cases and their distinct save/exit/error
+journeys; separate fixture-only pages from current user routes. Do not infer full
+coverage or interaction ownership from a passing native constructor gate. Ordinary
+settings may benefit from direct navigation, but real pairing and destructive
+confirmation may legitimately remain dialogs. Static-only permission does not
+authorize launching those sheets to obtain missing native evidence.

@@ -14,6 +14,7 @@ Use these checks to find concrete failures in the actual product, not as a manda
 ## Ordinary changes and valid replacements
 
 - Trace each control through persistence and application, not only its handler name. Does a checkbox take effect immediately? Can validation elsewhere in the form unexpectedly block it? Does a write failure restore the prior value or retain the appropriate draft with an error?
+- Trace disabling separately from enabling. A damaged optional profile or device-setup store must not force the user to repair or erase it merely to stop an already-enabled behavior; preserve unrelated working data where the operation permits it.
 - Count decisions, not button names: Select model → Use preset → Use input list → Save is still multiple acceptance layers even without Done. One actual final transaction can be justified; nested acceptance for ordinary selections usually cannot.
 - When removing a child Apply button, define how Back carries valid edits into the parent draft. An unchanged empty child must still allow Back; invalid edits need an in-page correction or explicit discard route, without silently losing the working setup. Closing the whole draft must not accidentally commit child edits.
 - Inspect parent and child drafts. Going Back from a child should preserve the parent proposal; cancelling the whole replacement should retain the working setup. Editing after a successful check must invalidate any validation that no longer applies.

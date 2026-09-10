@@ -21,7 +21,7 @@ Default to a focused settings/setup review. Apply the same principles to related
 
 For a full dialog-set review, read [journey-checks.md](references/journey-checks.md). For a narrow task, apply its relevant checks to the affected journey and shared components without expanding into unrelated work.
 
-Inventory every in-scope page, nested dialog, shared alert, popup, result, permission handoff and entry route. Enumerate actual call sites and runtime pages; searching for Done, Save or Cancel is only a way to locate controls. Include hidden/error/empty states, advanced and maintenance pages, and dialogs reached from both a menu and Settings.
+Inventory every in-scope page, nested dialog, shared alert, popup, result, permission handoff and entry route. Enumerate actual call sites and runtime pages; searching for Done, Save or Cancel is only a way to locate controls. Include hidden/error/empty states, advanced and maintenance pages, and dialogs reached from both a menu and Settings. In mixed UI frameworks, a native-constructor inventory may miss declarative sheets and popovers; expand each state-selected child into its actual journeys. Distinguish reachable production pages from retained demos or retired fixture routes before claiming full coverage.
 
 Keep one coverage ledger in the task's existing review record or a suitable artifact. Use a compact structure such as:
 

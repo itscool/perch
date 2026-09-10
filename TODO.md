@@ -8,6 +8,38 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+Full static Settings UX review at cb44f87: **one P1 and ten P2 findings**.
+Fix in this order; details and the complete page/child coverage ledger are in
+SETTINGS-UX-REVIEW-2.0.94.md. These are source findings, not new live-test results.
+
+1. [ ] **U1 / P1:** Validate emergency-shortcut conflicts against live Desk presets;
+   preserve a working shortcut on failed registration and show actual readiness.
+2. [ ] **U2 / P2:** Correct reset scope: Device setup / Reset all currently retains
+   Desk arrangements and shortcuts. Define local versus shared reset explicitly.
+3. [ ] **U3 / P2:** Allow navigation behavior to be disabled when saved layouts
+   cannot be read; disabling must not require resetting the layout store.
+4. [ ] **U4 / P2:** Complete the setup recovery route for blocked agents with the
+   existing Resume action and blocked-state explanation in Settings.
+5. [ ] **U5 / P2:** Preserve validation/save errors when adding an agent; the
+   unconditional list rebuild currently clears them immediately.
+6. [ ] **U6 / P2:** Add an optional next-keyboard/relearn action after layout setup
+   completes, without automatically restarting capture.
+7. [ ] **U7 / P2:** Make Desk input-name/code replacement editing retain incomplete
+   drafts and explain invalid input without silently rejecting keystrokes.
+8. [ ] **U8 / P2:** Refresh pristine screen-name fields after a remote rename;
+   retain and reconcile actual local drafts separately.
+9. [ ] **U9 / P2:** Show all meaningful arrangement differences before resolving
+   a Desk conflict, including mappings, control routes and shortcuts.
+10. [ ] **U10 / P2:** Remove remaining instructions referring to nonexistent Back
+    controls on direct-sidebar pages and their error/completion states.
+11. [ ] **U11 / P2:** Add the missing custom-app creation/removal path in navigation
+    exceptions, preserving browser defaults and immediate saving.
+
+After functional corrections, consider review refinements D1–D3: direct access to
+ordinary Desk/input settings, context for inactive Appearance controls, and a
+readiness-first permission page. These are design recommendations, not claims
+of additional confirmed runtime failures.
+
 - [ ] **Setup recovery acceptance before the next release.** Source fixes cover
   all seven review findings plus the lid-menu setup dead end. The ownership gate
   and compile-only regression build are checked; native tests are deferred under

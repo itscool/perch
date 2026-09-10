@@ -20,6 +20,13 @@ certificate does not itself authenticate notarytool.
 
 ## Pipeline
 
+Notarization is opt-in: request it explicitly for the intended app and/or installer.
+Routine builds, signing, installation, release preparation and credential setup
+do not trigger or authorize submissions. `submit-app` and `submit-dmg` are separate
+submission stages; authorizing the app alone does not authorize the DMG or later
+builds. Checking an existing submission and stapling its accepted ticket do not
+submit another artifact.
+
 Create a Python 3.10+ virtual environment and install Release/requirements.txt.
 Use its python for packaging (the other stages also work with system Python).
 

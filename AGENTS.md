@@ -1,3 +1,14 @@
+# Notarization authorization
+
+Submit artifacts to Apple for notarization only when the user explicitly requests
+notarization for those artifacts. Building, signing, installing, preparing a
+release, or storing credentials does not authorize a notarization submission.
+Do not automatically notarize subsequent builds or the DMG after an app submission.
+An explicit request covering both app and installer authorizes both stages.
+Status/log checks for an existing submission and stapling its accepted ticket do
+not create a new submission. The current 2.0.94 app submission remains in progress;
+this preference does not request its cancellation.
+
 # Live UI testing
 
 Before operating the live desktop, announce the app/flow and start the separate

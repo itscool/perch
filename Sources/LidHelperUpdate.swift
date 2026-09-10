@@ -8,9 +8,9 @@ struct LidHelperUpdateState: Equatable {
         guard pending else { return installed ? "Lid helper is up to date." : "Lid protection is optional. Set it up in Keep awake when needed." }
         return lidOpen ? "Lid helper update ready. Finish it below when convenient." : "Lid helper update queued. Open the lid to finish it; the existing helper stays installed."
     }
-    init(info: [String: Any], lidOpen: Bool) {
+    init(info: [String: Any], lidOpen: Bool, publisherMatches: Bool = true) {
         installed = !info.isEmpty; self.lidOpen = lidOpen
-        pending = installed && (info["PerchLidProtocolVersion"] as? Int != LidGuardCompatibility.protocolVersion ||
+        pending = installed && (!publisherMatches || info["PerchLidProtocolVersion"] as? Int != LidGuardCompatibility.protocolVersion ||
             (info["PerchLidHelperVersion"] as? Int ?? 0) < LidGuardCompatibility.helperVersion)
     }
 }
@@ -18,8 +18,18 @@ final class LidHelperUpdate {
     static let shared = LidHelperUpdate()
     private(set) var busy = false
     private(set) var result: String?
+    private var publisherMarker: String?
+    private var matchingPublisher = false
     var state: LidHelperUpdateState {
-        LidHelperUpdateState(info: AppUpdate.appInfo(URL(fileURLWithPath: LidGuardInstall.bundle)), lidOpen: MacLidGuardHardware().observe().closed == false)
+        // This cache only controls the update notice. XPC and the installer
+        // independently verify signatures before accepting or executing code.
+        let attributes = try? FileManager.default.attributesOfItem(atPath: LidGuardInstall.binary)
+        let marker = [FileAttributeKey.systemFileNumber, .size, .modificationDate].map { String(describing: attributes?[$0]) }.joined(separator: "|")
+        if marker != publisherMarker {
+            publisherMarker = marker
+            matchingPublisher = LidGuardInstall.publisherMatches(URL(fileURLWithPath: LidGuardInstall.bundle))
+        }
+        return LidHelperUpdateState(info: AppUpdate.appInfo(URL(fileURLWithPath: LidGuardInstall.bundle)), lidOpen: MacLidGuardHardware().observe().closed == false, publisherMatches: matchingPublisher)
     }
     func finish() {
         guard !busy, !AppUpdate.shared.busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing else { return }

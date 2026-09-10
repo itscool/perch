@@ -2,6 +2,11 @@ import AppKit
 
 func runKeyboardRegistrationTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    let functionCodes: [UInt32] = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113, 106, 64, 79, 80, 90]
+    for (i, code) in functionCodes.enumerated() {
+        try check(DeskShortcutKey.code("F\(i + 1)") == code, "Desk offered function key does not map to its Mac virtual key")
+    }
+    try check(DeskShortcutKey.code("F21") == nil && DeskShortcutKey.code("Esc") == nil, "Unsupported Desk key gained a guessed Mac mapping")
     // A fresh Mac can expose registry metadata while the input client returns
     // no conformance/elements. Recognition must not depend on that client.
     let inputKeys: [[String: Any]] = [74, 77, 75, 78, 4, 224].map { ["UsagePage": 7, "Usage": $0, "Type": 2] }

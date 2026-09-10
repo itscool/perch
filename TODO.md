@@ -7,11 +7,21 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-No confirmed unresolved defect is currently recorded for 1.2.87. The old monitor
-usability defect is resolved by replacing its production entry points with Desk.
-The native Appearance preview overlap and removed-member recovery gap found in
-this pass were fixed before installation. Physical and broader native QA below
-remain open; this statement is not a claim that untested behavior is defect-free.
+The installed local test build is still 1.2.87. These defects are fixed in the
+1.2.89 release candidate source and await installation:
+
+1. [x] About opened a Settings shell with unavailable navigation. It now uses
+   the independent native modeless About panel.
+2. [x] Desk default F1–F3 shortcuts could not register because the runtime used
+   the emergency shortcut's smaller key list. All offered F1–F20 keys now map
+   explicitly; failed registration leaves no partially active preset set.
+3. [x] Lid helper installation rejected Sparkle's legitimate framework links.
+   The installer now permits only the pinned relative links, verifies nested
+   signatures, and rejects redirected/extra links. Publisher mismatch queues
+   a helper update rather than claiming the old helper is current.
+
+23/23 isolated regression suites pass. Actual hardware and broader native QA
+remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
@@ -122,14 +132,16 @@ remain open; this statement is not a claim that untested behavior is defect-free
 
 ## Release — signing, packaging and distribution
 
-1. [ ] **Public signing identity, before release.** Establish Apple
-   Developer Program membership/Developer ID signing. The 1.2.87 test build uses the local Perch
-   signing certificate; verify Developer ID availability before public signing. Review stable identities, helper
-   trust and clean-install permissions. Migration from development certificates
-   is not required. See DISTRIBUTION.md; membership confirmation is pending.
-2. [ ] **Distribution build pipeline.** Direct-download package plus our own
-   Homebrew cask tap; remove machine-specific identity/path/certificate assumptions.
-   Decide supported Mac/macOS scope; sign nested code, notarize and staple.
+1. [x] **Public signing identity.** Developer ID Application for team S42F8BV6J2
+   is available and a hardened, timestamped release build succeeds. New publisher
+   helper compatibility is explicit; no development-certificate migration.
+2. [ ] **Distribution build pipeline.** Developer ID build, production Sparkle
+   Keychain key/config, branded DMG, signing, notarization submission/stapling,
+   archive/feed verification and draft-to-public GitHub publishing are implemented.
+   Apple notarization credentials (Keychain profile Perch), Apple acceptance,
+   final artifacts, public feed and real download/update acceptance remain.
+   Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
+   draft follows verified public artifacts. See Release/README.md.
 3. [ ] **Dependency and catalog release review.** Audit provenance/licenses;
    define catalog/profile maintenance; include required notices and package checks.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
@@ -170,6 +182,12 @@ launch, existing-install replacement and uninstall/recovery as one journey.
    Apple peer-to-peer discovery is an optional Mac transport. Implement native
    input capture/injection and monitor control per platform, with suitable
    permissions, discovery/connectivity alternatives and mixed-platform QA.
+
+7. [ ] **VM adapters.** Treat virtual machines as workspace destinations alongside
+   physical computers. Choose the initial hypervisor (Parallels, Fusion or UTM)
+   with the user before implementing discovery, console selection and input
+   routing. Preserve native guest input ownership and handle stopped/locked guests
+   explicitly. Deferred by the user; not part of this release.
 
 ## Completed evidence and ongoing maintenance
 

@@ -4,6 +4,22 @@ September 9, 2026, version **1.2.87** installed local test build. The whole-app 
 physical acceptance checks remain in TODO.md and V1.2-REVIEW.md. The previous
 release is 1.1. This is not a published or notarized release.
 
+## Version 1.2.89 candidate: first Developer ID distribution
+
+Prepared independently of the running 1.2.87 app. About now opens its own
+modeless native panel. Desk shortcuts map every offered F1–F20 key, including
+the default Ctrl–Opt–Cmd–F1/F2/F3 presets. The lid-helper installer accommodates
+only Sparkle's expected relative framework links while preserving strict nested
+signature checks; incompatible helper publishers queue an explicit update.
+
+The release pipeline signs with Developer ID/hardened runtime/secure timestamps,
+uses a Keychain-held production Sparkle key, prepares a branded app-to-Applications
+DMG, and gates archive/feed publication on Apple notarization and package checks.
+All 23 isolated regression suites passed. Native About open/close passed; full
+sidebar mouse navigation and clean-install/hardware acceptance remain QA.
+Notarization credentials, Apple acceptance, final public assets/feed and installation
+are pending. This entry does not describe a published release.
+
 ## Version 1.2.87: shared Desk and Menu Appearance
 
 Desk is now part of the main app. Approve both computers to join a trusted group,

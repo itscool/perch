@@ -86,6 +86,7 @@ ET.SubElement(item, 'title').text = f'Perch {info["CFBundleShortVersionString"]}
 ET.SubElement(item, f'{{{S}}}version').text = info['CFBundleVersion']
 ET.SubElement(item, f'{{{S}}}shortVersionString').text = info['CFBundleShortVersionString']
 ET.SubElement(item, f'{{{S}}}minimumSystemVersion').text = info.get('LSMinimumSystemVersion', '26.0')
+ET.SubElement(item, f'{{{S}}}hardwareRequirements').text = 'arm64'
 if a.notes:
     ET.SubElement(item, 'description', {f'{{{S}}}format':'plain-text'}).text = a.notes.read_text()
 ET.SubElement(item, f'{{{P}}}identity').text = base64.b64encode(manifest).decode()

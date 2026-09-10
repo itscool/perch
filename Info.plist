@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleExecutable</key>
 	<string>Perch</string>
+	<key>CFBundleIconFile</key>
+	<string>Perch</string>
 	<key>CFBundleIdentifier</key>
 	<string>local.scott.perch</string>
 	<key>CFBundleName</key>
@@ -11,13 +13,15 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.87</string>
+	<string>1.2.89</string>
 	<key>CFBundleVersion</key>
-	<string>87</string>
+	<string>89</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Perch uses Automation for the system and keyboard settings you choose, and for installing its optional helpers.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_perch-desk._tcp</string>

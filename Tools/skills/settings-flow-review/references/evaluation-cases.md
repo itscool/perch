@@ -255,3 +255,13 @@ Expected: keep content width stable across overflow, using a fixed gutter or an
 overlay inside the margin. Verify expansion, scrolling, collapse and text-field
 focus. Preserve native scrolling/accessibility and avoid covering controls.
 Responsive reflow caused by deliberately resizing the window is legitimate.
+
+### About opens an unusable settings shell
+
+Scenario: About opens inside the shared settings window, acquires an alert scope,
+and disables the visible category list. Only dismissing About works.
+
+Expected: use an independent modeless About dialog, or a normal navigable page
+with no exclusive interaction lock. Verify the existing settings page, draft,
+and focus survive opening and closing it. Keep real confirmation/test ownership
+when a competing action would be unsafe.

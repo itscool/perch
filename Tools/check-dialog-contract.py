@@ -7,6 +7,7 @@ import json, re, sys
 from pathlib import Path
 repo = Path(__file__).resolve().parents[1]
 patterns = {
+    'about-panel': r'\bNSApp\.orderFrontStandardAboutPanel\(',
     'alert': r'\bNSAlert\(', 'picker': r'\bNSOpenPanel\(',
     'panel': r'\b(?:NSPanel|SettingsPanel)\(', 'task-page': r'\bSettingsTaskPage\(title:',
     'page': r'(?:SettingsWindow\.shared|host)\.show\(',

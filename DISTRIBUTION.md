@@ -1,9 +1,11 @@
 # Distribution and Sparkle
 
-September 9, 2026: direct download/Homebrew plus Sparkle. Local integration is
-implemented while Apple Developer enrollment processes. Public release still
-requires Developer ID signing, notarization and explicit publication approval.
-Nothing in the local preparation tools uploads or publishes an app.
+September 9, 2026: Developer ID Application is available; production signing and
+Sparkle configuration are implemented. The 1.2.89 candidate is separate from the
+running local build. Apple notarization credentials/acceptance, final publication
+and public update acceptance remain pending. Release/README.md documents explicit
+build, submit, package, verify and publish stages; only submit/publish stages
+upload externally. Tools/prepare-update.py alone remains local-only.
 
 ## Implemented locally
 
@@ -24,8 +26,8 @@ a configured build, set both public values before running build.sh --output APP:
 The build applies these before signing. Only the public key goes into the app;
 never put a private key in source or command arguments. The local build still
 uses Perch Local Code Signing. Developer ID release signing of the app and all
-nested code, hardened runtime, notarization and clean-install acceptance are the
-next release step after enrollment. The embed tool supports an explicit identity
+nested code and hardened runtime are implemented in Tools/release.py; Apple
+notarization and clean-install acceptance remain release gates. The embed tool supports an explicit identity
 and --release signing options for that pipeline.
 
 ## Prepare an update without publishing
@@ -50,25 +52,23 @@ explicit key-rotation process. Disposable fixture keys are not production keys.
 
 ## Remaining release order
 
-1. Finish Apple enrollment and obtain Developer ID Application. The September 9
-   identity check found only Perch Local Code Signing on this Mac.
-2. Finalize public app/helper identities and test clean installation.
-   Helper IPC trusts the publisher; changing certificates is not an ordinary
-   compatible UI-only update. The signed update manifest deliberately refuses
-   incompatible publishers/protocols. No development-build migration is required.
-3. Complete and test the Developer ID/hardened-runtime/notarization pipeline,
-   including nested executables, framework and helper; staple artifacts and
-   verify clean-machine Gatekeeper and permissions. Preserve the local build path.
-4. Secure the production EdDSA key and finalize HTTPS appcast/archive hosting.
-   Build configured releases; exercise real update, interruption and lid/session
-   scenarios listed in TODO.md. No public feed has been activated yet.
-5. Prepare a polished branded DMG with a clear drag-to-Applications layout and
-   Setup & status on first launch. Keep feature permission requests contextual.
-   Developer ID Application signs app/DMG; a PKG wizard would also need Developer
-   ID Installer. Prepare an initial Homebrew cask/tap pointing to the
-   same app, with auto_updates. Test externally replaced app detection as well
-   as in-app installation; two installers must not race.
-6. Publish only after relevant QA, zero known defects and explicit approval.
+1. Store notarization credentials in the Perch Keychain profile, submit the signed
+   app, and obtain Apple's acceptance. Developer ID Application and the production
+   Ed25519 key (Keychain account perch-production) are already available.
+2. Staple the app, create and verify the branded DMG and signed update ZIP/feed,
+   notarize/staple the DMG, and verify Gatekeeper. Packaging/layout and isolated
+   failure gates are tested; final notarization acceptance is not yet complete.
+3. Verify clean installation and contextual permissions. Helper IPC trusts the
+   publisher; incompatible helper signatures queue explicit repair. No migration
+   from development signing or weaker trust is required.
+4. Publish the verified assets together through the draft GitHub release stage.
+   The feed is https://github.com/itscool/perch/releases/latest/download/appcast.xml.
+   It is not live yet. Exercise public download and native update acceptance,
+   plus interruption/lid scenarios tracked in TODO.md.
+5. Prepare the Homebrew cask/tap against verified public checksums. Test external
+   replacement detection and in-app updating; two installers must not race.
+6. Publication needs relevant QA, zero known defects in the candidate and explicit
+   user authorization. A request to commit/push alone is not publication approval.
 
 Optional later distribution: PKG/managed deployment. The current root-helper
 architecture does not fit the Mac App Store's sandbox/privilege model.

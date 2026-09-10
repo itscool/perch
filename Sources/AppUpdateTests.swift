@@ -16,6 +16,7 @@ func runAppUpdateTests() throws {
     try runDisposableUpdateWorkerTest(cancel: true)
     let current: [String: Any] = ["PerchLidProtocolVersion": LidGuardCompatibility.protocolVersion, "PerchLidHelperVersion": LidGuardCompatibility.helperVersion, "CFBundleVersion": "1"]
     try check(!LidHelperUpdateState(info: current, lidOpen: false).pending, "App build changes unnecessarily replace the lid helper")
+    try check(LidHelperUpdateState(info: current, lidOpen: false, publisherMatches: false).pending, "Different helper publisher incorrectly appears up to date")
     let pending = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: false)
     try check(pending.pending && pending.notice.contains("queued"), "Mismatched helper did not queue a visible update")
     try check(LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true).notice.contains("ready"), "Opening the lid did not expose the next helper action")

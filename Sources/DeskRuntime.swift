@@ -21,6 +21,16 @@ enum DeskDeviceMessage: Codable {
     case inspect(String)
     case identify(String, String)
 }
+enum DeskShortcutKey {
+    // Carbon virtual key codes are not consecutive. Keep this independent of
+    // the smaller set of keys offered by the emergency shortcut picker.
+    static let codes = [kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+                        kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20]
+    static let names = codes.indices.map { "F\($0 + 1)" }
+    static func code(_ name: String) -> UInt32? {
+        names.firstIndex(of: name).map { UInt32(codes[$0]) }
+    }
+}
 final class DeskRuntime: ObservableObject {
     let node: KVMDeskNode
     let switching: KVMMonitorSwitch
@@ -56,7 +66,7 @@ final class DeskRuntime: ObservableObject {
     deinit { refreshTimer?.invalidate() }
     func stop() {
         refreshTimer?.invalidate(); refreshTimer = nil
-        hotKeys.forEach { try? $0.register(PanicShortcut(enabled: false)) }; hotKeys = []
+        hotKeys.forEach { $0.unregister() }; hotKeys = []; registeredShortcuts = []
         node.stop()
     }
     func start() throws {
@@ -251,7 +261,7 @@ final class DeskRuntime: ObservableObject {
         hotKeys.forEach { try? $0.register(PanicShortcut(enabled: false)) }; hotKeys = []; registeredShortcuts = shortcuts
         do {
             for (i, shortcut) in shortcuts.enumerated() {
-                let key = PanicShortcut.keys.first { $0.0 == shortcut.key }?.1
+                let key = DeskShortcutKey.code(shortcut.key)
                 guard let key else { throw KVMError("This Mac cannot register \(shortcut.label). Change the shortcut in Desk settings.") }
                 let hotkey = PanicHotKey(signature: UInt32(0x50444B30 + i))
                 var modifiers: UInt32 = 0
@@ -265,7 +275,11 @@ final class DeskRuntime: ObservableObject {
                 hotKeys.append(hotkey)
             }
             shortcutProblem = nil
-        } catch { shortcutProblem = error.localizedDescription }
+        } catch {
+            // A failed set must not leave only some presets registered.
+            hotKeys.forEach { $0.unregister() }; hotKeys = []
+            shortcutProblem = error.localizedDescription
+        }
     }
 }
 

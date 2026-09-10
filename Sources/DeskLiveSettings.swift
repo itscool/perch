@@ -150,7 +150,7 @@ struct DeskLiveSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("Preset \(i+1)", text: Binding(get: { node.group.presets[i].name }, set: { value in perform { var group = node.group; group.presets[i].name = value; try node.edit(group) } })).textFieldStyle(.roundedBorder)
                     HStack {
-                        Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(1...20, id: \.self) { Text("F\($0)").tag("F\($0)") } }.frame(width: 100)
+                        Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(DeskShortcutKey.names, id: \.self) { Text($0).tag($0) } }.frame(width: 100)
                         modifier("Ctrl", \.control, i); modifier("Opt", \.option, i); modifier("Cmd", \.command, i); modifier("Shift", \.shift, i)
                     }
                 }

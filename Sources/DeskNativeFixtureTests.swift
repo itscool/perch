@@ -52,4 +52,5 @@ func runDeskNativeFixture() throws {
     SettingsWindow.shared.window.center()
     SettingsWindow.shared.window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+    if CommandLine.arguments.contains("--show-about") { app.about() }
 }

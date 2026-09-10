@@ -317,12 +317,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "main.swift:about:alert:1": {
-    "file": "main.swift",
-    "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "PanicUI.swift:configurePanic:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
@@ -364,5 +358,9 @@
   "DeskLiveSettings.swift:deskSettings:page:1": {
     "review": "KVM-LIVE-REVIEW.md \u2014 shared sidebar Desk, scoped SwiftUI sheets, pairing approval, screen identity, controls, conflicts and removal.",
     "acceptance": "Implementation review in progress. Native journeys and actual monitor acceptance pending."
+  },
+  "main.swift:about:about-panel:1": {
+    "review": "RELEASE-DISTRIBUTION-REVIEW.md",
+    "acceptance": "Standalone modeless AppKit About panel; independent Settings state, native close/reopen acceptance pending."
   }
 }

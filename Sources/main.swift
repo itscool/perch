@@ -586,11 +586,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func about() {
-        let alert = NSAlert()
-        alert.messageText = "Perch \(PerchVersion.current)"
-        alert.informativeText = "Your Mac, ready for AI work.\n\nKeep your Mac awake through long tasks, control sound and input preferences, and see how local workloads use CPU, GPU, and memory.\n\nIf you need control back, Panic terminates selected agents and their tracked child processes, with an option to reset privacy permissions."
-
-        SettingsWindow.shared.present(alert)
+        // Informational windows do not acquire the settings interaction scope.
+        // AppKit retains and reuses its independent, modeless About panel.
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Perch",
+            .applicationVersion: PerchVersion.current,
+            .version: "",
+            .credits: NSAttributedString(string: "Your Mac, ready for AI work.\n\nShared monitor presets, keyboard preferences,\nkeep-awake controls and local workload monitoring.",
+                attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor])
+        ])
+        NSApp.activate(ignoringOtherApps: true)
     }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

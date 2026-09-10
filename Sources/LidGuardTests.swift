@@ -48,12 +48,29 @@ func runLidGuardTests() throws {
     let current: [String: Any] = ["CFBundleIdentifier": "fixture.perch", "CFBundleVersion": "84", "PerchLidProtocolVersion": LidGuardCompatibility.protocolVersion, "PerchLidHelperVersion": LidGuardCompatibility.helperVersion]
     var installed = current; installed["PerchLidHelperVersion"] = 0
     try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-    try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Cleanup would retry the older helper instead of upgrading it")
+    try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable, verifyPublisher: { _ in true }), "Cleanup would retry the older helper instead of upgrading it")
     try PropertyListSerialization.data(fromPropertyList: current, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Matching helper unnecessarily requires installation for cleanup")
+    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable, verifyPublisher: { _ in true }), "Matching helper unnecessarily requires installation for cleanup")
     installed = current; installed["CFBundleVersion"] = "999"
     try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Explicit cleanup unnecessarily installed a queued app-only helper update")
+    try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable, verifyPublisher: { _ in true }), "Explicit cleanup unnecessarily installed a queued app-only helper update")
+    try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable, verifyPublisher: { _ in false }), "Cleanup reused a helper signed by another publisher")
+    let framework = fixture.appendingPathComponent("Contents/Frameworks/Sparkle.framework")
+    try FileManager.default.createDirectory(at: framework.appendingPathComponent("Versions/B/Resources"), withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: framework.appendingPathComponent("Versions/Current").path, withDestinationPath: "B")
+    try FileManager.default.createSymbolicLink(atPath: framework.appendingPathComponent("Resources").path, withDestinationPath: "Versions/Current/Resources")
+    func acceptsLinks() throws -> Bool {
+        let task = Process(); task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-ec", LidGuardInstall.bundleLinkValidationCommand(fixture.path)]
+        try task.run(); task.waitUntilExit(); return task.terminationStatus == 0
+    }
+    try check(try acceptsLinks(), "Valid Sparkle framework links blocked helper installation")
+    try FileManager.default.removeItem(at: framework.appendingPathComponent("Resources"))
+    try FileManager.default.createSymbolicLink(atPath: framework.appendingPathComponent("Resources").path, withDestinationPath: "/tmp")
+    try check(try !acceptsLinks(), "Redirected framework link escaped helper validation")
+    try FileManager.default.removeItem(at: framework.appendingPathComponent("Resources"))
+    try FileManager.default.createSymbolicLink(atPath: fixture.appendingPathComponent("unexpected").path, withDestinationPath: "Contents")
+    try check(try !acceptsLinks(), "Unexpected bundle link escaped helper validation")
     let closedBattery = LidObservation(closed: true, power: .battery), closedAC = LidObservation(closed: true, power: .external)
     var policy = LidGuardPolicy()
     try check(policy.step(closedAC, now: 0, authorized: true).preventLidSleep, "Closed powered operation failed")

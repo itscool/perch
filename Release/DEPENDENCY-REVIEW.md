@@ -17,7 +17,11 @@ This review does not certify hardware support or close lifecycle/accessibility Q
    the review does not invent one. Perch distributes the editable JSON source.
    DDCControl-derived JSON likewise carries its license, source permalinks and
    modification notice. No GPL monitor driver program is linked into Perch.
-3. **Open public-release decision: LG table.** The 162 extracted firmware-family
+3. **Open public-release decision: LG table.** Exact installer agreement now
+   inspected: see [LG-LICENSE-REVIEW.md](LG-LICENSE-REVIEW.md). It contains
+   distribution restrictions and no express grant for our extracted table;
+   factual-data status and contract applicability remain distinct questions.
+   The 162 extracted firmware-family
    records come from proprietary OnScreen Control 7.20. The original artifact hash
    and method are recorded, but no redistribution basis was documented. General
    LG website/service terms do not establish the precise license for that artifact

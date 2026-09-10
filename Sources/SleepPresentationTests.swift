@@ -13,13 +13,13 @@ func runSleepPresentationTests() throws {
     try check(!SleepStatus.isPerchKeepAwake(assertion), "Released assertion stayed active")
     let off = SleepStatus(perchActive: false, caffeinateProcesses: [])
     for master in [false, true] {
-        let stopped = SleepPresentation(ordinary: off, actualLid: .off, savedLid: true, masterWanted: master, legacy: false, changing: false, remaining: nil)
+        let stopped = SleepPresentation(ordinary: off, actualLid: .off, savedLid: true, masterWanted: master, changing: false, remaining: nil)
         try check(stopped.lid == .on && stopped.lidEnabled && stopped.awake == .off, "Stopped preference unchecked, locked or claimed active")
         try check(stopped.lidHint.contains(master ? "protection stopped" : "Applies when"), "Saved choice has no inactive explanation")
     }
-    let unknown = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: true, masterWanted: true, legacy: false, changing: false, remaining: nil)
+    let unknown = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: true, masterWanted: true, changing: false, remaining: nil)
     try check(unknown.lid == .on && !unknown.lidEnabled && unknown.lidHint.contains("unknown"), "Unknown session lost intent or allowed unsafe write")
-    let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, legacy: false, changing: false, remaining: 42)
+    let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: 42)
     try check(active.awake == .on && active.awakeHint == "Lid mode requested" && active.lidHint.contains("42"), "Final snapshot lost lid state/countdown")
     let app = AppDelegate(); app.buildMenu(); app.observedSleep = off; app.observedLidDisabled = false
     app.applyLidSleepPresentation()
@@ -85,21 +85,21 @@ func runSleepPresentationTests() throws {
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Show Perch in Finder" }, "Access recovery has no route to the installed copy")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-launch-access-recovery.png")
     host.goBack()
-    let previousPreference = UserDefaults.standard.object(forKey: SleepMasterChange.lidPreferenceKey)
+    let previousPreference = UserDefaults.standard.object(forKey: SleepPreferences.lidPreferenceKey)
     let previousConfig = SafetyConfiguration.load()
     defer {
-        if let previousPreference { UserDefaults.standard.set(previousPreference, forKey: SleepMasterChange.lidPreferenceKey) }
-        else { UserDefaults.standard.removeObject(forKey: SleepMasterChange.lidPreferenceKey) }
+        if let previousPreference { UserDefaults.standard.set(previousPreference, forKey: SleepPreferences.lidPreferenceKey) }
+        else { UserDefaults.standard.removeObject(forKey: SleepPreferences.lidPreferenceKey) }
         try? previousConfig.save()
     }
     var config = previousConfig; config.keepAwake = false; try config.save()
-    UserDefaults.standard.set(true, forKey: SleepMasterChange.lidPreferenceKey)
+    UserDefaults.standard.set(true, forKey: SleepPreferences.lidPreferenceKey)
     app.observedLidDisabled = false; app.observedSleep = off; app.keepAwakeSettings()
     let lidBox = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Including with the lid closed" }!
     try check(lidBox.state == .on && lidBox.isEnabled, "Settings lost or locked a stopped saved lid choice")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-saved-lid-choice.png")
-    app.changeLidChoice(readSleep: { (off, false) })
-    try check(!UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) && !SafetyConfiguration.load().keepAwake, "Clicking checked inactive lid choice enabled protection/master instead of clearing intent")
+    app.changeLidChoice(readSleep: { off })
+    try check(!UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && !SafetyConfiguration.load().keepAwake, "Clicking checked inactive lid choice enabled protection/master instead of clearing intent")
     host.goBack(); app.observedLidDisabled = false; app.observedSleep = off; app.keepAwakeSettings()
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Including with the lid closed" }?.state == .off, "Cleared lid choice did not survive Back/reopen")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))

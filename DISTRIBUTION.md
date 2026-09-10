@@ -24,7 +24,7 @@ a configured build, set both public values before running build.sh --output APP:
 The build applies these before signing. Only the public key goes into the app;
 never put a private key in source or command arguments. The local build still
 uses Perch Local Code Signing. Developer ID release signing of the app and all
-nested code, hardened runtime, notarization and migration acceptance are the
+nested code, hardened runtime, notarization and clean-install acceptance are the
 next release step after enrollment. The embed tool supports an explicit identity
 and --release signing options for that pipeline.
 
@@ -52,10 +52,10 @@ explicit key-rotation process. Disposable fixture keys are not production keys.
 
 1. Finish Apple enrollment and obtain Developer ID Application. The September 9
    identity check found only Perch Local Code Signing on this Mac.
-2. Finalize public app/helper identities and test migration from local signing.
+2. Finalize public app/helper identities and test clean installation.
    Helper IPC trusts the publisher; changing certificates is not an ordinary
    compatible UI-only update. The signed update manifest deliberately refuses
-   unplanned publisher/protocol migration.
+   incompatible publishers/protocols. No development-build migration is required.
 3. Complete and test the Developer ID/hardened-runtime/notarization pipeline,
    including nested executables, framework and helper; staple artifacts and
    verify clean-machine Gatekeeper and permissions. Preserve the local build path.

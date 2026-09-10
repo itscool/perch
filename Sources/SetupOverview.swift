@@ -77,23 +77,21 @@ struct SetupSnapshot {
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
 
         if lidDisabled == true {
-            add("awake", "Keep awake", .attention, "An older system-wide sleep override is active without a timeout. Remove it before setting up supervised lid protection.", "Review sleep…", .awake)
+            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Review sleep…", .awake)
         } else if lidHelperUpdatePending {
             add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Keep awake to finish. The existing helper is kept until then.", "Review helper update…", .awake)
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
             add("awake", "Keep awake", .unverified, "Lid mode is requested. macOS can override it; continued sleep prevention cannot be verified.", "Review sleep…", .awake)
-        } else if !config.keepAwake && lidDisabled != true {
+        } else if !config.keepAwake {
             add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
         } else if !guardianReady && config.keepAwake {
             add("awake", "Keep awake", .checking, "Waiting for the helper to confirm the saved keep-awake request.", "Review helpers…", .maintenance)
-        } else if !config.keepAwake && lidDisabled == true {
-            add("awake", "Keep awake", .attention, "macOS has the lid override on while Perch’s keep-awake request is off. Review the actual sleep behavior.", "Review sleep…", .awake)
         } else if guardian?.keepAwakeActive != true || (lidWanted && lidGuard?.armed != true) {
             add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Review Keep awake for status and Resume lid protection." : "The observed sleep state does not confirm your saved keep-awake request.", "Review sleep…", .awake)
         } else {
-            add("awake", "Keep awake", .ready, lidDisabled == true ? "Lid-closed override is active, including on battery. Keep the Mac ventilated." : "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Adjust sleep…", .awake)
+            add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Adjust sleep…", .awake)
         }
 
         if !agentWanted {
@@ -222,7 +220,7 @@ extension AppDelegate {
         result.collectorNeedsRepair = EventCollectorSetup.shared.needsRepair
         result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
         result.lidDisabled = observedLidDisabled
-        result.lidWanted = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+        result.lidWanted = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status
         result.lidHelperUpdatePending = LidHelperUpdate.shared.state.pending
         return result

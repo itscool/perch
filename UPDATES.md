@@ -29,12 +29,10 @@ release acceptance remain pending.
    requests sleep even during restart. A missing replacement eventually ends the
    allowance; no restart path grants extra battery time.
 
-The internal worker retains legacy file-replacement compatibility for builds
-68–69, so those installed apps can bootstrap to this version. That branch checks
-both bundles, retains a rollback copy and requires completion acknowledgment.
-It is no longer an exposed user workflow. The plain restart branch cannot enter
-file replacement. These mechanisms preserve the supervised session, not proof
-of physical sleep prevention; see [lid recovery](LID-RECOVERY.md).
+The restart worker only reopens the verified app. Sparkle owns installation;
+there is no old local-installer bootstrap or bundle-replacement branch. These
+mechanisms preserve the supervised session, not proof of physical sleep
+prevention; see [lid recovery](LID-RECOVERY.md).
 
 ## Separate helper revision and visible deferral
 
@@ -42,7 +40,7 @@ of physical sleep prevention; see [lid recovery](LID-RECOVERY.md).
 `PerchLidHelperVersion` describes the helper component. UI-only build increments
 do not make a compatible lid helper obsolete. Increment the helper revision
 when its implementation needs replacing; incompatible protocol changes require
-an explicit migration and cannot use this app-only handoff.
+separate helper maintenance and cannot use this app-only handoff.
 
 A required installed-helper update appears in Setup & status and Keep awake. The existing helper remains installed while the lid is closed. Opening
 the lid makes **Finish lid helper update…** available; it does not spring an automatic
@@ -55,12 +53,6 @@ password entry therefore leaves the queued replacement pending. Installation
 starts disarmed. A previously confirmed active choice may be restored only after
 the new helper responds and the app still observes an open lid. Otherwise the
 result tells the user to review Keep awake. Saved choices are not rewritten.
-
-Builds before this protocol cannot preserve a session through an app restart.
-The first upgrade from build 63 needs the lid open, followed by the queued helper
-update and explicit re-enabling if the old session could not be confirmed.
-Known legacy builds 44–68 can still perform their corrected explicit cleanup
-without replacement merely because the app build changed.
 
 ## Development launch and access
 
@@ -77,15 +69,15 @@ access. Check provenance before requesting a reset or another grant.
 Isolated tests cover ticket timing and replay, exact-hash requirement parsing,
 wrong/late claims, lost preparation reply cancellation, queue adoption and late
 callbacks, unchanged battery/watchdog deadlines, invalid signatures/paths,
-transaction rollback, and queued/open/busy/error/return UI states. A disposable
-signed worker test replaces copied test bundles, launches a fixture completion
+and queued/open/busy/error/return UI states. A disposable
+signed worker test preserves its copied app bundle, launches a fixture completion
 process and checks its receipt; it never involves a live helper or lid session.
 
 The test runner requires AGENT MODE because some native panel cases show windows.
 Compile with `--build-only` before taking the desktop. See
 [the session protocol](Tools/agent-mode/README.md).
 
-Live acceptance remains required for the bootstrap, first password prompt,
+Live acceptance remains required for the first password prompt,
 compatible app restart with an active session, an expired/unclaimed restart,
 queued helper replacement, and physical undock/sleep/wake transitions. Do not
 inject failures into a working closed-lid session without coordinating with its

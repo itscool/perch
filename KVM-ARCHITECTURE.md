@@ -8,8 +8,9 @@ The installed Perch and its existing monitor controls continue to work.
 The next milestone is authenticated computer grouping, synchronized setup and
 real monitor-only preset switching. Input sharing is deferred. Production Desk
 will replace the old monitor setup/cycling/groups workflow and retire competing
-shortcuts while reusing its low-level monitor command backends. See KVM-PLAN.md
-for migration boundaries.
+shortcuts while reusing the monitor profile/API/protocol library and command
+backends. The user does not need legacy settings migration. See KVM-PLAN.md
+for replacement boundaries.
 
 ## The experience, before implementation
 
@@ -112,7 +113,7 @@ References: [Apple networking API selection](https://developer.apple.com/documen
 - Native lab: complete table above where implemented, named simulation gaps,
   immediate save, reopening, small window, keyboard and sheet dismissal.
 - Production integration: trust/network/input adapters above, Settings entry and
-  migration. Do not expose a lab success as a production-ready KVM control.
+  replacement of old monitor entry points. Do not expose a lab success as a production-ready KVM control.
 - Physical acceptance: two and three Macs, different network paths, real
   visible-picture/input-recipient checks, held keys, sleep/disconnect and failure.
   Coordinate this separately with the user; never manufacture it on the live desk.

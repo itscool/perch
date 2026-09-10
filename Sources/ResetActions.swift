@@ -115,13 +115,13 @@ extension AppDelegate {
         let update: () -> Void = { [weak page] in
             applyReference?.isEnabled = page?.subviews.compactMap { $0 as? NSButton }.contains { $0.state == .on } == true
         }
-        let sleep = SettingsActionButton(title:"Remove the lid override and Perch’s keep-awake request",action:update)
+        let sleep = SettingsActionButton(title:"End Perch’s lid protection and keep-awake request",action:update)
         let audio = SettingsActionButton(title:"Unmute system audio",action:update)
         sleep.setButtonType(.switch); audio.setButtonType(.switch)
         sleep.frame = NSRect(x:0,y:includeAudio ? 210 : 170,width:572,height:28)
         audio.frame = NSRect(x:0,y:170,width:572,height:28)
         audio.isHidden = !includeAudio
-        let result = NSTextField(wrappingLabelWithString:"These are system-wide changes, regardless of which app set them. Other apps’ sleep assertions remain. Keyboard system/firmware settings are not reset: Perch has no recorded original values to restore.")
+        let result = NSTextField(wrappingLabelWithString:"Sleep reset ends Perch’s owned lid protection and keep-awake request. Unowned system overrides and other apps’ sleep assertions remain. Audio reset unmutes the system. Keyboard system/firmware settings are not reset: Perch has no recorded original values to restore.")
         result.frame = NSRect(x:0,y:55,width:572,height:110); result.textColor = .secondaryLabelColor
         let apply = SettingsActionButton(title:"Reset selected system settings") { [weak self] in
             guard !SettingsWindow.shared.testing, sleep.state == .on || audio.state == .on else { return }
@@ -130,11 +130,9 @@ extension AppDelegate {
             if sleep.state == .on {
                 do {
                     try LidGuardInstall.cleanup()
-                    try SleepMasterChange.run(enabled:false,includeLid:false,readLid:sleepDisabled,writeLid:setSleepDisabled,setAwake:{ enabled in
-                        var config = SafetyConfiguration.load(); config.keepAwake = enabled; try config.save()
-                    },stopCaffeinate:{})
-                    UserDefaults.standard.removeObject(forKey:SleepMasterChange.lidPreferenceKey)
-                    results.append("✓ Lid override removed; Perch’s keep-awake request cleared.")
+                    var config = SafetyConfiguration.load(); config.keepAwake = false; try config.save()
+                    UserDefaults.standard.removeObject(forKey:SleepPreferences.lidPreferenceKey)
+                    results.append("✓ Perch’s lid protection ended; keep-awake request cleared.")
                     sleep.state = .off
                 } catch { results.append("⚠ Sleep: " + error.localizedDescription) }
             }

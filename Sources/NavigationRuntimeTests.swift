@@ -47,7 +47,5 @@ func runNavigationRuntimeTests() throws {
     let shifted = event(115,900); shifted.flags = [.maskShift,.maskAlphaShift]; engine.apply(shifted,type: .keyDown)
     try check(shifted.flags.contains(.maskShift) && shifted.flags.contains(.maskAlphaShift), "Selection/Caps Lock lost")
     engine.reset(); try check(!engine.hasHeldKeys, "Reset retained held keys")
-    let old = Data("{\"timestamp\":0,\"pid\":1,\"trusted\":true,\"active\":false}".utf8)
-    try check(try JSONDecoder().decode(InputHelperStatus.self,from: old).navigationDevices == nil, "Old helper status compatibility lost")
     print("PASS: external sender isolation; built-in/unknown fail-open; paired repeats/releases across changes; app exceptions; no posted events or physical remapping")
 }

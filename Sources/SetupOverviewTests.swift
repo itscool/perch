@@ -115,7 +115,7 @@ func runSetupOverviewTests() throws {
         if name == "awake" {
             let controls = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title == "Keep awake" || $0.title == "Including with the lid closed" }
             try check(controls.count == 2 && controls.allSatisfy { !$0.isEnabled } && controls.first { $0.title == "Keep awake" }?.state == .mixed, "Unknown actual sleep state became editable or ready")
-            try check(controls.first { $0.title == "Including with the lid closed" }?.state == (UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey) ? .on : .off), "Unknown session erased the saved lid choice")
+            try check(controls.first { $0.title == "Including with the lid closed" }?.state == (UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) ? .on : .off), "Unknown session erased the saved lid choice")
         }
         try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-category-" + name + ".png")
         host.goBack()

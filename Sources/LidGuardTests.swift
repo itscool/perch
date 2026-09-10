@@ -45,13 +45,13 @@ func runLidGuardTests() throws {
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: fixture) }
     let executable = contents.appendingPathComponent("MacOS/Perch")
-    let current: [String: Any] = ["CFBundleIdentifier": "fixture.perch", "CFBundleVersion": "44"]
-    var installed = current; installed["CFBundleVersion"] = "43"
+    let current: [String: Any] = ["CFBundleIdentifier": "fixture.perch", "CFBundleVersion": "84", "PerchLidProtocolVersion": LidGuardCompatibility.protocolVersion, "PerchLidHelperVersion": LidGuardCompatibility.helperVersion]
+    var installed = current; installed["PerchLidHelperVersion"] = 0
     try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
     try check(LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Cleanup would retry the older helper instead of upgrading it")
     try PropertyListSerialization.data(fromPropertyList: current, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
     try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Matching helper unnecessarily requires installation for cleanup")
-    installed["CFBundleVersion"] = "63"
+    installed = current; installed["CFBundleVersion"] = "999"
     try PropertyListSerialization.data(fromPropertyList: installed, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
     try check(!LidGuardInstall.cleanupRequiresUpdate(appInfo: current, executable: executable), "Explicit cleanup unnecessarily installed a queued app-only helper update")
     let closedBattery = LidObservation(closed: true, power: .battery), closedAC = LidObservation(closed: true, power: .external)
@@ -121,10 +121,10 @@ func runLidGuardTests() throws {
     catch { try check(!unavailable.preventing && unsupported.calls == ["prevent lid", "release lid"], "Failed control readback did not attempt cleanup") }
     let now = LidGuardClock.now
     let failedStart = LidGuardStatus(updatedAt: now, armed: false, detail: "Control rejected", error: "Control rejected")
-    try check(LidGuardClient.controlState(legacyDisabled: false, status: failedStart, recordedSession: false) == .off, "A cleaned-up failed lid start blocks ordinary Keep awake controls")
-    try check(LidGuardClient.controlState(legacyDisabled: false, status: failedStart, recordedSession: true) == .mixed, "An unfinished lid session appeared off")
-    try check(LidGuardClient.controlState(legacyDisabled: nil, status: nil, recordedSession: false) == .mixed, "Unknown legacy override appeared off")
-    try check(LidGuardClient.controlState(legacyDisabled: false, status: .init(updatedAt: now, armed: true, detail: "Enabled"), recordedSession: true) == .on, "A current active session did not appear enabled")
+    try check(LidGuardClient.controlState(unownedOverride: false, status: failedStart, recordedSession: false) == .off, "A cleaned-up failed lid start blocks ordinary Keep awake controls")
+    try check(LidGuardClient.controlState(unownedOverride: false, status: failedStart, recordedSession: true) == .mixed, "An unfinished lid session appeared off")
+    try check(LidGuardClient.controlState(unownedOverride: nil, status: nil, recordedSession: false) == .mixed, "Unknown system override appeared off")
+    try check(LidGuardClient.controlState(unownedOverride: false, status: .init(updatedAt: now, armed: true, detail: "Enabled"), recordedSession: true) == .on, "A current active session did not appear enabled")
     try check(LidGuardStatus(updatedAt: now, armed: false, detail: "Off").fresh, "The current signed helper identity was not recognized")
     var older = LidGuardStatus(updatedAt: now, armed: true, detail: "Ready"); older.codeIdentity = "older-executable"
     try check(older.fresh, "A compatible helper required replacement for an app-only update")

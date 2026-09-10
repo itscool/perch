@@ -29,10 +29,8 @@ live helper replacement, privacy reset, hardware change or public release.
   returns to Updates with explanation and Retry installation. Quit also retries
   the waiting installation, explicitly explained on that page.
 - Compatible updates leave lid-helper maintenance separate. A publisher/protocol
-  migration is refused by ordinary updates and requires the separate release
-  migration path. No automatic rearming after an expired/failed claim.
-- User-facing versions use major.minor.build, e.g. 1.2.84, through one Perch
-  formatter; newly signed bundles and appcasts expose that same full version to
+  mismatch is refused by ordinary updates; there is no legacy migration path. No automatic rearming after an expired/failed claim.
+- User-facing versions use major.minor.build, e.g. 1.2.84, from bundle metadata; signed bundles and appcasts expose that same full version to
   Sparkle. CFBundleVersion remains the monotonic update comparison counter.
 
 ## Findings resolved during implementation
@@ -83,10 +81,10 @@ Native execution requires the repo's AGENT MODE protocol.
 
 This is not certification of live sleep continuity. Real active-lid updates,
 power transitions, restart interruption, permission attribution, installer
-cancellation, invalid/truncated network delivery and helper migration remain
+cancellation, invalid/truncated network delivery and helper maintenance remain
 release acceptance. The user now reports Developer ID certificate creation is available; the
 actual identity and notarized release acceptance have not yet been verified. Production feed hosting, a securely backed-up release EdDSA
-key, public signing/migration, notarization and publication approval are still
+key, public signing, notarization and publication approval are still
 required. Local fixture keys are disposable, private, and outside the repository.
 
 The current manifest deliberately supports Perch's arm64 app only. Extend it to

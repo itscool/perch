@@ -9,7 +9,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     let readyState = SettingsStatusField(wrappingLabelWithString: "")
     let guidance = SettingsStatusField(wrappingLabelWithString: "")
     let primary = NSButton()
-    let identityUpdate = NSButton()
     var permissionDrag: PermissionDragItem!
     let intro = NSTextField(wrappingLabelWithString: "")
     var timer: Timer?
@@ -37,14 +36,8 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
     }
     var needsRepair: Bool { repairReason != nil }
     static func supportedArguments(_ arguments: [String]?) -> Bool {
-        arguments == ["/usr/bin/eslogger", "fork", "exec", "exit"] || arguments == [CollectorIdentity.launcher]
+        arguments == [CollectorIdentity.launcher]
     }
-    var identityUpdateAvailable: Bool {
-        guard installed, let data = try? Data(contentsOf: URL(fileURLWithPath: CollectorIdentity.job)),
-              let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return false }
-        return job["ProgramArguments"] as? [String] == ["/usr/bin/eslogger", "fork", "exec", "exit"]
-    }
-
     override init() {
         super.init()
         panel.title = "Set up process event collection"
@@ -76,12 +69,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         openSettings.contentTintColor = .linkColor
         openSettings.frame = NSRect(x: 20, y: 65, width: 230, height: 22)
         panel.contentView?.addSubview(openSettings)
-        identityUpdate.title = "Update CPU accounting…"; identityUpdate.target = self
-        identityUpdate.action = #selector(updateCollectorIdentity); identityUpdate.isBordered = false
-        identityUpdate.font = .systemFont(ofSize: 12); identityUpdate.contentTintColor = .linkColor
-        identityUpdate.frame = NSRect(x: 274, y: 65, width: 262, height: 22)
-        identityUpdate.toolTip = "Install the collector identity launcher with administrator approval. This restarts observation; macOS access must be checked again."
-        panel.contentView?.addSubview(identityUpdate)
 
     }
     func show(fromSettings: Bool) {
@@ -101,8 +88,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         return now.timeIntervalSince(last) >= 0 && now.timeIntervalSince(last) < 45
     }
     func refresh() {
-        identityUpdate.isHidden = !identityUpdateAvailable || needsRepair
-        identityUpdate.isEnabled = !installing
         let state = GuardianInstall.status
         let fresh = state?.fresh == true
         if waitingForSession, let session = state?.eventSessionID, session != previousSession { waitingForSession = false }
@@ -167,7 +152,6 @@ final class EventCollectorSetup: NSObject, NSWindowDelegate {
         }
         else { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
     }
-    @objc func updateCollectorIdentity() { installCollector() }
     private func installCollector() {
         guard !installing else { return }
         guard !SettingsWindow.shared.testing else { installError = "Collector installation is blocked in tests."; return }

@@ -77,8 +77,8 @@ policy, helper installation or public publishing were exercised for this work.
 3. A fenced distributed live coordinator, real monitor control/readback and
    input capture/suppression/forwarding/release adapters. The prototype simulates
    outcomes; it cannot prove a picture or key recipient on another computer.
-4. Production Settings integration and old-monitor-settings migration. Existing
-   cycling remains until the replacement is ready. Import detected input choices
+4. Production Settings replacement without old-monitor-settings migration. Existing
+   cycling remains until the replacement is ready. Use detected input choices
    and propose strong identity matches to reduce manual setup; ambiguous cases
    still require confirmation.
 5. Real two/three-Mac hardware/network acceptance; native drag/keyboard/VoiceOver,

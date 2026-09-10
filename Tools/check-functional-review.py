@@ -58,7 +58,7 @@ for path in src.glob('*Tests.swift'):
 main = src / 'main.swift'
 declarations = main.read_text().split('if CommandLine.arguments.contains("--check-modifier-access")')[0]
 declarations = declarations.replace('func script(_ source: String) throws -> NSAppleEventDescriptor {', 'func script(_ source: String) throws -> NSAppleEventDescriptor {\n    throw AppError(message: "AppleScript blocked in isolated tests")\n/*')
-declarations = declarations.replace('\nfunc sleepDisabled()', '\n*/}\n\nfunc sleepDisabled()', 1)
+declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Current protection', 1)
 # The disabled original script body includes its closing brace inside the comment.
 main.write_text(declarations + '''
 _ = NSApplication.shared
@@ -67,17 +67,17 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--lid-lock-f
     do { try runLidLockFixture(CommandLine.arguments[2]); exit(0) }
     catch { fputs("LOCK FIXTURE FAILED: \\(error)\\n", stderr); exit(1) }
 }
-if CommandLine.arguments.contains("--show-updates") { exit(0) } // Fixture recovery never runs the suite recursively.
+if CommandLine.arguments.contains("--show-restart") { exit(0) } // Fixture recovery never runs the suite recursively.
 // Disposable updater subprocesses have the test bundle identity and isolated
 // storage. They never run AppDelegate or install/contact production helpers.
-if CommandLine.arguments.count == 3 && ["--apply-update", "--complete-update"].contains(CommandLine.arguments[1]) {
+if CommandLine.arguments.count == 3 && ["--restart-worker", "--complete-restart"].contains(CommandLine.arguments[1]) {
     do {
         let record = try AppUpdate.readRecord(CommandLine.arguments[2])
-        if CommandLine.arguments[1] == "--complete-update", let birth = ProcessCPUReader.birth(getpid()) {
+        if CommandLine.arguments[1] == "--complete-restart", let birth = ProcessCPUReader.birth(getpid()) {
             try JSONEncoder().encode(["pid": UInt64(getpid()), "birth": birth]).write(to: record.candidate.directory.appendingPathComponent("fixture-completer.json"))
         }
         guard record.ticket == nil else { throw AppError(message: "Live lid handoffs are blocked in disposable update fixtures") }
-        if CommandLine.arguments[1] == "--apply-update" { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
+        if CommandLine.arguments[1] == "--restart-worker" { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
         DispatchQueue.main.async { AppUpdate.completeLaunch { exit(0) } }
         NSApp.run()
     } catch { fputs("FIXTURE UPDATE FAILED: \\(error)\\n", stderr); exit(1) }

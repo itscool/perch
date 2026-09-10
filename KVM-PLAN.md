@@ -15,11 +15,13 @@ following come afterward. Monitor-only operation must not depend on input-sharin
 permissions or pretend that changing a picture changes keyboard ownership.
 
 Desk replaces the existing monitor-input cycling pages, switching-group model,
-shortcuts and setup/recovery workflow. Keep the proven low-level DDC/USB/other
-monitor transports where useful. Migrate compatible saved names and input maps;
-ambiguous physical identity or control mappings require confirmation. Retire old
-entry points and hotkeys during the production migration so two independent
-monitor systems cannot compete. Keep the current controls working until the
+shortcuts and setup/recovery workflow. Keep the monitor knowledge library: model profiles, supported inputs, API and
+protocol lookups, quirks, and low-level DDC/USB/network/serial transports. Use it
+to configure and operate Desk. No migration of old preferences or mappings is
+required (user decision September 9); start the new setup directly. Ambiguous
+physical identity still requires confirmation. Retire old entry points and
+hotkeys when replacing the old workflow so two independent monitor systems
+cannot compete. Keep the current controls working until the
 replacement is actually ready; the separate simulation is not that replacement.
 
 ## Intended experience
@@ -36,6 +38,10 @@ or keyboard events.
   physical mouse input. Define the spatial/edge behavior and input forwarding
   needed to make this predictable; moving a pointer and merely changing a video
   input are not equivalent.
+- **Locked Mac:** support an already logged-in Mac at its lock screen if the
+  chosen input backend can accept pointer and password-field input. Prove this
+  on supported macOS versions; retain local recovery when blocked. This does not
+  promise logged-out or FileVault preboot control.
 - **Keyboard focus:** route typing to the intended computer after handoff, with
   a clear indication of the destination. Avoid duplicate delivery, feedback
   loops, or stuck keys/buttons/modifiers across a transition.
@@ -239,8 +245,8 @@ References: [Apple display serials](https://developer.apple.com/documentation/co
    local way to regain control. Do not promise atomic switching or rollback until
    the selected monitor/control paths can support it.
 7. Replace the old cycling menu action, shortcut and setup journey with the new
-   handoff experience. Plan migration of useful saved mappings and retirement of
-   obsolete settings. Leave the current implementation intact until its
+   handoff experience. Retire obsolete settings and hotkeys without migrating
+   old Perch configuration. Leave the current implementation intact until its
    replacement is ready and reviewed.
 
 ## Acceptance

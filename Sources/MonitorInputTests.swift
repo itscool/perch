@@ -199,10 +199,8 @@ func runMonitorTransactionTests() throws {
 }
 
 func runMonitorConnectionTests() throws {
-    let old = Data(#"{"display":"11111111-1111-1111-1111-111111111111","alternate":true,"inputs":[],"allowUnconfirmedCycle":false,"shortcut":{"key":100,"modifiers":0,"enabled":false}}"#.utf8)
-    let legacy = try JSONDecoder().decode(MonitorInputPlan.self,from:old)
-    guard legacy.controlConnection == nil && legacy.commandMode == "lg" else { throw AppError(message:"Legacy DDC preferences changed") }
-    var plan = legacy; plan.controlConnection = .init(kind:"msi-usb",endpoint:"fixture:serial:1")
+    var plan = MonitorInputPlan(display: "11111111-1111-1111-1111-111111111111", alternate: true)
+    plan.controlConnection = .init(kind:"msi-usb",endpoint:"fixture:serial:1")
     plan.inputs = [.init(code:1,name:"HDMI 1"),.init(code:2,name:"HDMI 2")]
     let roundtrip = try JSONDecoder().decode(MonitorInputPlan.self,from:JSONEncoder().encode(plan))
     guard roundtrip == plan && plan.commandMode.hasPrefix("route:") else { throw AppError(message:"Control connection not preserved") }
@@ -216,7 +214,7 @@ func runMonitorConnectionTests() throws {
     while controller.busy && Date()<end { RunLoop.main.run(until:Date().addingTimeInterval(0.01)) }
     guard !controller.busy && backend.commands.contains(where: { $0.first == "switch" && $0[2] == plan.commandMode && $0.last == "2" }) else { throw AppError(message:"Cycle lost its USB route") }
     _ = try MonitorDisplayBackend().run(["transport-self-test"])
-    print("PASS: monitor transport packet integrity; backward-compatible preferences; invalid routes rejected; USB cycling after video disappears through mock backend only")
+    print("PASS: monitor transport packet integrity; current preferences round trip; invalid routes rejected; USB cycling after video disappears through mock backend only")
 }
 
 func runMonitorDraftTests() throws {

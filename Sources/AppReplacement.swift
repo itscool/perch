@@ -29,7 +29,7 @@ struct AppBuild: Equatable {
         let versionOrder = Self.compare(version, other.version)
         return versionOrder > 0 || (versionOrder == 0 && Self.compare(build, other.build) > 0)
     }
-    var title: String { PerchVersion.display(version: version, build: build) }
+    var title: String { version }
 }
 
 struct AppReplacementState {

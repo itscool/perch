@@ -2,6 +2,20 @@
 
 September 9, 2026, version 1.2.84 candidate; build 77 remains the last recorded installed build. This is a local build for trying the implemented 1.2 changes; the whole-app review and physical acceptance checks remain open in [V1.2-REVIEW.md](V1.2-REVIEW.md). The previous release is [1.1](RELEASE-1.1.md).
 
+## Unreleased source: remove development-era migration
+
+Removed the build 68/69 local update bootstrap, old version-string normalization,
+flat preference imports, old collector launcher acceptance and its separate CPU
+migration action, retired lid-bit cleanup and old helper build exemptions. Current
+restart tickets, guarded override recovery and Sparkle signature checks remain.
+There is no migration requirement for old monitor setup or development signing.
+No live settings, permissions, helper or power state were reset by this work.
+All 23 isolated suites are covered by passing runs: 22 passed in the full run;
+the installed-version fixture was corrected to use current version metadata and
+passed its rerun. The lid/restart suite also passed again with a missing-protocol
+rejection check. Compilation was warning-free. This is source work, not an
+installation over the running app.
+
 ## Unreleased source: KVM foundation and desk prototype
 
 The first KVM milestone adds portable group, physical-input, preset and geometry
@@ -67,7 +81,7 @@ is prepared separately, not installed. See SETTINGS-SIDEBAR-82.md.
 
 At build 82, the user selected direct download/Homebrew plus Sparkle. Local
 Sparkle integration followed in 1.2.84 while Apple enrollment processes; public
-identity migration, notarization and release activation remain separate work in
+public identity setup, notarization and release activation remain separate work in
 DISTRIBUTION.md. No public release was activated.
 
 ## Build 81: keyboard and accessibility implementation

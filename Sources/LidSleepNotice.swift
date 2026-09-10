@@ -69,7 +69,7 @@ final class LidSleepNotice {
     func start() {
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.pending = .capture(wanted: UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey),
+            self?.pending = .capture(wanted: UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
                 observation: MacLidGuardHardware().observe(), active: LidGuardClient.shared.status.flatMap { $0.fresh ? $0.armed : nil }, now: Date())
         })
         observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

@@ -4,8 +4,8 @@ import Darwin
 struct InputHelperStatus: Codable {
     var timestamp = Date()
     var pid = getpid()
-    var helperBuild: String? = HelperBuild.current
-    var statusProtocol: Int? = HelperBuild.protocolVersion
+    var helperBuild: String = HelperBuild.current
+    var statusProtocol: Int = HelperBuild.protocolVersion
     var trusted: Bool
     var active: Bool
     var navigationDevices: Int?

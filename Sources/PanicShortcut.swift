@@ -13,11 +13,7 @@ struct PanicShortcut: Codable, Equatable {
         }
         return value + (Self.keys.first { $0.1 == key }?.0 ?? "?")
     }
-    static func load() -> PanicShortcut {
-        guard let data = UserDefaults.standard.data(forKey: "panicShortcut"), let value = try? JSONDecoder().decode(Self.self, from: data) else { return Self() }
-        return value
-    }
-    func save() { UserDefaults.standard.set(try? JSONEncoder().encode(self), forKey: "panicShortcut") }
+
 }
 
 final class PanicHotKey {

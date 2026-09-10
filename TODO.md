@@ -40,8 +40,8 @@ This supersedes stale open-item wording in dated review checkpoints.
    Establish shared physical identity across computers using serial/model
    evidence and visual confirmation when ambiguous; retain per-host input maps.
    Track observed versus requested input; handle competing
-   requests, sleeping peers and partial failures. Migrate useful mappings and
-   replace the old monitor pages, switching groups, cycling shortcuts and guidance
+   requests, sleeping peers and partial failures. No legacy migration is required.
+   Preserve the monitor profile/API/protocol library and use it to replace the old monitor pages, switching groups, cycling shortcuts and guidance
    with one Desk workflow, reusing low-level monitor transports. Detailed order: KVM-PLAN.md.
    First milestone implemented: portable group/port/preset/geometry models,
    signed conflict-preserving sync, bounded framing and a handoff state machine;
@@ -49,7 +49,7 @@ This supersedes stale open-item wording in dated review checkpoints.
    choices together. Unassigned ports allow picture-only switching; no None mode.
    This is simulated, not installed KVM. Next: paired transport and membership
    authority, durable network sync, monitor-only coordinator/adapters, production
-   Settings integration/migration and physical acceptance. Input sharing follows.
+   Settings replacement and physical acceptance. Input sharing follows.
 4. [ ] **Menu Appearance.** Immediate-save controls for rainbow sections and a
    separately configured System area: border sides/thickness/intensity and
    title/full-section scope, title/full/none backgrounds with intensity and grey
@@ -90,10 +90,10 @@ This supersedes stale open-item wording in dated review checkpoints.
    with independent recovery, and reboot recovery. Confirm actual OS sleep and
    restoration. Powered close/open, short grace/replug, full 60-second expiry,
    menu-process-loss cleanup and explicit disable already have recorded passes.
-7. [ ] **Native event-collector identity migration.** Install the implemented
+7. [ ] **Native event-collector acceptance.** Install the current
    launcher through coordinated maintenance; test Full Disk Access attribution,
    event delivery, combined CPU accounting, restart/PID reuse and reboot.
-   Direct-eslogger delivery remains supported. This launcher is separate from
+   Only the current fixed launcher is supported. This launcher is separate from
    the optional direct Endpoint Security collector in Backlog.
 8. [ ] **Keyboard and spoken VoiceOver acceptance.** Implementation is complete
    for the reviewed settings set, including the new sidebar. Finish spoken
@@ -117,11 +117,11 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Release — signing, packaging and distribution
 
-1. [ ] **Public signing identity and migration, before release.** Establish Apple
+1. [ ] **Public signing identity, before release.** Establish Apple
    Developer Program membership/Developer ID signing. Only the local Perch
    certificate was available on September 9. Review stable identities, helper
-   trust and migration from the local certificate without silently resetting
-   permissions. See DISTRIBUTION.md; membership confirmation is pending.
+   trust and clean-install permissions. Migration from development certificates
+   is not required. See DISTRIBUTION.md; membership confirmation is pending.
 2. [ ] **Distribution build pipeline.** Direct-download package plus our own
    Homebrew cask tap; remove machine-specific identity/path/certificate assumptions.
    Decide supported Mac/macOS scope; sign nested code, notarize and staple.

@@ -39,8 +39,15 @@ The named FIFO carries bytes in kernel memory, without writing raw event data to
 
 Apple's native Endpoint Security API offers direct structured events and filtering. A dedicated minimal collector would avoid eslogger's general JSON encoding, but requires Apple's restricted entitlement. No entitlement, SIP or privilege workaround is used. These conclusions use the installed help/man page and [Apple's WWDC22 presentation](https://developer.apple.com/videos/play/wwdc2022/110345/). The installed binary imports Foundation JSONEncoder; that is evidence of its implementation, not a CPU attribution profile.
 
-## Collector CPU identity migration (build 61)
+## Collector CPU identity
 
-An existing direct-eslogger installation remains supported for event delivery. The optional **Update CPU accounting…** action installs the fixed native launch path with the usual administrator prompt, restarts the collector and requests a new observation session. It does not reset Full Disk Access. Until identity is verified, an expected collector makes Perch's combined CPU total unavailable; unrelated eslogger processes are never matched by name. Metadata failures do not stop the collector, and stale records are rejected using boot and live process birth checks.
+The current collector uses the fixed native launcher for both delivery and CPU
+identity. Unsupported collector commands follow the ordinary repair path; there
+is no separate migration action. Installation requires administrator approval,
+restarts observation and checks Full Disk Access through actual received events.
+Until identity is verified, an expected collector makes combined CPU usage
+unavailable; unrelated eslogger processes are never matched by name. Metadata
+failures do not stop the collector, and stale records are rejected using boot
+and live process birth checks.
 
 The launcher has no runtime command/path overrides, shell evaluation, Endpoint Security code or persistent loop. Tests use compile-time fixture paths and a harmless child executable; production defaults are fixed. Run `python3 Tools/check-collector-identity.py` for that isolated native test and `python3 Tools/check-functional-review.py` for the app suites. Full installation/FDA/reboot acceptance remains separate.

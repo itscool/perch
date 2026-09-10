@@ -104,5 +104,5 @@ func runReviewFixTests() throws {
     offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Reset saved layout…" }!.performClick(nil)
     try check(profiles.isEmpty, "Offline keyboard removal did not target the selected saved layout")
     host.goBack()
-    print("PASS: runtime argument identity; helper build migration; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
+    print("PASS: runtime argument identity; helper build verification; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
 }

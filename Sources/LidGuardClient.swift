@@ -10,21 +10,16 @@ enum LidGuardInstall {
               let installed = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
               let identifier = appInfo["CFBundleIdentifier"] as? String,
               installed["CFBundleIdentifier"] as? String == identifier else { return true }
-        if installed["PerchLidProtocolVersion"] as? Int == LidGuardCompatibility.protocolVersion,
-           (installed["PerchLidHelperVersion"] as? Int ?? 0) >= 1 { return false }
-        // These shipped helpers already have the corrected power connection
-        // and --lid-cleanup contract. An app-only update need not replace them
-        // simply to perform a user's explicit reset/disable cleanup.
-        if let build = Int(installed["CFBundleVersion"] as? String ?? ""), (44...68).contains(build) { return false }
-        return !GuardianInstall.buildMatches(executable: executable, appInfo: appInfo)
+        return installed["PerchLidProtocolVersion"] as? Int != LidGuardCompatibility.protocolVersion ||
+            installed["PerchLidHelperVersion"] as? Int != LidGuardCompatibility.helperVersion
     }
 
     static func cleanup() throws {
         guard LidGuardOwnership.recorded else { return }
         guard !SettingsWindow.shared.testing, let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Lid cleanup is unavailable.") }
         // The verified, root-owned staged bundle performs cleanup before the
-        // installer replaces/restarts the service. An app update must not keep
-        // invoking the older helper's broken cleanup implementation.
+        // installer replaces/restarts the service. Cleanup must use
+        // the current verified helper contract.
         if cleanupRequiresUpdate() { try install(); return }
         let quote = GuardianInstall.shellQuote
         let command = "/usr/bin/codesign --verify --strict --test-requirement " + quote("=" + requirement) + " " + quote(bundle) + " && (/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true) && " + quote(binary) + " --lid-cleanup && /bin/launchctl bootstrap system /Library/LaunchDaemons/" + LidGuardService.name + ".plist"
@@ -76,9 +71,9 @@ enum LidGuardInstall {
 final class LidGuardClient {
     static let shared = LidGuardClient()
     var onChange: (() -> Void)?
-    static func controlState(legacyDisabled: Bool?, status: LidGuardStatus?, recordedSession: Bool) -> NSControl.StateValue {
-        if legacyDisabled == true || (status?.fresh == true && status?.armed == true && status?.error == nil) { return .on }
-        if legacyDisabled == nil || recordedSession { return .mixed }
+    static func controlState(unownedOverride: Bool?, status: LidGuardStatus?, recordedSession: Bool) -> NSControl.StateValue {
+        if status?.fresh == true && status?.armed == true && status?.error == nil { return .on }
+        if unownedOverride != false || recordedSession { return .mixed }
         // A rejected start that has already been cleaned up is off. Retain its
         // error message, but do not turn it into an unknown active override.
         return .off

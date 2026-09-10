@@ -35,9 +35,9 @@ struct SafetyConfiguration: Codable, Equatable {
     var navigation: NavigationPreferences?
     var navigationProfiles: [NavigationKeyboardProfile]?
     var keepAwake = false
-    var reverseTrackpad = UserDefaults.standard.bool(forKey: "reverseTrackpad")
-    var reverseWheel = UserDefaults.standard.bool(forKey: "reverseWheel")
-    var swapModifiers = UserDefaults.standard.bool(forKey: "swapModifiers")
+    var reverseTrackpad = false
+    var reverseWheel = false
+    var swapModifiers = false
     static func load() -> Self {
         guard FileManager.default.fileExists(atPath: SafetyFiles.config.path) else { return Self() }
         if let value = try? SafetyFiles.read(Self.self, from: SafetyFiles.config) { return AgentCatalog.available()?.suggestions(for: value) ?? value }
@@ -119,8 +119,8 @@ struct SafetyState: Codable, Equatable {
 struct SafetyStatus: Codable {
     var timestamp = Date()
     var watcherPID: Int32 = getpid()
-    var helperBuild: String? = HelperBuild.current
-    var statusProtocol: Int? = HelperBuild.protocolVersion
+    var helperBuild: String = HelperBuild.current
+    var statusProtocol: Int = HelperBuild.protocolVersion
     var locked: Bool
     var pendingLaunchJobs: Int
     var shortcutActive: Bool

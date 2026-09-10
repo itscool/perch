@@ -2,21 +2,19 @@ import AppKit
 
 func runAppReplacementTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
-    try check(PerchVersion.display(version: "1.2", build: "76") == "1.2.76", "Legacy version was not normalized")
-    try check(PerchVersion.display(version: "1.2.83", build: "83") == "1.2.83", "Three-part version duplicated the build")
     func info(_ version: String, _ build: String) -> [String: Any] { ["CFBundleIdentifier": "test.perch", "CFBundleShortVersionString": version, "CFBundleVersion": build] }
-    let running = AppBuild(info("1.2", "79"))!, next = AppBuild(info("1.2", "80"))!
+    let running = AppBuild(info("1.2.79", "79"))!, next = AppBuild(info("1.2.80", "80"))!
     try check(next.newer(than: running), "New build was missed")
     try check(!running.newer(than: running) && !running.newer(than: next), "Equal/older build offered restart")
     try check(AppBuild(info("1.10", "1"))!.newer(than: AppBuild(info("1.9", "999"))!), "Release ordering was lexical or build-only")
-    try check(!AppBuild(info("1.2.0", "79.0"))!.newer(than: running), "Equivalent dotted versions differed")
+    try check(!AppBuild(info("1.2.79.0", "79.0"))!.newer(than: running), "Equivalent dotted versions differed")
     try check(AppBuild(info("1.2", "bad")) == nil && AppBuild(info("", "80")) == nil, "Malformed version accepted")
     var state = AppReplacementState(running: running)
     try check(state.takeNotice(interacting: false) == nil && !state.notified, "Consumed notice before detection")
     state.available = next
     try check(state.takeNotice(interacting: true) == nil && !state.notified, "Interrupted an active interaction")
     try check(state.takeNotice(interacting: false) == next && state.takeNotice(interacting: false) == nil, "Notice did not fire once per process")
-    state.available = nil; state.available = AppBuild(info("1.2", "81"))
+    state.available = nil; state.available = AppBuild(info("1.2.81", "81"))
     try check(state.takeNotice(interacting: false) == nil, "A second disk update repeated the notice in one run")
     var relaunched = AppReplacementState(running: running, available: next)
     try check(relaunched.takeNotice(interacting: false) == next, "A new process inherited dismissal")
@@ -33,16 +31,16 @@ func runAppReplacementTests() throws {
         if !intact { throw AppError(message: "incomplete installation") }
         if mutate { try Data("changed during scan".utf8).write(to: binary, options: .atomic); mutate = false }
     }
-    try write(info("1.2", "79")); try check(reader.read() == nil && verifications == 0, "Verified unchanged app unnecessarily")
-    try write(info("1.2", "80")); intact = false
+    try write(info("1.2.79", "79")); try check(reader.read() == nil && verifications == 0, "Verified unchanged app unnecessarily")
+    try write(info("1.2.80", "80")); intact = false
     try check(reader.read() == nil, "Incomplete/untrusted bundle offered restart")
     intact = true
     try check(reader.read() == next && reader.read() == next && verifications == 2, "Valid replacement was not retried/cached")
-    try write(info("1.2", "81")); mutate = true
+    try write(info("1.2.81", "81")); mutate = true
     try check(reader.read() == nil, "Accepted app changed during signature verification")
     try check(reader.read()?.build == "81", "Stable replacement did not recover")
-    try write(info("1.2", "78")); try check(reader.read() == nil, "Rollback still appeared newer")
-    var wrong = info("1.2", "99"); wrong["CFBundleIdentifier"] = "other.app"
+    try write(info("1.2.78", "78")); try check(reader.read() == nil, "Rollback still appeared newer")
+    var wrong = info("1.2.99", "99"); wrong["CFBundleIdentifier"] = "other.app"
     try write(wrong); try check(reader.read() == nil, "Different app offered restart")
     try Data(repeating: 65, count: 70_000).write(to: plist, options: .atomic)
     try check(reader.read() == nil, "Oversized metadata accepted")

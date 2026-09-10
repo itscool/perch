@@ -38,17 +38,7 @@ final class MacLidGuardHardware: LidGuardHardware {
     }
     func preventLidSleep(_ enabled: Bool) throws {
         guard geteuid() == 0 else { throw AppError(message: "The authorized lid helper is required.") }
-        if enabled || LidSleepOverride.owned {
-            try LidSleepOverride.set(enabled)
-            return
-        }
-        // Migration cleanup only: older helpers used the shared powerd bit.
-        guard LidGuardOwnership.exists else { return }
-        let connection = try Self.openPowerConnection()
-        defer { IOServiceClose(connection) }
-        var value: UInt64 = 0
-        let result = IOConnectCallScalarMethod(connection, 12, &value, 1, nil, nil)
-        guard result == kIOReturnSuccess else { throw AppError(message: "This Mac did not accept supervised lid control (\(result)). Lid mode is unavailable.") }
+        try LidSleepOverride.set(enabled)
     }
     func verifyLidSleepPrevention() throws {
         guard LidSleepOverride.owned else { throw AppError(message: "The lid recovery record is missing. Protection has stopped.") }

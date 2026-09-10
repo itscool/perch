@@ -3,40 +3,21 @@ import AppKit
 func runAppUpdateTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-update-fixture-" + UUID().uuidString)
-    let target = root.appendingPathComponent("Perch.app"), staged = root.appendingPathComponent("Next.app"), backup = root.appendingPathComponent("Backup.app")
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
+    let target = root.appendingPathComponent("Perch.app")
     try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: true)
-    try Data("old".utf8).write(to: target.appendingPathComponent("fixture"))
-    try Data("new".utf8).write(to: staged.appendingPathComponent("fixture"))
-    try AppUpdate.validateTarget(target)
+    defer { try? FileManager.default.removeItem(at: root) }
     try check(AppUpdate.sameLocation(target, URL(fileURLWithPath: target.path, isDirectory: true)), "Trailing directory slash changed app identity")
     var fail = false
-    do {
-        try AppUpdate.replace(staged: staged, target: target, backup: backup) { from, to in
-            if from == staged { throw AppError(message: "injected destination failure") }
-            try FileManager.default.moveItem(at: from, to: to)
-        }
-    } catch { fail = true }
-    try check(fail && (try? Data(contentsOf: target.appendingPathComponent("fixture"))) == Data("old".utf8), "Failed replacement lost the previous app")
-    try AppUpdate.replace(staged: staged, target: target, backup: backup)
-    try check((try? Data(contentsOf: target.appendingPathComponent("fixture"))) == Data("new".utf8) && (try? Data(contentsOf: backup.appendingPathComponent("fixture"))) == Data("old".utf8), "Successful replacement lost its recovery copy")
-    let link = root.appendingPathComponent("Linked.app")
-    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
-    fail = false; do { try AppUpdate.validateTarget(link) } catch { fail = true }
-    try check(fail, "A symbolic-link update target was accepted")
-    fail = false; do { _ = try AppUpdate.identity(target, requirement: "identifier \"local.scott.perch\"") } catch { fail = true }
-    try check(fail, "An unsigned update was accepted")
+    do { _ = try AppUpdate.identity(target, requirement: "identifier \"local.scott.perch\"") } catch { fail = true }
+    try check(fail, "An unsigned restart was accepted")
     fail = false; do { _ = try AppUpdate.readRecord(root.appendingPathComponent("restart.json").path) } catch { fail = true }
-    try check(fail, "An update record outside private staging was accepted")
+    try check(fail, "A restart record outside private storage was accepted")
     try runDisposableUpdateWorkerTest()
-    try runDisposableUpdateWorkerTest(restartOnly: true)
-    try runDisposableUpdateWorkerTest(restartOnly: true, cancel: true)
+    try runDisposableUpdateWorkerTest(cancel: true)
     let current: [String: Any] = ["PerchLidProtocolVersion": LidGuardCompatibility.protocolVersion, "PerchLidHelperVersion": LidGuardCompatibility.helperVersion, "CFBundleVersion": "1"]
     try check(!LidHelperUpdateState(info: current, lidOpen: false).pending, "App build changes unnecessarily replace the lid helper")
     let pending = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: false)
-    try check(pending.pending && pending.notice.contains("queued"), "Legacy helper did not queue a visible update")
+    try check(pending.pending && pending.notice.contains("queued"), "Mismatched helper did not queue a visible update")
     try check(LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true).notice.contains("ready"), "Opening the lid did not expose the next helper action")
     try check(!LidHelperUpdateState(info: [:], lidOpen: true).pending, "Optional uninstalled helper became a required update")
     let command = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch.app"), requirement: "identifier \"fixture\"", owner: 501, requireOpenLid: true)
@@ -85,13 +66,13 @@ func runAppUpdateTests() throws {
     app.presentAppSettings(readRestart: { restartState }, restart: {})
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSTextField }.first!.stringValue.contains("still running"), "Restart result was lost on Back/re-entry")
     host.goBack()
-    print("PASS: plain restart and legacy replacement workers; cancellation, unchanged bundle, closed-lid eligibility; helper update and restart busy/failure/retry/return routes")
+    print("PASS: verified restart worker; cancellation, unchanged bundle, closed-lid eligibility; helper update and restart busy/failure/retry/return routes")
 }
 
-/// Actual signed worker + replacement + launch acknowledgment, using only
+/// Actual signed worker and launch acknowledgment, using only
 /// copied isolated-test bundles and a disposable parent process. No helper or
 /// lid session is involved. The production app does not enter this harness.
-private func runDisposableUpdateWorkerTest(restartOnly: Bool = false, cancel: Bool = false) throws {
+private func runDisposableUpdateWorkerTest(cancel: Bool = false) throws {
     guard Bundle.main.bundleIdentifier == "local.perch.functional-review" else { return }
     try DesktopTestSession.check()
     let fm = FileManager.default
@@ -111,20 +92,24 @@ private func runDisposableUpdateWorkerTest(restartOnly: Bool = false, cancel: Bo
         try? fm.removeItem(at: root); try? fm.removeItem(at: directory)
     }
     let target = root.appendingPathComponent("Perch.app")
-    let staged = restartOnly ? target : directory.appendingPathComponent("Perch.app")
     try fm.copyItem(at: Bundle.main.bundleURL, to: target)
-    if !restartOnly { try fm.copyItem(at: Bundle.main.bundleURL, to: staged) }
     let originalInode = try fm.attributesOfItem(atPath: target.path)[.systemFileNumber] as! NSNumber
-    let identity = try AppUpdate.identity(staged, requirement: HelperStatusIPC.requirement!)
-    let candidate = AppUpdateCandidate(directory: directory, target: target, identity: identity, oldIdentity: identity, build: 999, restartOnly: restartOnly)
+    let identity = try AppUpdate.identity(target, requirement: HelperStatusIPC.requirement!)
+    let candidate = AppUpdateCandidate(directory: directory, target: target, identity: identity)
     let parent = Process(); parent.executableURL = URL(fileURLWithPath: "/bin/sleep"); parent.arguments = ["25"]
     try parent.run()
     defer { if parent.isRunning { parent.terminate(); parent.waitUntilExit() } }
     guard let birth = ProcessCPUReader.birth(parent.processIdentifier) else { throw AppError(message: "Disposable parent has no birth identity") }
-    let record = AppUpdateRecord(candidate: candidate, oldPID: parent.processIdentifier, oldBirth: birth, ticket: nil, expires: LidGuardClock.now + 30, attempt: UUID().uuidString)
+    let record = AppUpdateRecord(protocolVersion: 1, candidate: candidate, oldPID: parent.processIdentifier, oldBirth: birth, ticket: nil, expires: LidGuardClock.now + 30, attempt: UUID().uuidString)
+    var incomplete = try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as! [String: Any]
+    incomplete.removeValue(forKey: "protocolVersion")
+    try JSONSerialization.data(withJSONObject: incomplete).write(to: candidate.record, options: .atomic)
+    var rejected = false
+    do { _ = try AppUpdate.readRecord(candidate.record.path) } catch { rejected = true }
+    try checkWorker(rejected, "An unversioned restart record was accepted")
     try JSONEncoder().encode(record).write(to: candidate.record, options: .atomic)
-    let worker = Process(); worker.executableURL = staged.appendingPathComponent("Contents/MacOS/Perch")
-    worker.arguments = ["--apply-update", candidate.record.path]
+    let worker = Process(); worker.executableURL = target.appendingPathComponent("Contents/MacOS/Perch")
+    worker.arguments = ["--restart-worker", candidate.record.path]
     try worker.run()
     defer { if worker.isRunning { worker.terminate(); worker.waitUntilExit() } }
     let ready = directory.appendingPathComponent("ready-" + record.attempt)
@@ -140,7 +125,7 @@ private func runDisposableUpdateWorkerTest(restartOnly: Bool = false, cancel: Bo
         try checkWorker(!worker.isRunning && worker.terminationStatus == 0 && parent.isRunning && !fm.fileExists(atPath: directory.appendingPathComponent("result.json").path), "Canceled restart exited the parent or launched a replacement")
         return
     }
-    if restartOnly {
+    do {
         try checkWorker(try fm.attributesOfItem(atPath: target.path)[.systemFileNumber] as? NSNumber == originalInode, "Plain restart replaced the app bundle")
         try checkWorker(try fm.contentsOfDirectory(atPath: root.path) == ["Perch.app"], "Plain restart created an update backup")
     }
@@ -155,9 +140,9 @@ private func runDisposableUpdateWorkerTest(restartOnly: Bool = false, cancel: Bo
             sample.arguments = [String(pid), "1", "1", "-file", "/private/tmp/perch-update-completion-stack.txt"]
             try? sample.run(); sample.waitUntilExit()
         }
-        throw AppError(message: "Disposable signed worker replacement/launch/acknowledgment failed")
+        throw AppError(message: "Disposable signed worker restart/launch/acknowledgment failed")
     }
-    print("PASS: signed \(restartOnly ? "restart" : "legacy replacement") worker acknowledged preparation, waited for its disposable parent and received launch completion; no live helper or lid session")
+    print("PASS: signed restart worker acknowledged preparation, waited for its disposable parent and received launch completion; no live helper or lid session")
 }
 
 private func checkWorker(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }

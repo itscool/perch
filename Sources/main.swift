@@ -23,35 +23,8 @@ func script(_ source: String) throws -> NSAppleEventDescriptor {
     return result
 }
 
-func sleepDisabled() throws -> Bool {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
-    task.arguments = ["-g"]
-    let pipe = Pipe()
-    task.standardOutput = pipe
-    task.standardError = pipe
-    try task.run()
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    task.waitUntilExit()
-    guard task.terminationStatus == 0, let output = String(data: data, encoding: .utf8), output.contains("System-wide power settings:") else {
-        throw AppError(message: "Could not read the Mac’s sleep settings.")
-    }
-    for line in output.split(separator: "\n") {
-        let fields = line.split(whereSeparator: { $0.isWhitespace })
-        if fields.first == "SleepDisabled" {
-            guard let value = fields.last, value == "0" || value == "1" else { throw AppError(message: "Unrecognized sleep setting.") }
-            return value == "1"
-        }
-    }
-    return false // macOS omits this key when the default is in use.
-}
-
-func setSleepDisabled(_ disabled: Bool) throws {
-    _ = try script("do shell script \"/usr/bin/pmset -a disablesleep \(disabled ? 1 : 0)\" with administrator privileges")
-    guard try sleepDisabled() == disabled else { throw AppError(message: "macOS did not apply the sleep setting.") }
-}
-
-func legacySleepDisabled() throws -> Bool { try sleepDisabled() && !LidSleepOverride.owned }
+// Current protection must not adopt a system override it does not own.
+func unownedSleepOverride() throws -> Bool { try LidSleepOverride.systemDisabled() && !LidSleepOverride.owned }
 
 final class Awake {
     private var ids: [IOPMAssertionID] = []
@@ -179,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 if !GuardianInstall.messagingInstalled {
                     do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
                 }
-                if CommandLine.arguments.contains("--complete-update") || CommandLine.arguments.contains("--show-updates") {
+                if CommandLine.arguments.contains("--complete-restart") || CommandLine.arguments.contains("--show-restart") {
                     self?.configureSettings(); self?.appSettings()
                 }
             }
@@ -252,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
         (awakeItem.view as? MenuRowView)?.opensAnotherInterface = { [weak self] in
-            self?.lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+            self?.lidItem.state != .off || UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         }
         (loginItem.view as? MenuRowView)?.opensAnotherInterface = { SMAppService.mainApp.status == .requiresApproval }
         styleMenuSections()
@@ -356,7 +329,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
         catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable"); fnItem.menuHelp = ControlHelp.adding("The current setting could not be read. Review Keyboard settings before changing it.", to: ControlHelp.builtInFn) }
         observedSleep = try? SleepStatus.read()
-        observedLidDisabled = try? legacySleepDisabled()
+        observedLidDisabled = try? unownedSleepOverride()
         LidGuardClient.shared.refresh()
         applyLidSleepPresentation()
         do {
@@ -387,17 +360,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             status?.button?.image = perchStatusImage(awake: symbol == "awake-bird")
         }
     }
-    func refreshLidStatus(legacyDisabled: Bool) {
-        observedLidDisabled = legacyDisabled
-    }
     var actualLidState: NSControl.StateValue {
-        LidGuardClient.controlState(legacyDisabled: observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.recorded)
+        LidGuardClient.controlState(unownedOverride: observedLidDisabled, status: LidGuardClient.shared.status, recordedSession: LidGuardOwnership.recorded)
     }
     func sleepPresentation() -> SleepPresentation {
         let client = LidGuardClient.shared
         return SleepPresentation(ordinary: observedSleep, actualLid: actualLidState,
-            savedLid: UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey),
-            masterWanted: SafetyConfiguration.load().keepAwake, legacy: observedLidDisabled == true,
+            savedLid: UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
+            masterWanted: SafetyConfiguration.load().keepAwake,
             changing: client.changing, remaining: client.status?.remaining)
     }
     func applyLidSleepPresentation() {
@@ -416,7 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc func resumeLidProtection() {
         withMenuClosed { [weak self] in
-            guard let self, UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey),
+            guard let self, UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
                   SafetyConfiguration.load().keepAwake, !LidGuardClient.shared.active,
                   !LidGuardClient.shared.changing else { return }
             self.changeSupervisedLid(true) { result in
@@ -451,10 +421,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let state = try SleepStatus.read(), legacy = try legacySleepDisabled()
-                let enabling = !(legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
+                let state = try SleepStatus.read()
+                let enabling = !(LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
                 guard !enabling || GuardianInstall.alive else { throw AppError(message: "The background helper is offline. Repair it in Maintenance first.") }
-                let remembered = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
+                let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
                 let finish: (Result<Void, Error>) -> Void = { result in
                     do {
                         try result.get()
@@ -463,7 +433,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                         self.refresh()
                     } catch { self.refresh(); self.showError(error) }
                 }
-                if legacy { try setSleepDisabled(false) }
                 if enabling && remembered { self.changeSupervisedLid(true, completion: finish) }
                 else if LidGuardClient.shared.status?.armed == true || LidGuardOwnership.recorded { self.changeSupervisedLid(false, completion: finish) }
                 else { finish(.success(())) }
@@ -471,20 +440,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     @objc func toggleLid() { changeLidChoice() }
-    func changeLidChoice(readSleep: @escaping () throws -> (SleepStatus, Bool) = { (try SleepStatus.read(), try legacySleepDisabled()) }) {
+    func changeLidChoice(readSleep: @escaping () throws -> SleepStatus = { try SleepStatus.read() }) {
         withMenuClosed { [weak self] in
             guard let self else { return }
             do {
-                let (state, legacy) = try readSleep()
-                let saved = UserDefaults.standard.bool(forKey: SleepMasterChange.lidPreferenceKey)
-                guard saved || legacy || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
-                let enabling = !(saved || legacy)
+                let state = try readSleep()
+                let saved = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
+                guard saved || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
+                let enabling = !saved
 
-                if legacy { try setSleepDisabled(false) }
                 let finish: (Result<Void, Error>) -> Void = { result in
                     do {
                         try result.get()
-                        UserDefaults.standard.set(enabling, forKey: SleepMasterChange.lidPreferenceKey)
+                        UserDefaults.standard.set(enabling, forKey: SleepPreferences.lidPreferenceKey)
                         var config = SafetyConfiguration.load(); if enabling { config.keepAwake = true; try config.save() }
                         self.refresh(); self.settingsRefresh?()
                     } catch { self.refresh(); self.showError(error) }
@@ -583,8 +551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         HelperStatusIPC.guardianClient.onChange = repaint
         HelperStatusIPC.inputClient.onChange = repaint
         LidGuardClient.shared.onChange = { [weak self] in
-            guard let self, let legacy = self.observedLidDisabled else { return }
-            self.refreshLidStatus(legacyDisabled: legacy)
+            guard let self else { return }
             self.applyLidSleepPresentation(); self.settingsRefresh?()
         }
     }
@@ -629,7 +596,7 @@ if CommandLine.arguments.contains("--check-modifier-access") {
     NativeModifierKeys.checkExistingAccess()
     exit(0)
 }
-if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--apply-update" {
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--restart-worker" {
     _ = NSApplication.shared; NSApp.setActivationPolicy(.prohibited)
     do { try AppUpdate.runWorker(CommandLine.arguments[2]); exit(0) }
     catch {
@@ -777,7 +744,7 @@ if CommandLine.arguments.contains("--self-test") {
         try runKeyboardRegistrationTests()
         print("PASS: function-key mode = \(try FunctionKeys.standard())")
         print("PASS: create/release Mac sleep assertion")
-        print("PASS: read sleep override = \(try sleepDisabled())")
+        print("PASS: read sleep override = \(try LidSleepOverride.systemDisabled())")
         print("PASS: read audio muted = \(try AudioStatus.muted()); native read supported = \(AudioStatus.nativeMuted() != nil)")
         exit(0)
     } catch { fputs("FAIL: \(error.localizedDescription)\n", stderr); exit(1) }

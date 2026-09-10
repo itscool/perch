@@ -50,9 +50,8 @@ func runProtectionIssueTests() throws {
     try check(ProtectionIssue.assess(state, config: config)?.route == "input")
     state.helperBuild = "previous-build"
     try check(!state.fresh && ProtectionIssue.assess(state, config: config)?.route == "repair")
-    var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
-    legacy.removeValue(forKey: "helperBuild"); legacy.removeValue(forKey: "statusProtocol")
-    let decoded = try JSONDecoder().decode(SafetyStatus.self, from: JSONSerialization.data(withJSONObject: legacy))
-    try check(!decoded.fresh && decoded.helperBuild == nil)
+    var invalid = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
+    invalid.removeValue(forKey: "helperBuild")
+    try check((try? JSONDecoder().decode(SafetyStatus.self, from: JSONSerialization.data(withJSONObject: invalid))) == nil)
     print("PASS: critical helper/shortcut failure, warning-only event setup, intentional shortcut disablement, verified recovery")
 }

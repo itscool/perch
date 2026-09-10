@@ -26,7 +26,7 @@ struct UpdateIdentity: Codable, Equatable {
               Int(build).map({ $0 > 0 }) == true,
               value.codeHash.count == 40, value.codeHash.allSatisfy({ "0123456789abcdef".contains($0) }),
               value.requirement == requirement, value.lidProtocol == lidProtocol else {
-            throw AppError(message: "This update requires a separate signing or lid-helper migration. Keep using this version until migration instructions are available.")
+            throw AppError(message: "This update is incompatible with this app’s verified publisher or lid-helper protocol. Your current app is still running.")
         }
         return value
     }

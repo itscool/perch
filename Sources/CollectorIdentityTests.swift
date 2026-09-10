@@ -18,7 +18,7 @@ func runCollectorIdentityTests() throws {
     try check(record.matches(boot: boot, birth: birth) && !record.matches(boot: UUID(), birth: birth) && !record.matches(boot: boot, birth: birth + 1) && !record.matches(boot: boot, birth: nil), "Reboot, reused PID or exited collector was accepted")
     try check(CollectorIdentity.attribution(record: record, expected: true, boot: boot, birth: { _ in birth }) == .verified(record), "Valid collector attribution failed")
     try check(CollectorIdentity.attribution(record: nil, expected: false, boot: boot, birth: { _ in nil }) == .absent, "Absent optional collector made CPU unavailable")
-    try check(!CollectorIdentity.attribution(record: nil, expected: true, boot: boot, birth: { _ in nil }).complete, "Legacy/unreadable collector silently disappeared from CPU total")
+    try check(!CollectorIdentity.attribution(record: nil, expected: true, boot: boot, birth: { _ in nil }).complete, "Missing/unreadable collector silently disappeared from CPU total")
     try check(!CollectorIdentity.attribution(record: record, expected: false, boot: boot, birth: { _ in birth + 1 }).complete, "Reused PID became a complete total")
     let other = CollectorIdentity(schema: 2, pid: record.pid, birth: birth, boot: boot)
     try check(!other.matches(boot: boot, birth: birth), "Unknown identity protocol accepted")
@@ -40,6 +40,6 @@ func runCollectorIdentityTests() throws {
     try check(CollectorIdentity.read(directory: root.path, owner: getuid()) == nil, "Oversize identity trusted")
     try write(Data("{broken".utf8))
     try check(CollectorIdentity.read(directory: root.path, owner: getuid()) == nil, "Malformed identity trusted")
-    try check(EventCollectorSetup.supportedArguments(["/usr/bin/eslogger", "fork", "exec", "exit"]) && EventCollectorSetup.supportedArguments([CollectorIdentity.launcher]) && !EventCollectorSetup.supportedArguments(["/bin/sh", "collector.sh"]) && !EventCollectorSetup.supportedArguments([CollectorIdentity.launcher, "override"]), "Collector migration accepted arbitrary commands or broke the existing collector")
-    print("PASS: collector boot/birth identity, PID reuse/exit, optional/legacy/unreadable accounting, ownership/mode/link/FIFO/size validation and migration commands; fixture storage only")
+    try check(!EventCollectorSetup.supportedArguments(["/usr/bin/eslogger", "fork", "exec", "exit"]) && EventCollectorSetup.supportedArguments([CollectorIdentity.launcher]) && !EventCollectorSetup.supportedArguments(["/bin/sh", "collector.sh"]) && !EventCollectorSetup.supportedArguments([CollectorIdentity.launcher, "override"]), "Unsupported collector command accepted")
+    print("PASS: collector boot/birth identity, PID reuse/exit, optional/missing/unreadable accounting, ownership/mode/link/FIFO/size validation and fixed launcher command; fixture storage only")
 }

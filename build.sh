@@ -48,15 +48,17 @@ if [[ $# -gt 0 ]]; then
 fi
 SIGN_IDENTITY="${PERCH_SIGN_IDENTITY:-Perch Local Code Signing}"
 SIGN_OPTIONS=(--timestamp=none)
-SPARKLE_OPTIONS=()
-APP_ENTITLEMENTS=()
+SPARKLE_COMMAND=(python3 Tools/embed-sparkle.py)
 if [[ "${PERCH_RELEASE_BUILD:-0}" == 1 ]]; then
     [[ "$CHECK_DEPENDENCIES" == 1 || ( $# -eq 2 && "$APP" != "$PWD/build/Perch.app" ) ]] || { echo 'Release builds require a separate --output app.' >&2; exit 1; }
     [[ "$SIGN_IDENTITY" == 'Developer ID Application: '* ]] || { echo 'Release builds require Developer ID Application.' >&2; exit 1; }
     [[ -n "${PERCH_UPDATE_FEED_URL:-}" && -n "${PERCH_UPDATE_PUBLIC_KEY:-}" ]] || { echo 'Release builds require production update configuration.' >&2; exit 1; }
     SIGN_OPTIONS=(--options runtime --timestamp)
-    SPARKLE_OPTIONS=(--release)
-    APP_ENTITLEMENTS=(--entitlements Release/Perch.entitlements)
+    SPARKLE_COMMAND+=(--release)
+fi
+APP_SIGN_OPTIONS=("${SIGN_OPTIONS[@]}")
+if [[ "${PERCH_RELEASE_BUILD:-0}" == 1 ]]; then
+    APP_SIGN_OPTIONS+=(--entitlements Release/Perch.entitlements)
 fi
 # Bootstrap without invoking a missing developer-tools Python shim.
 [[ "$(uname -s)" == Darwin ]] || { echo 'Perch builds require macOS on Apple silicon.' >&2; exit 1; }
@@ -77,7 +79,12 @@ if ! mkdir build/.build-lock 2>/dev/null; then
     echo "Another build is running (build/.build-lock exists)." >&2
     exit 1
 fi
-trap 'rmdir build/.build-lock' EXIT
+STAGING=""
+cleanup() {
+    if [[ -n "$STAGING" ]]; then rm -rf "$STAGING"; fi
+    rmdir build/.build-lock
+}
+trap cleanup EXIT
 # Fetch/repair pinned dependency caches before reserving a version or touching the app.
 echo 'Preparing build dependencies (the first run downloads Sparkle and pinned Swift packages)…'
 SPARKLE=$(python3 Tools/sparkle-dependency.py)
@@ -87,6 +94,12 @@ if [[ "$CHECK_DEPENDENCIES" == 1 ]]; then
     echo 'Dependencies ready. Run ./build.sh to build Perch.'
     exit 0
 fi
+# A failed compile/embed/sign must not leave a launchable-looking partial app,
+# or overwrite the last working build. Stage beside the destination for rename.
+OUTPUT_APP="$APP"
+mkdir -p "$(dirname "$OUTPUT_APP")"
+STAGING=$(mktemp -d "$(dirname "$OUTPUT_APP")/.perch-build.XXXXXX")
+APP="$STAGING/$(basename "$OUTPUT_APP")"
 BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)
 [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "CFBundleVersion must be an integer" >&2; exit 1; }
 BUILD_NUMBER=$((10#$BUILD_NUMBER + 1))
@@ -117,10 +130,10 @@ for DEPENDENCY in swift-certificates swift-asn1 swift-crypto; do
     cp "Vendor/PerchCertificates/.build/checkouts/$DEPENDENCY/LICENSE.txt" "$APP/Contents/Resources/$DEPENDENCY-LICENSE.txt"
     cp "Vendor/PerchCertificates/.build/checkouts/$DEPENDENCY/NOTICE.txt" "$APP/Contents/Resources/$DEPENDENCY-NOTICE.txt"
 done
-python3 Tools/embed-sparkle.py "$APP" --identity "$SIGN_IDENTITY" "${SPARKLE_OPTIONS[@]}"
+"${SPARKLE_COMMAND[@]}" "$APP" --identity "$SIGN_IDENTITY"
 python3 Tools/release_assets.py install --app "$APP"
 codesign --force --sign "$SIGN_IDENTITY" --identifier local.scott.perch.event-launcher "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchEventLauncher"
 codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchDisplay"
-codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTIONS[@]}" "${APP_ENTITLEMENTS[@]}" "$APP"
-codesign --verify --strict "$APP"
-echo "Built $APP"
+codesign --force --sign "$SIGN_IDENTITY" "${APP_SIGN_OPTIONS[@]}" "$APP"
+python3 Tools/app_bundle.py "$APP" --destination "$OUTPUT_APP"
+echo "Built $OUTPUT_APP"

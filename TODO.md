@@ -8,13 +8,19 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-- [ ] **Other Mac still cannot build — reopened by user report.** Diagnose the
-  current failure using its exact command, source revision and error output.
-  The Python issuer-certificate download path was replaced, but that does not
-  establish an end-to-end successful build on the other Mac. Check dependencies,
-  selected toolchain and its own local signing identity as indicated by the error;
-  the release Mac's signing/notarization credentials are not required or copied.
-  Awaiting the error text; do not assume this is the earlier Sparkle failure.
+- [x] **Local builds could abort before embedding Sparkle.** macOS Bash 3.2
+  rejects empty optional arrays under `set -u`, leaving a compiled app that
+  cannot load Sparkle. The sibling final-signing argument bug is also fixed.
+  Builds now stage the complete app and verify runtime paths, framework layout,
+  architectures and nested signatures before replacing the output. Release and
+  update packaging use the same check. Remote launch acceptance remains below.
+
+- [ ] **Other-Mac build/launch acceptance.** Pull the fix and rebuild with that
+  Mac's local signing identity, confirm the final `Built` message, then open the
+  complete app bundle through Finder/LaunchServices. The reported dyld error is
+  consistent with the reproduced build defect; exact remote crash text and a
+  successful launch after the fix remain unverified. No release credentials or
+  notarization are required.
 
 Full static Settings UX review at cb44f87 found **one P1 and ten P2 issues**.
 All are corrected in source, along with D1–D3. Details and the coverage ledger are

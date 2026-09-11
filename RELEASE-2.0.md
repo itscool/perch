@@ -29,6 +29,21 @@ isolated QA and hardware acceptance.
 
 ## Pending setup corrections
 
+Local build packaging also fixes macOS Bash 3.2 aborting before Sparkle embedding
+and final signing. Complete staged bundles must pass runtime-path, architecture,
+framework-layout and nested-signature verification before replacing the output.
+The same verification protects release and update packaging. This prevents a failed
+build from leaving a new incomplete app at the output path; acceptance of the
+reported other-Mac launch failure is still pending.
+
+Verification: a full local build of 2.0.95 completed through the new packaging
+gate with no compiler warnings. Disposable compiled Mach-O fixtures passed
+relocation and rejected missing framework/rpath, broken or external links and
+damaged nested signatures. Failed replacements preserve the previous build,
+including a recoverable copy when rollback itself fails. Local/release arguments
+passed under macOS Bash 3.2; dependency and release failure/retry tests passed.
+The 2.0.95 candidate was not launched, installed, notarized or published.
+
 Source fixes after 2.0.94 address permission recovery, consistent drag/copy paths,
 external-window return, publisher-aware helper readiness, persistent setup views,
 and explicit lid setup/resume. First use revisits missing required prerequisites.

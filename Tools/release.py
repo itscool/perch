@@ -18,6 +18,7 @@ import shutil
 import xml.etree.ElementTree as ET
 import release_assets
 import release_checksums
+import app_bundle
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((REPO/'Release/config.json').read_text())
@@ -31,7 +32,7 @@ def info(app):
     return plistlib.loads((app/'Contents/Info.plist').read_bytes())
 
 def verify(app, notarized=False):
-    run('codesign', '--verify', '--deep', '--strict', app)
+    app_bundle.verify(app)
     release_assets.check(app)
     details = subprocess.run(['codesign','-dvvv',str(app)], capture_output=True, text=True, check=True).stderr
     if ('TeamIdentifier='+CONFIG['teamID']) not in details or 'runtime' not in details or 'Timestamp=' not in details:

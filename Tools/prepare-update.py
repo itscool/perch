@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
+import app_bundle
 
 p = argparse.ArgumentParser()
 p.add_argument('app', type=Path)
@@ -26,6 +27,7 @@ key.add_argument('--key-file', type=Path)
 key.add_argument('--account')
 p.add_argument('--fixture', action='store_true', help='Allow loopback HTTP for disposable test apps only')
 a = p.parse_args()
+app_bundle.verify(a.app)
 repo = Path(__file__).resolve().parents[1]
 info = plistlib.loads((a.app / 'Contents/Info.plist').read_bytes())
 architectures = subprocess.check_output(['lipo', '-archs', str(a.app/'Contents/MacOS'/info['CFBundleExecutable'])], text=True).split()

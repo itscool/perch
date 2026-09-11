@@ -28,9 +28,22 @@ selected explicitly with --publish.
 
 One command runs the full process and resumes the same output folder safely:
 
-    python Tools/release-all.py --output /absolute/release-folder --profile Perch --publish
+    ./release.sh --output build/releases/settings-fixes --publish
 
-Use the Python environment described below. The command builds/signs, commits
+The shell command prepares/reuses `build/release-tools`, installs the pinned
+Python packaging requirements when missing or incompatible, and defaults to the
+`Perch` Keychain profile. No manual virtual-environment activation is needed.
+Python 3.10+ must be available for packaging; set `PERCH_RELEASE_PYTHON` to its
+executable if it is not on PATH. Use `--profile NAME` for a different stored
+notarization profile. `./release.sh --help` has no build/download side effects;
+`./release.sh --prepare-tools` only prepares tooling and never starts a release.
+
+Choose a fresh output folder for each new release. Reuse the same folder to
+resume that release; its name is just a label, and Perch's build counter supplies
+the actual version. The wrapper delegates to `Tools/release-all.py`, so there is
+one implementation of submission, resume and publication rules.
+
+The command builds/signs, commits
 only its generated Info.plist version bump, submits the app, waits for Apple,
 staples/packages, submits the DMG, waits, verifies signatures/checksums, pushes
 source and publishes the complete GitHub release/feed. It requires a clean
@@ -48,14 +61,15 @@ tag target. The runner saves it for subsequent retries. Tooling/documentation
 can advance without pretending the accepted app was built from a newer commit.
 The individual stages remain available for troubleshooting:
 
-Create a Python 3.10+ virtual environment and install Release/requirements.txt.
-Use its python for packaging (the other stages also work with system Python).
+For individual troubleshooting stages, run `./release.sh --prepare-tools` first,
+then use the prepared interpreter below. The wrapper is the normal release entry
+point; individual stages retain the same authorization and verification rules.
 
-    python Tools/release.py build --output /absolute/release-folder
-    python Tools/release.py submit-app --output /absolute/release-folder --profile Perch
-    python Tools/release.py package --output /absolute/release-folder --profile Perch
-    python Tools/release.py submit-dmg --output /absolute/release-folder --profile Perch
-    python Tools/release.py finish --output /absolute/release-folder --profile Perch
+    build/release-tools/bin/python3 Tools/release.py build --output /absolute/release-folder
+    build/release-tools/bin/python3 Tools/release.py submit-app --output /absolute/release-folder --profile Perch
+    build/release-tools/bin/python3 Tools/release.py package --output /absolute/release-folder --profile Perch
+    build/release-tools/bin/python3 Tools/release.py submit-dmg --output /absolute/release-folder --profile Perch
+    build/release-tools/bin/python3 Tools/release.py finish --output /absolute/release-folder --profile Perch
 
 Submissions return an ID immediately. If Apple is still processing, package or
 finish reports the status; retry that stage later without resubmitting. For
@@ -75,7 +89,7 @@ appcast and exact app identity; the appcast restricts updates to arm64/macOS 26+
 
 After relevant acceptance and authorization for publication:
 
-    python Tools/release.py publish --output /absolute/release-folder
+    build/release-tools/bin/python3 Tools/release.py publish --output /absolute/release-folder
 
 The tool uploads to a draft GitHub release, then makes the complete release live.
 The stable feed is the latest GitHub release's appcast.xml asset. Releasing the
@@ -110,6 +124,7 @@ open decision in the signed dependency inventory without rewriting an accepted
 app or claiming legal clearance. New unresolved issues or changed table bytes
 remain blocked.
 
+Run `python3 Tools/check-release-launcher.py` for offline wrapper/bootstrap checks.
 Run `python3 Tools/check-release-assets.py` and
 `python3 Tools/check-release-pipeline.py` for offline failure/packaging checks.
 `python3 Tools/release_assets.py check --app /path/Perch.app --for-publication`

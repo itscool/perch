@@ -31,7 +31,19 @@ To prepare/check dependencies without building, changing the app version, or req
 
 A runnable local build needs **this Mac’s own** code-signing certificate/private key, default name **Perch Local Code Signing**, in its Keychain. It does not need the release Mac’s Developer ID identity, notarization password, or Sparkle publishing key. Use Keychain Access’s Certificate Assistant to create a local Code Signing identity if needed, then configure its local trust and confirm it appears in `security find-identity -v -p codesigning`. An existing local signing identity can be selected with `PERCH_SIGN_IDENTITY='identity name or hash' ./build.sh`. Keep the same identity for subsequent builds so access grants remain associated with that local app. The build reports missing/ambiguous identities before compilation and does not silently fall back to ad-hoc signing.
 
-Official Developer ID signing, notarization and publication remain separate steps on the release Mac; see [Release/README.md](Release/README.md). A local build does not contact Apple’s notarization service or install certificates automatically.
+Official Developer ID signing, notarization and publication run on the release Mac through one command:
+
+```sh
+./release.sh --output build/releases/settings-fixes --publish
+```
+
+This prepares the release Python environment automatically and runs the resumable
+pipeline using the `Perch` Keychain profile. It requires explicit notarization and
+publication authorization. Use a new output folder for a new release, and the same
+folder to resume; omit `--publish` to prepare without publishing. See
+[Release/README.md](Release/README.md) and `./release.sh --help`.
+A local `./build.sh` does not contact Apple's notarization service or install
+certificates automatically.
 
 ```sh
 ./build.sh

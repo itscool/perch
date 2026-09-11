@@ -229,7 +229,8 @@ remain open; this is not a claim that untested behavior is defect-free.
    assessment (Notarized Developer ID), and is installed in /Applications. The
    DMG is accepted/stapled, and the signed Sparkle ZIP/appcast are published.
    Anonymous public downloads/checksums and the stable feed passed verification.
-   The resumable Tools/release-all.py handles the full flow. Real update/restart
+   The top-level `./release.sh --output FOLDER --publish` prepares its Python
+   tooling and delegates the full resumable flow to Tools/release-all.py. Real update/restart
    acceptance remains QA.
    Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
    draft follows verified public artifacts. See Release/README.md.

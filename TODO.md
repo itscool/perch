@@ -8,6 +8,14 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+- [ ] **Other Mac still cannot build — reopened by user report.** Diagnose the
+  current failure using its exact command, source revision and error output.
+  The Python issuer-certificate download path was replaced, but that does not
+  establish an end-to-end successful build on the other Mac. Check dependencies,
+  selected toolchain and its own local signing identity as indicated by the error;
+  the release Mac's signing/notarization credentials are not required or copied.
+  Awaiting the error text; do not assume this is the earlier Sparkle failure.
+
 Full static Settings UX review at cb44f87 found **one P1 and ten P2 issues**.
 All are corrected in source, along with D1–D3. Details and the coverage ledger are
 in SETTINGS-UX-REVIEW-2.0.94.md. Installed/public 2.0.94 predates these fixes;
@@ -121,10 +129,10 @@ remain open; this is not a claim that untested behavior is defect-free.
    title/full/none highlights, corner radius, title tint/icons and spacing.
    Includes shared-renderer preview, style presets and Restore defaults. Native
    checkbox changes, independent System values, scrolling and Restore passed.
-5. [ ] **Finish the Sparkle release feed.** Configure the production public key,
-   stable HTTPS feed and signed release artifacts; complete signing/notarization
-   and verification before requesting final publication approval. Integration
-   already exists, but the feed is not live.
+5. [x] **Production Sparkle release feed.** Public key, stable HTTPS feed and
+   signed/notarized release artifacts are configured and published for 2.0.94.
+   Anonymous downloads, checksums and the public feed were verified. Real updater
+   installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
 
@@ -213,7 +221,7 @@ remain open; this is not a claim that untested behavior is defect-free.
 1. [x] **Public signing identity.** Developer ID Application for team S42F8BV6J2
    is available and a hardened, timestamped release build succeeds. New publisher
    helper compatibility is explicit; no development-certificate migration.
-2. [ ] **Distribution build pipeline.** Developer ID build, production Sparkle
+2. [x] **Distribution build pipeline.** Developer ID build, production Sparkle
    Keychain key/config, branded DMG, signing, notarization submission/stapling,
    archive/feed verification and draft-to-public GitHub publishing are implemented.
    Apple notarization credentials (Keychain profile Perch) were validated on
@@ -234,10 +242,11 @@ remain open; this is not a claim that untested behavior is defect-free.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
-5. [ ] **Release artifacts and documentation.** Support/recovery guide, release
-   notes, attribution and dependency inventory are prepared and bundled. Final
-   checksum generation/verification is implemented and tested; actual checksum
-   values follow final notarization/stapling. Public assets and cask draft remain.
+5. [ ] **Next corrected release and optional Homebrew cask.** Prepare the next
+   candidate after acceptance, update its release notes/support documentation,
+   and generate/verify its final artifacts and checksums. The 2.0.94 public assets
+   and checksums are already complete. Homebrew cask preparation remains open.
+   Notarization and publication still require their explicit authorization.
 6. [ ] **Publish only after explicit approval** of the concrete release, relevant
    QA passing and zero known defects. Commit/push is not public release approval.
 

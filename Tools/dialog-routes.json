@@ -215,24 +215,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "ResetActions.swift:systemResetPage:page:1": {
-    "file": "ResetActions.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "ResetSettings.swift:resetSettingsPage:page:1": {
-    "file": "ResetSettings.swift",
-    "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "ResetSettings.swift:confirmSettingsReset:page:1": {
-    "file": "ResetSettings.swift",
-    "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "SettingsPages.swift:show:page:1": {
     "file": "SettingsPages.swift",
     "kind": "page",
@@ -359,28 +341,16 @@
     "review": "SETUP-CONSOLIDATION-2.0.md \u2014 one Setup owner, contextual feature link, retained checklist and observed readiness; no setting changes on entry.",
     "acceptance": "Static route/action review; injected regression and native return checks recorded in SETUP-CONSOLIDATION-2.0.md. Physical permissions/helper installation remain separate acceptance."
   },
-  "ResetSettings.swift:resetHub:task-page:1": {
-    "file": "ResetSettings.swift",
-    "kind": "task-page",
-    "review": "RESET-DISCOVERABILITY-2.0.md: common Resets owner, explicit scopes and destination labels; no automatic mutations on navigation.; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Isolated route, cancellation and scoped-write regressions; execution status recorded in RESET-DISCOVERABILITY-2.0.md. Live resets excluded."
-  },
-  "ResetSettings.swift:presentKeyboardLayoutReset:alert:1": {
-    "file": "ResetSettings.swift",
+  "ResetChecklist.swift:confirm:alert:1": {
+    "file": "ResetChecklist.swift",
     "kind": "alert",
-    "review": "RESET-DISCOVERABILITY-2.0.md: common Resets owner, explicit scopes and destination labels; no automatic mutations on navigation.; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Isolated route, cancellation and scoped-write regressions; execution status recorded in RESET-DISCOVERABILITY-2.0.md. Live resets excluded."
+    "review": "RESET-CHECKLIST-AND-RESIZE.md: flat scope selection, inline keyboard target, explicit frozen confirmation, partial results, retry and contextual highlight/return.",
+    "acceptance": "Injected operations and disposable preferences; test and native evidence recorded in RESET-CHECKLIST-AND-RESIZE.md. No live reset is authorized by these checks."
   },
-  "ResetSettings.swift:presentKeyboardLayoutReset:page:1": {
-    "file": "ResetSettings.swift",
+  "ResetChecklist.swift:show:page:1": {
+    "file": "ResetChecklist.swift",
     "kind": "page",
-    "review": "RESET-DISCOVERABILITY-2.0.md: common Resets owner, explicit scopes and destination labels; no automatic mutations on navigation.; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Isolated route, cancellation and scoped-write regressions; execution status recorded in RESET-DISCOVERABILITY-2.0.md. Live resets excluded."
-  },
-  "ResetSettings.swift:presentAppearanceReset:task-page:1": {
-    "file": "ResetSettings.swift",
-    "kind": "task-page",
-    "review": "RESET-DISCOVERABILITY-2.0.md: common Resets owner, explicit scopes and destination labels; no automatic mutations on navigation.; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Isolated route, cancellation and scoped-write regressions; execution status recorded in RESET-DISCOVERABILITY-2.0.md. Live resets excluded."
+    "review": "RESET-CHECKLIST-AND-RESIZE.md: flat scope selection, inline keyboard target, explicit frozen confirmation, partial results, retry and contextual highlight/return.",
+    "acceptance": "Injected operations and disposable preferences; test and native evidence recorded in RESET-CHECKLIST-AND-RESIZE.md. No live reset is authorized by these checks."
   }
 }

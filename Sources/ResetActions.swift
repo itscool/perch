@@ -36,8 +36,9 @@ final class PrivacyResetOperation {
     init(execute: @escaping (Bool, @escaping (Result<String, Error>) -> Void) -> Void) { self.execute = execute }
     func state(global: Bool) -> State { states[global] ?? .idle }
     func prepare(global: Bool) { guard runningScope == nil else { return }; states[global] = .idle }
-    func run(global: Bool) {
-        guard runningScope == nil else { return }
+    @discardableResult
+    func run(global: Bool, completion: ((Result<String, Error>) -> Void)? = nil) -> Bool {
+        guard runningScope == nil else { return false }
         generation = UUID(); let request = generation
         runningScope = global; states[global] = .running
         execute(global) { [self] result in
@@ -47,7 +48,9 @@ final class PrivacyResetOperation {
             case .success(let message): states[global] = .succeeded(message)
             case .failure(let error): states[global] = .failed("⚠ " + error.localizedDescription)
             }
+            completion?(result)
         }
+        return true
     }
 }
 
@@ -109,51 +112,5 @@ extension AppDelegate {
         RunLoop.main.add(timer, forMode: .common)
         SettingsWindow.shared.show(.init(title: global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?", detail: "Resetting permissions also forgets previous denials; it is not a permanent block. Leaving before starting makes no changes. Once started, the reset cannot be cancelled here.", view: page, leave: { timer.invalidate() }, refresh: update))
         update()
-    }
-    func systemResetPage(includeAudio: Bool = true) {
-        let page = NSView(frame:NSRect(x:0,y:0,width:572,height:includeAudio ? 260 : 220))
-        weak var applyReference: SettingsActionButton?
-        let update: () -> Void = { [weak page] in
-            applyReference?.isEnabled = page?.subviews.compactMap { $0 as? NSButton }.contains { $0.state == .on } == true
-        }
-        let sleep = SettingsActionButton(title:"End Perch’s lid protection and keep-awake request",action:update)
-        let audio = SettingsActionButton(title:"Unmute system audio",action:update)
-        sleep.setButtonType(.switch); audio.setButtonType(.switch)
-        sleep.frame = NSRect(x:0,y:includeAudio ? 210 : 170,width:572,height:28)
-        audio.frame = NSRect(x:0,y:170,width:572,height:28)
-        audio.isHidden = !includeAudio
-        let result = NSTextField(wrappingLabelWithString:"Sleep reset ends Perch’s owned lid protection and keep-awake request. Unowned system overrides and other apps’ sleep assertions remain." + (includeAudio ? " Audio reset unmutes the system. Keyboard system/firmware settings are not reset: Perch has no recorded original values to restore." : " Your saved lid choice and keep-awake request are cleared only when you explicitly reset them."))
-        result.frame = NSRect(x:0,y:55,width:572,height:110); result.textColor = .secondaryLabelColor
-        let apply = SettingsActionButton(title:"Reset selected system settings") { [weak self] in
-            guard !SettingsWindow.shared.testing, sleep.state == .on || audio.state == .on else { return }
-            applyReference?.isEnabled = false
-            var results: [String] = []
-            if sleep.state == .on {
-                do {
-                    try LidGuardInstall.cleanup()
-                    var config = SafetyConfiguration.load(); config.keepAwake = false; try config.save()
-                    UserDefaults.standard.removeObject(forKey:SleepPreferences.lidPreferenceKey)
-                    results.append("✓ Perch’s lid protection ended; keep-awake request cleared.")
-                    sleep.state = .off
-                } catch { results.append("⚠ Sleep: " + error.localizedDescription) }
-            }
-            if audio.state == .on {
-                do {
-                    _ = try script("set volume output muted false")
-                    guard try !AudioStatus.muted() else { throw AppError(message:"Audio is still muted.") }
-                    results.append("✓ System audio is unmuted.")
-                    audio.state = .off
-                } catch { results.append("⚠ Audio: " + error.localizedDescription) }
-            }
-            result.stringValue = results.joined(separator:"\n")
-            result.textColor = results.contains { $0.hasPrefix("⚠") } ? StatusColors.warning : StatusColors.success
-            applyReference?.title = results.contains { $0.hasPrefix("⚠") } ? "Retry failed system changes" : "Reset selected system settings"
-            update()
-            self?.refresh()
-        }
-        applyReference = apply; apply.isEnabled = false
-        apply.frame = NSRect(x:0,y:10,width:572,height:32)
-        [sleep,audio,result,apply].forEach { page.addSubview($0) }
-        SettingsWindow.shared.show(.init(title:includeAudio ? "Reset system sleep and audio" : "Reset sleep overrides",detail:"Select the exact changes to apply. Nothing is selected initially. macOS may ask for administrator authorization for sleep changes.",view:page))
     }
 }

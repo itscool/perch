@@ -29,7 +29,7 @@ func runDialogOwnershipTests() throws {
                 try check(!host.finish(NSAlert()), "An unrelated timer completed the active alert")
                 let rendered = host.container.subviews.first!
                 let action = rendered.subviews.compactMap { $0 as? NSButton }.first!
-                let hit = rendered.hitTest(NSPoint(x: action.frame.midX, y: action.frame.midY))
+                let hit = rendered.hitTest(rendered.convert(NSPoint(x: action.frame.midX, y: action.frame.midY), to: rendered.superview))
                 try check(hit === action || hit?.isDescendant(of: action) == true, "A view covers the dialog action")
                 oldButton?.performClick(nil)
                 try check(host.modalResponseRequested == nil, "A previous dialog's button completed this one")

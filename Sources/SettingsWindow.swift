@@ -3,7 +3,7 @@ import AppKit
 /// All Perch settings pages share this window. OS authorization and file pickers are the only sheets.
 final class SettingsWindow: NSObject, NSWindowDelegate {
     static let shared = SettingsWindow()
-    let window = SettingsPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 700), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+    let window = SettingsPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 700), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
     let back = NSButton(title: "Back", target: nil, action: nil)
     let heading = NSTextField(labelWithString: "")
     let detail = SettingsStatusField(wrappingLabelWithString: "")
@@ -18,7 +18,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var hasContextualReturn: Bool { openingReturn != nil }
     private var sidebarWidth: CGFloat { hasSidebar ? 228 : 0 }
     struct Page {
-        let title: String
+        var title: String
         var detail: String
         let view: NSView
         var leave: (() -> Void)?
@@ -27,6 +27,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         var navigationDestinationID: String? = nil
         var preferredBodyHeight: CGFloat = 490
         var preferredBodyWidth: CGFloat = 572
+        var layout: ((NSSize) -> Void)? = nil
         var beforeBack: (() -> Bool)? = nil
         var scrollFromTop: CGFloat = 0
         var focusIdentifier: NSUserInterfaceItemIdentifier? = nil
@@ -47,6 +48,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private var restoreSidebarAfterAlert = false
     private var activePicker: NSOpenPanel?
     private var needsPageDisplay = false
+    private var activeAlertPage: Page?
     private(set) var modalResponseRequested: NSApplication.ModalResponse?
     private(set) var modal = false { didSet { updateSidebar() } }
     private(set) var picking = false { didSet { updateSidebar() } }
@@ -59,7 +61,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private var externalRestore: (() -> Void)?
     private var modalAllowsCancel = true
     var cancelCode = NSApplication.ModalResponse.abort
-    override init() {
+    static let sizeKey = "settings.window.size"
+    private let sizeDefaults: UserDefaults
+    private var chosenSize: NSSize?
+    private var sizing = false
+    private var measuredViews = NSHashTable<NSView>.weakObjects()
+    init(defaults: UserDefaults = .standard) {
+        sizeDefaults = defaults
+        if let values = defaults.array(forKey: Self.sizeKey) as? [Double], values.count == 2,
+           values.allSatisfy({ $0.isFinite && $0 > 0 && $0 < 20000 }) { chosenSize = NSSize(width: values[0], height: values[1]) }
         super.init()
         window.title = "Perch Settings"
         window.isReleasedWhenClosed = false
@@ -130,7 +140,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     func navigate(to destination: SettingsDestination, preservingReturn: Bool = false) {
         returnedToApp() // An explicit navigation request is also a return from Finder/Settings.
         guard !interactionBusy else { updateSidebar(); return }
-        if (preservingReturn || pages.count == 1 || (destination.setupStage && pages.count == 2 && pages.first?.title == "Setup & status")), let last = pages.last, destination.pageTitles.contains(last.title) {
+        if (!preservingReturn && (pages.count == 1 || (destination.setupStage && pages.count == 2 && pages.first?.title == "Setup & status"))), let last = pages.last, destination.pageTitles.contains(last.title) {
             updateSidebar()
             if !testing { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
             return
@@ -158,7 +168,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         // issue and scroll position. Draft validation ran before this point.
         if preservingReturn, let parent = pages.last {
             let name = sidebar.destinations.first(where: { $0.pageTitles.contains(parent.title) })?.title ?? parent.title
-            openingReturn = (destination.id, "Back to " + name)
+            openingReturn = (destination.id, parent.navigationDestinationID == destination.id ? (parent.backTitle ?? "Back to " + name) : "Back to " + name)
         } else if destination.setupStage, pages.first?.title == "Setup & status" {
             while pages.count > 1 { pages.removeLast().leave?() }
         } else {
@@ -172,7 +182,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.makeFirstResponder(sidebar.table)
     }
     func layoutDetail() {
-        let width: CGFloat = 556
+        let width = max(100, detailScroll.contentSize.width - 16)
         let height = ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8
         let overflow = height > detailScroll.frame.height
         detailScroll.autohidesScrollers = !overflow
@@ -250,6 +260,25 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         drainPresentationQueue()
     }
     func windowDidBecomeKey(_ notification: Notification) { returnedToApp() }
+    func windowDidResize(_ notification: Notification) {
+        guard !sizing else { return }
+        let size = window.contentView?.bounds.size ?? window.frame.size
+        chosenSize = size
+        sizeDefaults.set([Double(size.width), Double(size.height)], forKey: Self.sizeKey)
+        if var page = activeAlertPage {
+            if let alert = activeAlert { page.title = alert.messageText; page.detail = alert.informativeText }
+            activeAlertPage = page
+            render(page)
+            window.defaultButtonCell = page.view.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\r" }?.cell as? NSButtonCell
+            return
+        }
+        guard !interactionBusy, let page = pages.last else { return }
+        display(page)
+    }
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard !sizing, !interactionBusy, let page = pages.last else { return }
+        display(page)
+    }
     func display(_ page: Page) {
         guard !interactionBusy else { needsPageDisplay = true; return }
         if pages.last?.view === page.view, page.view.isDescendant(of: container) {
@@ -264,18 +293,21 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let issue: ProtectionIssue? = nil
         detail.textColor = issue.map { $0.severity == .critical ? StatusColors.critical : StatusColors.warning } ?? (detail.stringValue.hasPrefix("✓") ? StatusColors.success : .secondaryLabelColor)
         detail.font = .systemFont(ofSize: 13, weight: issue == nil ? .regular : .semibold)
-        let explanationHeight: CGFloat = min(200, max(48, ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: 556, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8))
-        let availableHeight = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
-        let stableHeight = min(760, max(460, availableHeight - 54))
-        let bodyHeight = hasSidebar ? max(96, stableHeight-explanationHeight-114) : max(96, min(page.preferredBodyHeight, page.view.frame.height, availableHeight - explanationHeight - 174))
-        let height = hasSidebar ? stableHeight : 72 + explanationHeight + 18 + bodyHeight + 24
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let minimum = NSSize(width: min(572 + 48 + sidebarWidth, visible.width), height: min(460, max(320, visible.height - 28)))
+        let requested = chosenSize ?? NSSize(width: min(max(572, page.preferredBodyWidth) + 48 + sidebarWidth, visible.width), height: min(760, visible.height - 54))
+        let size = NSSize(width: min(max(minimum.width, requested.width), visible.width), height: min(max(minimum.height, requested.height), max(minimum.height, visible.height - 28)))
+        if chosenSize == nil { chosenSize = size }
         let top = window.frame.maxY
-        let availableWidth = (window.screen ?? NSScreen.main)?.visibleFrame.width ?? 1440
-        let bodyWidth = min(max(572, page.preferredBodyWidth), max(572, availableWidth-sidebarWidth-64))
-        window.setContentSize(NSSize(width: bodyWidth + 48 + sidebarWidth, height: height))
-        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
-        let x = visible.map { min(max(window.frame.minX, $0.minX), max($0.minX, $0.maxX-window.frame.width)) } ?? window.frame.minX
-        window.setFrameOrigin(NSPoint(x: x, y: top-window.frame.height))
+        sizing = true
+        window.contentMinSize = minimum
+        window.setContentSize(size)
+        window.setFrameOrigin(NSPoint(x: min(max(window.frame.minX, visible.minX), max(visible.minX, visible.maxX-window.frame.width)), y: min(max(top-window.frame.height, visible.minY), max(visible.minY, visible.maxY-window.frame.height))))
+        sizing = false
+        let height = size.height
+        let bodyWidth = max(280, size.width - sidebarWidth - 48)
+        let explanationHeight: CGFloat = min(200, max(48, ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: bodyWidth - 16, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8))
+        let bodyHeight = max(96, height-explanationHeight-114)
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
         let setupJourney = pages.count > 1 && pages.first?.title == "Setup & status"
         back.isHidden = hasSidebar && !setupJourney && activeAlert == nil && page.backTitle == nil &&
@@ -284,8 +316,22 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         back.frame = NSRect(x: sidebarWidth+20, y: height-47, width: max(75, ceil((back.title as NSString).size(withAttributes: [.font: back.font ?? NSFont.systemFont(ofSize: 13)]).width)+28), height: 28)
         let headingInset: CGFloat = back.isHidden ? 24 : 20+back.frame.width+12
         heading.frame = NSRect(x: sidebarWidth+headingInset, y: height-48, width: bodyWidth+24-headingInset, height: 30)
-        detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: 572, height: explanationHeight)
+        detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: bodyWidth, height: explanationHeight)
         contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: bodyWidth + 20, height: bodyHeight)
+        if let layout = page.layout { layout(NSSize(width: bodyWidth, height: bodyHeight)) }
+        else {
+            // Existing AppKit rows stretch without scaling text or controls. Compact
+            // paired controls retain their width and anchor to their respective side.
+            if !measuredViews.contains(page.view) {
+                let width = page.view.frame.width
+                for child in page.view.subviews where child.autoresizingMask.isEmpty {
+                    if child.frame.width >= width * 0.6 { child.autoresizingMask = [.width] }
+                    else if child.frame.minX >= width * 0.45 { child.autoresizingMask = [.minXMargin] }
+                }
+                measuredViews.add(page.view)
+            }
+            page.view.setFrameSize(NSSize(width: bodyWidth, height: page.view.frame.height))
+        }
         contentScroll.hasHorizontalScroller = page.view.frame.width > bodyWidth
         contentScroll.autohidesScrollers = page.view.frame.height <= bodyHeight
         contentScroll.tile()
@@ -457,6 +503,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         if let accessory = alert.accessoryView { accessory.frame.origin.y = contentHeight-accessoryHeight }
         var alertPage = Page(title: alert.messageText, detail: alert.informativeText, view: view)
         alertPage.backTitle = pages.isEmpty && hasSidebar ? "Back to setup" : "Back"
+        activeAlertPage = alertPage
         render(alertPage)
         back.isEnabled = allowsCancel
         window.defaultButtonCell = view.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\r" }?.cell as? NSButtonCell
@@ -503,7 +550,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let returnToSetup = pages.isEmpty && hasSidebar && response == cancelCode
         let completion = alertCompletion; alertCompletion = nil
         let restoreSidebar = restoreSidebarAfterAlert; restoreSidebarAfterAlert = false
-        activeAlert = nil; modalResponseRequested = nil
+        activeAlert = nil; activeAlertPage = nil; modalResponseRequested = nil
         back.isEnabled = true; modalAllowsCancel = true
         // Restore before releasing presentation ownership. The completion may
         // immediately present the next step without a queued refresh replacing it.

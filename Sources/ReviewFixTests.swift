@@ -109,7 +109,7 @@ func runReviewFixTests() throws {
     try check(offline.picker.titleOfSelectedItem?.contains("disconnected") == true && offline.picker.isEnabled, "Saved disconnected keyboard cannot be selected")
     host.modalTestDriver = { _ in .alertFirstButtonReturn }
     offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Reset saved layouts…" }!.performClick(nil)
-    try check(host.pages.last?.title == "Reset keyboard layouts" && host.back.title == "Back to Keyboard layouts" && profiles.count == 1, "Offline keyboard reset did not open Resets without changing saved layouts")
+    try check(host.pages.last?.title == "Resets" && host.back.title == "Back to Keyboard layouts" && profiles.count == 1, "Offline keyboard reset did not open Resets without changing saved layouts")
     profiles.removeAll() // Simulate the separate reset page completing its scoped write.
     host.goBack()
     try check(host.pages.last?.view === offline.view && offline.picker.titleOfSelectedItem == "No connected or saved external keyboard", "Returning from layout reset retained the erased keyboard or rebuilt its origin")

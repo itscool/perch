@@ -372,3 +372,19 @@ page or closing the window must not retain a stale return. Preserve
 real review of proposed changes, ordinary editing, destructive confirmation,
 Cancel, disconnected devices, and failed-write retry. Do not perform live resets
 to prove navigation. Verify navigation separately from injected scoped writes.
+
+
+## Scope selection without a tour of child pages
+
+A reset center has six buttons. Each opens a short explanation, then a checkbox
+or target picker. People must visit all six to learn what can be reset. A repair
+link lands in the center, and the fixed window clips the longer explanations.
+
+Expected: bring comparable scopes and concise consequences onto the center page,
+with inline detail for device targets. Keep broader all-app effects distinct from
+app-local selections and preserve explicit confirmation. Highlight repair targets
+without selecting them. Verify multi-selection, overlaps, partial failure, retry
+without repeating successes, and quit ordering. Separate pages remain legitimate
+for substantial distinct work; do not turn this lesson into a blanket checkbox rule.
+Verify resizing uses extra space, preserves selection/confirmation, remembers size
+across pages and reopening, and remains usable when restored on a smaller screen.

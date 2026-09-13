@@ -1,7 +1,7 @@
 # Perch work checklist
 
 2.0 development, September 13, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.101 corrections have bounded
+in /Applications. 2.0.94 is published; signed 2.0.102 corrections have bounded
 native/automated acceptance and await installation and physical QA. Categories
 are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
@@ -9,6 +9,13 @@ order. Dependencies take precedence: public signing precedes public Sparkle rele
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [x] **Reset choices required unnecessary subpage discovery; Setup could not resize.**
+  Resets now has unchecked scopes and inline keyboard targets, one confirmation,
+  partial results and failure-only retry. Contextual repair highlights its row and
+  retains Back. Settings remembers a resizable size across pages/reopening;
+  Setup uses added space. See RESET-CHECKLIST-AND-RESIZE.md. Prepared in 2.0.102;
+  not installed.
 
 - [x] **Repair reset links lost their setup context.** Links now open the exact
   reset scope under Resets and provide a labeled Back to the original setup or

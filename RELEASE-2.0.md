@@ -258,3 +258,16 @@ route. Explicit sidebar navigation or closing ends the temporary context.
 Developer ID signed 2.0.101 supersedes prepared 2.0.99/100; installed/public
 2.0.94 remains unchanged. Final test/native evidence is recorded in
 RESET-DISCOVERABILITY-2.0.md. No notarization or publication was performed.
+
+## Reset checklist and resizing — candidate 2.0.102
+
+Resets now presents comparable scopes in a single unchecked checklist, with inline
+keyboard selection, explicit confirmation, preserved partial results and retry
+only for failed areas. Preferences execute last and quit only after the full batch
+succeeds. Repair links highlight their row and retain the original Setup return.
+All-app privacy remains separate. Settings is resizable, remembers size and keeps
+it stable through page changes; Setup uses available width and height.
+
+See RESET-CHECKLIST-AND-RESIZE.md for automated/native evidence and limitations.
+This candidate supersedes prepared 2.0.101 and is not installed, notarized or
+published. Installed/public 2.0.94 is unchanged.

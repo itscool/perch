@@ -151,8 +151,8 @@ func runSetupOverviewTests() throws {
     app.navigationExceptions()
     try check(!host.back.isHidden && host.pages.count == 3 && host.back.title == "Back" && host.pages.last?.detail.contains("save automatically") == true, "Exception choices do not explain immediate saving and return to Navigation keys")
     host.goBack(); host.goBack()
-    app.resetSettingsPage()
-    try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title.contains("privacy") || $0.title.contains("system") }, "Perch preference reset contains unrelated system permission controls")
+    app.resetHub()
+    try check(host.pages.last?.title == "Resets", "Reset index missing")
     host.goBack()
     print("PASS: observed setup readiness; independent permission recovery; stale helpers/events; first use and re-entry; next repair and Back; read-only Recheck; task categories and draft cancellation")
 }

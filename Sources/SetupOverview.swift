@@ -178,7 +178,7 @@ final class SetupOverviewPage {
     }
     func show() {
         let host = SettingsWindow.shared
-        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Complete the items marked Needs attention for the features you choose before relying on them. Optional features can wait. Lid protection has its own setup step below. Return here whenever access or setup changes." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574))
+        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Complete the items marked Needs attention for the features you choose before relying on them. Optional features can wait. Lid protection has its own setup step below. Return here whenever access or setup changes." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574, layout: { [weak self] size in self?.resize(to: size) }))
         refresh()
         self.timer?.invalidate()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -187,6 +187,14 @@ final class SetupOverviewPage {
         }
         timer.tolerance = 0.2; self.timer = timer
         RunLoop.main.add(timer, forMode: .common)
+    }
+    func resize(to size: NSSize) {
+        view.setFrameSize(size)
+        summary.frame = NSRect(x: 8, y: size.height-33, width: size.width-16, height: 26)
+        let controls = view.subviews.compactMap { $0 as? NSButton }
+        for (i, button) in controls.enumerated() { button.frame = NSRect(x: CGFloat(i)*(size.width/2+2), y: size.height-77, width: size.width/2-4, height: 32) }
+        scroll.frame = NSRect(x: 0, y: 0, width: size.width, height: max(96, size.height-88))
+        refresh()
     }
     func refresh() {
         let snapshot = read(); checks = snapshot.checks; summary.stringValue = snapshot.summary
@@ -212,16 +220,19 @@ final class SetupOverviewPage {
             buttons[index].title = item.action
             buttons[index].setAccessibilityLabel(item.action + " " + item.title)
         }
-        let heights = labels.map { max(76, ceil($0.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 372, height: 10000)).height ?? 0) + 16) }
+        let widestButton = buttons.map { ceil(($0.title as NSString).size(withAttributes: [.font: $0.font ?? NSFont.systemFont(ofSize: 13)]).width) + 32 }.max() ?? 164
+        let buttonWidth = min(scroll.contentSize.width * 0.42, max(164, widestButton))
+        let labelWidth = max(180, scroll.contentSize.width - buttonWidth - 36)
+        let heights = labels.map { max(76, ceil($0.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: labelWidth, height: 10000)).height ?? 0) + 16) }
         let top = max(0, rows.frame.height - scroll.contentView.bounds.maxY)
         let height = max(scroll.contentSize.height, heights.reduce(0, +))
         let changedHeight = rows.frame.height != height
-        rows.frame = NSRect(x: 0, y: 0, width: 572, height: height)
+        rows.frame = NSRect(x: 0, y: 0, width: scroll.contentSize.width, height: height)
         var y = height
         for index in labels.indices {
             y -= heights[index]
-            labels[index].frame = NSRect(x: 8, y: y + 8, width: 372, height: heights[index] - 16)
-            buttons[index].frame = NSRect(x: 390, y: y + heights[index] - 38, width: 164, height: 30)
+            labels[index].frame = NSRect(x: 8, y: y + 8, width: labelWidth, height: heights[index] - 16)
+            buttons[index].frame = NSRect(x: scroll.contentSize.width - buttonWidth - 18, y: y + heights[index] - 38, width: buttonWidth, height: 30)
         }
         if changedHeight {
             scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - scroll.contentSize.height - top)))

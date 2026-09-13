@@ -30,12 +30,12 @@ func runAppUpdateTests() throws {
     try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, overrideOff: true), "An unowned lid session was dropped by restart")
     try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, overrideOff: false), "Unknown override state allowed closed-lid restart")
     var snapshot = SetupSnapshot(config: SafetyConfiguration()); snapshot.lidHelperUpdatePending = true
-    try check(snapshot.checks.first(where: { $0.id == "awake" })?.route == .awake, "Queued helper update has no feature recovery route")
+    try check(snapshot.checks.first(where: { $0.id == "awake" })?.route == .lidSetup, "Queued helper update does not reach its Setup stage")
     let app = AppDelegate(); app.buildMenu()
     var helper = LidHelperSettingsSnapshot(helper: pending)
     app.configureSettings()
     let parentCount = SettingsWindow.shared.pages.count
-    app.presentKeepAwakeSettings(readHelper: { helper })
+    app.presentLidProtectionSetup(readHelper: { helper })
     let host = SettingsWindow.shared, page = host.pages.last!
     let buttons = page.view.subviews.compactMap { $0 as? NSButton }
     let finish = buttons.first(where: { $0.title == "Finish lid helper update…" })!
@@ -51,9 +51,14 @@ func runAppUpdateTests() throws {
     host.pages.last?.refresh?()
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-helper-update-recovery.png")
     host.goBack()
-    try check(host.pages.count == parentCount, "Keep awake lost its parent route")
-    app.presentKeepAwakeSettings(readHelper: { helper })
+    try check(host.pages.count == parentCount, "Lid setup lost its parent route")
+    app.presentLidProtectionSetup(readHelper: { helper })
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSTextField }.first!.stringValue.contains("canceled"), "Returning hid the failed helper result")
+    helper.helper = LidHelperUpdateState(info: current, lidOpen: true)
+    helper.result = "Lid helper updated and responding."
+    host.pages.last?.refresh?()
+    try check(host.pages.last!.view.subviews.compactMap { $0 as? SettingsStatusField }.first?.textColor == .labelColor,
+              "Successful helper setup is still presented as needing attention")
     host.goBack()
     var restartState = RestartSettingsSnapshot()
     var restarts = 0

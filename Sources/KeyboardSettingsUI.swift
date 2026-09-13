@@ -107,7 +107,8 @@ extension AppDelegate {
     }
     @objc func keyboardSettings() { keyboardSettingsView(details: false) }
     func openKeyboardPreferences(permission: Bool) {
-        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: permission ? "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" : "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!) }
+        if permission { keyboardAccessRecovery(); return }
+        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!) }
     }
     @objc func keyboardDetails() { keyboardSettingsView(details: true) }
     func keyboardSettingsView(details: Bool) {
@@ -155,26 +156,20 @@ extension AppDelegate {
         }
         text(keyboardModes.blocksFunctionKeyChanges ? "Checking keyboard settings…" : "On: F1–F12 work without holding Fn. Off: media controls work directly. Checkmarks show observed settings; mixed means different or custom settings.", 340, 43, color: .secondaryLabelColor)
         if !details {
-            let status = keyboardModes.blocksFunctionKeyChanges ? "Reading connected keyboards…" : keyboardModes.needsAccess ? "Some external controls need Input Monitoring. Open keyboard details for the affected devices and access setup." : keyboardModes.results.contains(where: { !$0.verified }) || !keyboardModes.modifierErrors.isEmpty ? "Some keyboard controls need attention. Keyboard details lists the affected devices and the next step." : !nativeKeyboards.contains(where: { !$0.builtIn }) ? "No external keyboard is connected. Its controls become available when one connects." : externalModes.isEmpty ? "External F1–F12 status is unavailable. Recheck keyboards, or open details for supported controls and access setup." : "Connected keyboard controls are available. Navigation keys and app exceptions are optional choices below."
+            let status = keyboardModes.blocksFunctionKeyChanges ? "Reading connected keyboards…" : keyboardModes.needsAccess ? "Some external controls need Input Monitoring. Review Setup → Keyboard access to restore the affected controls." : keyboardModes.results.contains(where: { !$0.verified }) || !keyboardModes.modifierErrors.isEmpty ? "Some keyboard controls need attention. Keyboard details lists the affected devices and the next step." : !nativeKeyboards.contains(where: { !$0.builtIn }) ? "No external keyboard is connected. Its controls become available when one connects." : externalModes.isEmpty ? "External F1–F12 status is unavailable. Recheck keyboards, or open details for supported controls and access setup." : "Connected keyboard controls are available. Navigation keys and app exceptions are optional choices below."
             if keyboardModes.needsAccess && !keyboardModes.blocksFunctionKeyChanges {
                 text(LaunchAccessRecovery.summary, 282, 54, color: StatusColors.warning)
-                let access = SettingsActionButton(title: "Open macOS Input Monitoring") { [weak self] in self?.openKeyboardPreferences(permission: true) }
-                access.frame = NSRect(x: 0, y: 249, width: 282, height: 32); view.addSubview(access)
-                let recovery = SettingsActionButton(title: "Set up or repair access…") { [weak self] in self?.keyboardAccessRecovery() }
-                recovery.frame = NSRect(x: 290, y: 249, width: 282, height: 32); view.addSubview(recovery)
+                let recovery = SettingsActionButton(title: "Review keyboard access in Setup…") { [weak self] in self?.keyboardAccessRecovery() }
+                recovery.frame = NSRect(x: 0, y: 249, width: 572, height: 32); view.addSubview(recovery)
             } else { text(status, 250, 70, color: .secondaryLabelColor) }
             let navigation = SettingsActionButton(title: "Navigation keys…") { [weak self] in self?.navigationSettings() }
             navigation.frame = NSRect(x: 0, y: 205, width: 572, height: 32); view.addSubview(navigation)
             text("Behavior, app exceptions, learning and saved layouts in one place.", 172, 28, color: .secondaryLabelColor)
             let diagnostics = SettingsActionButton(title: "Keyboard details & troubleshooting…") { [weak self] in self?.keyboardDetails() }
             diagnostics.frame = NSRect(x: 0, y: 123, width: 572, height: 32); view.addSubview(diagnostics)
-            text("See each connected keyboard’s results, access setup and macOS settings.", 89, 28, color: .secondaryLabelColor)
+            text("See each connected keyboard’s results and macOS behavior settings.", 89, 28, color: .secondaryLabelColor)
             let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.recheck() }
-            retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 0, y: 15, width: keyboardModes.needsAccess ? 278 : 572, height: 32); view.addSubview(retry)
-            if keyboardModes.needsAccess {
-                let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
-                drag.frame = NSRect(x: 290, y: 10, width: 274, height: 42); view.addSubview(drag)
-            }
+            retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 0, y: 15, width: 572, height: 32); view.addSubview(retry)
             SettingsWindow.shared.show(.init(title: "Keyboard settings", detail: "Choose the keyboard group and behavior you want. Built-in and external choices are independent. Changes apply immediately.", view: view, refresh: { [weak self] in self?.keyboardSettings() }))
             return
         }
@@ -214,17 +209,11 @@ extension AppDelegate {
         navigation.frame = NSRect(x: 8, y: 105, width: 273, height: 30); view.addSubview(navigation)
         let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.recheck() }
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
-        let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Open macOS Input Monitoring" : "Open macOS Keyboard Settings") { [weak self] in
+        let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Review keyboard access in Setup…" : "Open macOS Keyboard Settings") { [weak self] in
             let permission = self?.keyboardModes.needsAccess == true
             self?.openKeyboardPreferences(permission: permission)
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
-        if keyboardModes.needsAccess {
-            let recovery = SettingsActionButton(title: "Set up or repair keyboard access…") { [weak self] in self?.keyboardAccessRecovery() }
-            recovery.frame = NSRect(x: 8,y: 2,width: 280,height: 40); view.addSubview(recovery)
-            let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
-            drag.frame = NSRect(x: 298, y: 2, width: 258, height: 40); view.addSubview(drag)
-        }
         SettingsWindow.shared.show(.init(title: "Keyboard details", detail: "Read the result for the affected keyboard. Recheck only reads device state; it does not reapply saved choices. Navigation recognition is separate from function keys and modifier swaps.", view: view, refresh: { [weak self] in self?.keyboardDetails() }))
     }
 }

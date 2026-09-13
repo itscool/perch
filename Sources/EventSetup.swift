@@ -119,8 +119,8 @@ final class EventCollectorSetup: NSObject {
             primary.title = "Checking…"; primary.isEnabled = false
             guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the link below."
         } else if !fresh {
-            primary.title = "Repair background helper…"; primary.isEnabled = true
-            guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Repair it below; this page will recheck collection automatically."
+            primary.title = "Review background setup…"; primary.isEnabled = true
+            guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Review Setup → Background helpers, then return here to check collection."
         } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
             primary.title = "Retry health check"
             readyState.stringValue = "⚠  3. Events received, but coverage is degraded"
@@ -137,9 +137,7 @@ final class EventCollectorSetup: NSObject {
         if !installed || needsRepair {
             installCollector()
         } else if GuardianInstall.status?.fresh != true {
-            do { try GuardianInstall.install(); installError = nil }
-            catch { installError = error.localizedDescription }
-            refresh()
+            SettingsWindow.shared.navigateToSetupStage("maintenance")
         } else if waitingForSession {
             do { try requestNewSession(); refresh() } catch { guidance.stringValue = error.localizedDescription }
         } else if Self.collectionReady(GuardianInstall.status, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession) { refresh() }
@@ -176,5 +174,9 @@ final class EventCollectorSetup: NSObject {
 }
 
 extension AppDelegate {
-    @objc func processEventSetup() { EventCollectorSetup.shared.show(fromSettings: true) }
+    @objc func processEventSetup() { openSetupStage("events") }
+    @objc func presentEventSetupStage() {
+        setupOverview()
+        EventCollectorSetup.shared.show(fromSettings: true)
+    }
 }

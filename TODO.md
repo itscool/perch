@@ -1,7 +1,7 @@
 # Perch work checklist
 
 2.0 development, September 12, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.96 corrections have bounded
+in /Applications. 2.0.94 is published; signed 2.0.98 corrections have bounded
 native/automated acceptance and await installation and physical QA. Categories
 are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
@@ -108,6 +108,15 @@ bounded real native journeys are recorded in NATIVE-QA-2.0.95.md. Actual hardwar
 remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
+
+- [x] **One home for setup and recovery.** Permissions, background-helper repair,
+  lid-helper maintenance and collector setup are grouped beneath Setup. Keyboard,
+  scrolling, sharing, sleep and agent pages link directly to those stages, without
+  embedding duplicate setup controls. Everyday choices stay with their topics.
+  Setup stages preserve one checklist and its return path. All six stages and the
+  Keep awake/agent repair links passed native clicks; 23/23 isolated suites passed.
+  The final helper-success color regression is checked separately. Source is
+  prepared in 2.0.98, not installed. See SETUP-CONSOLIDATION-2.0.md.
 
 1. [x] **Persistent Settings navigation (build 82).** One window with a left
    category list, direct access to stable pages, Setup & status as home, stable
@@ -285,7 +294,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.96 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.98 candidate is prepared with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

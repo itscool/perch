@@ -169,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if let inputTimer { inputTimer.tolerance = 0.2; RunLoop.main.add(inputTimer, forMode: .common) }
         refresh()
         if CommandLine.arguments.contains("--show-keyboard-setup") { DispatchQueue.main.async { self.configureSettings(); self.keyboardSettings() } }
-        if CommandLine.arguments.contains("--show-event-setup") { DispatchQueue.main.async { self.configureSettings(); EventCollectorSetup.shared.show(fromSettings: true) } }
+        if CommandLine.arguments.contains("--show-event-setup") { DispatchQueue.main.async { self.processEventSetup() } }
         if !CommandLine.arguments.contains("--show-keyboard-setup") && !CommandLine.arguments.contains("--show-event-setup") {
             DispatchQueue.main.async { [weak self] in self?.showFirstSetupIfNeeded() }
         }
@@ -437,7 +437,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 let enabling = !(LidGuardClient.shared.active || state.perchActive || state.caffeinateActive)
                 guard !enabling || GuardianInstall.alive else {
                     self.advancedSafetySettings()
-                    self.showError(AppError(message: "Keep awake needs the background helper. Choose Repair background helpers below, then return to Keep awake."))
+                    let host = SettingsWindow.shared
+                    if let page = host.pages.last, page.title == "Background helpers" {
+                        host.feedback = "Keep awake needs the background helper. Complete setup below, then return to Keep awake."
+                        host.display(page)
+                    }
                     return
                 }
                 let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
@@ -464,15 +468,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         host.returnedToApp()
         host.afterInteraction { [weak self] in
             guard let self else { return }
-            self.installSettingsNavigation()
-            if host.pages.last?.title == "Keep awake" {
-                // Keep the setup checklist beneath this page when repair fails.
-            } else if host.pages.first?.title == "Setup & status" {
-                self.keepAwakeSettings()
-            } else if let destination = host.sidebar.destinations.first(where: { $0.id == "awake" }) {
-                host.navigate(to: destination)
-            }
-            if let page = host.pages.last, page.title == "Keep awake" {
+            self.openSetupStage("lid-setup")
+            if let page = host.pages.last, page.title == "Lid protection setup" {
                 host.feedback = explanation
                 host.display(page)
             }
@@ -491,7 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                     var config = SafetyConfiguration.load(); config.keepAwake = true; try config.save()
                     UserDefaults.standard.set(true, forKey: SleepPreferences.lidPreferenceKey)
                     self.refresh()
-                    self.showLidSetup("Your lid choice is saved. Finish lid protection setup below, then choose Resume lid protection. Lid protection has not been confirmed.")
+                    self.showLidSetup("Your lid choice is saved. Finish lid protection setup below, then return to Keep awake to resume protection. Lid protection has not been confirmed.")
                     return
                 }
 
@@ -602,24 +599,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self.applyLidSleepPresentation(); self.settingsRefresh?()
         }
     }
-    @objc func inputPermissionsFromSettings() {
-        withMenuClosed { [self] in
-            if permissionSetup == nil { permissionSetup = PermissionSetup() }
-            permissionSetup?.show(fromSettings: true)
-        }
-    }
-    @objc func inputPermissions() {
-        withMenuClosed { [self] in
-            if permissionSetup == nil { permissionSetup = PermissionSetup() }
-            permissionSetup?.show()
-        }
+    @objc func inputPermissionsFromSettings() { openSetupStage("input-access") }
+    @objc func inputPermissions() { inputPermissionsFromSettings() }
+    @objc func presentInputAccessStage() {
+        setupOverview()
+        if permissionSetup == nil { permissionSetup = PermissionSetup() }
+        permissionSetup?.show(fromSettings: true)
     }
     @objc func toggleFunctionKeys() { keyboardModes.setBuiltIn(fnItem.state != .on) }
     @objc func toggleLogin() {
         perform {
             switch SMAppService.mainApp.status {
             case .enabled: try SMAppService.mainApp.unregister()
-            case .requiresApproval: SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
+            case .requiresApproval: advancedSafetySettings()
             default: try SMAppService.mainApp.register()
             }
         }

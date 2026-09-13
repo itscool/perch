@@ -11,8 +11,10 @@ final class SettingsTaskPage {
     var update: (() -> Void)?
     private var timer: Timer?
     private var y: CGFloat
+    private let statusHeight: CGFloat
+    private var rows: [(button: NSButton, label: NSTextField)] = []
     init(title: String, detail: String, height: CGFloat, statusHeight: CGFloat = 60) {
-        self.title = title; self.detail = detail
+        self.title = title; self.detail = detail; self.statusHeight = statusHeight
         view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: height))
         status.font = .systemFont(ofSize: 13)
         status.frame = NSRect(x: 8, y: height-statusHeight-5, width: 556, height: statusHeight)
@@ -30,7 +32,32 @@ final class SettingsTaskPage {
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         label.frame = NSRect(x: 8, y: y, width: 556, height: 32)
         view.addSubview(button); view.addSubview(label); y -= 74
+        rows.append((button, label))
         return button
+    }
+    /// Reflow optional instructions as one row, including their explanation.
+    /// Hidden setup controls must not leave stale instructions or empty blocks.
+    func arrangeRows(hiding hidden: [NSButton], footerHeight: CGFloat = 0) {
+        let visible = rows.filter { row in !hidden.contains { $0 === row.button } }
+        let height = statusHeight + 54 + CGFloat(visible.count) * 74 + footerHeight
+        let resized = view.frame.height != height
+        view.frame.size.height = height
+        status.frame.origin.y = height - statusHeight - 5
+        var y = height - statusHeight - 83
+        for row in rows {
+            let hide = hidden.contains { $0 === row.button }
+            row.button.isHidden = hide; row.label.isHidden = hide
+            if !hide {
+                row.button.frame.origin.y = y + 34; row.label.frame.origin.y = y
+                y -= 74
+            }
+        }
+        let host = SettingsWindow.shared
+        if host.pages.last?.view === view, let focused = host.window.firstResponder as? NSView,
+           focused.isHiddenOrHasHiddenAncestor {
+            host.window.makeFirstResponder(visible.first?.button ?? host.sidebar.table)
+        }
+        if resized, let current = host.pages.last, current.view === view { host.display(current) }
     }
     func refresh() {
         guard !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === view else { return }
@@ -61,7 +88,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Scrolling", detail: "Choose each device’s vertical scroll direction. Changes save immediately. Horizontal scrolling is unchanged.", height: 310)
         let trackpad = page.add("Reverse trackpad scrolling", detail: ControlHelp.trackpad, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: true) }
         let wheel = page.add("Reverse mouse-wheel scrolling", detail: ControlHelp.wheel, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: false) }
-        let access = page.add("Set up Accessibility…", detail: "Check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
+        let access = page.add("Review input setup…", detail: "Open Setup to check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
             if HelperStatusIPC.inputClient.value?.fresh == true { self?.inputPermissionsFromSettings() }
             else { self?.advancedSafetySettings() }
         }
@@ -70,7 +97,7 @@ extension AppDelegate {
             trackpad.state = config.reverseTrackpad ? .on : .off; wheel.state = config.reverseWheel ? .on : .off
             let granted = input?.fresh == true && input?.trusted == true
             trackpad.isEnabled = granted || config.reverseTrackpad; wheel.isEnabled = granted || config.reverseWheel
-            access.title = input?.fresh != true ? "Review background helpers…" : granted ? "Review Accessibility…" : "Set up Accessibility…"
+            access.title = input?.fresh != true ? "Review helper setup…" : "Review input setup…"
             page?.status.stringValue = input?.fresh != true ? "Waiting for the input helper. Review helpers to restore controls; saved scroll choices are kept." : !granted ? "Accessibility is needed before scrolling controls can run. Your saved choices are kept." : (config.reverseTrackpad || config.reverseWheel) && input?.active != true ? "Your choices are saved. Waiting for the helper to apply them." : "Ready. Checked choices are saved and the helper has the required access."
             page?.status.textColor = granted ? .labelColor : StatusColors.warning
         }
@@ -92,20 +119,16 @@ extension AppDelegate {
 
     @objc func keepAwakeSettings() { presentKeepAwakeSettings(readHelper: { .current }) }
     func presentKeepAwakeSettings(readHelper: @escaping () -> LidHelperSettingsSnapshot) {
-        let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 646, statusHeight: 100)
+        let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 498, statusHeight: 100)
         let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
         let lid = page.add("Including with the lid closed", detail: "Temporarily blocks all system sleep, including Apple menu → Sleep. The 60-second deadline, watchdog and independent recovery remove the override. Turn this off to sleep manually.", checkbox: true) { [weak self] in self?.toggleLid() }
         awake.toolTip = ControlHelp.awake; awake.setAccessibilityHelp(ControlHelp.awake)
         lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
         let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
-        let repair = page.add("Repair lid protection…", detail: "Finish a queued helper update with the lid open, or reinstall to repair protection. macOS asks for administrator authorization.") { [weak self] in
-            guard let self else { return }
-            if readHelper().helper.pending { LidHelperUpdate.shared.finish(); self.settingsRefresh?(); return }
-            do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() } catch { self.showError(error) }
+        let repair = page.add("Review lid setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
+            self?.lidProtectionSetup()
         }
-        page.add("Review background helpers…", detail: "Use if Perch cannot confirm or apply a keep-awake request.") { [weak self] in self?.advancedSafetySettings() }
-        page.add("Review sleep reset…", detail: "Remove the lid override and Perch’s keep-awake request, with an explicit reset action.") { [weak self] in self?.systemResetPage(includeAudio: false) }
         page.update = { [weak self, weak page] in
             guard let self else { return }
             let presentation = self.sleepPresentation()
@@ -114,9 +137,8 @@ extension AppDelegate {
             // The menu remembers the lid choice while Keep awake is off. This page
             // distinguishes that preference from the observed macOS override.
             let helper = readHelper()
-            repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
-            repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
-            repair.contentTintColor = helper.helper.pending && !helper.busy ? StatusColors.warning : nil
+            repair.title = helper.helper.pending ? "Lid helper update needed — review setup…" : "Review lid setup…"
+            repair.contentTintColor = helper.helper.pending ? StatusColors.warning : nil
             let guarded = LidGuardClient.shared.active
             lid.state = presentation.lid
             lid.isEnabled = presentation.lidEnabled
@@ -133,15 +155,14 @@ extension AppDelegate {
             }
             if remembered && self.observedLidDisabled != true {
                 if !helper.helper.installed {
-                    page?.status.stringValue = "Your lid choice is saved. Choose Set up lid protection below, then Resume lid protection after the helper is ready. Protection has not been confirmed."
+                    page?.status.stringValue = "Your lid choice is saved. Open Setup → Lid protection, then return here to Resume lid protection after the helper is ready. Protection has not been confirmed."
                 } else if helper.helper.pending {
                     page?.status.stringValue = "Your lid choice is saved. Finish the helper update before starting a new session."
                 } else if LidGuardClient.shared.status?.fresh != true {
-                    page?.status.stringValue = "Your lid choice is saved. Waiting for the lid helper before Resume becomes available. If it does not connect, choose Repair lid protection."
+                    page?.status.stringValue = "Your lid choice is saved. Waiting for the lid helper before Resume becomes available. If it does not connect, review Setup → Lid protection."
                 }
             }
-            if let result = helper.result { page?.status.stringValue += "\n" + result }
-            else if helper.helper.pending { page?.status.stringValue += "\n" + helper.helper.notice }
+            if helper.helper.pending { page?.status.stringValue += "\nReview Setup → Lid protection to finish the update." }
             let needsAttention = self.observedLidDisabled == true || helper.helper.pending ||
                 LidGuardClient.shared.status?.error != nil ||
                 (remembered && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing)
@@ -159,7 +180,7 @@ extension AppDelegate {
         }
         cpu.identifier = NSUserInterfaceItemIdentifier(CPUDisplaySettings.key)
         let restartButton = page.add("Restart Perch", detail: "Close and reopen Perch, keeping your saved choices. An active lid session keeps its existing timeout.") { [weak page] in restart(); page?.refresh() }
-        page.add("Maintenance…", detail: "Review or repair background helpers and Perch’s own permission setup.") { [weak self] in self?.advancedSafetySettings() }
+        page.add("Setup & status…", detail: "Review prerequisite readiness and repair missing access or helpers in Setup.") { [weak self] in self?.setupOverview() }
         page.add("Reset Perch settings…", detail: "Choose saved device setup or Perch preferences to forget, with a separate confirmation.") { [weak self] in self?.resetSettingsPage() }
         page.add("About Perch…", detail: "Version and build information.") { [weak self] in self?.about() }
         page.update = { [weak page] in
@@ -169,7 +190,7 @@ extension AppDelegate {
             let restartState = readRestart()
             restartButton.isEnabled = !restartState.busy
             restartButton.title = restartState.busy ? "Please wait…" : "Restart Perch"
-            page?.status.stringValue = !restartState.message.isEmpty ? restartState.message : status == .requiresApproval ? "Start at login needs approval. Select it to open macOS Login Items." : "Ordinary preferences save immediately. Maintenance and resets explain their effects before making changes."
+            page?.status.stringValue = !restartState.message.isEmpty ? restartState.message : status == .requiresApproval ? "Start at login needs approval. Select it to review background setup." : "Ordinary preferences save immediately. Setup and resets explain their effects before making changes."
         }
         page.show(delegate: self)
     }

@@ -239,7 +239,10 @@ func runReleaseUITests() throws {
     accessApp.keyboardModes.results = app.keyboardModes.results
     accessApp.configureSettings(); accessApp.keyboardSettings()
     let accessPage = SettingsWindow.shared.pages.last!.view
-    try check(accessPage.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Open macOS Input Monitoring" }, "Missing permission requires discovering another page")
+    let setupLink = accessPage.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Review keyboard access in Setup…" }
+    try check(setupLink != nil && !accessPage.subviews.contains { $0 is PermissionDragItem }, "Missing access lacks a direct Setup link or duplicates its instructions")
+    setupLink?.performClick(nil)
+    try check(SettingsWindow.shared.pages.last?.title == "Keyboard access" && SettingsWindow.shared.pages.count == 2, "Keyboard repair link does not select the canonical Setup stage")
     try renderReleaseView(SettingsWindow.shared.window.contentView!, path: "/private/tmp/perch-keyboard-access.png")
     SettingsWindow.shared.goBack(); SettingsWindow.shared.goBack()
     app.keyboardModes.results = [.init(name: "MX Keys", detail: "Confirmed", verified: true, standard: false)]

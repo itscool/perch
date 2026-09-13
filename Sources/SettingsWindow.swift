@@ -108,10 +108,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         }.first
         sidebar.update(selected: selected, busy: interactionBusy)
     }
+    func navigateToSetupStage(_ id: String) {
+        guard let destination = sidebar.destinations.first(where: { $0.id == id && $0.setupStage }) else { return }
+        navigate(to: destination)
+    }
     func navigate(to destination: SettingsDestination) {
         returnedToApp() // An explicit navigation request is also a return from Finder/Settings.
         guard !interactionBusy else { updateSidebar(); return }
-        if pages.count == 1, destination.pageTitles.contains(pages[0].title) {
+        if (pages.count == 1 || (destination.setupStage && pages.count == 2 && pages.first?.title == "Setup & status")), let last = pages.last, destination.pageTitles.contains(last.title) {
             updateSidebar()
             if !testing { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
             return
@@ -135,7 +139,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         openDestination(destination)
     }
     private func openDestination(_ destination: SettingsDestination) {
-        pages.reversed().forEach { $0.leave?() }; pages.removeAll()
+        // Setup stages share the existing checklist, preserving its selected
+        // issue and scroll position. Draft validation ran before this point.
+        if destination.setupStage, pages.first?.title == "Setup & status" {
+            while pages.count > 1 { pages.removeLast().leave?() }
+        } else {
+            pages.reversed().forEach { $0.leave?() }; pages.removeAll()
+        }
         feedback = nil
         destination.open()
         updateSidebar()
@@ -368,7 +378,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             label.frame = NSRect(x: 8,y: y,width: 556,height: 32)
             view.addSubview(button); view.addSubview(label)
         }
-        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Agent Kill Switch" ? #selector(AppDelegate.configurePanic) : title == "Maintenance" ? #selector(AppDelegate.advancedSafetySettings) : nil
+        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Agent Kill Switch" ? #selector(AppDelegate.configurePanic) : title == "Background helpers" ? #selector(AppDelegate.presentBackgroundSetup) : nil
         show(Page(title: title, detail: detail, view: view, refresh: { [weak delegate] in if let selector { _ = delegate?.perform(selector) } }))
     }
     /// Synchronous response adapter for existing isolated fixtures only. Product

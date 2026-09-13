@@ -7,7 +7,7 @@ extension AppDelegate {
         let home = page.add("Home/End move to line edges", detail: "Move to the start or end of the current line in supported apps.", checkbox: true) { [weak self] in self?.toggleHomeEnd() }
         let paging = page.add("Page Up/Down move the cursor", detail: "Move the text cursor by a page instead of only scrolling the view.", checkbox: true) { [weak self] in self?.togglePageKeys() }
         page.add("Learn or manage layouts…", detail: "Choose a keyboard. A learned layout saves automatically after the last key.") { [weak self] in self?.testNavigationKeys() }
-        let setup = page.add("Review Accessibility…", detail: "Restore the helper or its access if navigation controls are unavailable.") { [weak self] in
+        let setup = page.add("Review input setup…", detail: "Restore the helper or its access if navigation controls are unavailable.") { [weak self] in
             if HelperStatusIPC.inputClient.value?.fresh != true { self?.advancedSafetySettings() }
             else if HelperStatusIPC.inputClient.value?.trusted != true { self?.inputPermissionsFromSettings() }
             else { self?.inputPermissionsFromSettings() }
@@ -23,7 +23,7 @@ extension AppDelegate {
             // An enabled choice can always be turned off, even after losing a device or grant.
             home.isEnabled = preferences.homeEnd || (access && profiles.contains { $0.hasHomeEnd })
             paging.isEnabled = preferences.pageUpDown || (access && profiles.contains { $0.hasPageKeys })
-            setup.title = input?.fresh != true ? "Review background helpers…" : !access ? "Set up Accessibility…" : "Review Accessibility…"
+            setup.title = input?.fresh != true ? "Review helper setup…" : "Review input setup…"
             page?.status.stringValue = input?.fresh != true ? "The input helper is unavailable. Restore it before checking access or enabling navigation." : !access ? "Perch Helper needs Accessibility. Restore access, then return here to choose behavior." : self.keyboardModes.registrationPending ? "Checking connected keyboards. Your saved behavior choices are kept." : self.keyboardModes.registrationError != nil ? "Keyboard detection needs attention. Review layouts to retry; your saved choices are kept." : self.keyboardModes.registrations.isEmpty ? "Connect an external keyboard to check its navigation keys. Known layouts are recognized automatically; your saved behavior choices are kept." : profiles.isEmpty ? "This keyboard needs a navigation layout. Open Learn or manage layouts to set it up; the layout saves automatically." : input?.navigationUnidentified == true ? "macOS did not identify the source keyboard. Unidentified keys keep their normal behavior; review the layout if needed." : "A supported external layout is available. Choose behavior above; app exceptions can keep individual apps unchanged."
         }
         page.show(delegate: self)

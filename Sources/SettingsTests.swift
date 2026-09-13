@@ -36,8 +36,8 @@ func runSettingsTests() throws {
     try render("/private/tmp/perch-settings-root-preview.png")
     app.configurePanic()
     try check(host.pages.count == 2 && host.window.windowNumber == identity, "Agent Kill Switch changed windows")
-    EventCollectorSetup.shared.show(fromSettings: true)
-    try check(host.pages.count == 3 && EventCollectorSetup.shared.primary.window === host.window, "Collector controls are outside shared window")
+    app.processEventSetup()
+    try check(host.pages.count == 2 && EventCollectorSetup.shared.primary.window === host.window, "Collector controls are outside shared window")
     // Render the real view hierarchy into an explicit test background.
     func render(_ path: String) throws {
         guard let view = host.window.contentView else { throw AppError(message: "Settings content missing") }
@@ -45,8 +45,7 @@ func runSettingsTests() throws {
     }
     try render("/private/tmp/perch-settings-preview.png")
     host.goBack()
-    try check(host.pages.count == 2 && host.pages.last?.title == "Agent Kill Switch" && EventCollectorSetup.shared.timer == nil, "Collector Back/lifecycle failed")
-    host.goBack()
+    try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status" && EventCollectorSetup.shared.timer == nil, "Collector did not return to its Setup owner or stop refreshing")
     try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status", "Settings Back failed")
     app.inputPermissionsFromSettings()
     try check(app.permissionSetup?.status.window === host.window && host.pages.count == 2, "Input setup changed windows")
@@ -81,7 +80,7 @@ func runSettingsTests() throws {
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.hasPrefix("Remove the lid") || $0.title == "Unmute system audio" }.allSatisfy { $0.state == .off }, "System reset preselected destructive choices")
     host.goBack()
     app.configurePanic(); app.advancedSafetySettings()
-    try check(host.pages.count == 3 && host.window.windowNumber == identity, "Advanced navigation changed windows")
+    try check(host.pages.count == 2 && host.pages.first?.title == "Setup & status" && host.pages.last?.title == "Background helpers" && host.window.windowNumber == identity, "Background setup did not select its canonical stage")
     try render("/private/tmp/perch-advanced-preview.png")
     // The test panel stays offscreen and may already be closed. Exercise the
     // close delegate explicitly; AppKit does not resend close for a closed panel.

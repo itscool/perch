@@ -1,3 +1,7 @@
+Setup now owns permissions, helper installation and recovery in one place. Keyboard, scrolling, sharing, sleep and agent pages keep their behavior controls and link directly to the relevant Setup stage when attention is needed. Setup stages share one checklist and a consistent return; ready access stops asking you to grant it again.
+
+Recent corrections also fix local Sparkle packaging/launch failures, reopening saved Desk and restart-handoff files, and input interruptions during sustained Desk synchronization. Pending lid-helper updates are clearly marked as needing attention.
+
 Perch 2.0 adds shared keyboard and mouse control to Desk. It also brings shared monitor presets and configurable menu styling to the Mac menu bar.
 
 Desk groups your Perch computers, arranges up to 16 physical screens and saves three monitor presets. The default shortcuts are Ctrl–Option–Command–F1/F2/F3. Editing saves the setup; Play switches physical inputs. Shared screens are explicitly matched, including identical models. Offline changes are preserved, and conflicting arrangements can be reviewed before switching.

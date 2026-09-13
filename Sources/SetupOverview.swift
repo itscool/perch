@@ -1,7 +1,8 @@
 import AppKit
+import ServiceManagement
 
 enum SetupRoute: String {
-    case maintenance, inputAccess, keyboards, displays, deskInput, awake, agents, events, settings
+    case maintenance, inputAccess, keyboardAccess, sharingAccess, lidSetup, keyboards, displays, deskInput, awake, agents, events, settings
 }
 
 struct SetupCheck: Equatable {
@@ -35,6 +36,7 @@ struct SetupSnapshot {
     var deskInputEnabled = false
     var deskInputActive = false
     var deskInputProblem: String?
+    var deskInputAccessNeeded = false
     var collectorInstalled = false
     var collectorNeedsRepair = false
     var collectorWaitingForSession = false
@@ -43,6 +45,7 @@ struct SetupSnapshot {
     var lidGuard: LidGuardStatus?
     var lidHelperUpdatePending = false
     var lidHelperInstalled = false
+    var loginNeedsApproval = false
 
     var checks: [SetupCheck] {
         let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
@@ -54,10 +57,13 @@ struct SetupSnapshot {
         func add(_ id: String, _ title: String, _ state: SetupCheck.State, _ detail: String, _ action: String, _ route: SetupRoute) {
             items.append(.init(id: id, title: title, state: state, detail: detail, action: action, route: route))
         }
+        if loginNeedsApproval {
+            add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Review Login Items in background setup.", "Review background setup…", .maintenance)
+        }
         let helpersReady = guardianReady && (!inputWanted || inputReady)
         add("helpers", "Background controls", helpersReady ? .ready : helperWanted ? .attention : .optional,
             helpersReady ? "Perch’s background controls are responding and up to date." : helperWanted ? "A required helper is unavailable or outdated. Repair it to restore the features that depend on it." : "Needed for scrolling, keep-awake requests and agent protection.",
-            helpersReady ? "Maintenance…" : "Review repair…", .maintenance)
+            helpersReady ? "Review helper setup…" : "Review repair…", .maintenance)
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
             add("scrolling", "Scrolling & navigation access", .ready, inputWanted ? "Perch Helper has Accessibility access and the enabled input controls are running." : "Perch Helper has Accessibility access. Choose scroll or navigation behavior in Settings.", "Open scrolling…", .settings)
@@ -73,25 +79,25 @@ struct SetupSnapshot {
 
         let keyboardNeedsWork = keyboardAccessNeeded || keyboardErrors || (config.navigation?.enabled == true && navigationNeedsLearning)
         add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted || (keyboardAccessNeeded && keyboardCount > 0) ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
-            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", "Review keyboards…", .keyboards)
+            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", keyboardAccessNeeded ? "Review keyboard access…" : "Review keyboards…", keyboardAccessNeeded ? .keyboardAccess : .keyboards)
 
         let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
         add("displays", "Desk monitor presets", monitorState,
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Review display…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
-            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), "Review input sharing…", .deskInput)
+            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), deskInputAccessNeeded ? "Review sharing access…" : "Review input sharing…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
-                lidHelperUpdatePending ? "Finish the queued lid helper update in Keep awake before relying on lid protection." : "Lid protection needs its own helper setup. Choose Keep awake to set it up before using the Mac with its lid closed.",
-                lidHelperUpdatePending ? "Finish helper update…" : "Set up lid protection…", .awake)
+                lidHelperUpdatePending ? "Finish the queued lid helper update in Setup → Lid protection before relying on it." : "Install the lid helper in Setup → Lid protection before using the Mac with its lid closed.",
+                lidHelperUpdatePending ? "Finish helper update…" : "Set up lid protection…", .lidSetup)
         }
 
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Review sleep…", .awake)
         } else if lidHelperUpdatePending {
-            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Keep awake to finish. The existing helper is kept until then.", "Review helper update…", .awake)
+            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Review helper update…", .lidSetup)
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
@@ -232,6 +238,7 @@ extension AppDelegate {
     func setupSnapshot() -> SetupSnapshot {
         let config = SafetyConfiguration.load()
         var result = SetupSnapshot(guardian: GuardianInstall.status, input: HelperStatusIPC.inputClient.value, config: config)
+        result.loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
         result.keyboardCount = nativeKeyboards.count
         result.keyboardsBusy = keyboardModes.working
         result.keyboardAccessNeeded = keyboardModes.needsAccess
@@ -258,6 +265,7 @@ extension AppDelegate {
             result.deskInputEnabled = desk.input.enabled
             result.deskInputActive = desk.input.active
             result.deskInputProblem = desk.inputAdapter.accessProblem ?? desk.input.problem
+            result.deskInputAccessNeeded = desk.input.enabled && desk.inputAdapter.needsPermissionSetup
             result.monitorConfigured = !desk.node.group.monitors.isEmpty
             result.monitorAvailable = desk.node.group.presets.contains { desk.switching.readiness($0.id) == nil }
             result.monitorBusy = desk.switching.busy
@@ -308,6 +316,9 @@ extension AppDelegate {
         switch route {
         case .maintenance: advancedSafetySettings()
         case .inputAccess: inputPermissionsFromSettings()
+        case .keyboardAccess: keyboardAccessRecovery()
+        case .sharingAccess: sharingAccessSetup()
+        case .lidSetup: lidProtectionSetup()
         case .keyboards: keyboardSettings()
         case .displays: deskSettings()
         case .deskInput: deskInputPreferences()

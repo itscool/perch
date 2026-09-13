@@ -340,3 +340,18 @@ that a whole-version decision replaces. Do not claim the new shortcut works just
 because saving succeeded, or solve the comparison by silently choosing a version.
 For an unrelated pristine name field, accept remote text automatically; an unfinished
 local draft must survive and offer a clear reconciliation path.
+
+## One setup owner, contextual feature links
+
+Scenario: an app has Setup plus Keyboard and Sharing settings. Both feature pages
+embed their own copy of Input Monitoring instructions and each can install the
+same helper. A sharing failure can also mean that the other computer is locked.
+
+Expected: place each prerequisite/repair stage once in Setup, with direct links
+from affected features and consistent checklist selection/return. Re-entering
+from another feature must not duplicate the stage or reset working setup. Preserve
+ordinary keyboard/layout choices and sharing-session recovery under their topics;
+a locked remote computer is not evidence of missing permission. Check every
+entry route, including permission loss during learning and helper update failures.
+Do not mandate a separate Setup section for a product with one trivial permission
+or move routine customization merely because it was first chosen during setup.

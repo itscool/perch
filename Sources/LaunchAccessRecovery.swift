@@ -3,7 +3,7 @@ import AppKit
 /// Public capability checks establish current access, not TCC's responsible
 /// identity. In particular, parent PID is not proof of inherited permission.
 enum LaunchAccessRecovery {
-    static let summary = "Input Monitoring is not available to this copy of Perch. Open Keyboard access to add the current app or repair an outdated permission entry."
+    static let summary = "Input Monitoring is not available to this copy of Perch. Open Setup → Keyboard access to add the current app or repair an outdated permission entry."
     static let detail = "External Fn controls and navigation-key learning need Input Monitoring for Perch. Add the app below in System Settings and enable it.\n\nIf Perch is already enabled but access still fails, the entry may refer to an older signed copy. Remove only that Perch entry and add this copy again. Follow any macOS quit/reopen prompt.\n\nOpening from Finder can help with launch attribution, but does not repair an outdated grant. Scrolling uses Perch Helper’s Accessibility access; Desk sharing needs access for Perch itself."
 
     static func automationFailure(_ message: String, code: Int?) -> String {
@@ -34,11 +34,13 @@ extension AppDelegate {
             }
         }
     }
-    @objc func keyboardAccessRecovery() {
+    @objc func keyboardAccessRecovery() { openSetupStage("keyboard-access") }
+    @objc func presentKeyboardAccessStage() {
+        setupOverview()
         presentKeyboardAccess(readAccess: { NavigationProbeHID.hasAccess })
     }
     func presentKeyboardAccess(readAccess: @escaping () -> Bool) {
-        let page = KeyboardAccessPage(readAccess: readAccess, recheck: { [weak self] in self?.keyboardModes.recheck() }, openSettings: { [weak self] in self?.openKeyboardPreferences(permission: true) })
+        let page = KeyboardAccessPage(readAccess: readAccess, recheck: { [weak self] in self?.keyboardModes.recheck() }, openSettings: { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) } })
         page.show()
     }
 }

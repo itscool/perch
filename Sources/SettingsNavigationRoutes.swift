@@ -1,17 +1,31 @@
 import AppKit
 
 extension AppDelegate {
+    /// Every prerequisite/repair entry chooses its one Setup destination. The
+    /// destination owns the overview and stage; feature pages never embed it.
+    func openSetupStage(_ id: String) {
+        if menuOpen { withMenuClosed { [weak self] in self?.openSetupStage(id) }; return }
+        let host = SettingsWindow.shared
+        guard !host.interactionBusy else { host.afterInteraction { [weak self] in self?.openSetupStage(id) }; return }
+        if !host.hasSidebar { installSettingsNavigation() }
+        host.navigateToSetupStage(id)
+    }
     func installSettingsNavigation() {
-        func item(_ id: String, _ title: String, _ pages: [String], _ selector: Selector, depth: Int = 0) -> SettingsDestination {
-            SettingsDestination(id: id, title: title, pageTitles: pages, depth: depth, open: { [weak self] in _ = self?.perform(selector) })
+        func item(_ id: String, _ title: String, _ pages: [String], _ selector: Selector, depth: Int = 0, setupStage: Bool = false) -> SettingsDestination {
+            SettingsDestination(id: id, title: title, pageTitles: pages, depth: depth, setupStage: setupStage, open: { [weak self] in _ = self?.perform(selector) })
         }
         SettingsWindow.shared.configureNavigation([
-            item("overview", "Setup & status", ["Setup & status"], #selector(setupOverview)),
+            item("overview", "Setup", ["Setup & status"], #selector(setupOverview)),
+            item("maintenance", "Background helpers", ["Background helpers"], #selector(presentBackgroundSetup), depth: 1, setupStage: true),
+            item("keyboard-access", "Keyboard access", ["Keyboard access"], #selector(presentKeyboardAccessStage), depth: 1, setupStage: true),
+            item("input-access", "Scrolling & navigation", ["Scrolling & navigation access"], #selector(presentInputAccessStage), depth: 1, setupStage: true),
+            item("sharing-access", "Shared input access", ["Shared input access"], #selector(presentSharingAccessStage), depth: 1, setupStage: true),
+            item("lid-setup", "Lid protection", ["Lid protection setup"], #selector(presentLidSetupStage), depth: 1, setupStage: true),
+            item("events", "Agent tracking", ["Process event collection"], #selector(presentEventSetupStage), depth: 1, setupStage: true),
             item("keyboard", "Keyboards", ["Keyboard settings"], #selector(keyboardSettings)),
             item("navigation", "Navigation keys", ["Navigation keys"], #selector(navigationSettings), depth: 1),
             item("layouts", "Keyboard layouts", ["Set up navigation keys"], #selector(testNavigationKeys), depth: 1),
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
-            item("keyboard-access", "Keyboard access", ["Keyboard access"], #selector(keyboardAccessRecovery), depth: 1),
             item("keyboard-details", "Keyboard details", ["Keyboard details"], #selector(keyboardDetails), depth: 1),
             item("scrolling", "Scrolling", ["Scrolling"], #selector(scrollingSettings)),
             item("displays", "Displays", ["Displays"], #selector(displaySettings)),
@@ -24,13 +38,10 @@ extension AppDelegate {
             item("agent-choices", "Agents & shortcut", ["Agents, shortcut & panic actions"], #selector(editSafetyConfiguration), depth: 1),
             item("custom-agents", "Add or remove agents", ["Add or remove agents"], #selector(manageAgents), depth: 1),
             item("recognition", "Recognition", ["Agent recognition"], #selector(agentRecognition), depth: 1),
-            item("events", "Process event collection", ["Process event collection"], #selector(processEventSetup), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),
             item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
-            item("maintenance", "Maintenance", ["Maintenance"], #selector(advancedSafetySettings)),
-            item("input-access", "Input access", ["Input controls"], #selector(inputPermissionsFromSettings), depth: 1),
             item("reset", "Reset Perch settings", ["Reset settings"], #selector(resetSettingsPage), depth: 1)
         ])
     }

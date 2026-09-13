@@ -1,0 +1,74 @@
+import AppKit
+
+extension AppDelegate {
+    @objc func lidProtectionSetup() { openSetupStage("lid-setup") }
+    @objc func presentLidSetupStage() {
+        setupOverview()
+        presentLidProtectionSetup(readHelper: { .current })
+    }
+    func presentLidProtectionSetup(readHelper: @escaping () -> LidHelperSettingsSnapshot) {
+        let page = SettingsTaskPage(title: "Lid protection setup", detail: "Install or repair the supervised lid helper here. Your Keep awake choices are retained. Setup does not start a new protected session. An update can resume an existing session; return to Keep awake to choose behavior or resume stopped protection.", height: 444, statusHeight: 120)
+        let repair = page.add("Set up lid protection…", detail: "macOS asks for administrator authorization. Finish queued updates with the lid open; the current helper stays in place until then.") { [weak self] in
+            guard let self else { return }
+            if readHelper().helper.pending { LidHelperUpdate.shared.finish(); self.settingsRefresh?(); return }
+            do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() }
+            catch { self.showError(error) }
+        }
+        page.add("Keep awake settings…", detail: "Choose idle and lid behavior, or resume protection after setup is ready.") { [weak self] in
+            guard let destination = SettingsWindow.shared.sidebar.destinations.first(where: { $0.id == "awake" }) else { return }
+            SettingsWindow.shared.navigate(to: destination)
+            self?.settingsRefresh?()
+        }
+        page.add("Review background helper setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
+        page.add("Review sleep reset…", detail: "Review an explicit reset to remove Perch’s sleep overrides if recovery is needed.") { [weak self] in self?.systemResetPage(includeAudio: false) }
+        page.update = { [weak page] in
+            let helper = readHelper()
+            repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
+            repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
+            repair.contentTintColor = helper.helper.pending && !helper.busy ? StatusColors.warning : nil
+            page?.status.stringValue = helper.busy ? "The lid helper is being updated. Your saved sleep choices are retained." : helper.helper.pending ? helper.helper.notice : !helper.helper.installed ? "The lid helper is not ready. Complete setup before relying on closed-lid protection." : "The lid helper is installed. Review Keep awake for the current session and observed sleep state."
+            if let result = helper.result { page?.status.stringValue += "\n" + result }
+            page?.status.textColor = helper.helper.pending || !helper.helper.installed ? StatusColors.warning : .labelColor
+        }
+        page.show(delegate: self)
+    }
+
+    @objc func sharingAccessSetup() { openSetupStage("sharing-access") }
+    @objc func presentSharingAccessStage() {
+        setupOverview()
+        presentSharingAccess(readAccessibility: { AXIsProcessTrusted() && CGPreflightPostEventAccess() }, readMonitoring: { CGPreflightListenEventAccess() })
+    }
+    func presentSharingAccess(readAccessibility: @escaping () -> Bool, readMonitoring: @escaping () -> Bool) {
+        let page = SettingsTaskPage(title: "Shared input access", detail: "Keyboard and mouse sharing needs Accessibility and Input Monitoring for Perch itself. Scrolling and navigation use Perch Helper’s separate grant. Checking access does not start sharing.", height: 460, statusHeight: 100)
+        var reviewing = false
+        var previousReady: Bool?
+        let accessibilityButton = page.add("Open macOS Accessibility…", detail: "Add Perch and enable it. If an old enabled copy still fails, replace only that entry with the app below.") {
+            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
+        }
+        let monitoringButton = page.add("Review Input Monitoring setup…", detail: "Uses the same Perch grant as external keyboard controls. Review its current state and instructions in Keyboard access.") { [weak self] in self?.keyboardAccessRecovery() }
+        let review = page.add("Review permission instructions…", detail: "Optionally review a working grant if macOS or another feature reports a problem.") { [weak page] in
+            reviewing.toggle(); page?.refresh()
+        }
+        page.add("Keyboard & mouse sharing…", detail: "Return to the feature to enable sharing and choose a confirmed screen after access is ready.") {
+            guard let destination = SettingsWindow.shared.sidebar.destinations.first(where: { $0.id == "desk-input" }) else { return }
+            SettingsWindow.shared.navigate(to: destination)
+        }
+        let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+        drag.frame = NSRect(x: 8, y: 15, width: 556, height: 42); page.view.addSubview(drag)
+        page.update = { [weak page] in
+            let accessibility = readAccessibility(), monitoring = readMonitoring()
+            let ready = accessibility && monitoring
+            if previousReady != ready { reviewing = false }; previousReady = ready
+            review.title = reviewing ? "Hide permission instructions" : "Review permission instructions…"
+            var hidden: [NSButton] = []
+            if accessibility && !reviewing { hidden.append(accessibilityButton) }
+            if monitoring && !reviewing { hidden.append(monitoringButton) }
+            if !ready { hidden.append(review) }
+            drag.isHidden = accessibility && !reviewing
+            page?.arrangeRows(hiding: hidden, footerHeight: drag.isHidden ? 0 : 58)
+            page?.status.stringValue = "Accessibility: " + (accessibility ? "ready" : "needs attention") + "\nInput Monitoring: " + (monitoring ? "ready" : "needs attention") + "\n" + (accessibility && monitoring ? "Access is ready. Return to Keyboard & mouse sharing when you want to enable it." : "Complete the missing access below. Perch checks automatically; sharing remains under your control.")
+            page?.status.textColor = accessibility && monitoring ? StatusColors.success : StatusColors.warning
+        }
+        page.show(delegate: self)
+    }
+}

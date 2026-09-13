@@ -7,6 +7,7 @@ struct SettingsDestination {
     let title: String
     let pageTitles: [String]
     var depth = 0
+    var setupStage = false
     let open: () -> Void
 }
 

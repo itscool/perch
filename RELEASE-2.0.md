@@ -212,3 +212,20 @@ release CLI with that same --notes path when packaging, finishing and publishing
 this prepared candidate; the one-command wrapper currently uses Release/notes.md.
 Continue only after physical acceptance and explicit notarization/publication
 authorization. The prepared candidate need not be rebuilt.
+
+## Setup consolidation — candidate 2.0.98
+
+Setup now owns Background helpers, Keyboard access, Scrolling & navigation,
+Shared input access, Lid protection and Agent tracking. Feature pages retain
+ordinary controls and link directly to their prerequisite stage. Checklist
+identity and return context survive navigation between stages. No installation,
+permission change or sharing activation occurs merely by entering Setup.
+
+The 2.0.97 native fixture passed all six stage returns plus feature → Setup and
+shared Input Monitoring navigation. All 23 isolated suites passed. The 2.0.98
+candidate adds a small correction so a successful helper result is not itself
+colored as needing attention; its targeted regression is recorded in
+SETUP-CONSOLIDATION-2.0.md. Release notes in Release/notes.md include these changes,
+so the normal one-command release workflow uses the correct notes for this
+candidate. 2.0.98 supersedes the prepared 2.0.96/97 candidates; installed/public
+2.0.94 remains unchanged. Notarization and publication require explicit approval.

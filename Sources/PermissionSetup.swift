@@ -37,8 +37,8 @@ final class PermissionSetup: NSObject {
         reviewButton = SettingsActionButton(title: "Review permission setup…") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
         reviewButton.frame = NSRect(x: 20, y: 195, width: 480, height: 30)
         content.addSubview(reviewButton)
-        repairButton = SettingsActionButton(title: "Open Maintenance…") {
-            (NSApp.delegate as? AppDelegate)?.advancedSafetySettings()
+        repairButton = SettingsActionButton(title: "Review background helper setup…") {
+            SettingsWindow.shared.navigateToSetupStage("maintenance")
         }
         repairButton.frame = NSRect(x: 20, y: 145, width: 480, height: 30)
         content.addSubview(repairButton)
@@ -50,13 +50,13 @@ final class PermissionSetup: NSObject {
         timer?.invalidate()
         timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
         if let timer { RunLoop.main.add(timer, forMode: .common); RunLoop.main.add(timer, forMode: .modalPanel) }
-        SettingsWindow.shared.show(.init(title: "Input controls", detail: "Current input access and controls are checked automatically. If setup needs attention, the next step appears here.", view: content, leave: { [weak self] in self?.timer?.invalidate(); self?.timer = nil }))
+        SettingsWindow.shared.show(.init(title: "Scrolling & navigation access", detail: "Current input access and controls are checked automatically. If setup needs attention, the next step appears here.", view: content, leave: { [weak self] in self?.timer?.invalidate(); self?.timer = nil }))
         refresh()
     }
     func refresh() {
         let input = HelperStatusIPC.inputClient.value
         if input?.fresh == true && helperApp() == nil {
-            present(.init(ready: false, title: "Review helper setup", message: "Perch could not identify the active input helper’s app. Open Maintenance to repair its launch configuration before adding a permission entry.", route: "repair"))
+            present(.init(ready: false, title: "Review helper setup", message: "Perch could not identify the active input helper’s app. Open Setup → Background helpers to repair its launch configuration before adding a permission entry.", route: "repair"))
         } else {
             present(InputReadiness.assess(input: input, config: SafetyConfiguration.load(), checking: HelperStatusIPC.inputClient.initiallyChecking))
         }
@@ -91,7 +91,7 @@ final class PermissionSetup: NSObject {
         SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     }
     @objc func revealHelper() {
-        guard let helper = helperApp() else { (NSApp.delegate as? AppDelegate)?.advancedSafetySettings(); return }
+        guard let helper = helperApp() else { SettingsWindow.shared.navigateToSetupStage("maintenance"); return }
         SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([helper]); return true }
     }
 }

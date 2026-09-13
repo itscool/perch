@@ -29,8 +29,6 @@ final class NavigationProbePage: NSObject {
     private var start: SettingsActionButton!
     private var skip: SettingsActionButton!
     private var reset: SettingsActionButton!
-    private var open: SettingsActionButton!
-    private var drag: PermissionDragItem!
     private var retrySave: SettingsActionButton!
     private var launchRecovery: SettingsActionButton!
 
@@ -54,16 +52,10 @@ final class NavigationProbePage: NSObject {
         registration.font = .systemFont(ofSize: 13, weight: .semibold); view.addSubview(registration)
         permission.frame = NSRect(x: 8, y: 378, width: 556, height: 24)
         permission.font = .systemFont(ofSize: 12); view.addSubview(permission)
-        drag = PermissionDragItem(title: "Drag Perch → Input Monitoring") { Bundle.main.bundleURL }
-        drag.frame = NSRect(x: 8, y: 327, width: 332, height: 42); view.addSubview(drag)
-        open = SettingsActionButton(title: "Open Input Monitoring") {
-            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!) }
+        launchRecovery = SettingsActionButton(title: "Review keyboard access in Setup…") {
+            SettingsWindow.shared.navigateToSetupStage("keyboard-access")
         }
-        open.frame = NSRect(x: 344, y: 333, width: 220, height: 30); view.addSubview(open)
-        launchRecovery = SettingsActionButton(title: "Already enabled? Review keyboard access…") {
-            (NSApp.delegate as? AppDelegate)?.keyboardAccessRecovery()
-        }
-        launchRecovery.frame = NSRect(x: 195, y: 5, width: 369, height: 32); view.addSubview(launchRecovery)
+        launchRecovery.frame = NSRect(x: 8, y: 333, width: 556, height: 30); view.addSubview(launchRecovery)
         reset = SettingsActionButton(title: "Reset saved layout…") { [weak self] in self?.resetProfile() }
         reset.frame = NSRect(x: 8, y: 333, width: 230, height: 30); view.addSubview(reset)
         instruction.announcesChanges = true
@@ -192,7 +184,6 @@ final class NavigationProbePage: NSObject {
         permission.stringValue = offline ? "Saved keyboard · disconnected" : access ? "✓ Input Monitoring granted to Perch" : ready ? "Input Monitoring is only needed to learn a different layout." : "⚠ Input Monitoring required to learn a layout"
         permission.textColor = offline || (ready && !access) ? .secondaryLabelColor : access ? StatusColors.success : StatusColors.warning
         permission.isHidden = complete
-        drag.isHidden = complete || access || profileReadError != nil || offline; open.isHidden = complete || access || offline
         launchRecovery.isHidden = complete || access || offline
         launchRecovery.toolTip = LaunchAccessRecovery.summary
         reset.isHidden = complete || (!access && profileReadError == nil && !offline)

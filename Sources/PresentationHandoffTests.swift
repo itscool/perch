@@ -75,17 +75,25 @@ func runPresentationHandoffTests() throws {
     for needsPermission in [false, true] {
         app.keyboardModes.results = [.init(name: "Fixture", detail: "Fixture", verified: !needsPermission, needsAccess: needsPermission)]
         app.keyboardDetails()
-        let title = needsPermission ? "Open macOS Input Monitoring" : "Open macOS Keyboard Settings"
+        let title = needsPermission ? "Review keyboard access in Setup…" : "Open macOS Keyboard Settings"
         guard let button = host.pages.last?.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == title }) else { throw AppError(message: "Missing keyboard handoff route") }
         let before = opens; button.performClick(nil)
+        if needsPermission {
+            try check(host.pages.last?.title == "Keyboard access" && opens == before && !host.externalHandoff, "Feature link skipped Setup or opened system settings early")
+            app.presentKeyboardAccess(readAccess: { false })
+            host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Open macOS Input Monitoring" }!.performClick(nil)
+        }
         try check(opens == before + 1 && host.externalHandoff, "Keyboard route bypassed the shared handoff")
         host.returnedToApp(); flush()
     }
     let navigation = NavigationProbePage(enumerate: { [] }, hasAccess: { false }, readProfiles: { [] })
     navigation.show()
-    guard let button = navigation.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == "Open Input Monitoring" }) else { throw AppError(message: "Missing navigation handoff route") }
+    guard let button = navigation.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == "Review keyboard access in Setup…" }) else { throw AppError(message: "Missing navigation handoff route") }
     let before = opens; button.performClick(nil)
-    try check(opens == before + 1 && host.externalHandoff, "Navigation route bypassed the shared handoff")
+    try check(opens == before && !host.externalHandoff && host.pages.last?.title == "Keyboard access", "Layout learning skipped the shared Setup stage")
+    app.presentKeyboardAccess(readAccess: { false })
+    host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Open macOS Input Monitoring" }!.performClick(nil)
+    try check(opens == before + 1 && host.externalHandoff, "Setup route bypassed the shared handoff")
     host.returnedToApp(); flush()
     // Missing activation notifications must not strand a status-menu return.
     permission.openSettings()

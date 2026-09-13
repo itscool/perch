@@ -12,7 +12,7 @@ func runSetupOverviewTests() throws {
     try check(snapshot.checks.first { $0.id == "lid-setup" }?.state == .attention, "Saved lid choice hid unfinished helper setup")
     snapshot.lidWanted = false
     snapshot.keyboardCount = 1; snapshot.keyboardAccessNeeded = true
-    try check(snapshot.checks.first { $0.id == "keyboards" }?.state == .attention, "First-use keyboard access was hidden as optional")
+    try check(snapshot.checks.first { $0.id == "keyboards" }?.state == .attention && snapshot.checks.first { $0.id == "keyboards" }?.route == .keyboardAccess, "First-use keyboard access was hidden as optional")
     snapshot.keyboardCount = 0; snapshot.keyboardAccessNeeded = false
     snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
     try check(snapshot.checks.first { $0.id == "awake" }?.state == .unverified && snapshot.summary.contains("1 unverified"), "An accepted lid command was counted as ready or as a repairable missing setup step")

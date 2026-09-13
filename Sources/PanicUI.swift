@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import Carbon
 import UniformTypeIdentifiers
 
@@ -129,7 +130,7 @@ extension AppDelegate {
             ("Agents, shortcut & panic actions…", "Choose which agents panic terminates, its key combination, and which privacy grants it resets.", #selector(editSafetyConfiguration)),
             ("Add or remove agents…", "Add a missing app or executable, or forget one custom entry without resetting the others.", #selector(manageAgents)),
             ("Agent recognition…", "Import definitions and review changes to how agents are identified.", #selector(agentRecognition)),
-            (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Process event collection…" : "⚠ Process event collection…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
+            (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Review tracking setup…" : "⚠ Review tracking setup…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
             ("Preview panic targets…", "Preview the currently tracked processes and recent actions. This does not terminate anything.", #selector(safetyReport)),
             (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut)),
             ("Stop agents & reset all app permissions…", "Emergency action with confirmation: stops selected agents and resets system privacy permissions, including unrelated apps.", #selector(broadLockdown))]
@@ -139,17 +140,23 @@ extension AppDelegate {
             options.insert(("Resume agent activity…", "Stop blocking relaunches. This will not reopen agents or restore privacy permissions.", #selector(resumeAgents)), at: 0)
         }
         if !GuardianInstall.alive {
-            options.insert(("Repair background protection…", "The helper is not responding. Reinstall and restart it before relying on panic.", #selector(repairWatcher)), at: 0)
+            options.insert(("Review background setup…", "The helper is not responding. Open Setup to repair it before relying on panic.", #selector(advancedSafetySettings)), at: 0)
         }
-        chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? (blocked ? "Agent activity is blocked. Resume below when you are ready to allow agents to run again." : "✓ Background protection is running.") : "⛔ Background protection is unavailable. Repair it below.", options: options)
+        chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? (blocked ? "Agent activity is blocked. Resume below when you are ready to allow agents to run again." : "✓ Background protection is running.") : "⛔ Background protection is unavailable. Review setup below.", options: options)
     }
-    @objc func advancedSafetySettings() {
+    @objc func advancedSafetySettings() { openSetupStage("maintenance") }
+    @objc func presentBackgroundSetup() {
+        setupOverview()
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         let problem = issue.flatMap { $0.route == "repair" ? $0.detail + "\n\n" : nil } ?? ""
-        chooseSafetyAction(title: "Maintenance", detail: problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes.", options: [
+        chooseSafetyAction(title: "Background helpers", detail: problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes.", options: [
             ("Repair background helpers…", "Install the current Perch build and restart its helpers. Existing feature choices are retained.", #selector(repairWatcher)),
+            ("Review macOS Login Items…", "If Start at login needs approval, allow Perch in macOS. Your startup choice remains in App settings.", #selector(reviewLoginApproval)),
             ("Protect background helper files…", "Require administrator authorization to replace helper files. This does not prevent disabling protection.", #selector(protectWatcher)),
             ("Reset Perch’s privacy permissions…", "Only for repairing Perch’s grants. Review the scope before resetting; existing choices are kept.", #selector(perchPrivacyResetFromSettings))])
+    }
+    @objc func reviewLoginApproval() {
+        SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
     }
     @objc func agentRecognition() {
         chooseSafetyAction(title: "Agent recognition", detail: "Review the scope of new or changed matching rules before applying them.", options: [

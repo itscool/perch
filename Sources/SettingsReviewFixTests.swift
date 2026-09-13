@@ -27,6 +27,62 @@ func runSettingsReviewFixTests() throws {
     host.navigate(to: host.sidebar.destinations.first { $0.id == "desk-preferences" }!)
     try check(host.pages.count == 1 && host.pages.last?.title == "Desk settings" && host.back.isHidden, "Desk preferences retained sheet navigation")
 
+    // Every entry shares a canonical Setup stage and a single retained overview.
+    let stages: [(String, () -> Void)] = [
+        ("keyboard-access", app.keyboardAccessRecovery), ("input-access", app.inputPermissionsFromSettings),
+        ("sharing-access", app.sharingAccessSetup), ("lid-setup", app.lidProtectionSetup),
+        ("maintenance", app.advancedSafetySettings), ("events", app.processEventSetup)
+    ]
+    let stageIDs = Set(stages.map { $0.0 })
+    let destinations = host.sidebar.destinations
+    try check(Set(destinations.filter(\.setupStage).map(\.id)) == stageIDs,
+              "Prerequisite stages are missing or duplicated outside Setup")
+    try check(destinations.prefix(1 + stages.count).dropFirst().allSatisfy { $0.setupStage && $0.depth == 1 },
+              "Setup stages are scattered among feature destinations")
+    for (id, enter) in stages {
+        host.navigate(to: host.sidebar.destinations.first { $0.id == "keyboard" }!)
+        enter()
+        let stage = host.pages.last!.view, overview = host.pages.first!.view
+        try check(host.pages.count == 2 && host.pages.first?.title == "Setup & status" &&
+                  host.sidebar.destinations[host.sidebar.table.selectedRow].id == id &&
+                  host.back.title == "Back to setup" && !host.interactionBusy,
+                  "Feature repair failed to select its one Setup stage: " + id)
+        enter()
+        try check(host.pages.count == 2 && host.pages.last?.view === stage, "Repeated repair rebuilt or stacked its stage: " + id)
+        let other = id == "keyboard-access" ? "input-access" : "keyboard-access"
+        host.navigate(to: host.sidebar.destinations.first { $0.id == other }!)
+        try check(host.pages.count == 2 && host.pages.first?.view === overview,
+                  "Switching Setup stages discarded the existing checklist")
+        host.goBack()
+        try check(host.pages.count == 1 && host.pages.first?.view === overview && host.back.isHidden,
+                  "Setup Back lost the original checklist")
+    }
+    for enter in [app.keyboardSettings, app.keyboardDetails, app.testNavigationKeys] {
+        enter()
+        try check(!host.pages.last!.view.subviews.contains { $0 is PermissionDragItem },
+                  "Feature page still embeds permission instructions")
+        host.goBack()
+    }
+    let lidHelper = LidHelperSettingsSnapshot(helper: LidHelperUpdateState(info: [:], lidOpen: false))
+    app.presentKeepAwakeSettings(readHelper: { lidHelper })
+    let featureButtons = buttons(host.pages.last!.view)
+    try check(!featureButtons.contains { ["Set up lid protection…", "Repair lid protection…", "Finish lid helper update…"].contains($0.title) },
+              "Keep awake still performs prerequisite installation")
+    featureButtons.first { $0.title == "Review lid setup…" }!.performClick(nil)
+    try check(host.pages.last?.title == "Lid protection setup", "Keep awake repair link missed Setup")
+    var sharingGrant = false
+    app.presentSharingAccess(readAccessibility: { sharingGrant }, readMonitoring: { sharingGrant })
+    let sharingView = host.pages.last!.view
+    sharingGrant = true; host.pages.last?.refresh?()
+    try check(sharingView.subviews.compactMap { $0 as? SettingsStatusField }.first?.stringValue.contains("Access is ready") == true,
+              "Sharing access did not transition to ready without enabling sharing")
+    try check(sharingView.subviews.filter { $0 is PermissionDragItem }.allSatisfy(\.isHidden),
+              "Ready sharing access still asks the user to grant access")
+    sharingGrant = false; host.pages.last?.refresh?()
+    try check(sharingView.subviews.compactMap { $0 as? SettingsStatusField }.first?.stringValue.contains("needs attention") == true,
+              "Revoked shared-input access retained Ready")
+    app.configureSettings()
+
     let presetShortcut = KVMShortcut(key: "F8")
     let emergency = PanicShortcut(key: UInt32(kVK_F8), modifiers: UInt32(controlKey | optionKey | cmdKey), enabled: true)
     try check(presetShortcut.matches(emergency), "Current Desk shortcut collision was missed")

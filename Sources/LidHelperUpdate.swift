@@ -5,7 +5,7 @@ struct LidHelperUpdateState: Equatable {
     let pending: Bool
     let lidOpen: Bool
     var notice: String {
-        guard pending else { return installed ? "Lid helper is up to date." : "Lid protection is optional. Set it up in Keep awake when needed." }
+        guard pending else { return installed ? "Lid helper is up to date." : "Lid protection is optional. Set it up in Setup → Lid protection when needed." }
         return lidOpen ? "Lid helper update ready. Finish it below when convenient." : "Lid helper update queued. Open the lid to finish it; the existing helper stays installed."
     }
     init(info: [String: Any], lidOpen: Bool, publisherMatches: Bool = true) {
@@ -62,7 +62,7 @@ final class LidHelperUpdate {
                 }
             }
         } else if LidGuardClock.now >= until {
-            busy = false; result = "The new lid helper has not confirmed startup. Review Keep awake or try Repair lid protection."
+            busy = false; result = "The new lid helper has not confirmed startup. Review Setup → Lid protection to retry."
         } else { DispatchQueue.main.asyncAfter(deadline: .now()+0.25) { self.waitForHelper(until: until, resume: resume) } }
     }
 }

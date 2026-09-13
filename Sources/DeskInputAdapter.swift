@@ -96,6 +96,9 @@ final class DeskInputAdapter: ObservableObject {
         lockObservers.forEach { DistributedNotificationCenter.default().removeObserver($0) }; lockObservers = []
         restoreCursor(); tapStartFailed = false; accessProblem = nil
     }
+    var needsPermissionSetup: Bool {
+        !AXIsProcessTrusted() || !CGPreflightPostEventAccess() || !CGPreflightListenEventAccess()
+    }
     private func checkAccess() {
         refreshKeyboards()
         let console = CGSessionCopyCurrentDictionary() as? [String: Any]

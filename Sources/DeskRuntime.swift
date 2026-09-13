@@ -131,7 +131,7 @@ final class DeskRuntime: ObservableObject {
         registerShortcuts()
         model.group = node.group; model.online = node.online
         model.conflict = node.conflicts.first ?? node.recoveredDraft
-        model.problem = switching.problem ?? node.problem ?? discoveryProblem ?? shortcutProblem
+        model.problem = switching.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
         model.monitorResults = switching.results.mapValues { $0.state.rawValue.capitalized + ": " + $0.detail }

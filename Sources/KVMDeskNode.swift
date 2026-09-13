@@ -50,6 +50,25 @@ final class KVMDeskNode: ObservableObject {
     @Published private(set) var conflicts: [KVMGroup] = []
     @Published private(set) var recoveredDraft: KVMGroup?
     @Published var problem: String?
+    @Published private(set) var listenerProblem: String?
+    @Published private(set) var discoveryProblem: String?
+    @Published private(set) var pairingProblem: String?
+    @Published private(set) var peerProblems: [UUID: String] = [:]
+    @Published private(set) var pairingConnection: UUID?
+    var networkProblem: String? {
+        listenerProblem ?? membership.peers.filter { !online.contains($0.id) }.compactMap { peer in
+            peerProblems[peer.id].map { "\(peer.name): \($0)" }
+        }.first
+    }
+    var displayProblem: String? { problem ?? networkProblem }
+    var inviting: Bool { hostingPairing }
+    var localName: String { group.computers.first { $0.id == localID }?.name ?? "This Mac" }
+    func canSelect(_ nearby: KVMPeerTransport.Nearby) -> Bool {
+        guard pairingOpen, pairingConnection == nil, pairings.isEmpty else { return false }
+        // Discovery is an advisory hint only. Signed hellos and both approvals establish trust.
+        guard let role = nearby.pairingRole else { return true }
+        return role == (hostingPairing ? "join" : "invite")
+    }
     @Published private(set) var pendingPeers: Set<UUID> = []
     @Published private(set) var pairingUntil: Date?
     let identity: KVMPeerIdentity
@@ -109,7 +128,9 @@ final class KVMDeskNode: ObservableObject {
         transport.received = { [weak self] link, bytes in self?.receive(bytes, link: link) }
         transport.disconnected = { [weak self] link in self?.linkLost(link) }
         transport.discovered = { [weak self] nearby in self?.nearby = nearby; self?.reconnect() }
-        transport.problem = { [weak self] in self?.problem = $0 }
+        transport.listenerProblem = { [weak self] in self?.listenerProblem = $0 }
+        transport.discoveryProblem = { [weak self] in self?.discoveryProblem = $0 }
+        transport.connectionProblem = { [weak self] link, message in self?.connectionStatus(link, message: message) }
     }
     func start(localOnly: Bool = false, port: NWEndpoint.Port = .init(rawValue: 53031)!) throws {
         guard isMember else { problem = "This Mac was removed from the desk. Start a new desk to join again."; return }
@@ -131,21 +152,33 @@ final class KVMDeskNode: ObservableObject {
         guard membership.peers.count < 16 else { problem = "This desk already has 16 computers. Remove one before adding another."; return }
         guard hosting || !hasOtherMembers else { problem = "This Mac already belongs to a desk."; return }
         hostingPairing = hosting
+        completedPairing = nil; pairingProblem = nil
         pairingUntil = Date().addingTimeInterval(120); problem = nil
+        transport.advertisePairing(hosting: hosting, desk: group.name)
     }
     func closePairing() {
         pairingUntil = nil
+        transport.advertisePairing(hosting: nil, desk: group.name)
+        let pending = pairingConnection; pairingConnection = nil; pairingProblem = nil
+        if let pending, let link = transport.links[pending] { transport.close(link) }
         for pairing in pairings { if let link = transport.links[pairing.id] { transport.close(link) } }
         pairings = []
     }
     func connect(_ endpoint: NWEndpoint, expected: UUID? = nil) {
+        if expected == nil {
+            guard pairingOpen, pairingConnection == nil, pairings.isEmpty else { return }
+            pairingProblem = nil
+        }
         let link = transport.connect(endpoint)
         if let expected { expectedPeers[link.id] = expected; connecting[expected] = Date() }
+        else { pairingConnection = link.id }
     }
     func connect(address: String) throws {
         guard pairingOpen else { throw KVMError("Choose Add computer on both Macs first.") }
         guard let endpoint = Self.endpoint(address) else { throw KVMError("Enter the other Mac’s address and Desk port, such as mac.local:53031 or [IPv6 address]:53031.") }
-        let link = transport.connect(endpoint); directContacts[link.id] = address
+        guard pairingConnection == nil, pairings.isEmpty else { return }
+        connect(endpoint)
+        if let id = pairingConnection { directContacts[id] = address }
     }
     static func endpoint(_ address: String) -> NWEndpoint? {
         guard address.utf8.count <= 300, let url = URLComponents(string: "perch://" + address), url.user == nil, url.password == nil, url.path.isEmpty, url.query == nil, url.fragment == nil,
@@ -184,10 +217,12 @@ final class KVMDeskNode: ObservableObject {
                 hellos[link.id] = hello
                 if membership.peers.contains(where: { $0.id == hello.card.id && $0.signingKey == hello.card.signingKey && $0.certificate == hello.card.certificate }) { trust(link) }
                 else {
-                    guard pairingOpen, hello.hosting != hostingPairing, pairings.isEmpty, let nonce = localNonces[link.id] else { throw KVMError("This computer has not been approved for the desk.") }
+                    guard pairingOpen, pairings.isEmpty, let nonce = localNonces[link.id] else { throw KVMError("This computer has not been approved for the desk.") }
+                    guard hello.hosting != hostingPairing else { throw KVMError("Both Macs chose the same action. Invite from the desk you want to keep, and choose Join another desk on the other Mac.") }
                     let pieces = [identity.saved.certificate.base64EncodedString() + nonce.uuidString, hello.card.certificate.base64EncodedString() + hello.nonce.uuidString].sorted()
                     let hash = SHA256.hash(data: Data(pieces.joined(separator: "|").utf8)).prefix(8).map { String(format: "%02X", $0) }
                     let comparison = stride(from: 0, to: 8, by: 2).map { hash[$0] + hash[$0+1] }.joined(separator: " ")
+                    pairingProblem = nil
                     pairings.append(.init(id: link.id, card: hello.card, comparison: comparison))
                 }
                 return
@@ -235,12 +270,15 @@ final class KVMDeskNode: ObservableObject {
             case .application(let data): application?(hello.card.id, data)
             default: throw KVMError("Unexpected Desk message.")
             }
-        } catch { problem = error.localizedDescription; transport.close(link) }
+        } catch {
+            if peerLinks.values.contains(link.id) { problem = error.localizedDescription }
+            else { connectionStatus(link, message: error.localizedDescription) }
+            transport.close(link)
+        }
     }
     private func finishPairing(_ id: UUID) {
         guard let pairing = pairings.first(where: { $0.id == id }), pairing.approvedHere, pairing.approvedThere, let link = transport.links[id] else { return }
-        // The established desk wins; two new desks deterministically choose an
-        // owner. The hello does not grant membership before both approvals.
+        // Only the explicitly inviting owner grants membership, after both approvals.
         guard isOwner, hostingPairing else { return }
         do {
             guard canEdit, membership.peers.count < 16 else { throw KVMError("Resolve desk changes or free a member slot before adding a computer.") }
@@ -260,14 +298,35 @@ final class KVMDeskNode: ObservableObject {
             transport.close(old)
         }
         peerLinks[hello.card.id] = link.id; connecting[hello.card.id] = nil
-        if pairings.contains(where: { $0.id == link.id }) { completedPairing = hello.card.id; pairingUntil = nil }
+        if pairings.contains(where: { $0.id == link.id }) {
+            // Clear operation state before publishing completion: the sheet may close synchronously.
+            pairings.removeAll { $0.id == link.id }; pairingConnection = nil; pairingProblem = nil
+            pairingUntil = nil; transport.advertisePairing(hosting: nil, desk: group.name)
+            completedPairing = hello.card.id
+        }
+        peerProblems[hello.card.id] = nil
         pairings.removeAll { $0.id == link.id }; lastHeard[hello.card.id] = Date()
         online.insert(hello.card.id)
         if let address = directContacts.removeValue(forKey: link.id) { archive.addresses[hello.card.id] = address; do { try archive.write(storage) } catch { problem = error.localizedDescription } }
         refreshPresentation(); peersChanged?(); sync(link)
         if let port = transport.listener?.port?.rawValue, port > 0 { send(.contact(port), to: link) }
     }
+    private func connectionStatus(_ link: KVMPeerTransport.Link, message: String?) {
+        if let peer = expectedPeers[link.id] ?? hellos[link.id]?.card.id,
+           membership.peers.contains(where: { $0.id == peer }) {
+            // A failed redundant route must not overwrite the working authenticated route.
+            if online.contains(peer), peerLinks[peer] != link.id { return }
+            peerProblems[peer] = message
+        } else if pairingOpen, pairingConnection == link.id || pairings.contains(where: { $0.id == link.id }) {
+            pairingProblem = message
+        }
+    }
     private func linkLost(_ link: KVMPeerTransport.Link) {
+        if pairingOpen, pairingConnection == link.id || pairings.contains(where: { $0.id == link.id }) {
+            if pairingProblem == nil { pairingProblem = "The other Mac disconnected before setup finished. Select it again to retry." }
+        }
+        if pairingConnection == link.id { pairingConnection = nil }
+        directContacts[link.id] = nil
         if let peer = hellos[link.id]?.card.id, peerLinks[peer] == link.id {
             peerLinks[peer] = nil; online.remove(peer); lastHeard[peer] = nil; peersChanged?()
         }

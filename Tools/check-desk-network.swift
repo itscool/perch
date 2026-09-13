@@ -19,14 +19,49 @@ import Darwin
         try a.start(localOnly: true, port: .init(rawValue: port)!); try b.start(localOnly: true, port: .init(rawValue: port + 1)!)
         try wait("listeners") { a.transport.listener?.port != nil && b.transport.listener?.port != nil }
         a.openPairing(hosting: true); b.openPairing(hosting: false)
-        b.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!))
+        let endpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!)
+        let advertised = KVMPeerTransport.Nearby.make(id: a.localID.uuidString, endpoint: endpoint,
+            txt: NWTXTRecord(["name": "Alice’s Mac", "pairing": "invite", "desk": "Studio"]))
+        guard advertised.name == "Alice’s Mac", advertised.deskName == "Studio", b.canSelect(advertised), !a.canSelect(advertised),
+              KVMPeerTransport.Nearby.make(id: a.localID.uuidString, endpoint: endpoint, txt: nil).name == "Unnamed Mac" else {
+            throw KVMError("Discovery names or pairing roles are misleading")
+        }
+        a.problem = "Fixture persistence failure"
+        a.transport.discoveryProblem?("Fixture discovery interruption")
+        guard a.discoveryProblem != nil, a.displayProblem == "Fixture persistence failure" else { throw KVMError("Discovery replaced a saved-state failure") }
+        a.transport.discoveryProblem?(nil)
+        guard a.discoveryProblem == nil, a.problem == "Fixture persistence failure" else { throw KVMError("Discovery recovery cleared an unrelated error") }
+        a.problem = nil
+        b.connect(endpoint)
+        let pendingID = b.pairingConnection!
+        b.connect(endpoint)
+        guard b.pairingConnection == pendingID, b.transport.links.count == 1, !b.canSelect(advertised) else { throw KVMError("Repeated selection created duplicate pairing work") }
+        b.transport.connectionProblem?(b.transport.links[pendingID]!, "Fixture waiting")
+        guard b.pairingProblem != nil, b.displayProblem == nil else { throw KVMError("Pairing status leaked into the shared desk failure") }
+
         do { try wait("mutually authenticated TLS pairing") { a.pairings.count == 1 && b.pairings.count == 1 } } catch { fputs("TLS states: \(a.transport.links.values.map { String(describing: $0.connection.state) }) / \(b.transport.links.values.map { String(describing: $0.connection.state) })\n", stderr); fputs("TLS problems: \(a.problem ?? "none") / \(b.problem ?? "none")\n", stderr); throw error }
+        guard b.pairingProblem == nil else { throw KVMError("Recovered TLS connection retained its waiting error") }
         guard a.pairings[0].comparison == b.pairings[0].comparison else { throw KVMError("Comparison mismatch") }
         a.approve(a.pairings[0].id)
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         guard !a.hasOtherMembers && !b.hasOtherMembers else { throw KVMError("One-sided approval granted membership") }
         b.approve(b.pairings[0].id)
         try wait("two-sided membership") { a.hasOtherMembers && b.hasOtherMembers && a.online.count == 2 && b.online.count == 2 }
+        guard a.pairingConnection == nil, b.pairingConnection == nil, a.pairings.isEmpty, b.pairings.isEmpty else { throw KVMError("Completed pairing retained pending state") }
+        a.closePairing(); b.closePairing()
+        guard a.online.count == 2, b.online.count == 2 else { throw KVMError("Closing completed setup disconnected the joined desk") }
+        // A failed extra route must not paint a working peer as broken.
+        b.connect(endpoint, expected: a.localID)
+        let redundant = b.transport.links.values.first { $0.id != pendingID }!
+        b.transport.connectionProblem?(redundant, "Fixture redundant route failed")
+        guard b.networkProblem == nil else { throw KVMError("A redundant route failure masked a working peer") }
+        b.transport.close(redundant)
+        let working = b.transport.links[pendingID]!
+        b.transport.connectionProblem?(working, "Fixture waiting")
+        guard b.peerProblems[a.localID] != nil, b.networkProblem == nil else { throw KVMError("Online peer was reported offline") }
+        b.transport.connectionProblem?(working, nil)
+        guard b.peerProblems.isEmpty else { throw KVMError("Connection recovery retained stale errors") }
+        print("PASS: readable discovery metadata, role selection, duplicate-click guard, scoped failures/recovery, completed pairing close, redundant-route failure isolation")
         var changed = b.group; changed.name = "Shared from B"; try b.edit(changed)
         try wait("durable edit and acknowledgement") { a.group.name == "Shared from B" && b.pendingPeers.isEmpty }
         guard try KVMDeskArchive.read(a.storage).verified().1.current?.name == "Shared from B" else { throw KVMError("Peer acknowledged before durable storage") }

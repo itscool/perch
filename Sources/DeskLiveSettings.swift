@@ -31,7 +31,7 @@ struct DeskLiveSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             contents
             // Temporary sheets already present model.problem; stable sidebar pages own their error display.
-            if let error = error ?? node.problem, ["desk", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["desk", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
         }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "control" { loadControl() } }
             .onChange(of: node.completedPairing) { _, value in if kind == "computer", value != nil { close() } }
             .onDisappear { if kind == "computer" { node.closePairing() } }
@@ -69,29 +69,46 @@ struct DeskLiveSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Add a computer").font(.title2.bold())
             if !node.pairingOpen {
-                Text("Open Desk on the other Mac too. Invite it to this desk, or join a desk that is inviting you. Compare the same code on both screens before approving.").foregroundStyle(.secondary)
+                Text("Keep this desk’s screens and presets by inviting the other Mac. To use the other Mac’s desk instead, join it.").foregroundStyle(.secondary)
                 HStack {
                     Button("Invite to this desk") { node.openPairing(hosting: true) }.disabled(!node.isOwner || node.group.computers.count >= 16)
                     if !node.hasOtherMembers { Button("Join another desk") { node.openPairing(hosting: false) } }
                 }
                 if !node.isOwner { Text("\(node.ownerName) approves membership. Open Add computer there.").font(.callout) }
             } else {
-                Text("Waiting for approval · this invitation expires in two minutes.").font(.callout).foregroundStyle(.secondary)
+                Text(node.inviting ? "Inviting a Mac to \(node.group.name)" : "Joining another desk")
+                    .font(.headline)
+                Text(node.inviting
+                     ? "On the other Mac, open Desk → Add a computer → Join another desk. Then select a Mac below on either screen — only one of you needs to do this."
+                     : "On the Mac whose desk you want to use, open Desk → Add a computer → Invite to this desk. Then select a Mac below on either screen — only one of you needs to do this.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Text("Available for two minutes. Both Macs must approve before anything is shared.").font(.caption).foregroundStyle(.secondary)
                 if node.pairings.isEmpty {
-                    if node.nearby.isEmpty { Text("Looking for nearby Perches…") }
+                    if let issue = node.discoveryProblem { Text(issue).foregroundStyle(.orange).font(.callout) }
+                    if node.pairingConnection != nil { Text("Connecting… The comparison code will appear on both Macs.") }
+                    if node.nearby.isEmpty { Text("Looking for nearby Macs…") }
                     ForEach(node.nearby.filter { nearby in !node.group.computers.contains { $0.id.uuidString == nearby.id } }) { nearby in
-                        Button(nearby.name) { node.connect(nearby.endpoint) }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Button(node.inviting ? "Invite \(nearby.name)" : "Join \(nearby.name)’s desk") { node.connect(nearby.endpoint) }
+                                .disabled(!node.canSelect(nearby))
+                            Text(nearbyStatus(nearby)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     DisclosureGroup("Connect by address") {
                         Text("On the other Mac, use the address shown below. Both Macs must be reachable; nearby discovery also supports compatible peer-to-peer Wi-Fi.").font(.callout)
                         TextField("Other Mac’s address:port", text: $address).textFieldStyle(.roundedBorder)
-                        Button("Connect") { perform { try node.connect(address: address) } }
+                        Button("Connect") { perform { try node.connect(address: address) } }.disabled(node.pairingConnection != nil)
+                        if let port = node.transport.listener?.port?.rawValue {
+                            Text("This Mac’s address: \(Host.current().localizedName ?? node.localName) · Port \(port)").font(.caption)
+                            Text("\(Host.current().name ?? "Mac address unavailable"):\(port)").font(.caption.monospaced()).textSelection(.enabled)
+                        }
                     }
-                    Text("This Mac: \(Host.current().name ?? "Mac address unavailable") · Desk port \(node.transport.listener?.port?.rawValue ?? 0)").font(.caption).textSelection(.enabled)
+                    Text("This Mac: \(node.localName)").font(.caption)
                 }
                 ForEach(node.pairings) { pairing in
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(pairing.card.name).font(.headline)
+                        Text(node.inviting ? "Add \(pairing.card.name) to this desk" : "Join \(pairing.card.name)’s desk").font(.headline)
+                        Text("Comparison code — must match on both Macs").font(.caption)
                         Text(pairing.comparison).font(.system(size: 24, weight: .semibold, design: .monospaced)).textSelection(.enabled)
                         Text("Only approve if this exact code is on the other Mac’s Perch screen.").font(.callout)
                         if pairing.approvedHere { Text("Approved here. Waiting for the other Mac…").foregroundStyle(.secondary) }
@@ -99,8 +116,16 @@ struct DeskLiveSheet: View {
                         Button("Reject connection") { node.reject(pairing.id) }
                     }.padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                 }
-                Button("End invitation") { node.closePairing() }
+                Button(node.inviting ? "Stop inviting" : "Stop joining") { node.closePairing() }
             }
+        }
+    }
+    func nearbyStatus(_ nearby: KVMPeerTransport.Nearby) -> String {
+        switch nearby.pairingRole {
+        case "invite": return node.inviting ? "Also inviting. Choose Join another desk on this Mac to join it." : "Sharing \(nearby.deskName ?? "its desk")"
+        case "join": return node.inviting ? "Ready to join this desk" : "Also joining. Choose Invite to this desk on one Mac."
+        case "closed": return "Open Add a computer on that Mac, then choose \(node.inviting ? "Join another desk" : "Invite to this desk")."
+        default: return "Confirm the Mac’s name and comparison code after connecting."
         }
     }
     var addScreen: some View {

@@ -11,6 +11,14 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+- [x] **Desk joining showed unexplained device identifiers and stale network failures.**
+  Discovery now requests name/role metadata; Invite/Join actions identify the Mac,
+  explain both sides, and label the comparison code. Connection attempts prevent
+  repeated local clicks. Discovery, listener, peer and pairing errors have separate
+  recovery lifetimes; failed redundant routes do not obscure a working peer.
+  Source and isolated TLS tests pass; native two-Mac acceptance remains pending.
+  Not installed. See DESK-JOINING-AND-APPEARANCE-2.0.md.
+
 - [x] **Normal lid timeout raised an unexpected-sleep dialog.** Normal helper or
   watchdog grace expiry stays in Lid activity and clears only the pending notice.
   Inactive saved intent alone does not trigger it. Unexpected protection loss uses
@@ -135,6 +143,13 @@ bounded real native journeys are recorded in NATIVE-QA-2.0.95.md. Actual hardwar
 remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
+
+- [x] **Distinct appearance compositions and broader palettes.** Perch original,
+  Quiet, Signal, Soft tiles, Outline and Ribbon differ in geometry, fill, borders,
+  spacing and typography. Palettes are independently selectable: Rainbow, Graphite,
+  Coast, Dusk, Woodland, Mineral, Jewel and Sorbet. Only Coast deliberately repeats
+  three hues; new color ranges assign nine section colors. Source after 2.0.106,
+  not installed; visual acceptance remains pending while Desk is manually tested.
 
 - [x] **Appearance preview order.** Compact samples now use the first four main-
   menu sections: System, Agent Kill Switch, Display, Audio. Source follow-up after

@@ -118,6 +118,17 @@ import CryptoKit
         var fakeMember = group; fakeMember.computers.append(KVMComputer(name: "Intruder"))
         let fake = try KVMSignedRevision.sign(.init(group: fakeMember, epoch: roster.epoch, author: alice.id, parents: [root.id]), key: keyA)
         try rejects("configuration can't self-grant membership") { try catchup.receive(fake) }
+        try check(catchup.current == editA && catchup.heads == first.heads,
+                  "rejected revisions preserve the validated current snapshot")
+        var detached = catchup.current!
+        detached.name = "Unsaved external copy"
+        var exported = try catchup.history()
+        exported[0].signature = Data(repeating: 0, count: 64)
+        try check(catchup.current == editA, "editing a returned snapshot cannot mutate the graph")
+        var replay = try KVMSyncGraph(roster: roster)
+        for revision in try catchup.history() { try replay.receive(revision) }
+        try check(replay.current == editA && replay.heads == catchup.heads,
+                  "history remains independently authenticated after a caller mutates its copy")
         var postRevocation = try KVMSyncGraph(roster: KVMTrustRoster(group: group.id, epoch: UUID(), keys: [alice.id: keyA.publicKey.rawRepresentation]))
         try rejects("old epoch cannot restore removed peer") { try postRevocation.receive(root) }
         try rejects("stale acknowledgement rejected") { try first.acknowledge(root.id, from: bob.id, epoch: UUID()) }

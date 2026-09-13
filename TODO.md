@@ -1,7 +1,9 @@
 # Perch work checklist
 
 2.0 development, September 12, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; source corrections are awaiting native acceptance and installation. Categories are distinct: known defects,
+in /Applications. 2.0.94 is published; signed 2.0.96 corrections have bounded
+native/automated acceptance and await installation and physical QA. Categories
+are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
@@ -13,25 +15,31 @@ This supersedes stale open-item wording in dated review checkpoints.
   Round-trip/network regressions and a real disposable Sparkle restart/claim pass.
 - [x] **Lid update attention and misleading active-session wording.** Queued
   helper updates use warning colors; active status explains the helper report
-  and macOS limitation separately. Source-only until the next installation.
-- [ ] **Disposable Sparkle installation stalled under Documents.** Installer
-  blocked in a macOS rename operation after the old app quit. The same route
-  passed in /private/tmp; root cause and actual /Applications acceptance remain
-  unresolved. No permission reset or verification bypass. NATIVE-QA-2.0.95.md.
+  and macOS limitation separately. Included in the uninstalled candidate.
+- [x] **Disposable Sparkle installation stalled under Documents.** TCC logs
+  identified a pending Documents-folder access prompt for Sparkle's Autoupdate
+  process at the blocked rename. A disposable /Applications installation now
+  completes replacement/relaunch and exact handoff claim. No privacy bypass or
+  permission reset. Production permission/lid continuity remains QA.
+- [x] **P1 — Desk edits could interrupt input authority under sustained load.**
+  Sixteen authenticated fixture peers lost leases after about 61 seconds with
+  concurrent configuration edits, even with optimization enabled. Repeated
+  verification of trusted history and unchanged presentation updates consumed
+  the shared executor. Cache validated heads, sort stored revision IDs, and
+  publish only changed presentation values. Ingress/archive authentication and
+  the one-second fail-closed expiry are unchanged. See AUTOMATED-QA-2.0.96.md.
 
 - [x] **Local builds could abort before embedding Sparkle.** macOS Bash 3.2
   rejects empty optional arrays under `set -u`, leaving a compiled app that
   cannot load Sparkle. The sibling final-signing argument bug is also fixed.
   Builds now stage the complete app and verify runtime paths, framework layout,
   architectures and nested signatures before replacing the output. Release and
-  update packaging use the same check. Remote launch acceptance remains below.
+  update packaging use the same check. Remote launch acceptance is recorded below.
 
-- [ ] **Other-Mac build/launch acceptance.** Pull the fix and rebuild with that
-  Mac's local signing identity, confirm the final `Built` message, then open the
-  complete app bundle through Finder/LaunchServices. The reported dyld error is
-  consistent with the reproduced build defect; exact remote crash text and a
-  successful launch after the fix remain unverified. No release credentials or
-  notarization are required.
+- [x] **Other-Mac build/launch acceptance.** Scott confirmed September 12 that
+  the other Mac's build and launch fix works. Local builds need neither release
+  credentials nor notarization. This accepts the reported Sparkle/dyld defect,
+  not the new release's full physical feature QA.
 
 Full static Settings UX review at cb44f87 found **one P1 and ten P2 issues**.
 All are corrected in source, along with D1–D3. Details and the coverage ledger are
@@ -155,21 +163,24 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 - [ ] **Setup recovery acceptance before the next release.** Source fixes cover
   all seven review findings plus the lid-menu setup dead end. The ownership gate
-  and compile-only regression build are checked; native tests are deferred under
-  the user's static-only/no-control instruction. Verify real permission recovery,
+  and isolated native regression suites passed under AGENT MODE. Real checklist
+  navigation, Back to setup, picker return and queued-update warning rendering
+  passed. Remaining: real permission recovery,
   menu/window return, repeated input setup and explicit lid helper setup/resume.
   Check contextual Back to setup, ordinary sidebar navigation without Close,
   and return from nested repair failures.
   Installed/public 2.0.94 still contains the defects. Evidence and scope:
   SETUP-REVIEW-2.0.94.md.
 
-- [ ] **Full Settings correction acceptance.** Run the compiled native fixture
-  in an announced AGENT MODE session, then exercise affected real routes: shortcut
+- [ ] **Full Settings correction acceptance.** The compiled native fixture and
+  bounded child journeys passed under AGENT MODE. Remaining real routes: shortcut
   collision/replacement, app add/remove failures, completed layout → next keyboard,
   Desk names/codes and incoming edits/conflict choice, both new sidebar pages,
   Ready → lost permission recovery, and Appearance inactive controls. The pure
-  draft/conflict model tests and source gate passed; compilation does not establish
-  actual focus, buttons, OS pickers or hardware behavior. See the full review ledger.
+  draft/conflict models, source gate, picker cancellation/reopen, connection-code
+  validation/save/reopen and Desk child close/Escape/sidebar return passed.
+  Hardware/access transitions and broader production journeys remain. See the
+  full review ledger and AUTOMATED-QA-2.0.96.md.
 
 
 1. [ ] **Accept the latest release candidate on both Macs.** Check persistent navigation, direct menu
@@ -217,14 +228,22 @@ remain open; this is not a claim that untested behavior is defect-free.
    passed (30/30 healthy, combined app/helpers excluding observer about 1.23% CPU);
    this does not measure the new input adapter. Idle, open menu, input activity, process bursts
    and recovery; wakeups, event backlog, sustained memory growth and combined
-   collector CPU. Prior bounded measurements do not establish release-wide cost.
+   collector CPU. Optimized 16-peer sustained input/edit checks now run without
+   native input or hardware, measuring delivery, queue sizes, latency and RSS.
+   Five minutes delivered 211,328/211,328 events. A separate run continued input
+   after edits stopped; RSS stayed within 32 KiB over the final 90 seconds.
+   See AUTOMATED-QA-2.0.96.md; bounded fixture measurements do not establish
+   physical network latency, a leak-free lifetime or release-wide cost.
 10. [ ] **Sparkle acceptance after implementation.** Signed feed/archive delivery,
     bad signatures, interruption, cancellation, retry, replacement, permission
     continuity, active lid handoff, helper compatibility and external Homebrew
     replacement. See DISTRIBUTION.md for install-on-quit and identity requirements.
     September 12: native cancellation, bad ZIP signature rejection, failed
     simulated handoff and successful retry/replacement/relaunch passed. Physical
-    lid transfer, public update permissions and the Documents-folder stall remain.
+    lid transfer and public update permissions remain. A severed download and
+    slow-download cancellation retained build 1; retry in /Applications replaced
+    it with build 2 and claimed the saved identity. Documents stall diagnosed as
+    pending folder access. These are disposable apps with an injected lid client.
 11. [ ] **Desk monitor-only acceptance — next.** Join the two real Macs; verify
     cross-Mac edits, restart/reconnect and conflict recovery, identify/match screens,
     map actual ports, and use all presets in both directions. Test one/two screens,
@@ -265,9 +284,10 @@ remain open; this is not a claim that untested behavior is defect-free.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
-5. [ ] **Next corrected release and optional Homebrew cask.** Prepare the next
-   candidate after acceptance, update its release notes/support documentation,
-   and generate/verify its final artifacts and checksums. The 2.0.94 public assets
+5. [ ] **Next corrected release and optional Homebrew cask.** The
+   signed 2.0.96 candidate is prepared with a source snapshot and draft notes.
+   Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
+   and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.
    Notarization and publication still require their explicit authorization.
 6. [ ] **Publish only after explicit approval** of the concrete release, relevant

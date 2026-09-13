@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Darwin
 
 @main struct DeskNetworkChecks {
     static func wait(_ message: String, seconds: TimeInterval = 8, until predicate: () -> Bool) throws {
@@ -218,6 +219,65 @@ import Network
             guard inputs[15].capture(.init(kind: .motion, x: index == 1 ? 300 : 510)) else { throw KVMError("Pointer source lost full-group session") }
             do { try wait("three-computer pointer traversal \(index)") { inputs.allSatisfy { $0.active && $0.focus?.computer == nodes[index].localID } } }
             catch { print(inputs.enumerated().map { "\($0.offset): active=\($0.element.active), focus=\($0.element.focus?.computer.uuidString ?? "nil"), problem=\($0.element.problem ?? "none"), revision=\($0.element.node.revision ?? "nil")" }.joined(separator: "\n")); throw error }
+        }
+        let duration = CommandLine.arguments.dropFirst().first.flatMap(Double.init) ?? 0
+        if duration > 0 {
+            let started = ProcessInfo.processInfo.systemUptime
+            // Each source owns a distinct key. The real held-key model correctly
+            // coalesces shared keys, so counting 16 identical keys would be wrong.
+            var sustainedDelivered = 0
+            for service in inputs {
+                service.emit = { event, _ in
+                    if event.code >= 40 && event.code < 56 && [.keyDown, .keyUp].contains(event.kind) { sustainedDelivered += 1 }
+                }
+            }
+            var sent = 0, peakQueue = 0, latencies: [Double] = [], samples: [[String: Double]] = []
+            var nextSample = 0.0, nextEdit = 10.0
+            while ProcessInfo.processInfo.systemUptime - started < duration {
+                let batch = ProcessInfo.processInfo.systemUptime
+                for (index, service) in inputs.enumerated() {
+                    for kind in [KVMInputEvent.Kind.keyDown, .keyUp] {
+                        guard service.capture(.init(kind: kind, code: UInt16(40 + index))) else {
+                            let states = inputs.enumerated().map { "\($0.offset): active=\($0.element.active), issue=\($0.element.problem ?? "none")" }.joined(separator: "; ")
+                            throw KVMError("Endurance lost input authority after \(ProcessInfo.processInfo.systemUptime - started)s / \(sent) events: " + states)
+                        }
+                        sent += 1
+                    }
+                }
+                peakQueue = max(peakQueue, nodes.flatMap { $0.transport.links.values }.map(\.queuedBytes).max() ?? 0)
+                try wait("endurance delivery", seconds: 3) { sustainedDelivered == sent }
+                latencies.append(ProcessInfo.processInfo.systemUptime - batch)
+                let elapsed = ProcessInfo.processInfo.systemUptime - started
+                if elapsed >= nextSample {
+                    var info = mach_task_basic_info()
+                    var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+                    let result = withUnsafeMutablePointer(to: &info) { pointer in
+                        pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                            task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+                        }
+                    }
+                    guard result == KERN_SUCCESS else { throw KVMError("Could not sample fixture memory") }
+                    samples.append(["seconds": elapsed, "residentMiB": Double(info.resident_size) / 1048576])
+                    nextSample += 5
+                }
+                if elapsed >= nextEdit {
+                    var changed = nodes[15].group; changed.name = "Endurance \(Int(elapsed))"
+                    try nodes[15].edit(changed)
+                    try wait("edit during sustained input") { nodes.allSatisfy { $0.group == changed } }
+                    guard inputs.allSatisfy({ $0.active }) else { throw KVMError("Cosmetic edit interrupted sustained input") }
+                    nextEdit += 10
+                }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            try wait("endurance transport drain") { nodes.flatMap { $0.transport.links.values }.allSatisfy { $0.queuedBytes == 0 } }
+            guard inputs.allSatisfy({ $0.active }) else { throw KVMError("Endurance silently lost session") }
+            let ordered = latencies.sorted()
+            let metrics: [String: Any] = ["seconds": ProcessInfo.processInfo.systemUptime - started,
+                "sent": sent, "delivered": sustainedDelivered,
+                "batchP95Milliseconds": ordered[Int(Double(ordered.count - 1) * 0.95)] * 1000,
+                "peakQueuedBytesPerLink": peakQueue, "memory": samples]
+            print("ENDURANCE " + String(decoding: try JSONSerialization.data(withJSONObject: metrics, options: [.sortedKeys]), as: UTF8.self))
+            print("PASS: sustained 16-peer authenticated input, exact delivery count, concurrent cosmetic edits and drained queues; no native input")
         }
         inputs.forEach { $0.setEnabled(false) }
         try owner.removePeer(nodes[7].localID)

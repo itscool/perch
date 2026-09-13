@@ -59,10 +59,14 @@ struct KVMSyncGraph {
     private(set) var heads: Set<String> = []
     private var ancestors: [String: Set<String>] = [:]
     private var receipts: [UUID: Set<String>] = [:]
+    // Only receive() can admit revisions, after signature, roster, ancestry and
+    // group validation. Keep decoded heads so status/receipt reads never repeat
+    // cryptographic verification on the input coordinator's executor.
+    private var headGroups: [String: KVMGroup] = [:]
     var hasConflict: Bool { heads.count > 1 }
     var current: KVMGroup? {
-        guard heads.count == 1, let id = heads.first, let revision = revisions[id] else { return nil }
-        return try? revision.verified(roster: roster).group
+        guard heads.count == 1, let id = heads.first else { return nil }
+        return headGroups[id]
     }
     init(roster: KVMTrustRoster) throws { try roster.validate(); self.roster = roster }
 
@@ -81,6 +85,8 @@ struct KVMSyncGraph {
         if !newer { nextHeads.insert(id) }
         guard nextHeads.count <= 16 else { throw KVMError("Resolve the existing desk conflicts before adding another branch.") }
         revisions[id] = revision; ancestors[id] = ancestry; heads = nextHeads
+        headGroups = headGroups.filter { nextHeads.contains($0.key) }
+        if nextHeads.contains(id) { headGroups[id] = value.group }
         // An author has its own revision, but this does not acknowledge it for peers.
         receipts[value.author, default: []].insert(id)
     }
@@ -107,10 +113,13 @@ struct KVMSyncGraph {
         })
     }
     func history() throws -> [KVMSignedRevision] {
-        try revisions.values.sorted { a, b in
-            let ac = ancestors[a.id]?.count ?? 0, bc = ancestors[b.id]?.count ?? 0
-            return ac == bc ? a.id < b.id : ac < bc
-        }.map { revision in _ = try revision.verified(roster: roster); return revision }
+        // Revisions are immutable within this graph; importing an archive still
+        // passes each entry through receive(). Sort stored IDs, not rehashed
+        // payloads, and return only those already-validated values.
+        revisions.keys.sorted { a, b in
+            let ac = ancestors[a]?.count ?? 0, bc = ancestors[b]?.count ?? 0
+            return ac == bc ? a < b : ac < bc
+        }.map { revisions[$0]! }
     }
 }
 

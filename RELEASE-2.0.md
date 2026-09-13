@@ -37,15 +37,17 @@ That test exposed unreadable update-handoff/Desk files; both stores now use
 after-login file protection while retaining owner-only modes. Pending lid-helper
 updates now use attention colors, and active-session wording distinguishes the
 helper's report from a guarantee that macOS will stay awake. These changes are
-not installed. See NATIVE-QA-2.0.95.md for evidence and the unresolved
-Documents-folder installer stall; physical lid transfer remains untested.
+not installed. The Documents stall was subsequently traced to a pending TCC
+folder-access prompt; disposable /Applications update/relaunch now passes.
+Physical lid transfer remains untested. See NATIVE-QA-2.0.95.md and the follow-up
+AUTOMATED-QA-2.0.96.md.
 
 Local build packaging also fixes macOS Bash 3.2 aborting before Sparkle embedding
 and final signing. Complete staged bundles must pass runtime-path, architecture,
 framework-layout and nested-signature verification before replacing the output.
 The same verification protects release and update packaging. This prevents a failed
 build from leaving a new incomplete app at the output path; acceptance of the
-reported other-Mac launch failure is still pending.
+reported other-Mac launch failure was confirmed fixed by Scott on September 12.
 
 Verification: a full local build of 2.0.95 completed through the new packaging
 gate with no compiler warnings. Disposable compiled Mach-O fixtures passed
@@ -195,3 +197,18 @@ production signing authorization when prompted, successful Apple notarization,
 and resolution of the LG table provenance issue in Release/DEPENDENCY-REVIEW.md.
 Windows/Linux, VM adapters, direct Endpoint Security, and native lid/thermal
 research remain the separately agreed backlog.
+
+## 2.0.96 candidate — September 12
+
+A Developer ID build passed strict nested signing and bundled Sparkle checks with
+no compiler warnings. It is prepared locally, not installed, notarized or
+published. Its source snapshot is retained by the release pipeline. The source
+fix removes redundant trusted-history work and unchanged UI publication that
+caused Desk input leases to expire during optimized 16-peer concurrent edits.
+Authentication still runs at ingress, and the one-second expiry is unchanged.
+See AUTOMATED-QA-2.0.96.md for regression, endurance and native update evidence.
+Correction-specific draft notes are in Release/notes-2.0.96.md. Use the staged
+release CLI with that same --notes path when packaging, finishing and publishing
+this prepared candidate; the one-command wrapper currently uses Release/notes.md.
+Continue only after physical acceptance and explicit notarization/publication
+authorization. The prepared candidate need not be rebuilt.

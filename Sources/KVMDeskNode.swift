@@ -324,9 +324,11 @@ final class KVMDeskNode: ObservableObject {
         try next.write(storage); archive = next; graph = nextGraph; recoveredDraft = next.recoveredDraft; lastEdit = Date(); refreshPresentation()
     }
     private func refreshPresentation() {
-        if let current = graph.current { group = current }
-        conflicts = graph.hasConflict ? graph.heads.sorted().compactMap { graph.revisions[$0].flatMap { try? $0.verified(roster: graph.roster).group } } : []
-        if let revision { pendingPeers = graph.awaitingAcknowledgement(of: revision).subtracting([localID]) } else { pendingPeers = [] }
+        if let current = graph.current, current != group { group = current }
+        let nextConflicts = graph.hasConflict ? graph.heads.sorted().compactMap { graph.revisions[$0].flatMap { try? $0.verified(roster: graph.roster).group } } : []
+        if conflicts != nextConflicts { conflicts = nextConflicts }
+        let nextPending = revision.map { graph.awaitingAcknowledgement(of: $0).subtracting([localID]) } ?? []
+        if pendingPeers != nextPending { pendingPeers = nextPending }
     }
     func sendApplication(_ data: Data, peer: UUID) {
         guard let link = peerLinks[peer].flatMap({ transport.links[$0] }) else { return }

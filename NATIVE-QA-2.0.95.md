@@ -54,7 +54,7 @@ desktop testing resumed September 12 after Scott said ready.
 | Sparkle failed handoff/retry | Injected preparation failure kept old app running with Retry. In /private/tmp, retry replaced build 1 with 2, relaunched, and the new process claimed the exact saved identity. | Lid transport was simulated; active physical protection continuity still needs coordinated acceptance. |
 | Idle performance | Read-only installed 2.0.94, 30 seconds: app approximately 0.146% CPU/57.5 MiB/3.05 interrupt wakeups per second; two user helpers approximately 0.171%/12.4 MiB/1.03 and 0.028%/9.8 MiB/0.99. | Short baseline during other work; no sustained-memory, busy-input or root-helper cost conclusion. |
 
-## Open installation issue
+## Installation issue at this checkpoint (subsequently resolved)
 
 A disposable Sparkle update under Documents stalled at “Installing update…”
 after the old app terminated. Sampling showed Sparkle's installer blocked in
@@ -83,3 +83,12 @@ verified the completion file, build and event log afterward.
   lifecycle acceptance. Destructive actions require a disposable environment.
 
 No claim of release-wide QA completion or zero remaining issues is made.
+
+## Follow-up
+
+AUTOMATED-QA-2.0.96.md supersedes the unresolved Documents diagnosis and
+/Applications disposable-update boundary above. TCC recorded a Documents-folder
+permission prompt for the blocked installer. Interrupted and cancelled downloads
+kept the old app; a separate /Applications fixture completed replacement and
+exact handoff claim. Scott also confirmed the other Mac's build/launch fix.
+Physical lid and production privacy acceptance remain open.

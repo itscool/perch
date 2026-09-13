@@ -9,6 +9,19 @@ struct DeskMappingOption: Identifiable {
 
 /// A cable changes its computer/port association, never the identity or geometry of a screen.
 enum DeskCableBinding {
+    /// Move one cable atomically. A display identity belongs to its physical
+    /// screen, so crossing to another screen needs fresh identity matching.
+    static func rewire(_ source: KVMConnection, to target: KVMConnection, in group: inout KVMGroup) throws {
+        guard group.connections.first(where: { $0.id == source.id }) == source,
+              group.connections.first(where: { $0.id == target.id }) == target,
+              let computer = source.computer else { throw KVMError("This cable changed on another computer. Try moving it again.") }
+        guard source.id != target.id else { return }
+        var draft = group
+        try apply(connection: source.id, computer: nil, display: nil, to: &draft)
+        try apply(connection: target.id, computer: computer,
+                  display: source.monitor == target.monitor ? source.localDisplay : nil, to: &draft)
+        group = draft
+    }
     static func apply(connection: UUID, computer: UUID?, display: String?, to group: inout KVMGroup) throws {
         guard let target = group.connections.firstIndex(where: { $0.id == connection }) else { throw KVMError("This port was removed. Select another port.") }
         var draft = group
@@ -174,8 +187,7 @@ final class DeskModel: ObservableObject {
         if let live { return live.readiness(preset.id) }
         if loadFailed { return "The saved demo couldn't be opened. Its original file is preserved." }
         if conflict != nil { return "Review the competing desk changes before using a preset." }
-        if preset.assignments.isEmpty { return "Choose this preset's connections in the screen details." }
-        if preset.assignments.count != group.monitors.count { return "Choose a connection for every screen in this preset before using it." }
+        if preset.assignments.isEmpty { return "Click a monitor input to include a screen in this preset." }
         var needed = Set(preset.assignments.compactMap { a in group.connections.first { $0.id == a.connection }?.computer })
         needed.insert(group.computers[0].id)
         let missing = group.computers.filter { needed.contains($0.id) && !online.contains($0.id) }.map(\.name)
@@ -201,6 +213,10 @@ final class DeskModel: ObservableObject {
         guard let target = group.connections.first(where: { $0.id == port }),
               let existing = group.connections.first(where: { $0.computer == option.computer && $0.localDisplay == option.display && $0.monitor != target.monitor }) else { return nil }
         return "Already connected to " + (group.monitors.first { $0.id == existing.monitor }?.name ?? "another screen")
+    }
+    func rewireCable(_ source: KVMConnection, to target: KVMConnection) {
+        edit { try DeskCableBinding.rewire(source, to: target, in: &$0) }
+        if problem == nil { selected = target.monitor }
     }
     func disconnectCable(_ port: UUID) {
         edit { try DeskCableBinding.apply(connection: port, computer: nil, display: nil, to: &$0) }
@@ -245,8 +261,8 @@ final class DeskModel: ObservableObject {
         guard let id = selected else { return }
         edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].geometry.width = width; g.monitors[i].geometry.height = height } }
     }
-    func assign(_ connection: UUID?, preset index: Int? = nil) {
-        guard let monitor = selected else { return }
+    func assign(_ connection: UUID?, preset index: Int? = nil, monitor explicitMonitor: UUID? = nil) {
+        guard let monitor = explicitMonitor ?? selected else { return }
         let index = index ?? presetIndex
         edit { g in g.presets[index].assignments.removeAll { $0.monitor == monitor }; if let connection { g.presets[index].assignments.append(.init(monitor: monitor, connection: connection)) } }
     }

@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.113 is installed on disk
+2.0 development, September 13, 2026. Developer ID 2.0.114 is installed on disk
 in /Applications. The existing process (PID 98528, started before replacement)
-was left running; Scott can restart to load 2.0.113. The previous bundle is
-retained at /Applications/.perch-previous-xf2si3tf/Perch.app.
-Public/notarized remains 2.0.94; 2.0.113 is not notarized or published. The matching
+was left running; Scott can restart to load 2.0.114. The previous bundle is
+retained at /Applications/.perch-previous-6limgoyd/Perch.app.
+Public/notarized remains 2.0.94; 2.0.114 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -12,6 +12,15 @@ known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [ ] **Repeated Desk disconnections between the real Macs.** Scott reports one
+  Mac repeatedly failing its Desk connection. Read-only logs from local PID 98528
+  on September 13 confirm 96 ready transitions in four minutes, peer resets,
+  nearby-path timeouts and some TLS session closures. These logs establish real
+  churn, not its root cause. Await the affected Mac's exact error/recovery behavior;
+  investigate lifecycle/reconnect/trust behavior without resetting membership,
+  permissions or interrupting the user's testing. Loopback stability does not
+  close this real-network defect. 2.0.114 does not claim to fix it.
 
 - [ ] **Scott’s LG 27UP850-W / 27UP850K-W automatic identification.** The exact
   27UP850-W match now survives discovery into setup; guessed ports and swallowed
@@ -161,6 +170,15 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Direct Desk preset choices and attached cable connectors.** Half-circle
+  sockets sit on device edges with hover feedback. Occupied-input drags pick up
+  the existing cable and commit atomically or cancel unchanged. Visible choices
+  above sockets select the editing preset; highlighted wires/computers and preset
+  numbers show its routes. Unchanged excludes a monitor from switching and shared
+  input. Preset attention stays on the preset card; both Add controls are inside
+  the canvas. See DESK-DIRECT-PRESETS-2.0.md. Installed in 2.0.114; manual acceptance
+  remains, and both Macs need the new version for partial-preset execution.
+
 - [x] **Settings consolidation and setup readiness.** Sidebar status icons,
   anchored permission disclosures, one Hotkeys page, inline Desk/preset names,
   removed Scrolling/Displays/Desk-settings wrapper pages, and plural Displays
@@ -272,6 +290,13 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **Direct Desk preset and connector acceptance.** Actual SwiftUI body hit
+  regions, hover, sockets versus input choices, rewiring/cancel, screen exclusion,
+  selected-route emphasis, small windows/overflow, resize and peer edits. Native
+  socket dispatch, 24 preset/subset combinations, 105 portable KVM checks and real
+  TLS loopback/16-peer tests pass with injected hardware. The current real-network
+  disconnection report remains a known defect above.
 
 - [ ] **Latest settings, keypad and geometry acceptance.** Confirm sidebar icons,
   new Hotkeys and inline-name routes, stable permission disclosures, and wire

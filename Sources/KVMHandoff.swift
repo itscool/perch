@@ -30,7 +30,6 @@ struct KVMHandoff {
         guard now.isFinite, now >= 0 else { throw KVMError("Invalid handoff clock.") }
         guard phase != .preparing && phase != .switching else { throw KVMError("Another desk handoff is in progress.") }
         guard let preset = group.presets.first(where: { $0.id == presetID }), !preset.assignments.isEmpty,
-              preset.assignments.count == group.monitors.count,
               let focus = preset.assignments.first(where: { $0.monitor == focusMonitor }) else { throw KVMError("Choose a configured preset and a screen to work on.") }
         let connectionMap = Dictionary(uniqueKeysWithValues: group.connections.map { ($0.id, $0) })
         let destinations = Set(preset.assignments.compactMap { connectionMap[$0.connection]?.computer })

@@ -104,6 +104,21 @@ import Darwin
         switchesA.activate(desk.presets[0].id)
         try wait("two monitor command/readback") { !switchesA.busy && switchesA.results.count == 2 }
         guard switchesA.activePreset == desk.presets[0].id && writes == 2 else { throw KVMError("Preset did not confirm both monitors") }
+        var partial = desk
+        partial.presets[2].assignments = [desk.presets[2].assignments[0]]
+        partial.monitors[1].control = nil // Omitted hardware must need no control setup.
+        try a.edit(partial); try wait("partial preset sync") { b.group == partial }
+        let planned = try KVMMonitorRequest.make(group: partial, preset: partial.presets[2].id, epoch: UUID(), revision: "test")
+        guard planned.routes.map(\.monitor) == [partial.monitors[0].id] else { throw KVMError("Partial preset scheduled an omitted monitor") }
+        writes = 0; switchesA.activate(partial.presets[2].id)
+        try wait("partial preset completes") { !switchesA.busy && switchesA.results.count == 1 }
+        guard writes == 1 && switchesA.activePreset == partial.presets[2].id && switchesA.results[partial.monitors[1].id] == nil else { throw KVMError("Partial preset touched omitted monitor or failed activation") }
+        var empty = partial; empty.presets[2].assignments = []
+        var emptyRejected = false
+        do { _ = try KVMMonitorRequest.make(group: empty, preset: empty.presets[2].id, epoch: UUID(), revision: "test") } catch { emptyRejected = true }
+        guard emptyRejected else { throw KVMError("Empty preset became a switch request") }
+        try a.edit(desk); try wait("restore complete preset configuration") { b.group == desk }
+        print("PASS: partial preset switches exactly one monitor; omitted screen needs no control path; empty preset cannot execute")
         fallback = true; writes = 0
         switchesA.activate(desk.presets[1].id)
         try wait("DDC source-path fallback") { !switchesA.busy && switchesA.results.count == 2 }

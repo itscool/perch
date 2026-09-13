@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--full', action='store_true', help='Render the entire Desk page rather than only the canvas')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -47,14 +48,80 @@ port.mouseDown(with: mouse(.leftMouseDown, 22)); interaction.remove(port); port.
 interaction.cancel()
 print("PASS: native socket dispatch previews and commits both directions, cancels invalid drops/Esc/source removal; no event posting or windows")
 let model = DeskModel(store: URL(fileURLWithPath: CommandLine.arguments[2]))
+// Occupied inputs lift the existing computer end without changing storage
+// until a valid drop. Exercise native dispatch rather than only assigning state.
+let rewireController = DeskWireController()
+let rewires = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+let oldPort = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 22))
+let newPort = DeskWireSocketView(frame: NSRect(x: 110, y: 10, width: 24, height: 22))
+let hostSocket = DeskWireSocketView(frame: NSRect(x: 210, y: 10, width: 24, height: 22))
+var desk = DeskModel.sample()
+let original = desk.connections[0], targetCable = desk.connections[1]
+oldPort.socketID = "port:" + original.id.uuidString
+newPort.socketID = "port:" + targetCable.id.uuidString
+hostSocket.socketID = "computer:" + original.computer!.uuidString
+for socket in [oldPort, newPort, hostSocket] { socket.controller = rewireController; rewires.addSubview(socket); rewireController.register(socket) }
+rewireController.connection = { id in desk.connections.first { "port:" + $0.id.uuidString == id } }
+var rewired = 0
+rewireController.rewire = { from, to in try! DeskCableBinding.rewire(from, to: to, in: &desk); rewired += 1 }
+let before = desk
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22))
+precondition(rewireController.end(oldPort.socketID, at: CGPoint(x: 23, y: 21)), "An occupied input still clicks without rewiring")
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
+precondition(rewireController.cableSource == hostSocket.socketID && rewireController.target == newPort.socketID && rewireController.detachedPort == original.id && desk == before)
+oldPort.keyDown(with: escape); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
+precondition(desk == before && rewired == 0, "Esc must restore the picked-up cable")
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 350)); oldPort.mouseUp(with: mouse(.leftMouseUp, 350))
+precondition(desk == before && rewired == 0, "Invalid drop must preserve the source and destination")
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122)); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
+precondition(rewired == 1 && desk.connections[0].computer == nil && desk.connections[1].computer == original.computer && desk.connections[1].localDisplay == original.localDisplay)
+precondition(desk.presets == before.presets && desk.monitors == before.monitors, "Rewiring must not change presets or physical screens")
+desk = before
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
+desk.connections[0].computer = nil; desk.connections[0].localDisplay = nil
+let concurrent = desk
+oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
+precondition(desk == concurrent && rewired == 1, "Concurrent cable edits must cancel a stale gesture")
+var failed = before; failed.connections[1].computer = nil; failed.connections[1].localDisplay = nil
+let failedBefore = failed
+var rejected = false
+do { try DeskCableBinding.rewire(original, to: targetCable, in: &failed) } catch { rejected = true }
+precondition(rejected && failed == failedBefore, "Stale destination must reject atomically")
+var cross = before
+try DeskCableBinding.rewire(original, to: cross.connections[2], in: &cross)
+precondition(cross.connections[0].computer == nil && cross.connections[2].computer == original.computer && cross.connections[2].localDisplay == nil, "Different physical screen requires fresh display identity")
+oldPort.mouseEntered(with: mouse(.mouseMoved, 22)); precondition(oldPort.hovered)
+oldPort.mouseExited(with: mouse(.mouseMoved, 22)); precondition(!oldPort.hovered)
+precondition(oldPort.attachmentPoint.y == oldPort.bounds.minY && hostSocket.attachmentPoint.y == hostSocket.bounds.maxY, "Wire anchors must meet opposite device edges")
+rewireController.cancel()
+// Every subset of this three-monitor desk, across all three presets. Editing
+// another monitor must not depend on the selected inspector or affect cables.
+let sample = model.group
+for presetIndex in 0..<3 {
+    for mask in 0..<8 {
+        model.group = sample; model.presetIndex = presetIndex
+        for (index, monitor) in sample.monitors.enumerated() {
+            let input = mask & (1 << index) == 0 ? nil : sample.connections.first { $0.monitor == monitor.id }?.id
+            model.assign(input, monitor: monitor.id)
+        }
+        precondition(model.group.connections == sample.connections && model.active == nil)
+        for index in 0..<3 where index != presetIndex { precondition(model.group.presets[index] == sample.presets[index]) }
+        precondition(model.preset.assignments.count == mask.nonzeroBitCount)
+        precondition((model.readinessIssue == nil) == (mask != 0), "Only completely empty presets should be unavailable")
+    }
+}
+model.group = sample; model.presetIndex = 0
+print("PASS: occupied-input rewiring, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
 let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {
     Text("Perch · Desk cables").font(.system(size: 26, weight: .semibold))
     Text("Production canvas · Simulated devices · No live desktop interaction").foregroundStyle(.secondary)
     canvas.frame(width: 950, height: 560)
 }.padding(24).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .light)
-let host = NSHostingView(rootView: content)
-host.frame = NSRect(x: 0, y: 0, width: 998, height: 682)
+let full = CommandLine.arguments[3] == "full"
+let rootView = full ? AnyView(DeskView(model: model).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .light)) : AnyView(content)
+let host = NSHostingView(rootView: rootView)
+host.frame = NSRect(x: 0, y: 0, width: full ? 1200 : 998, height: full ? 860 : 682)
 host.layoutSubtreeIfNeeded()
 if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
     host.cacheDisplay(in: host.bounds, to: bitmap)
@@ -68,4 +135,4 @@ print("PASS: production Desk canvas rendered without windows or live settings")
 ''')
     sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(repo/'Sources'/s) for s in sources], str(root/'main.swift'), '-o', str(root/'render')], check=True)
-    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json')], check=True)
+    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas'], check=True)

@@ -163,6 +163,15 @@ import CryptoKit
 
         var handoff = KVMHandoff()
         let session = UUID()
+        var partialDesk = group
+        partialDesk.presets[0].assignments = [.init(monitor: left.id, connection: a.id)]
+        var partialHandoff = KVMHandoff()
+        let partialRequest = try partialHandoff.begin(group: partialDesk, presetID: partialDesk.presets[0].id, focusMonitor: left.id,
+                                                    inputSources: [alice.id], online: [alice.id], session: session, now: 0)
+        try check(partialRequest.routes.count == 1 && partialRequest.participants == [alice.id], "Omitted screen and its offline computer are outside a partial preset")
+        var excludedFocus = KVMHandoff()
+        try rejects("cannot focus an omitted screen") { _ = try excludedFocus.begin(group: partialDesk, presetID: partialDesk.presets[0].id, focusMonitor: right.id, inputSources: [alice.id], online: [alice.id], session: session, now: 0) }
+        try check(KVMEdge.crossing(group: partialDesk, preset: partialDesk.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .blocked, "An omitted screen cannot acquire shared input")
         try rejects("empty preset doesn't act") { _ = try handoff.begin(group: group, presetID: group.presets[1].id, focusMonitor: left.id, inputSources: [alice.id], online: [alice.id,bob.id], session: session, now: 0) }
         try rejects("offline destination doesn't act") { _ = try handoff.begin(group: group, presetID: group.presets[0].id, focusMonitor: right.id, inputSources: [alice.id], online: [alice.id], session: session, now: 0) }
         let request = try handoff.begin(group: group, presetID: group.presets[0].id, focusMonitor: right.id, inputSources: [alice.id, bob.id], online: [alice.id,bob.id], session: session, now: 100)
@@ -212,9 +221,8 @@ import CryptoKit
         try check(KVMEdge.crossing(group: pendingDisplay, preset: pendingDisplay.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .blocked, "pending display identity never grants pointer handoff")
         var incomplete = group; incomplete.presets[0].assignments.removeLast()
         handoff.recoverLocally()
-        try rejects("no implicit None or leave-unchanged operation") {
-            _ = try handoff.begin(group: incomplete, presetID: incomplete.presets[0].id, focusMonitor: left.id, inputSources: [alice.id], online: [alice.id,bob.id], session: session, now: 500)
-        }
+        let includedOnly = try handoff.begin(group: incomplete, presetID: incomplete.presets[0].id, focusMonitor: left.id, inputSources: [alice.id], online: [alice.id,bob.id], session: session, now: 500)
+        try check(includedOnly.routes.count == 1, "Explicitly unchanged screens are omitted from the handoff")
         var badMapping = pictureOnly; badMapping.connections[1].localDisplay = "ghost"
         try rejects("unassigned port cannot smuggle a host-local identity") { _ = try badMapping.validated() }
         var duplicatePort = group; var extraPort = a; extraPort.id = UUID(); extraPort.computer = nil; extraPort.localDisplay = nil; duplicatePort.connections.append(extraPort)

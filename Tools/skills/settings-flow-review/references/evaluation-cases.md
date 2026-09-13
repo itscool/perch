@@ -461,3 +461,9 @@ Exercise readiness loss/regain, partial grants and manual expansion without losi
 focus. Align correctly identified file targets and provide one action per OS
 destination. A missing helper needing installation must not instruct the user to
 grant a nonexistent or unverified file.
+
+## Spatial editing without hidden primary choices
+
+Scenario: monitor cards have clickable sockets, but a full-height scrolling overlay intercepts body dragging. Clicking a socket secretly chooses its preset input. All cables look identical. The inspector repeats preset dropdowns; an empty-preset warning appears over the canvas. Dragging an occupied input creates another cable or disconnects the original before a valid drop. An Unchanged option appears even though execution requires every monitor.
+
+Expected: visible direct preset choices, distinguishable cable gestures, route/endpoint highlighting tied to the editing preset, actual control-only exclusions, hover/focus feedback, and per-preset attention. Rewire atomically with cancel/concurrency checks; test omitted monitors through execution and input routing. Keep secondary connection actions in a menu when useful; this is not a blanket prohibition on context menus.

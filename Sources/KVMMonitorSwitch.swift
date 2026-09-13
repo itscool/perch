@@ -15,8 +15,9 @@ struct KVMMonitorRequest: Codable, Equatable {
     static func make(group: KVMGroup, preset: UUID, epoch: UUID, revision: String, id: UUID = UUID()) throws -> Self {
         _ = try group.validated()
         guard let preset = group.presets.first(where: { $0.id == preset }), !group.monitors.isEmpty,
-              preset.assignments.count == group.monitors.count else { throw KVMError("Choose an input for every screen in this preset.") }
-        let routes = try group.monitors.map { monitor -> KVMMonitorRoute in
+              !preset.assignments.isEmpty else { throw KVMError("Click a monitor input to include a screen in this preset.") }
+        let selected = Set(preset.assignments.map(\.monitor))
+        let routes = try group.monitors.filter { selected.contains($0.id) }.map { monitor -> KVMMonitorRoute in
             guard let control = monitor.control else { throw KVMError("Choose a control connection for \(monitor.name).") }
             guard let assignment = preset.assignments.first(where: { $0.monitor == monitor.id }),
                   let input = group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { throw KVMError("Choose the actual input code for \(monitor.name)’s connection.") }
@@ -238,7 +239,7 @@ final class KVMMonitorSwitch: ObservableObject {
     private func deriveActive() {
         observations = observations.filter { now - $0.value.time <= 45 && node.online.contains($0.value.peer) }
         let matches = node.group.presets.filter { preset in
-            !node.group.monitors.isEmpty && preset.assignments.count == node.group.monitors.count && preset.assignments.allSatisfy { assignment in
+            !preset.assignments.isEmpty && preset.assignments.allSatisfy { assignment in
                 guard let expected = node.group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { return false }
                 return observations[assignment.monitor]?.input == expected
             }

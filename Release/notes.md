@@ -1,3 +1,7 @@
+Desk now places half-circle cable connectors on device edges, with hover feedback and monitor-body dragging outside actual controls. Dragging an occupied input picks up its cable; a valid drop rewires atomically, while Esc or an invalid drop preserves the original.
+
+Preset inputs are chosen directly above each connector. The editing preset highlights its inputs, wires and computers, with stronger emphasis on the selected screen’s route. Unchanged excludes a screen from switching and shared input. Preset warnings stay on their cards; Add screen and Add computer both live inside the desk.
+
 External keyboards gain an opt-in Num Lock navigation mode. Num Lock/Clear toggles each identified external keypad independently; operators and number-mode punctuation stay native. Unknown and built-in senders pass through. This needs the matching input helper; hardware LEDs are not synchronized.
 
 Desk wires refresh their target geometry during layout and scrolling. Physical-size editing accepts a diagonal in inches and automatically uses the display’s reported panel ratio when available, retaining exact millimetre editing.

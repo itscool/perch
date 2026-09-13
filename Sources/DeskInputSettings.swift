@@ -36,7 +36,7 @@ struct DeskInputSettings: View {
                 Picker("Screens currently showing", selection: $presetIndex) {
                     ForEach(node.group.presets.indices, id: \.self) { i in Text(node.group.presets[i].name).tag(i) }
                 }.help("Choose the preset whose inputs are visible. This selection does not switch monitors; Perch checks the actual input before sharing.")
-                ForEach(node.group.monitors) { screen in
+                ForEach(node.group.monitors.filter { screen in node.group.presets[presetIndex].assignments.contains { $0.monitor == screen.id } }) { screen in
                     HStack {
                         Text(screen.name)
                         Spacer()

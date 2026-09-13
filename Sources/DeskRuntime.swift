@@ -186,7 +186,9 @@ final class DeskRuntime: ObservableObject {
     func activatePreset(_ preset: UUID) {
         if switching.busy && switching.request?.preset == preset { return }
         guard switching.readiness(preset) == nil else { switching.activate(preset); return }
-        let monitor = input.focus?.monitor ?? model.selected ?? node.group.monitors.first?.id
+        let included = node.group.presets.first { $0.id == preset }?.assignments.map(\.monitor) ?? []
+        let preferred = input.focus?.monitor ?? model.selected
+        let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
         input.stop()
         switching.activate(preset)
         if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }

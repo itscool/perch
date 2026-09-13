@@ -35,6 +35,12 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
         return vendor == 7789 ? LGFirmwareProfiles.inputs(identity: lgIdentity, extended: lgExtendedIdentity) : nil
     }
     func portOptions(choice: String) -> [MonitorInput] { profile(choice: choice)?.inputs ?? reportedPorts ?? [] }
+    enum InputDetection { case profile(MonitorProfile), reported([MonitorInput]), unknown }
+    var inputDetection: InputDetection {
+        if let profile = profile(choice: ""), profile.confidence != "suggested" { return .profile(profile) }
+        if let ports = reportedPorts, !ports.isEmpty, ports.count <= 16, ports.allSatisfy(\.valid) { return .reported(ports) }
+        return .unknown
+    }
     func sameDevice(as other: Self) -> Bool {
         id == other.id && vendor == other.vendor && model == other.model && serial == other.serial && name == other.name
     }
@@ -60,6 +66,8 @@ enum DeskDeviceMessage: Codable {
     case refresh
     case displayProblem(String)
     case inspect(String)
+    case inspectRequest(UUID, String)
+    case inspectionReply(UUID, DeskDetectedDisplay?, String?)
     case identify(String, String)
     case identification(String, String, UUID, Bool)
 }
@@ -88,6 +96,12 @@ final class DeskRuntime: ObservableObject {
     private var subscriptions: Set<AnyCancellable> = []
     private var queues: [String: DispatchQueue] = [:]
     private var refreshTimer: Timer?
+    private struct PendingInspection {
+        let computer: UUID
+        let before: DeskDetectedDisplay
+        let completion: (Result<DeskDetectedDisplay, Error>) -> Void
+    }
+    private var pendingInspections: [UUID: PendingInspection] = [:]
     private var hotKeys: [PanicHotKey] = []
     private var registeredShortcuts: [KVMShortcut] = []
     private var registeredPanic: PanicShortcut?
@@ -193,6 +207,18 @@ final class DeskRuntime: ObservableObject {
         switching.activate(preset)
         if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
     }
+    func controlOptions(for monitor: UUID) -> [DeskMappingOption] {
+        let detected = Set(displays.flatMap { computer, displays in displays.map { computer.uuidString + "|" + $0.id } })
+        return DeskControlPaths.options(group: node.group, monitor: monitor, detected: detected)
+    }
+    func defaultControlMode(for monitor: UUID) -> String? {
+        guard let screen = node.group.monitors.first(where: { $0.id == monitor }) else { return nil }
+        if let mode = screen.defaultControlMode { return mode }
+        if let name = screen.inputProfile, let profile = MonitorProfiles.entries.first(where: { $0.name == name }) {
+            return profile.alternate ? "lg" : "standard"
+        }
+        return screen.control.flatMap { control in displays[control.computer]?.first { $0.id == control.localDisplay }?.mode }
+    }
     var mappingOptions: [DeskMappingOption] {
         node.group.computers.flatMap { computer in
             var options = (displays[computer.id] ?? []).enumerated().map { index, display in
@@ -277,24 +303,80 @@ final class DeskRuntime: ObservableObject {
             }
         }
     }
-    func inspect(_ display: String, computer: UUID) {
+    func inspect(_ display: String, computer: UUID, completion: ((Result<DeskDetectedDisplay, Error>) -> Void)? = nil) {
+        guard let d = displays[computer]?.first(where: { $0.id == display }) else {
+            completion?(.failure(KVMError("This display is no longer reported. Reconnect it and try again."))); return
+        }
         if computer != node.localID {
-            if let data = try? JSONEncoder().encode(DeskDeviceMessage.inspect(display)) { node.sendApplication(data, peer: computer) }
+            guard node.online.contains(computer) else { completion?(.failure(KVMError("The control computer is offline. Reconnect it and try again."))); return }
+            let message: DeskDeviceMessage
+            if let completion {
+                let token = UUID()
+                pendingInspections[token] = .init(computer: computer, before: d, completion: completion)
+                message = .inspectRequest(token, display)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+                    guard let pending = self?.pendingInspections.removeValue(forKey: token) else { return }
+                    pending.completion(.failure(KVMError("The control computer did not finish detection. Check its connection and Perch version, then retry.")))
+                }
+            } else { message = .inspect(display) }
+            if let data = try? JSONEncoder().encode(message) { node.sendApplication(data, peer: computer) }
             return
         }
-        guard let d = displays[computer]?.first(where: { $0.id == display }) else { return }
         queue(display).async { [weak self] in
             let result = Result { try JSONDecoder().decode(MonitorInspection.self, from: MonitorDisplayBackend().run(["inspect", display, d.mode])) }
             DispatchQueue.main.async {
                 guard let self, let i = self.displays[computer]?.firstIndex(where: { $0.id == display }),
-                      self.displays[computer]?[i].sameDevice(as: d) == true else { return }
+                      self.displays[computer]?[i].sameDevice(as: d) == true else {
+                    completion?(.failure(KVMError("The display changed during detection. Try again."))); return
+                }
                 switch result {
                 case .success(let inspection): self.displays[computer]?[i].applyInspection(inspection)
                 case .failure(let error): self.displays[computer]?[i].inspectionProblem = error.localizedDescription; self.displays[computer]?[i].inspected = true
                 }
                 self.publishDisplays(); self.updateModel()
+                switch result {
+                case .success: if let updated = self.displays[computer]?[i] { completion?(.success(updated)) }
+                case .failure(let error): completion?(.failure(error))
+                }
             }
         }
+    }
+    func detectInputProfile(_ monitor: UUID, completion: @escaping (Result<String, Error>) -> Void) {
+        guard let screen = node.group.monitors.first(where: { $0.id == monitor }), let control = screen.control else {
+            completion(.failure(KVMError("Choose this monitor’s control connection first."))); return
+        }
+        guard controlOptions(for: monitor).contains(where: { $0.computer == control.computer && $0.display == control.localDisplay }) else {
+            completion(.failure(KVMError("The saved path points to another monitor. Choose a matched control connection for this screen before detecting its profile."))); return
+        }
+        let originalPorts = node.group.connections.filter { $0.monitor == monitor }
+        inspect(control.localDisplay, computer: control.computer) { [weak self] result in
+            guard let self else { return }
+            do {
+                let detected = try result.get()
+                guard self.node.group.monitors.first(where: { $0.id == monitor }) == screen,
+                      self.node.group.connections.filter({ $0.monitor == monitor }) == originalPorts else {
+                    throw KVMError("This monitor’s setup changed during detection. Your changes were kept; try again.")
+                }
+                switch detected.inputDetection {
+                case .profile(let profile):
+                    try self.configureMonitor(monitor, profile: profile)
+                    completion(.success("Detected " + profile.name)); return
+                case .reported:
+                    try self.configureReportedInputs(monitor, detected: detected)
+                    completion(.success("Using the monitor’s reported inputs.")); return
+                case .unknown: break
+                }
+                let family = detected.firmwareFamily.map { "Recognized firmware family: " + $0 + ". " } ?? ""
+                completion(.success(family + "No verified input profile or reported ports were found. Your current setup is unchanged."))
+            } catch { completion(.failure(error)) }
+        }
+    }
+    func configureReportedInputs(_ monitor: UUID, detected: DeskDetectedDisplay) throws {
+        guard let inputs = detected.reportedPorts, !inputs.isEmpty, inputs.count <= 16, inputs.allSatisfy(\.valid) else { throw KVMError("This monitor has not reported a usable input list.") }
+        var group = node.group
+        try DeskMonitorConfiguration.apply(monitor: monitor, profile: DeskDetectedDisplay.reportedInputsChoice,
+                                           ports: inputs.map { .init(name: $0.name, code: $0.code) }, mode: detected.mode, to: &group)
+        try node.edit(group)
     }
     func discoverUSB() {
         DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -332,6 +414,30 @@ final class DeskRuntime: ObservableObject {
             remoteDisplayProblems[peer] = String(problem.prefix(800)); updateModel()
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
+        case .inspectRequest(let token, let display):
+            inspect(display, computer: node.localID) { [weak self] result in
+                guard let self else { return }
+                let reply: DeskDeviceMessage
+                switch result {
+                case .success(let detected): reply = .inspectionReply(token, detected, nil)
+                case .failure(let error): reply = .inspectionReply(token, nil, String(error.localizedDescription.prefix(800)))
+                }
+                if let data = try? JSONEncoder().encode(reply) { self.node.sendApplication(data, peer: peer) }
+            }
+        case .inspectionReply(let token, let value, let error):
+            guard let pending = pendingInspections[token], pending.computer == peer else { return }
+            pendingInspections[token] = nil
+            if let error { pending.completion(.failure(KVMError(String(error.prefix(800))))); return }
+            guard let value, value.sameDevice(as: pending.before), value.inspectionProblem == nil,
+                  let i = displays[peer]?.firstIndex(where: { $0.sameDevice(as: pending.before) }),
+                  (value.reportedPorts?.count ?? 0) <= 16, value.reportedPorts?.allSatisfy(\.valid) != false else {
+                pending.completion(.failure(KVMError("The display changed or returned invalid detection details. Try again."))); return
+            }
+            // Only inspection fields come from the reply; retain validated device metadata.
+            displays[peer]?[i].lgIdentity = value.lgIdentity; displays[peer]?[i].lgExtendedIdentity = value.lgExtendedIdentity
+            displays[peer]?[i].reportedPorts = value.reportedPorts; displays[peer]?[i].inspected = true; displays[peer]?[i].inspectionProblem = nil
+            if let updated = displays[peer]?[i] { pending.completion(.success(updated)) }
+            updateModel()
         case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)), token: UUID(), showing: true)
         case .identification(let display, let name, let token, let showing): showIdentification(display, name: String(name.prefix(100)), token: token, showing: showing)
         }
@@ -349,6 +455,7 @@ final class DeskRuntime: ObservableObject {
             let screen = KVMMonitor(name: name, geometry: .init(x: group.monitors.map { $0.geometry.right }.max() ?? 0, y: 0, width: detected.width > 1 ? detected.width : 550, height: detected.height > 1 ? detected.height : 310), control: .init(computer: computer, localDisplay: display, mode: detected.mode))
             monitor = screen.id; group.monitors.append(screen)
             group.monitors[group.monitors.count - 1].panelAspect = detected.panelAspect
+            group.monitors[group.monitors.count - 1].defaultControlMode = detected.mode
             group.monitors[group.monitors.count - 1].inputProfile = profile?.name ?? detected.matchedProfileName
         }
         for port in detected.inputs where !group.connections.contains(where: { $0.monitor == monitor && $0.inputCode == port.code }) {
@@ -367,15 +474,14 @@ final class DeskRuntime: ObservableObject {
             func read() throws -> UInt16? { try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read"] + args)).current }
             var state = KVMMonitorOutcome.State.failed, detail = "The switch was cancelled before its monitor command."
             do {
-                guard allowed() else { throw KVMError(detail) }
-                if (try? read()) == route.input { state = .confirmed; detail = "A fresh monitor read confirms this input." }
-                else {
-                    guard allowed() else { throw KVMError(detail) }
+                let outcome = try DeskMonitorCommand.run(input: route.input, permitted: allowed, read: read, write: {
                     let data = try backend.run(["switch"] + args + [String(route.input)])
                     guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any], reply["sent"] as? Bool == true else { throw KVMError("The monitor did not accept the input command.") }
-                    Thread.sleep(forTimeInterval: 0.2)
-                    if allowed(), (try? read()) == route.input { state = .confirmed; detail = "Monitor reports the requested input." }
-                    else { state = .unverified; detail = "Command sent. Checking the picture from another paired computer…" }
+                }, settle: { Thread.sleep(forTimeInterval: 0.2) })
+                switch outcome {
+                case .alreadySelected: state = .confirmed; detail = "Already on this input; confirmed without sending a switch command."
+                case .switched: state = .confirmed; detail = "Monitor reports the requested input."
+                case .unverified: state = .unverified; detail = "Command sent. Checking the picture from another paired computer…"
                 }
             } catch { detail = error.localizedDescription }
             DispatchQueue.main.async { completion(state, detail) }

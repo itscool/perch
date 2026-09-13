@@ -1,3 +1,7 @@
+Monitor setup now offers Detect input profile directly, with fresh local or request-matched remote inspection. It applies a verified named profile or monitor-reported ports; unknown results keep the current setup. Control through lists only this monitor’s mapped video paths, labeled by computer and port. Independent USB/network/serial protocols choose their controller computer and explicit endpoint. Protocol override marks and preserves the default; serial identity stays in Detection details.
+
+Already-selected monitor inputs are confirmed by a fresh read without a switch command or settling delay. Read-before-write behavior now has direct regression coverage and rechecks cancellation after the initial read.
+
 Desk now places half-circle cable connectors on device edges, with hover feedback and monitor-body dragging outside actual controls. Dragging an occupied input picks up its cable; a valid drop rewires atomically, while Esc or an invalid drop preserves the original.
 
 Preset inputs are chosen directly above each connector. The editing preset highlights its inputs, wires and computers, with stronger emphasis on the selected screen’s route. Unchanged excludes a screen from switching and shared input. Preset warnings stay on their cards; Add screen and Add computer both live inside the desk.

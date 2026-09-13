@@ -60,3 +60,40 @@ func runDeskInspectionTests() throws {
               "Adding an identical model changed an existing screen or its mappings")
     print("PASS: Desk firmware profile suggestions, manual/unknown/vendor cases, peer metadata, refresh identity, persisted LG port/protocol and distinct identical screens; no hardware access")
 }
+
+/// Model-only detection/control checks: no windows, runtime adapters or hardware.
+func runDeskProfilePolicyTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
+    var group = DeskModel.sample()
+    let monitor = group.monitors[0].id, cable = group.connections[0]
+    group.monitors[0].control = .init(computer: cable.computer!, localDisplay: cable.localDisplay!)
+    let detected = Set(group.connections.compactMap { c in c.computer.flatMap { host in c.localDisplay.map { host.uuidString + "|" + $0 } } })
+    let paths = DeskControlPaths.options(group: group, monitor: monitor, detected: detected)
+    try check(paths.count == 2 && paths.contains { $0.label.contains("USB-C") } && paths.contains { $0.label.contains("DisplayPort") }, "Same-monitor paths need computer/port labels")
+    try check(!paths.contains { $0.display == group.connections[3].localDisplay }, "Another physical monitor leaked into control choices")
+    var offline = group
+    offline.connections.removeAll { $0.monitor == monitor }
+    let pending = DeskControlPaths.options(group: offline, monitor: monitor, detected: [])
+    try check(pending.count == 1 && pending[0].label.contains("Port not mapped") && pending[0].label.contains("not currently detected"), "Saved control path must survive offline/missing port metadata honestly")
+    var incorrect = group
+    incorrect.monitors[0].control = .init(computer: group.connections[3].computer!, localDisplay: group.connections[3].localDisplay!)
+    try check(DeskControlPaths.options(group: incorrect, monitor: monitor, detected: detected).count == 2, "Saved path to another monitor must not become a valid option")
+    var record = DeskDetectedDisplay(id: UUID().uuidString, name: "LG HDR 4K", vendor: 7789, model: 7706, serial: 0,
+                                    width: 600, height: 340, canControl: true, inputs: [], mode: "lg")
+    record.applyInspection(.init(current: nil, capabilities: nil, lgIdentity: 0x5124))
+    guard case .profile(let profile) = record.inputDetection else { throw KVMError("Known family did not select an evidenced profile") }
+    try check(profile.inputs.contains { $0.code == 209 }, "Known firmware lost its input codes")
+    record.applyInspection(.init(current: nil, capabilities: "(vcp(60(11 12)))", lgIdentity: nil))
+    guard case .reported(let ports) = record.inputDetection else { throw KVMError("Reported capabilities were not usable without a named profile") }
+    try check(ports.map(\.code) == [17, 18], "Reported input codes changed")
+    record.applyInspection(.init(current: nil, capabilities: nil, lgIdentity: nil))
+    guard case .unknown = record.inputDetection else { throw KVMError("Unknown detection reused stale ports/profile") }
+    try DeskMonitorConfiguration.apply(monitor: monitor, profile: profile.name, ports: profile.inputs.map { .init(name: $0.name, code: $0.code) }, mode: "lg", to: &group)
+    group.monitors[0].control?.mode = "standard"
+    let restored = try JSONDecoder().decode(KVMGroup.self, from: JSONEncoder().encode(group))
+    try check(restored.monitors[0].defaultControlMode == "lg" && restored.monitors[0].inputProfile == profile.name, "Override lost the monitor's original protocol/profile")
+    let token = UUID(), message = DeskDeviceMessage.inspectionReply(token, record, nil)
+    guard case .inspectionReply(let roundTripToken, let roundTripRecord, _) = try JSONDecoder().decode(DeskDeviceMessage.self, from: JSONEncoder().encode(message)) else { throw KVMError("Detection reply lost its identity") }
+    try check(roundTripToken == token && roundTripRecord == record, "Detection replies must retain the specific request and display")
+    print("PASS: scoped control paths, port/offline labels, wrong-monitor exclusion, profile/capability/unknown detection, protocol default persistence and reply correlation payload")
+}

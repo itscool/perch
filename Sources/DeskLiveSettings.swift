@@ -19,6 +19,8 @@ struct DeskLiveSheet: View {
     @State private var controlKind = "standard"
     @State private var endpoint = ""
     @State private var unit = 1
+    @State private var detectingProfile = false
+    @State private var detectionResult: String?
     @State private var profileName = ""
     @State private var customInput = false
     @State private var inputName = "USB-C"
@@ -250,13 +252,18 @@ struct DeskLiveSheet: View {
     }
     func saveControl() {
         perform {
-            guard let selection, let computer, !display.isEmpty else { throw KVMError("Choose the computer and display used to control this monitor.") }
+            guard let selection, let computer, !display.isEmpty else { throw KVMError("Choose a mapped control connection for this monitor.") }
             let mode: String
             if ["standard", "lg"].contains(controlKind) { mode = controlKind }
             else { let connection = MonitorConnection(kind: controlKind, endpoint: endpoint, address: unit); guard connection.valid else { throw KVMError("Choose or enter a complete control connection. The previous working connection is kept.") }; mode = connection.argument }
             var group = node.group
             guard let i = group.monitors.firstIndex(where: { $0.id == selection }) else { return }
-            if group.monitors[i].control?.mode != mode { group.monitors[i].inputProfile = nil }
+            guard !["standard", "lg"].contains(controlKind) || runtime.controlOptions(for: selection).contains(where: { $0.computer == computer && $0.display == display }) else {
+                throw KVMError("This path is not mapped to this monitor. Connect and match this screen on the desk before choosing its control path.")
+            }
+            // A protocol override does not discard the input profile or redefine
+            // its default. Keep that reference available when reverting later.
+            group.monitors[i].defaultControlMode = runtime.defaultControlMode(for: selection)
             group.monitors[i].control = .init(computer: computer, localDisplay: display, mode: mode)
             try node.edit(group)
         }
@@ -267,12 +274,30 @@ struct DeskLiveSheet: View {
             Text("The input profile defines this monitor’s port codes and control protocol. Cable connections and the three Desk presets are configured on the desk.").font(.callout).foregroundStyle(.secondary)
             let detected = monitor.control.flatMap { control in runtime.displays[control.computer]?.first { $0.id == control.localDisplay } }
             Picker("Input profile", selection: Binding(get: { monitor.inputProfile ?? "" }, set: { value in
+                if value == DeskDetectedDisplay.reportedInputsChoice, let detected {
+                    perform { try runtime.configureReportedInputs(selection, detected: detected); loadControl() }; return
+                }
                 guard let profile = MonitorProfiles.entries.first(where: { $0.name == value }) else { return }
                 perform { try runtime.configureMonitor(selection, profile: profile); loadControl() }
             })) {
                 if monitor.inputProfile == nil { Text("Current custom controls").tag("") }
+                if monitor.inputProfile == DeskDetectedDisplay.reportedInputsChoice || detected?.reportedPorts?.isEmpty == false {
+                    Text("Monitor-reported inputs").tag(DeskDetectedDisplay.reportedInputsChoice)
+                }
                 ForEach(MonitorProfiles.entries.filter { $0.vendor == detected?.vendor || $0.name == monitor.inputProfile }, id: \.name) { Text($0.name).tag($0.name) }
             }
+            Button(detectingProfile ? "Detecting input profile…" : "Detect input profile") {
+                detectingProfile = true; detectionResult = nil; error = nil
+                runtime.detectInputProfile(selection) { result in
+                    detectingProfile = false
+                    switch result {
+                    case .success(let message): detectionResult = message; loadControl()
+                    case .failure(let failure): error = failure.localizedDescription
+                    }
+                }
+            }.disabled(detectingProfile || monitor.control == nil)
+                .help("Read the monitor again and use a verified matching profile or its reported inputs. If no match is found, keep the current setup.")
+            if let detectionResult { Text(detectionResult).font(.callout).fixedSize(horizontal: false, vertical: true) }
             Text("Matching ports keep their cables and preset choices. A profile adds its known ports; it does not remove extra ports you configured.").font(.caption).foregroundStyle(.secondary)
             if let detected {
                 if detected.profile(choice: "") == nil { Text("No verified automatic profile match. The model name printed on the monitor may be more specific than the name macOS reports.").font(.callout).foregroundStyle(.secondary) }
@@ -282,6 +307,7 @@ struct DeskLiveSheet: View {
                 DisclosureGroup("Detection details") {
                     Text("macOS name: \(detected.name)")
                     Text("Vendor \(detected.vendor) · Product \(detected.model)")
+                    if detected.serial != 0 { Text("Serial \(detected.serial)") }
                     if let family = detected.firmwareFamily { Text("Firmware family: " + family) }
                     if let issue = detected.inspectionProblem { Text(issue).foregroundStyle(.orange) }
                     Text("A firmware family suggests input controls; it does not prove the retail suffix or identify a unique physical screen.").font(.caption).foregroundStyle(.secondary)
@@ -291,19 +317,53 @@ struct DeskLiveSheet: View {
             DisclosureGroup("Advanced control connection") { control }
         } else { Text("This screen was removed from the desk.") }
     }
+    private func protocolLabel(_ kind: String) -> String {
+        switch kind {
+        case "lg": return "LG alternate inputs"
+        case "mccs-usb": return "USB MCCS"
+        case "msi-usb": return "MSI USB"
+        case "nec-lan": return "NEC network"
+        case "nec-serial": return "NEC serial"
+        default: return "Standard DDC/CI"
+        }
+    }
     var control: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Monitor control").font(.title2.bold())
             Text("This connection sends input commands and reads the monitor’s current input. It can differ from the computer shown on the screen. Valid changes save immediately; editing does not switch inputs.").font(.callout).foregroundStyle(.secondary)
-            Picker("Control through", selection: Binding(get: { computer.map { $0.uuidString + "|" + display } ?? "" }, set: { choice in let parts = choice.split(separator: "|"); if parts.count == 2 { computer = UUID(uuidString: String(parts[0])); display = String(parts[1]); saveControl() } })) {
-                Text("Choose connection").tag("")
-                ForEach(runtime.mappingOptions) { option in Text((node.group.computers.first { $0.id == option.computer }?.name ?? "Computer") + " · " + option.label).tag(option.id) }
+            let options = selection.map { runtime.controlOptions(for: $0) } ?? []
+            let selectedPath = computer.map { $0.uuidString + "|" + display } ?? ""
+            if ["standard", "lg"].contains(controlKind) {
+            Picker("Control through", selection: Binding(get: { selectedPath }, set: { choice in
+                guard let option = options.first(where: { $0.id == choice }), let host = option.computer, let path = option.display else { return }
+                computer = host; display = path; saveControl()
+            })) {
+                if !options.contains(where: { $0.id == selectedPath }) {
+                    Text(selectedPath.isEmpty ? "Choose connection" : "Saved path is not mapped to this monitor").tag(selectedPath).disabled(true)
+                }
+                ForEach(options) { option in Text(option.label).tag(option.id) }
             }
-            Picker("Protocol", selection: $controlKind) {
-                Text("Standard DDC/CI").tag("standard"); Text("LG alternate inputs").tag("lg")
-                Text("USB MCCS").tag("mccs-usb"); Text("MSI USB").tag("msi-usb")
-                Text("NEC network").tag("nec-lan"); Text("NEC serial").tag("nec-serial")
+            if options.isEmpty {
+                Text("Connect this monitor to a computer and match its display on the desk to add a control path.").font(.caption).foregroundStyle(.secondary)
+            }
+            } else {
+                Picker("Control through", selection: Binding<UUID?>(get: { computer }, set: { host in
+                    guard let host, node.group.computers.contains(where: { $0.id == host }) else { return }
+                    computer = host; saveControl()
+                })) {
+                    ForEach(node.group.computers) { host in Text(host.name).tag(Optional(host.id)) }
+                }
+                Text("This computer reaches the monitor through the device or address below; no other display is used.").font(.caption).foregroundStyle(.secondary)
+            }
+            let defaultMode = selection.flatMap { runtime.defaultControlMode(for: $0) }
+            Picker("Protocol override", selection: $controlKind) {
+                ForEach(["standard", "lg", "mccs-usb", "msi-usb", "nec-lan", "nec-serial"], id: \.self) { kind in
+                    Text(protocolLabel(kind) + (kind == defaultMode ? " (default)" : "")).tag(kind)
+                }
             }.onChange(of: controlKind) { _, _ in saveControl() }
+            if defaultMode == nil {
+                Text("Reconnect this monitor’s control computer to determine its default protocol.").font(.caption).foregroundStyle(.secondary)
+            }
             if !["standard", "lg"].contains(controlKind) {
                 if computer == node.localID && controlKind.contains("usb") {
                     Picker("USB device", selection: $endpoint) { Text("Choose device").tag(""); ForEach(runtime.usbDevices, id: \.endpoint) { Text($0.name).tag($0.endpoint) } }.onChange(of: endpoint) { _, _ in saveControl() }

@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.114 is installed on disk
-in /Applications. The existing process (PID 98528, started before replacement)
-was left running; Scott can restart to load 2.0.114. The previous bundle is
-retained at /Applications/.perch-previous-6limgoyd/Perch.app.
-Public/notarized remains 2.0.94; 2.0.114 is not notarized or published. The matching
+2.0 development, September 13, 2026. Developer ID 2.0.115 is installed on disk
+in /Applications. The user's existing process was left running; Scott can
+restart to load 2.0.115. The previous bundle is
+retained at /Applications/.perch-previous-ap6xavla/Perch.app.
+Public/notarized remains 2.0.94; 2.0.115 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -20,7 +20,13 @@ This supersedes stale open-item wording in dated review checkpoints.
   churn, not its root cause. Await the affected Mac's exact error/recovery behavior;
   investigate lifecycle/reconnect/trust behavior without resetting membership,
   permissions or interrupting the user's testing. Loopback stability does not
-  close this real-network defect. 2.0.114 does not claim to fix it.
+  close this real-network defect. 2.0.115 does not claim to fix it.
+
+- [ ] **Pointer did not cross to the other computer's screen.** Scott's report
+  remains unresolved. First distinguish sharing disabled for this session on
+  either Mac, missing display/input confirmation, non-adjoining layout and the
+  connection churn above. An async question about sharing on both Macs is pending.
+  Do not mark this resolved from pure routing tests or the monitor command fix.
 
 - [ ] **Scott’s LG 27UP850-W / 27UP850K-W automatic identification.** The exact
   27UP850-W match now survives discovery into setup; guessed ports and swallowed
@@ -170,6 +176,16 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Monitor control paths, defaults and fresh profile detection.** Control
+  choices are scoped to the physical monitor and show computer/port labels;
+  protocol overrides retain a separately recorded default. Monitor setup can
+  request fresh local/remote detection and apply verified profiles or reported
+  ports without replacing concurrent edits. Known firmware families without
+  verified input mappings are not presented as guessed profiles. Fresh reads
+  already skipped unchanged preset inputs; 13 production-policy checks now
+  protect that behavior, including no write or settling delay. Included in
+  2.0.115; see MONITOR-CONTROL-AND-DETECTION-2.0.md.
+
 - [x] **Direct Desk preset choices and attached cable connectors.** Half-circle
   sockets sit on device edges with hover feedback. Occupied-input drags pick up
   the existing cable and commit atomically or cancel unchanged. Visible choices
@@ -290,6 +306,12 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **2.0.115 monitor setup:** verify computer/port control choices and saved
+  protocol default labels; run Detect input profile locally and through another
+  Mac on the same build. Exercise unavailable display, unknown profile, timeout,
+  and concurrent edits without losing prior working settings. Native and remote
+  callback acceptance remains pending; pure policy and offscreen checks pass.
 
 - [ ] **Direct Desk preset and connector acceptance.** Actual SwiftUI body hit
   regions, hover, sockets versus input choices, rewiring/cancel, screen exclusion,

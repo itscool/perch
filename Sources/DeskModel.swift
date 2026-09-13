@@ -7,6 +7,34 @@ struct DeskMappingOption: Identifiable {
     var display: String? { let parts = id.split(separator: "|"); return parts.count == 2 ? String(parts[1]) : nil }
 }
 
+/// Control paths are scoped to one physical monitor, never the global list of
+/// detected displays. A saved control path can precede its port mapping.
+enum DeskControlPaths {
+    static func options(group: KVMGroup, monitor: UUID, detected: Set<String>) -> [DeskMappingOption] {
+        guard let screen = group.monitors.first(where: { $0.id == monitor }) else { return [] }
+        func key(_ computer: UUID, _ display: String) -> String { computer.uuidString + "|" + display }
+        var paths: [String: (UUID, [String])] = [:]
+        for cable in group.connections where cable.monitor == monitor {
+            guard let computer = cable.computer, let display = cable.localDisplay else { continue }
+            let id = key(computer, display)
+            // Refuse an ambiguous identity also assigned to another physical screen.
+            guard !group.connections.contains(where: { $0.monitor != monitor && $0.computer == computer && $0.localDisplay == display }) else { continue }
+            var path = paths[id] ?? (computer, [])
+            path.1.append(cable.inputName); paths[id] = path
+        }
+        if let control = screen.control,
+           !group.connections.contains(where: { $0.monitor != monitor && $0.computer == control.computer && $0.localDisplay == control.localDisplay }) {
+            let id = key(control.computer, control.localDisplay)
+            if paths[id] == nil { paths[id] = (control.computer, []) }
+        }
+        return paths.map { id, path in
+            let name = group.computers.first { $0.id == path.0 }?.name ?? "Computer"
+            let ports = path.1.isEmpty ? "Port not mapped" : path.1.sorted().joined(separator: " / ")
+            return DeskMappingOption(id: id, label: name + " · " + ports + (detected.contains(id) ? "" : " (not currently detected)"))
+        }.sorted { $0.label == $1.label ? $0.id < $1.id : $0.label < $1.label }
+    }
+}
+
 /// A cable changes its computer/port association, never the identity or geometry of a screen.
 enum DeskCableBinding {
     /// Move one cable atomically. A display identity belongs to its physical
@@ -73,7 +101,7 @@ enum DeskMonitorConfiguration {
                 draft.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
             }
         }
-        draft.monitors[index].control?.mode = mode; draft.monitors[index].inputProfile = profile
+        draft.monitors[index].control?.mode = mode; draft.monitors[index].defaultControlMode = mode; draft.monitors[index].inputProfile = profile
         _ = try draft.validated(); group = draft
     }
 }

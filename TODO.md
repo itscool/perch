@@ -143,8 +143,8 @@ remain open; this is not a claim that untested behavior is defect-free.
   Source implementation; requires updated helper protocol/version 3. Not installed.
   See LID-COUNTDOWN-2.0.md for acceptance and limits.
 - [x] **Appearance presets and separate light/dark menus.** Exact Perch original,
-  Graphite/Coast/Dusk options, named saved pairs, framed noninteractive previews,
-  optional System title and no icon indentation when icons are hidden.
+  Graphite/Coast/Dusk options, named saved pairs, clickable Light/Dark previews,
+  Edit both with mixed values and property-only changes, optional System title and no icon indentation when icons are hidden.
 - [x] **Desk fits smaller windows.** Remove the minimum canvas scale and excessive
   page width; fit all physical screens while preserving arrangement and inverse
   drag coordinates. Compact screens retain selection, tooltips and context actions.
@@ -209,6 +209,15 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **New countdown integration and appearance acceptance.** Install 2.0.105
+  and complete coordinated helper/protocol 3 maintenance. Check physical configurable
+  +/− shortcuts, actual helper/watchdog deadline delivery and return to normal
+  protection; policy combinations and timing are already tested with virtual time.
+  Cancel → Finished 0:00 and selective Light/Dark preview/batch editing passed
+  native fixtures. Check overlay behavior across actual lock/wake/restart, and
+  keyboard/VoiceOver interaction with previews, mixed values and preset management.
+  Do not repeat all unit-test durations physically. See LID-COUNTDOWN-2.0.md.
 
 - [ ] **Setup recovery acceptance before the next release.** Source fixes cover
   all seven review findings plus the lid-menu setup dead end. The ownership gate
@@ -337,7 +346,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.103 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.105 candidate is prepared with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

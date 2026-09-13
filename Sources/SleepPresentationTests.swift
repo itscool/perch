@@ -61,6 +61,16 @@ func runSleepPresentationTests() throws {
     try check(!incident.shouldNotify(events: [expiry, sleepEvent, wakeEvent]), "Expected grace expiry raised an unexpected-sleep notice")
     let watchdogExpiry = LidActivityEntry(date: expiry.date, source: "Watchdog", message: "Watchdog recovery: The lid stayed closed on battery for 60 seconds. Requesting sleep.")
     try check(!incident.shouldNotify(events: [watchdogExpiry, sleepEvent, wakeEvent]), "Watchdog grace expiry raised a notice")
+    for source in ["", "Watchdog recovery: "] {
+        for reason in ["expired", "cancelled"] {
+            let event = LidActivityEntry(date: expiry.date, source: "Helper", message: source + "Perch countdown finished: " + reason + ", 0:00 remaining.")
+            try check(!incident.shouldNotify(events: [event, sleepEvent, wakeEvent]), "Expected manual completion raised a sleep notice")
+            let restarted = LidActivityEntry(date: now.addingTimeInterval(-0.5), source: "Helper", message: "Perch countdown adjusted: 5:00 remaining.")
+            try check(incident.shouldNotify(events: [event, restarted, sleepEvent]), "Prior countdown completion suppressed a new unexpected sleep")
+            let resumed = LidActivityEntry(date: restarted.date, source: "Helper", message: "Normal lid protection resumed after Perch countdown.")
+            try check(incident.shouldNotify(events: [event, resumed, sleepEvent]), "Prior countdown completion suppressed unexpected sleep in resumed normal protection")
+        }
+    }
     try check(incident.shouldNotify(events: []) && incident.shouldNotify(events: [stale]), "Active unexpected sleep was suppressed by missing/stale history")
     let cancelled = LidActivityEntry(date: now.addingTimeInterval(-0.5), source: "Helper", message: cancelEvent.message)
     let enabled = LidActivityEntry(date: cancelled.date, source: "Helper", message: "Enable lid protection requested.")

@@ -186,7 +186,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     func layoutDetail() {
         let width = max(100, detailScroll.contentSize.width - 16)
         let height = ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8
-        let overflow = height > detailScroll.frame.height
+        let overflow = !detail.stringValue.isEmpty && height > detailScroll.frame.height
         detailScroll.autohidesScrollers = !overflow
         detailScroll.borderType = overflow ? .lineBorder : .noBorder
         detailHint.isHidden = !overflow
@@ -308,7 +308,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         sizing = false
         let height = size.height
         let bodyWidth = max(280, size.width - sidebarWidth - 48)
-        let explanationHeight: CGFloat = min(200, max(48, ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: bodyWidth - 16, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8))
+        let explanationHeight: CGFloat = detail.stringValue.isEmpty ? 0 : min(200, max(48, ceil(detail.attributedStringValue.boundingRect(with: NSSize(width: bodyWidth - 16, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 8))
         let bodyHeight = max(96, height-explanationHeight-114)
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: height)
         let setupJourney = pages.count > 1 && pages.first?.title == "Setup & status"
@@ -318,6 +318,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         back.frame = NSRect(x: sidebarWidth+20, y: height-47, width: max(75, ceil((back.title as NSString).size(withAttributes: [.font: back.font ?? NSFont.systemFont(ofSize: 13)]).width)+28), height: 28)
         let headingInset: CGFloat = back.isHidden ? 24 : 20+back.frame.width+12
         heading.frame = NSRect(x: sidebarWidth+headingInset, y: height-48, width: bodyWidth+24-headingInset, height: 30)
+        detailScroll.isHidden = detail.stringValue.isEmpty
         detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: bodyWidth, height: explanationHeight)
         contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: bodyWidth + 20, height: bodyHeight)
         if let layout = page.layout { layout(NSSize(width: bodyWidth, height: bodyHeight)) }

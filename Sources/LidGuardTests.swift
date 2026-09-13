@@ -16,6 +16,7 @@ private final class FakeLidHardware: LidGuardHardware {
 
 func runLidGuardTests() throws {
     try runLidPolicyTests()
+    try runLidCountdownTests()
     try runLidOverrideTests()
     try runLidRestartTests()
     try runAppUpdateTests()

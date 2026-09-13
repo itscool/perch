@@ -61,6 +61,12 @@ func runDeskNativeFixture() throws {
     SettingsWindow.shared.window.center()
     SettingsWindow.shared.window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+    if CommandLine.arguments.contains("--show-countdown") {
+        let model = LidCountdownController(fixture: true)
+        model.prepareFixture(finished: CommandLine.arguments.contains("--finished-countdown"))
+        DeskNativeFixtureState.retained.append(model)
+        model.show()
+    }
     if CommandLine.arguments.contains("--show-about") { app.about() }
     if CommandLine.arguments.contains("--show-sleep-notice") {
         // Let NSApp finish launching before entering the native modal loop,

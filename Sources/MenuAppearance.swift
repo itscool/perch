@@ -5,39 +5,105 @@ struct MenuSectionAppearance: Codable, Equatable {
     enum Scope: String, Codable, CaseIterable { case none = "None", title = "Title", full = "Full section" }
     enum Side: String, Codable, CaseIterable { case left = "Left", right = "Right", top = "Top", bottom = "Bottom" }
     var borderScope: Scope = .title
-    var sides: Set<Side> = [.top]
-    var thickness = 2.0
-    var borderIntensity = 1.0
+    var sides = Set(Side.allCases)
+    var thickness = 0.7
+    var borderIntensity = 0.3
     var backgroundScope: Scope = .title
-    var backgroundIntensity = 0.075
+    var backgroundIntensity = 0.07
     var greyBackground = false
     var greyLevel = 0.5
-    var radius = 0.0
+    var radius = 2.5
     var tintTitle = true
     var titleIntensity = 0.45
     var showIcon = true
     var gap = 3.0
-    static var system: Self { var s = Self(); s.borderScope = .none; s.backgroundScope = .none; s.gap = 0; return s }
+    var showTitle: Bool? = true
+    static var system: Self { var s = Self(); s.borderScope = .none; s.backgroundScope = .none; s.gap = 0; s.showIcon = false; s.tintTitle = false; return s }
     var valid: Bool {
         [(thickness, 0...6), (borderIntensity, 0...1), (backgroundIntensity, 0...1),
          (greyLevel, 0...1), (radius, 0...12), (titleIntensity, 0...1), (gap, 0...8)].allSatisfy { $0.0.isFinite && $0.1.contains($0.0) }
     }
 }
+enum MenuPalette: String, Codable, CaseIterable {
+    case rainbow = "Rainbow", graphite = "Graphite", coast = "Coast", dusk = "Dusk"
+    func color(_ name: String) -> NSColor {
+        let index = ["Agent Kill Switch", "Display", "Audio", "Scrolling", "Built-in keyboard", "External keyboards", "Sleep", "Perch", "System"].firstIndex(of: name.hasPrefix("External keyboard") ? "External keyboards" : name) ?? 0
+        switch self {
+        case .rainbow: return MenuRowView.tint(for: name)
+        case .graphite: return NSColor(white: 0.4 + Double(index % 3) * 0.09, alpha: 1)
+        case .coast: return [NSColor.systemTeal, .systemBlue, .systemCyan][index % 3]
+        case .dusk: return [NSColor.systemIndigo, .systemPurple, .systemPink][index % 3]
+        }
+    }
+}
+struct MenuTheme: Codable, Equatable {
+    var sections = MenuSectionAppearance()
+    var system = MenuSectionAppearance.system
+    var palette: MenuPalette = .rainbow
+    var valid: Bool { sections.valid && system.valid }
+    func style(_ name: String?) -> MenuSectionAppearance { name == "System" ? system : sections }
+}
 struct MenuAppearance: Codable, Equatable {
     var sections = MenuSectionAppearance()
     var system = MenuSectionAppearance.system
-    var valid: Bool { sections.valid && system.valid }
-    func style(_ name: String?) -> MenuSectionAppearance { name == "System" ? system : sections }
+    var palette: MenuPalette? = .rainbow
+    var dark: MenuTheme?
+    var valid: Bool { sections.valid && system.valid && (dark?.valid ?? true) }
+    func theme(dark isDark: Bool) -> MenuTheme {
+        isDark ? dark ?? MenuTheme() : MenuTheme(sections: sections, system: system, palette: palette ?? .rainbow)
+    }
+    mutating func setTheme(_ theme: MenuTheme, dark isDark: Bool) {
+        if isDark { dark = theme } else { sections = theme.sections; system = theme.system; palette = theme.palette }
+    }
+    func style(_ name: String?, dark: Bool = false) -> MenuSectionAppearance { theme(dark: dark).style(name) }
+}
+/// Batch edits change only the touched property, preserving each theme's other choices.
+extension MenuAppearance {
+    mutating func edit(dark: Bool, both: Bool, _ change: (inout MenuTheme) -> Void) {
+        for target in both ? [false, true] : [dark] {
+            var theme = self.theme(dark: target); change(&theme); setTheme(theme, dark: target)
+        }
+    }
+    mutating func editSection(dark: Bool, both: Bool, system: Bool, _ change: (inout MenuSectionAppearance) -> Void) {
+        edit(dark: dark, both: both) { theme in
+            if system { change(&theme.system) } else { change(&theme.sections) }
+        }
+    }
+}
+struct MenuAppearancePreset: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var name: String
+    var appearance: MenuAppearance
+    static var builtIns: [Self] {
+        var graphite = MenuAppearance(), coast = MenuAppearance(), dusk = MenuAppearance()
+        graphite.palette = .graphite; graphite.sections.tintTitle = false; graphite.sections.backgroundIntensity = 0.06
+        graphite.sections.sides = [.bottom]; graphite.sections.radius = 0; graphite.sections.showIcon = false
+        var graphiteDark = graphite.theme(dark: false); graphiteDark.sections.backgroundIntensity = 0.14; graphiteDark.sections.borderIntensity = 0.5; graphite.dark = graphiteDark
+        coast.palette = .coast; coast.sections.sides = [.left]; coast.sections.thickness = 1.5; coast.sections.borderIntensity = 0.6
+        coast.sections.radius = 0; coast.sections.backgroundIntensity = 0.06
+        var coastDark = coast.theme(dark: false); coastDark.sections.backgroundIntensity = 0.12; coast.dark = coastDark
+        dusk.palette = .dusk; dusk.sections.sides = [.top]; dusk.sections.thickness = 0.8; dusk.sections.borderIntensity = 0.5; dusk.sections.radius = 0
+        var duskDark = dusk.theme(dark: false); duskDark.sections.backgroundIntensity = 0.12; dusk.dark = duskDark
+        return [.init(name: "Perch original", appearance: .init()), .init(name: "Graphite", appearance: graphite),
+                .init(name: "Coast", appearance: coast), .init(name: "Dusk", appearance: dusk)]
+    }
 }
 final class MenuAppearanceStore: ObservableObject {
     static let shared = MenuAppearanceStore()
     static let key = "menu.appearance"
     @Published private(set) var value = MenuAppearance()
     @Published private(set) var problem: String?
+    @Published private(set) var presets: [MenuAppearancePreset] = []
+    @Published private(set) var presetProblem: String?
+    static let presetsKey = "menu.appearance.presets"
     private let defaults: UserDefaults
     var changed: (() -> Void)?
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        if let data = defaults.data(forKey: Self.presetsKey) {
+            if let saved = try? JSONDecoder().decode([MenuAppearancePreset].self, from: data), saved.allSatisfy({ $0.appearance.valid }) { presets = saved }
+            else { presetProblem = "Saved presets could not be read. They have been kept unchanged." }
+        }
         if let data = defaults.data(forKey: Self.key) {
             if let decoded = try? JSONDecoder().decode(MenuAppearance.self, from: data), decoded.valid { value = decoded }
             else { problem = "Saved appearance could not be read. Open Resets → Menu appearance to replace it." }
@@ -48,13 +114,29 @@ final class MenuAppearanceStore: ObservableObject {
         do { let data = try JSONEncoder().encode(next); defaults.set(data, forKey: Self.key); value = next; problem = nil; changed?() }
         catch { problem = error.localizedDescription }
     }
+    func savePreset(name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard presetProblem == nil else { return }
+        guard !name.isEmpty, name.count <= 60 else { presetProblem = "Use a preset name from 1 to 60 characters."; return }
+        guard !presets.contains(where: { $0.name.lowercased() == name.lowercased() }) && !MenuAppearancePreset.builtIns.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
+            presetProblem = "That name already exists. Choose a different name."; return
+        }
+        var next = presets; next.append(.init(name: name, appearance: value))
+        writePresets(next)
+    }
+    func clearPresetError() { if (try? defaults.data(forKey: Self.presetsKey).map { try JSONDecoder().decode([MenuAppearancePreset].self, from: $0) }) != nil || defaults.data(forKey: Self.presetsKey) == nil { presetProblem = nil } }
+    func removePreset(_ id: UUID) { guard presetProblem == nil else { return }; writePresets(presets.filter { $0.id != id }) }
+    private func writePresets(_ next: [MenuAppearancePreset]) {
+        do { defaults.set(try JSONEncoder().encode(next), forKey: Self.presetsKey); presets = next; presetProblem = nil }
+        catch { presetProblem = error.localizedDescription }
+    }
 }
 
 extension MenuRowView {
     func drawDecoration(_ style: MenuSectionAppearance) {
         let isTitle = kind == .section
         let top = panelPart == .top, bottom = panelPart == .bottom
-        let tint = Self.tint(for: panelSection ?? "")
+        let tint = appearanceTheme.palette.color(panelSection ?? "")
         func area(_ scope: MenuSectionAppearance.Scope) -> NSRect? {
             guard scope != .none, scope == .full || isTitle else { return nil }
             return NSRect(x: 4, y: 0, width: bounds.width - 8, height: bounds.height - (isTitle ? style.gap : 0))
@@ -94,94 +176,201 @@ extension MenuRowView {
 struct MenuAppearancePage: View {
     @ObservedObject var store = MenuAppearanceStore.shared
     @State private var system = false
+    @State private var dark = false
+    @State private var both = false
+    @State private var presetName = ""
+    @State private var namingPreset = false
+    @State private var deletingPreset: MenuAppearancePreset?
+    func edit(_ change: (inout MenuSectionAppearance) -> Void) {
+        var value = store.value
+        value.editSection(dark: dark, both: both, system: system, change); store.save(value)
+    }
     func binding<T>(_ path: WritableKeyPath<MenuSectionAppearance, T>) -> Binding<T> {
-        Binding(get: { (system ? store.value.system : store.value.sections)[keyPath: path] }, set: { next in
-            var value = store.value
-            if system { value.system[keyPath: path] = next } else { value.sections[keyPath: path] = next }
-            store.save(value)
+        Binding(get: { style[keyPath: path] }, set: { next in edit { $0[keyPath: path] = next } })
+    }
+    func mixed<T: Equatable>(_ path: KeyPath<MenuSectionAppearance, T>) -> Bool {
+        both && style[keyPath: path] != otherStyle[keyPath: path]
+    }
+    func selection<T: Equatable>(_ path: WritableKeyPath<MenuSectionAppearance, T>) -> Binding<T?> {
+        Binding(get: { mixed(path) ? nil : style[keyPath: path] }, set: { next in
+            if let next { binding(path).wrappedValue = next }
         })
     }
-    var style: MenuSectionAppearance { system ? store.value.system : store.value.sections }
+    var theme: MenuTheme { store.value.theme(dark: dark) }
+    var style: MenuSectionAppearance { system ? theme.system : theme.sections }
+    var otherStyle: MenuSectionAppearance { store.value.theme(dark: !dark).style(system ? "System" : nil) }
+    func neither(_ predicate: (MenuSectionAppearance) -> Bool) -> Bool { !predicate(style) && (!both || !predicate(otherStyle)) }
+    func toggle(_ label: String, path: WritableKeyPath<MenuSectionAppearance, Bool>) -> some View {
+        AppearanceMixedToggle(title: label, value: mixed(path) ? nil : style[keyPath: path]) { next in edit { $0[keyPath: path] = next } }.frame(height: 22)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            MenuAppearancePreview(value: store.value).frame(height: 168).accessibilityLabel("Menu appearance preview")
-            Picker("Section to customize", selection: $system) { Text("Rainbow sections").tag(false); Text("System").tag(true) }.pickerStyle(.segmented)
+            HStack {
+                Text("Menu preview").font(.headline)
+                Spacer()
+                Toggle("Edit both", isOn: $both).help("Changes apply to this setting in Light and Dark. Other differences stay unchanged.")
+            }
+            HStack(spacing: 12) { preview(dark: false); preview(dark: true) }
+            HStack {
+                Menu("Presets") {
+                    Section("Built-in") { ForEach(MenuAppearancePreset.builtIns) { preset in Button(preset.name) { store.save(preset.appearance, restoring: true) } } }
+                    if !store.presets.isEmpty {
+                        Section("Saved") { ForEach(store.presets) { preset in Button(preset.name) { store.save(preset.appearance, restoring: true) } } }
+                        Menu("Delete saved preset") { ForEach(store.presets) { preset in Button(preset.name) { deletingPreset = preset } } }
+                    }
+                }
+                Button("Save as preset…") { namingPreset.toggle(); store.clearPresetError() }
+                Spacer()
+            }
+            if namingPreset {
+                HStack {
+                    TextField("Preset name", text: $presetName).onChange(of: presetName) { _, _ in store.clearPresetError() }
+                    Button("Save preset") { store.savePreset(name: presetName); if store.presetProblem == nil { namingPreset = false; presetName = "" } }
+                    Button("Cancel") { namingPreset = false }
+                }.padding(10).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            }
+            if let deletingPreset {
+                HStack {
+                    Text("Delete “\(deletingPreset.name)”? Your current menu stays as it is.").font(.caption)
+                    Button("Delete preset", role: .destructive) { store.removePreset(deletingPreset.id); self.deletingPreset = nil }
+                    Button("Cancel") { self.deletingPreset = nil }
+                }
+            }
+            if let error = store.presetProblem { Text(error).foregroundStyle(.orange) }
+            if both { Text("Editing both · Mixed means the values differ. Changes affect only the setting you touch.").font(.caption).foregroundStyle(.secondary) }
+            Picker("Section to customize", selection: $system) { Text("Colored sections").tag(false); Text("System").tag(true) }.pickerStyle(.segmented)
+            Picker("Palette", selection: Binding<MenuPalette?>(get: { both && theme.palette != store.value.theme(dark: !dark).palette ? nil : theme.palette }, set: { palette in
+                guard let palette else { return }; var value = store.value
+                value.edit(dark: dark, both: both) { $0.palette = palette }; store.save(value)
+            })) {
+                if both && theme.palette != store.value.theme(dark: !dark).palette { Text("Mixed").tag(nil as MenuPalette?).disabled(true) }
+                ForEach(MenuPalette.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
+            }
+            if system {
+                AppearanceMixedToggle(title: "Show System title", value: both && (style.showTitle != false) != (otherStyle.showTitle != false) ? nil : style.showTitle != false) { next in edit { $0.showTitle = next } }.frame(height: 22)
+            }
+
             if let problem = store.problem { Text(problem).foregroundStyle(.orange) }
             Group {
-                HStack { Text("Border").font(.headline); Spacer(); Picker("Border area", selection: binding(\.borderScope)) { ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.frame(width: 200) }
+                HStack { Text("Border").font(.headline); Spacer(); Picker("Border area", selection: selection(\.borderScope)) { if mixed(\.borderScope) { Text("Mixed").tag(nil as MenuSectionAppearance.Scope?).disabled(true) }; ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) } }.frame(width: 200) }
                 HStack { ForEach(MenuSectionAppearance.Side.allCases, id: \.self) { side in
-                    Toggle(side.rawValue, isOn: Binding(get: { style.sides.contains(side) }, set: { enabled in var sides = style.sides; if enabled { sides.insert(side) } else { sides.remove(side) }; binding(\.sides).wrappedValue = sides }))
-                } }.disabled(style.borderScope == .none)
-                slider("Thickness", path: \.thickness, range: 0...6, suffix: "pt").disabled(style.borderScope == .none || style.sides.isEmpty)
-                slider("Line intensity", path: \.borderIntensity, range: 0...1).disabled(style.borderScope == .none || style.sides.isEmpty)
-                if style.borderScope == .none || style.sides.isEmpty { Text("Choose a border area and at least one side to use the saved line settings.").font(.caption).foregroundStyle(.secondary) }
-                HStack { Text("Background").font(.headline); Spacer(); Picker("Highlight area", selection: binding(\.backgroundScope)) { ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.frame(width: 200) }
-                Toggle("Use grey highlights", isOn: binding(\.greyBackground)).disabled(style.backgroundScope == .none)
-                if style.greyBackground { slider("Grey shade", path: \.greyLevel, range: 0...1).disabled(style.backgroundScope == .none) }
-                slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1).disabled(style.backgroundScope == .none)
+                    AppearanceMixedToggle(title: side.rawValue, value: both && style.sides.contains(side) != otherStyle.sides.contains(side) ? nil : style.sides.contains(side)) { enabled in
+                        edit { if enabled { $0.sides.insert(side) } else { $0.sides.remove(side) } }
+                    }.frame(height: 22)
+                } }.disabled(neither { $0.borderScope != .none })
+                slider("Thickness", path: \.thickness, range: 0...6, suffix: "pt").disabled(neither { $0.borderScope != .none && !$0.sides.isEmpty })
+                slider("Line intensity", path: \.borderIntensity, range: 0...1).disabled(neither { $0.borderScope != .none && !$0.sides.isEmpty })
+                if neither({ $0.borderScope != .none && !$0.sides.isEmpty }) { Text("Choose a border area and at least one side to use the saved line settings.").font(.caption).foregroundStyle(.secondary) }
+                HStack { Text("Background").font(.headline); Spacer(); Picker("Highlight area", selection: selection(\.backgroundScope)) { if mixed(\.backgroundScope) { Text("Mixed").tag(nil as MenuSectionAppearance.Scope?).disabled(true) }; ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) } }.frame(width: 200) }
+                toggle("Use grey highlights", path: \.greyBackground).disabled(neither { $0.backgroundScope != .none })
+                if !neither({ $0.greyBackground }) { slider("Grey shade", path: \.greyLevel, range: 0...1).disabled(neither { $0.backgroundScope != .none }) }
+                slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1).disabled(neither { $0.backgroundScope != .none })
                 HStack { Text("Titles & shape").font(.headline); Spacer() }
-                Toggle("Tint title text to its section color", isOn: binding(\.tintTitle))
-                if style.tintTitle { slider("Title tint", path: \.titleIntensity, range: 0...1) }
-                Toggle("Show title icons", isOn: binding(\.showIcon))
-                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(style.backgroundScope == .none && (style.borderScope == .none || style.sides.isEmpty))
+                toggle("Tint title text to its section color", path: \.tintTitle)
+                if !neither({ $0.tintTitle }) { slider("Title tint", path: \.titleIntensity, range: 0...1) }
+                toggle("Show title icons", path: \.showIcon)
+                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(neither { $0.backgroundScope != .none || ($0.borderScope != .none && !$0.sides.isEmpty) })
                 slider("Space above titles", path: \.gap, range: 0...8, suffix: "pt")
             }.disabled(store.problem != nil)
             HStack {
-                Menu("Style presets") {
-                    Button("Perch original") { replace(system ? .system : .init()) }
-                    Button("Quiet") { var s = MenuSectionAppearance(); s.borderScope = .none; s.backgroundScope = .none; s.tintTitle = false; replace(s) }
-                    Button("Outlined sections") { var s = MenuSectionAppearance(); s.borderScope = .full; s.sides = Set(MenuSectionAppearance.Side.allCases); s.backgroundScope = .full; s.radius = 6; s.thickness = 1; replace(s) }
-                }
                 Spacer()
                 Button("Reset appearance…") { SettingsWindow.shared.navigateToReset(.appearance) }.help("Open appearance reset options for rainbow sections and System, then return here.")
             }
         }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    func replace(_ style: MenuSectionAppearance) { var value = store.value; if system { value.system = style } else { value.sections = style }; store.save(value, restoring: true) }
+    func preview(dark: Bool) -> some View {
+        Button { self.dark = dark; both = false } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(dark ? "Dark" : "Light").font(.caption)
+                    Spacer()
+                    if both || self.dark == dark { Text("Editing").font(.caption).foregroundStyle(Color.accentColor) }
+                }
+                MenuAppearancePreview(value: store.value, dark: dark).frame(height: 210).allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .background(dark ? Color(white: 0.13) : Color(white: 0.98))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }.padding(10).contentShape(Rectangle())
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(both || self.dark == dark ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: both || self.dark == dark ? 2 : 1))
+        }.buttonStyle(.plain)
+            .accessibilityLabel("Edit " + (dark ? "Dark" : "Light") + " appearance")
+            .accessibilityValue(both || self.dark == dark ? "Selected" : "Not selected")
+    }
     func slider(_ label: String, path: WritableKeyPath<MenuSectionAppearance, Double>, range: ClosedRange<Double>, suffix: String = "%") -> some View {
         HStack {
             Text(label).frame(width: 145, alignment: .leading)
-            Slider(value: binding(path), in: range).accessibilityLabel(label)
-            Text(suffix == "%" ? "\(Int(style[keyPath: path] * 100))%" : String(format: "%.1f %@", style[keyPath: path], suffix)).monospacedDigit().frame(width: 65, alignment: .trailing)
+            Slider(value: binding(path), in: range, step: suffix == "%" ? 0.01 : 0.1).accessibilityLabel(label).accessibilityValue(mixed(path) ? "Mixed" : String(style[keyPath: path]))
+            Text(mixed(path) ? "Mixed" : suffix == "%" ? "\(Int(style[keyPath: path] * 100))%" : String(format: "%.1f %@", style[keyPath: path], suffix)).monospacedDigit().frame(width: 65, alignment: .trailing)
         }
     }
 }
 final class MenuAppearancePreviewHost: NSView {
     var value = MenuAppearance() { didSet { needsLayout = true } }
+    var dark = false { didSet { appearance = NSAppearance(named: dark ? .darkAqua : .aqua); needsLayout = true } }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
     var items: [NSMenuItem] = []
     var rows: [MenuRowView] = []
     override init(frame: NSRect) {
         super.init(frame: frame)
-        for (title, kind) in [("System", MenuRowView.Kind.section), ("CPU 12% · Memory 48%", .information), ("Sleep", .section), ("Keep awake", .toggle), ("Including with lid closed", .toggle), ("Settings…", .command)] {
+        for (title, kind) in [("System", MenuRowView.Kind.section), ("CPU 12% · Memory 48%", .information), ("Sleep", .section), ("Keep awake", .toggle), ("Audio", .section), ("Mute audio", .toggle), ("Perch", .section), ("Settings…", .command)] {
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             let row = MenuRowView(item: item, kind: kind)
             // NSMenu takes ownership of its item views' frames. A preview retains
             // the model items directly and owns its own layout instead.
+            row.setAccessibilityElement(false)
             items.append(item); rows.append(row); addSubview(row)
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
         super.layout()
+        setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel(dark ? "Dark menu preview" : "Light menu preview")
         var y = bounds.height
         for (i, row) in rows.enumerated() {
-            row.panelSection = i < 2 ? "System" : "Sleep"
-            row.panelPart = i == 0 || i == 2 ? .top : i == 1 || i == 5 ? .bottom : .middle
+            row.panelSection = i < 2 ? "System" : i < 4 ? "Sleep" : i < 6 ? "Audio" : "Perch"
+            row.panelPart = i % 2 == 0 ? .top : .bottom
             row.appearanceOverride = value
-            let height: CGFloat = row.kind == .section ? 22 + value.style(row.panelSection).gap : 24
+            let style = value.style(row.panelSection, dark: dark)
+            let hidden = row.kind == .section && row.panelSection == "System" && style.showTitle == false
+            row.isHidden = hidden
+            let height: CGFloat = hidden ? 0 : row.kind == .section ? 22 + style.gap : 24
             y -= height; row.frame = NSRect(x: 0, y: y, width: bounds.width, height: height); row.needsDisplay = true
         }
     }
 }
 struct MenuAppearancePreview: NSViewRepresentable {
     let value: MenuAppearance
+    var dark = false
     func makeNSView(context: Context) -> MenuAppearancePreviewHost { MenuAppearancePreviewHost(frame: NSRect(x: 0, y: 0, width: 540, height: 168)) }
-    func updateNSView(_ view: MenuAppearancePreviewHost, context: Context) { view.value = value }
+    func updateNSView(_ view: MenuAppearancePreviewHost, context: Context) { view.value = value; view.dark = dark }
 }
 extension AppDelegate {
     @objc func appearanceSettings() {
         let view = NSHostingView(rootView: MenuAppearancePage())
-        view.frame = NSRect(x: 0, y: 0, width: 572, height: 880)
-        SettingsWindow.shared.show(.init(title: "Menu Appearance", detail: "Customize this Mac’s menu. Changes save immediately; the preview uses the same renderer as the menu.", view: view))
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 1100)
+        SettingsWindow.shared.show(.init(title: "Menu Appearance", detail: "", view: view))
+    }
+}
+
+struct AppearanceMixedToggle: NSViewRepresentable {
+    let title: String
+    let value: Bool?
+    let changed: (Bool) -> Void
+    @Environment(\.isEnabled) private var enabled
+    final class Coordinator: NSObject {
+        var owner: AppearanceMixedToggle
+        init(_ owner: AppearanceMixedToggle) { self.owner = owner }
+        @objc func click(_ sender: NSButton) { owner.changed(owner.value == nil ? true : sender.state == .on) }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(checkboxWithTitle: title, target: context.coordinator, action: #selector(Coordinator.click(_:)))
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return button
+    }
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.owner = self; button.title = title; button.isEnabled = enabled
+        button.allowsMixedState = value == nil
+        button.state = value.map { $0 ? .on : .off } ?? .mixed
     }
 }

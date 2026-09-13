@@ -18,7 +18,7 @@ output = (args.output or repo / 'build/lid-policy-tests').resolve()
 output.mkdir(parents=True, exist_ok=True)
 sources = [repo / 'Sources' / name for name in [
     'LidGuardPolicy.swift', 'LidGuardWatchdogState.swift', 'LidGuardEnforcer.swift',
-    'LidRestartHandoff.swift', 'LidPolicyTests.swift',
+    'LidRestartHandoff.swift', 'LidCountdown.swift', 'LidPolicyTests.swift', 'LidCountdownTests.swift',
 ]]
 # Only the app's error container is supplied by the harness. Every policy,
 # watchdog, restart and enforcement implementation is compiled unchanged.
@@ -27,7 +27,7 @@ struct AppError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
 }
-do { try runLidPolicyTests() }
+do { try runLidPolicyTests(); try runLidCountdownTests() }
 catch { fputs("FAIL: \\(error.localizedDescription)\\n", stderr); exit(1) }
 '''
 compiler = subprocess.check_output(['xcrun', '--find', 'swiftc'], text=True).strip()

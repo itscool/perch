@@ -32,7 +32,7 @@ extension AppDelegate {
             item("desk", "Desk", ["Desk"], #selector(deskSettings), depth: 1),
             item("desk-preferences", "Desk settings", ["Desk settings"], #selector(deskPreferences), depth: 1),
             item("desk-input", "Keyboard & mouse sharing", ["Keyboard & mouse sharing"], #selector(deskInputPreferences), depth: 1),
-            item("awake", "Keep awake", ["Keep awake"], #selector(keepAwakeSettings)),
+            item("awake", "Keep awake", ["Keep awake", "Countdown shortcuts"], #selector(keepAwakeSettings)),
             item("lid-activity", "Lid activity", ["Lid activity"], #selector(lidActivity), depth: 1),
             item("agents", "Agent Kill Switch", ["Agent Kill Switch"], #selector(configurePanic)),
             item("agent-choices", "Agents & shortcut", ["Agents, shortcut & panic actions"], #selector(editSafetyConfiguration), depth: 1),

@@ -31,8 +31,30 @@ struct LidGuardPolicy {
     private(set) var sleepInterruption: String?
     private var lastNow: Double?
     private var externalSince: Double?
+    private(set) var countdown: LidCountdown?
+    private var countdownEndHandled = false
+    var countdownControlsDecision: Bool { countdown != nil && (countdown!.active || !countdownEndHandled) }
+    mutating func adjustCountdown(_ direction: Int, now: Double, observation: LidObservation, restoreSession: Bool) throws {
+        guard [-1, 0, 1].contains(direction), now.isFinite, now >= 0, !stopped,
+              observation.closed != nil, observation.power != .unknown else { throw AppError(message: "Lid protection is not ready for a countdown.") }
+        countdown?.observe(closed: observation.closed, now: now)
+        countdownEndHandled = false
+        if direction == 0 { countdown?.finish(.cancelled, now: now) }
+        else if countdown?.active == true { countdown?.adjust(direction, now: now) }
+        else if direction > 0 { countdown = LidCountdown(now: now, closed: observation.closed == true, restoreSession: restoreSession) }
+    }
+    mutating func acceptCountdown(_ value: LidCountdown?) {
+        guard let value else { return }
+        if let current = countdown, current.id == value.id {
+            guard current.active else { return }
+            var merged = value; merged.retainClosedObservation(current)
+            countdown = merged
+        } else { countdown = value; countdownEndHandled = false }
+    }
     mutating func constrainDeadline(_ value: Double?) { if let value, value.isFinite { deadline = min(deadline ?? value, value) } }
-    mutating func systemSleepBegan() {
+    mutating func interruptCountdown(now: Double) { countdown?.finish(.interrupted, now: now) }
+    mutating func systemSleepBegan(now: Double? = nil) {
+        countdown?.finish(.interrupted, now: now ?? lastNow ?? 0)
         stopped = true
         sleepInterruption = "macOS began sleep while lid mode was requested. The session stopped. Review Lid activity, then enable it again."
     }
@@ -47,6 +69,22 @@ struct LidGuardPolicy {
         } else { externalSince = nil }
         let known = observation.closed != nil && observation.power != .unknown
         if !known { stopped = true }
+        if timeValid { countdown?.observe(closed: observation.closed, now: now) }
+        if stopped { countdown?.finish(.interrupted, now: timeValid ? now : 0) }
+        if !stopped, let countdown {
+            if countdown.active {
+                return .init(preventLidSleep: true, requestSleep: false, remaining: countdown.remaining(at: now), detail: "Perch countdown: \(LidCountdown.clockText(countdown.remaining(at: now))) remaining. Opening the lid finishes it.")
+            }
+            if !countdownEndHandled {
+                countdownEndHandled = true
+                deadline = nil
+                if observation.closed != false && observation.power != .external || !countdown.restoreSession { stopped = true }
+                if stopped {
+                    return .init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external,
+                                 remaining: countdown.frozen, detail: "Perch countdown finished: \(countdown.end!.rawValue). Normal sleep behavior restored.")
+                }
+            }
+        }
         if stopped {
             if let sleepInterruption {
                 // macOS has already announced sleep. Release our command, but

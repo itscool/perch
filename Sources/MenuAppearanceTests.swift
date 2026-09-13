@@ -13,7 +13,7 @@ func runMenuAppearanceTests() throws {
     defer { defaults.removePersistentDomain(forName: suite) }
     func require(_ condition: Bool, _ message: String) throws { if !condition { throw AppError(message: "Appearance: " + message) } }
     let store = MenuAppearanceStore(defaults: defaults)
-    try require(store.value.sections.sides == [.top] && store.value.system.backgroundScope == .none, "tuned original defaults")
+    try require(store.value.sections.sides == Set(MenuSectionAppearance.Side.allCases) && store.value.sections.thickness == 0.7 && store.value.sections.borderIntensity == 0.3 && store.value.sections.backgroundIntensity == 0.07 && store.value.sections.radius == 2.5 && store.value.sections.titleIntensity == 0.45 && store.value.sections.gap == 3 && !store.value.system.showIcon && !store.value.system.tintTitle && store.value.system.backgroundScope == .none, "exact Perch original defaults")
     var changed = store.value
     changed.sections.sides = [.left, .right, .bottom]; changed.sections.borderScope = .full
     changed.sections.radius = 8; changed.sections.greyBackground = true; changed.sections.backgroundScope = .full
@@ -32,6 +32,46 @@ func runMenuAppearanceTests() throws {
     changed.sections.tintTitle = false; row.appearanceOverride = changed
     try require(!tinted.isEqual(to: row.displayedText()), "title tint does not reach production renderer")
     try require((row.displayedText().attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor) == .labelColor, "normal title doesn't use semantic label color")
+    changed.sections.showIcon = false; row.appearanceOverride = changed
+    try require(row.textDrawingRect.minX == 25, "Hidden icons still indent titles")
+    var dark = changed.theme(dark: true); dark.palette = .coast; dark.sections.thickness = 3
+    changed.setTheme(dark, dark: true); store.save(changed)
+    try require(store.value.theme(dark: false).sections.thickness != 3 && store.value.theme(dark: true) == dark, "Light/dark are not independent")
+    var batch = changed
+    let initialLight = batch.theme(dark: false), initialDark = batch.theme(dark: true)
+    batch.editSection(dark: false, both: true, system: false) { $0.thickness = 1.7 }
+    var expectedLight = initialLight, expectedDark = initialDark
+    expectedLight.sections.thickness = 1.7; expectedDark.sections.thickness = 1.7
+    try require(batch.theme(dark: false) == expectedLight && batch.theme(dark: true) == expectedDark, "Edit both copied unrelated theme differences")
+    batch.editSection(dark: true, both: true, system: false) { $0.sides.insert(.left) }
+    expectedLight.sections.sides.insert(.left); expectedDark.sections.sides.insert(.left)
+    try require(batch.theme(dark: false) == expectedLight && batch.theme(dark: true) == expectedDark, "Border-side edit replaced other sides")
+    batch.editSection(dark: true, both: false, system: true) { $0.showTitle = false }
+    expectedDark.system.showTitle = false
+    try require(batch.theme(dark: false) == expectedLight && batch.theme(dark: true) == expectedDark, "Single preview edit affected other scope")
+    batch.edit(dark: false, both: true) { $0.palette = .dusk }
+    expectedLight.palette = .dusk; expectedDark.palette = .dusk
+    try require(batch.theme(dark: false) == expectedLight && batch.theme(dark: true) == expectedDark, "Palette batch edit copied section settings")
+    store.savePreset(name: "My desk")
+    try require(MenuAppearanceStore(defaults: defaults).presets.first?.appearance == changed, "Preset failed to retain the complete light/dark pair")
+    store.savePreset(name: "My desk")
+    try require(store.presets.count == 1 && store.presetProblem != nil, "Duplicate preset silently overwrote a saved style")
+    store.clearPresetError(); store.removePreset(store.presets[0].id)
+    try require(store.presets.isEmpty && store.value == changed, "Deleting preset changed current appearance")
+    for builtIn in MenuAppearancePreset.builtIns { try require(builtIn.appearance.valid, "Invalid built-in preset") }
+    changed.system.showTitle = false; preview.value = changed; preview.layout()
+    try require(preview.rows[0].isHidden && preview.rows[0].frame.height == 0, "System title did not collapse")
+    for size in [CGSize(width: 180, height: 150), CGSize(width: 600, height: 400)] {
+        var rectangles: [CGRect] = []
+        for index in 0..<16 {
+            let rotated = index % 2 == 0
+            rectangles.append(CGRect(x: Double(-800 + index * 550), y: rotated ? -300.0 : 0.0, width: rotated ? 310.0 : 550.0, height: rotated ? 550.0 : 310.0))
+        }
+        let layout = DeskCanvasLayout(rectangles: rectangles, viewport: size)
+        try require(layout.bounds.width * layout.scale <= size.width && layout.bounds.height * layout.scale <= size.height, "Desk layout does not fit all screens")
+        let translation = 37.0
+        try require(abs((translation / layout.scale) * layout.scale - translation) < 0.00001, "Drag coordinates lose inverse scale")
+    }
     defaults.set(Data("broken".utf8), forKey: MenuAppearanceStore.key)
     let damaged = MenuAppearanceStore(defaults: defaults)
     damaged.save(changed)

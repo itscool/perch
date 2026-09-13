@@ -29,7 +29,7 @@ struct LidSleepIncident: Codable, Equatable {
         let end = sleep?.date ?? began
         let before = events.filter { $0.date <= end && $0.date >= end.addingTimeInterval(-120) }.sorted { $0.date < $1.date }
         let boundary = before.lastIndex {
-            $0.message.contains("wake completed") || $0.message == "Enable lid protection requested." ||
+            $0.message.contains("wake completed") || $0.message == "Normal lid protection resumed after Perch countdown." || $0.message == "Enable lid protection requested." || $0.message.hasPrefix("Perch countdown adjusted:") ||
             $0.message.contains("pending idle-sleep attempt was cancelled") ||
             ($0.message == "macOS notification: system sleep is beginning." && $0.id != sleep?.id)
         }
@@ -42,7 +42,11 @@ struct LidSleepIncident: Codable, Equatable {
         if recent.contains(where: {
             $0.message.hasPrefix("Lid not opened and external power not restored within 60 seconds.") ||
             $0.message == "Watchdog recovery: The lid stayed closed on battery for 60 seconds. Requesting sleep." ||
-            $0.message == "Disable lid protection requested."
+            $0.message == "Disable lid protection requested." ||
+            $0.message.hasPrefix("Perch countdown finished: expired") ||
+            $0.message.hasPrefix("Perch countdown finished: cancelled") ||
+            $0.message.hasPrefix("Watchdog recovery: Perch countdown finished: expired") ||
+            $0.message.hasPrefix("Watchdog recovery: Perch countdown finished: cancelled")
         }) { return false }
         let lostProtection = recent.contains {
             $0.message == "App heartbeat expired. Ending lid protection." ||
@@ -99,7 +103,7 @@ final class LidSleepNotice {
     func start() {
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.pending = .capture(wanted: UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
+            self?.pending = .capture(wanted: UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) || LidGuardClient.shared.status?.countdown?.active == true,
                 observation: MacLidGuardHardware().observe(), active: LidGuardClient.shared.status.flatMap { $0.fresh ? $0.armed : nil }, now: Date())
         })
         observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

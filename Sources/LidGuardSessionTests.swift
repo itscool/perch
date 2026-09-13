@@ -89,6 +89,29 @@ func runLidGuardSessionTests() throws {
     invalid.fire(3)
     try check(failures == 1 && !invalid.active && !invalid.changing, "Invalid session token or duplicate completion was accepted")
     // Exercise the actual queue/timer adapter while the UI thread is blocked.
+    let manual = LidSessionFixture()
+    var manualCompletions = 0
+    manual.session.refresh(); let staleStatus = manual.requests.last!.1
+    manual.session.adjustCountdown(1) { if case .success = $0 { manualCompletions += 1 } }
+    let manualReply = manual.requests.last!.1
+    var manualStatus = LidGuardStatus(updatedAt: LidGuardClock.now, armed: true, detail: "Countdown")
+    manualStatus.countdown = LidCountdown(now: 100, closed: false, restoreSession: false)
+    manualReply(try JSONEncoder().encode(LidGuardReply(status: manualStatus, token: token)))
+    staleStatus(try manual.response(armed: false, token: nil)); manual.fire(3)
+    try check(manualCompletions == 1 && manual.active && manual.published?.countdown != nil, "Old poll/timeout undid countdown start")
+    manual.session.adjustCountdown(-1) { _ in }
+    let subtract = manual.requests.last!.1
+    manual.fire(3)
+    try check(!manual.changing && manual.published == nil, "Unconfirmed adjustment claimed success")
+    manual.session.refresh()
+    try check(manual.requests.last?.0 == .renew(token), "Adjustment timeout discarded bounded recovery authority")
+    manual.requests.last!.1(try JSONEncoder().encode(LidGuardReply(status: manualStatus, token: token)))
+    subtract(try manual.response(armed: false, token: nil))
+    try check(manual.active, "Late subtraction response replaced newer state")
+    let badManual = LidSessionFixture()
+    badManual.session.adjustCountdown(1) { _ in }
+    badManual.requests.last!.1(try JSONEncoder().encode(LidGuardReply(status: manualStatus, token: "invalid")))
+    try check(!badManual.active, "Countdown accepted invalid session authority")
     // Inject the entire transport so no production helper can be contacted.
     let renewed = DispatchSemaphore(value: 0)
     let queueLock = NSLock()
@@ -104,6 +127,7 @@ func runLidGuardSessionTests() throws {
             let count = queueLock.withLock { renewals += 1; return renewals }
             if count >= 2 { renewed.signal() }
         case .status: armed = false
+        case .countdown: armed = true
         }
         reply(try? JSONEncoder().encode(LidGuardReply(status: .init(updatedAt: LidGuardClock.now, armed: armed, detail: "Injected helper"), token: armed ? token : nil)))
     })

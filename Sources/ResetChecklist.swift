@@ -18,7 +18,7 @@ enum ResetArea: String, CaseIterable, Hashable {
         switch self {
         case .preferences: return "Reset saved feature choices, keyboard modes and agents. Ends Perch’s protection and quits the app. Learned layouts, appearance and shared Desk setup are kept."
         case .layouts: return "Forget a learned navigation layout or all saved layouts, including disconnected keyboards. Bundled defaults, Fn and modifier choices stay available."
-        case .appearance: return "Restore the original style for rainbow sections and System. Other preferences are kept."
+        case .appearance: return "Restore Perch original for light and dark menus, including System. Saved appearance presets and other preferences are kept."
         case .sleep: return "End Perch’s lid protection and keep-awake request, and clear those choices. Other apps’ assertions and unowned sleep overrides are kept."
         case .audio: return "Unmute macOS system audio. Volume and other sound settings are kept."
         case .privacy: return "Forget macOS permission decisions for Perch and its helpers. Other apps are excluded; Perch may need access granted again in Setup."
@@ -116,7 +116,7 @@ enum ResetBatchExecutor {
                     if SMAppService.mainApp.status != .notRegistered { try SMAppService.mainApp.unregister() }
                     try SettingsReset.clear(.init(sections: ["preferences"]), defaults: .standard,
                         domain: Bundle.main.bundleIdentifier ?? "local.scott.perch", base: SafetyFiles.base,
-                        preserving: [MenuAppearanceStore.key, SettingsWindow.sizeKey])
+                        preserving: [MenuAppearanceStore.key, MenuAppearanceStore.presetsKey, SettingsWindow.sizeKey])
                 } catch { throw AppError(message: error.localizedDescription + " Some helpers may be stopped; reopen Perch to restore them.") }
             case .privacy: break
             }

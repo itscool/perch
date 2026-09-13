@@ -98,7 +98,7 @@ struct DeskView: View {
                 Button { draftName = "Mac mini"; sheet = "computer" } label: { Label("Add computer", systemImage: "plus") }.disabled(model.group.computers.count >= 16)
             }.padding(.horizontal, 24).padding(.vertical, 16)
 
-        }.frame(minWidth: 960, minHeight: 620)
+        }.frame(minWidth: 560, minHeight: 520)
             .onChange(of: sheet) { _, next in if next != nil { model.problem = nil; showRemove = false } }
             .sheet(isPresented: Binding(get: { sheet != nil }, set: { if !$0 { sheet = nil } })) { sheetView }
     }
@@ -296,18 +296,13 @@ struct DeskCanvas: View {
     @State private var translation = CGSize.zero
     var body: some View {
         GeometryReader { area in
-            let minX = model.group.monitors.map { $0.geometry.x }.min() ?? 0
-            let minY = model.group.monitors.map { $0.geometry.y }.min() ?? 0
-            let width = max(700, (model.group.monitors.map { $0.geometry.right }.max() ?? 700) - minX)
-            let height = max(500, (model.group.monitors.map { $0.geometry.bottom }.max() ?? 500) - minY)
-            // A large desk scrolls instead of shrinking names and controls into
-            // unreadable marks. Geometry remains proportional at the same scale.
-            let scale = max(0.32, min((area.size.width - 40) / width, (area.size.height - 60) / height))
-            let canvasWidth = max(area.size.width, width * scale + 40)
-            let canvasHeight = max(area.size.height, height * scale + 60)
-            let originX = (canvasWidth - width * scale) / 2
-            let originY = (canvasHeight - height * scale) / 2
-            ScrollView([.horizontal, .vertical]) {
+            let layout = DeskCanvasLayout(rectangles: model.group.monitors.map { g in
+                CGRect(x: g.geometry.x, y: g.geometry.y, width: g.geometry.displayedWidth, height: g.geometry.displayedHeight)
+            }, viewport: area.size)
+            let minX = layout.bounds.minX, minY = layout.bounds.minY
+            let scale = layout.scale
+            let canvasWidth = area.size.width, canvasHeight = area.size.height
+            let originX = layout.origin.x, originY = layout.origin.y
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
                 if model.group.monitors.isEmpty {
@@ -315,17 +310,18 @@ struct DeskCanvas: View {
                 }
                 ForEach(Array(model.group.monitors.enumerated()), id: \.element.id) { index, monitor in
                     let g = monitor.geometry
+                    let compact = g.displayedWidth * scale < 110 || g.displayedHeight * scale < 85
                     ZStack(alignment: .topTrailing) {
                     Button { model.selected = monitor.id } label: {
                         VStack(spacing: 7) {
-                            Text(model.identifying == monitor.id ? "\(index + 1)" : monitor.name).font(.system(size: model.identifying == monitor.id ? 36 : 13, weight: .semibold))
-                            Text(model.owner(monitor.id)).font(.system(size: 11)).multilineTextAlignment(.center)
-                            if model.selected == monitor.id { Text("Selected").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary) }
-                        }.padding(8).padding(.top, 20).frame(width: max(35, g.displayedWidth * scale), height: max(35, g.displayedHeight * scale))
+                            Text(model.identifying == monitor.id || compact ? "\(index + 1)" : monitor.name).font(.system(size: model.identifying == monitor.id ? 36 : 13, weight: .semibold))
+                            if !compact { Text(model.owner(monitor.id)).font(.system(size: 11)).multilineTextAlignment(.center) }
+                            if !compact && model.selected == monitor.id { Text("Selected").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary) }
+                        }.padding(compact ? 0 : 8).padding(.top, compact ? 0 : 20).frame(width: max(1, g.displayedWidth * scale), height: max(1, g.displayedHeight * scale)).clipped()
                             .background(RoundedRectangle(cornerRadius: 9).fill(model.selected == monitor.id ? Color.teal.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
                             .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selected == monitor.id ? Color.teal : Color.gray.opacity(0.65), lineWidth: model.selected == monitor.id ? 2.5 : 1.5))
                     }.buttonStyle(.plain).accessibilityLabel("Screen \(index + 1), \(monitor.name), \(model.owner(monitor.id)), \(g.rotation.rawValue) degrees")
-                        .help("Drag to move. Right-click for exact position and size.")
+                        .help("\(monitor.name) · \(model.owner(monitor.id)). Drag to move. Right-click to rotate, remove or set exact position and size.")
                         .contextMenu { Button("Position & size…") { dimensions(monitor.id) }; Button("Rotate clockwise") { model.rotateScreen(monitor.id) }; Button("Remove screen…", role: .destructive) { remove(monitor.id) } }
                         .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { value in dragging = monitor.id; model.selected = monitor.id; translation = value.translation }.onEnded { value in
                             var x = g.x + value.translation.width / scale, y = g.y + value.translation.height / scale
@@ -337,16 +333,15 @@ struct DeskCanvas: View {
                             }
                             dragging = nil; translation = .zero; model.move(monitor.id, x: x, y: y)
                         })
-                        HStack(spacing: 8) {
+                        if !compact { HStack(spacing: 8) {
                             Button { model.rotateScreen(monitor.id) } label: { Image(systemName: "rotate.right").font(.system(size: 11, weight: .semibold)) }
                                 .accessibilityLabel("Rotate \(monitor.name) clockwise").help("Rotate this screen 90° clockwise.")
                             Button { remove(monitor.id) } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)) }
                                 .accessibilityLabel("Remove \(monitor.name)").help("Remove this screen after confirmation.")
-                        }.buttonStyle(.borderless).padding(10)
+                        }.buttonStyle(.borderless).padding(10) }
                     }.offset(x: originX + (g.x - minX) * scale + (dragging == monitor.id ? translation.width : 0), y: originY + (g.y - minY) * scale + (dragging == monitor.id ? translation.height : 0))
                 }
             }.frame(width: canvasWidth, height: canvasHeight)
-            }
         }
     }
 }

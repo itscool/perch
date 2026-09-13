@@ -3,7 +3,7 @@ import Foundation
 /// Serialized by the client's heartbeat queue. Transport failures never grant a
 /// new session: retries can only renew the existing token before helper expiry.
 final class LidGuardSession {
-    enum Request: Equatable { case status, renew(String), change(Bool) }
+    enum Request: Equatable { case status, renew(String), change(Bool), countdown(Int, String?, String) }
     typealias Send = (Request, @escaping (Data?) -> Void) -> Void
     let send: Send
     let schedule: (Double, @escaping () -> Void) -> Void
@@ -107,6 +107,32 @@ final class LidGuardSession {
             }
         }
         send(.change(enabled), finish)
+        schedule(3) { finish(nil) }
+    }
+    func adjustCountdown(_ direction: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard !changing else { completion(.failure(AppError(message: "A lid change is already in progress."))); return }
+        changing = true; pending = false; generation = UUID(); let request = generation
+        let sentAt = now(), expectedToken = token
+        publish(lastStatus, true)
+        let finish: (Data?) -> Void = { [weak self] data in
+            guard let self, self.changing, self.generation == request else { return }
+            self.generation = UUID(); self.changing = false
+            guard let reply = self.decode(data) else {
+                self.invalidate(); self.publish(nil, false)
+                completion(.failure(AppError(message: "Countdown change was not confirmed. Check the helper status before relying on it."))); return
+            }
+            if reply.countdownError == nil, reply.status.error == nil,
+               !reply.status.armed || reply.token.flatMap(UUID.init(uuidString:)) != nil,
+               direction != 1 || reply.status.countdown != nil,
+               expectedToken == nil || reply.token == expectedToken || !reply.status.armed {
+                self.token = reply.status.armed ? reply.token : nil
+                self.renewUntil = sentAt + 5; self.retain(reply); completion(.success(()))
+            } else {
+                self.retain(reply)
+                completion(.failure(AppError(message: reply.countdownError ?? reply.status.error ?? "Countdown session changed. Retry from this Perch launch.")))
+            }
+        }
+        send(.countdown(direction, token, request.uuidString), finish)
         schedule(3) { finish(nil) }
     }
 }

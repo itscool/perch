@@ -1,7 +1,7 @@
 # Perch work checklist
 
 2.0 development, September 13, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.103 corrections have bounded
+in /Applications. 2.0.94 is published; signed 2.0.105 corrections have bounded
 native/automated acceptance and await installation and physical QA. Categories
 are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
@@ -135,22 +135,19 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
-- [ ] **Configurable closed-lid battery grace and one-time meeting shortcut.**
-  Proposed: normal delay 1–20 minutes (default 1), clear enclosed-bag caution above
-  5 minutes (a UX threshold, not a safety guarantee), one-time duration default 10
-  capped at 20. Latest proposal: one countdown starting at the keypress, visible
-  in the menu, unaffected by opening/closing or connecting/disconnecting power.
-  At expiry, return to normal settings; closed on battery requests sleep.
-  User is still considering that model. Deliberate presses may restart the chosen countdown with visible
-  feedback; ignore held-key repeats and require release between activations.
-  The proposed 20-minute cap applies per deliberate activation. Carry agreed policy through the helper,
-  watchdog, restart handoff, settings, shortcut and logs; expected expiry remains
-  log-only. Do not implement unresolved timer semantics as an assumed decision.
-  Required acceptance: virtual-clock matrices for durations 1–20, keypress/release
-  and repeat filtering, deliberate renewal, cancel, expiry, every lid/power state,
-  ordinary-grace restoration, restart/watchdog deadlines, delayed callbacks and
-  failures. Verify countdown and notice/log decisions from the same state. No
-  wall-clock sleeps or physical lid/power actions for policy unit tests.
+- [x] **Perch countdown.** Manual +/− five-minute adjustments, shared 20-minute
+  remaining-time cap, configurable Ctrl–Opt–Cmd +/− shortcuts, repeat filtering,
+  helper/watchdog enforcement, frozen finished overlay after lid opening, and
+  fresh five-minute restart. Power changes preserve the deadline. The ordinary
+  one-minute undocking grace stays unchanged. Expected completion is log-only.
+  Source implementation; requires updated helper protocol/version 3. Not installed.
+  See LID-COUNTDOWN-2.0.md for acceptance and limits.
+- [x] **Appearance presets and separate light/dark menus.** Exact Perch original,
+  Graphite/Coast/Dusk options, named saved pairs, framed noninteractive previews,
+  optional System title and no icon indentation when icons are hidden.
+- [x] **Desk fits smaller windows.** Remove the minimum canvas scale and excessive
+  page width; fit all physical screens while preserving arrangement and inverse
+  drag coordinates. Compact screens retain selection, tooltips and context actions.
 
 - [x] **One home for setup and recovery.** Permissions, background-helper repair,
   lid-helper maintenance and collector setup are grouped beneath Setup. Keyboard,

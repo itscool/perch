@@ -18,7 +18,13 @@ func runAgentSettingsPageTests() throws {
     let page = makePage(); page.show()
     try check(!host.modal && NSApp.modalWindow == nil && host.pages.last?.view === page.view, "Agent page entered a modal session")
     func click(_ button: NSButton) throws {
-        button.scrollToVisible(button.bounds)
+        // This page has a list inside the page scroller. Revealing in only the
+        // inner list leaves it clipped when a previous click scrolled the page.
+        var ancestor: NSView? = button
+        while let view = ancestor {
+            view.scrollToVisible(view.convert(button.bounds, from: button))
+            ancestor = view.superview
+        }
         let root = host.window.contentView!
         let point = root.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
         try check(root.hitTest(point) === button && button.isEnabled, "Agent control cannot receive a click: \(button.title)")

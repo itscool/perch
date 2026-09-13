@@ -125,6 +125,8 @@ extension AppDelegate {
         awake.toolTip = ControlHelp.awake; awake.setAccessibilityHelp(ControlHelp.awake)
         lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
         let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
+        page.add("Start five-minute countdown", detail: "Temporary keep awake, including with the lid closed. Opening the lid finishes it. Power changes keep the same deadline.") { LidCountdownController.shared.adjust(1) }
+        page.add("Countdown shortcuts…", detail: "Change the shortcuts for adding and subtracting five minutes. Each press adjusts the time remaining.") { [weak self] in self?.countdownSettings() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
         let repair = page.add("Lid protection setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
             self?.lidProtectionSetup()

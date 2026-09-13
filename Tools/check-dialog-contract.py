@@ -9,7 +9,7 @@ repo = Path(__file__).resolve().parents[1]
 patterns = {
     'about-panel': r'\bNSApp\.orderFrontStandardAboutPanel\(',
     'alert': r'\bNSAlert\(', 'picker': r'\bNSOpenPanel\(',
-    'panel': r'\b(?:NSPanel|SettingsPanel)\(', 'task-page': r'\bSettingsTaskPage\(title:',
+    'panel': r'\b(?:NSPanel|SettingsPanel|CountdownPanel)\(', 'task-page': r'\bSettingsTaskPage\(title:',
     'page': r'(?:SettingsWindow\.shared|host)\.show\(',
     'menu-page': r'SettingsWindow\.shared\.list\(',
     'menu-entry': r'(?<!func )\bchooseSafetyAction\(title:',

@@ -350,5 +350,13 @@
   "LidSleepNotice.swift:presentLidSleepNotice:alert:1": {
     "review": "LID-SLEEP-NOTICE-2.0.md: expected grace expiry remains log-only; evidenced unexpected sleep uses a standalone native modal with OK and View lid activity.",
     "acceptance": "Temporal classification and delivery tests, isolated modal ownership plus native fixture dismissal; no live sleep or hardware changes."
+  },
+  "LidCountdownUI.swift:show:panel:1": {
+    "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
+    "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
+  },
+  "LidCountdownUI.swift:countdownSettings:page:1": {
+    "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
+    "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
   }
 }

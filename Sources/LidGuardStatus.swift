@@ -31,6 +31,7 @@ struct LidGuardStatus: Codable {
     var detail: String
     var error: String? = nil
     var activityError: String? = nil
+    var countdown: LidCountdown? = nil
     var displayDetail: String { armed && error == nil ? "The lid helper reports an active session. " + detail + " macOS can still force sleep; an active session cannot guarantee continued wakefulness." : detail }
     // The authenticated XPC connection verifies the helper's signing identity.
     // Compatibility is independent of the app's executable hash/build number.

@@ -1,3 +1,7 @@
+Perch countdown adds five minutes per shortcut press, subtracts five with the paired shortcut, and caps the time remaining at 20 minutes. Cancel finishes at 0:00. Opening the lid finishes the manual countdown and leaves a frozen result; power changes preserve its deadline. Shortcuts are configurable in Keep awake. This feature requires the updated lid helper.
+
+Menu Appearance now has independent light/dark styles, named saved presets, Perch original, Graphite, Coast and Dusk, clickable Light/Dark previews, Edit both with mixed values, and an optional System title. Desk arrangements scale to fit smaller windows.
+
 Normal closed-lid battery timeout now stays in Lid activity without a wake dialog. Unexpected sleep during expected protection uses a standalone notice; Settings keeps its current page unless you choose View lid activity.
 
 Settings, including Setup, can now be resized and remembers your chosen size. Resets shows a single checklist with each scope explained inline, an inline keyboard selector, explicit confirmation, and per-area results/retry. Repair links highlight the relevant unchecked row and retain the return to your setup step. All-app privacy remains a separate action.

@@ -299,8 +299,8 @@ struct DeskSettingsRoot: View {
 extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
-        view.frame = NSRect(x: 0, y: 0, width: 1000, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Keyboard & mouse sharing has its own page in the sidebar.", view: view, preferredBodyWidth: 1000))
+        view.frame = NSRect(x: 0, y: 0, width: 720, height: 640)
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Keyboard & mouse sharing has its own page in the sidebar.", view: view, preferredBodyWidth: 720))
     }
 }
 

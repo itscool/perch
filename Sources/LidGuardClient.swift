@@ -182,6 +182,7 @@ final class LidGuardClient {
         case .status: remote.status { complete($0) }
         case .renew(let token): remote.renew(token) { complete($0) }
         case .change(let enabled): remote.setEnabled(enabled) { complete($0) }
+        case .countdown(let direction, let token, let request): remote.countdown(direction, token: token, request: request) { complete($0) }
         }
     }, schedule: { [weak self] delay, action in
         self?.queue.asyncAfter(deadline: .now() + delay, execute: action)
@@ -230,6 +231,11 @@ final class LidGuardClient {
         queue.async { [weak self] in
             self?.session.change(enabled) { result in DispatchQueue.main.async { completion(result) } }
         }
+    }
+    func adjustCountdown(_ direction: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard !SettingsWindow.shared.testing || injectedTransport != nil else { completion(.failure(AppError(message: "Live countdowns are blocked in tests."))); return }
+        start()
+        queue.async { self.session.adjustCountdown(direction) { result in DispatchQueue.main.async { completion(result) } } }
     }
     deinit {
         timer?.cancel(); connection?.invalidate()

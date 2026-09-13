@@ -21,7 +21,8 @@ final class MenuRowView: NSView {
     enum Kind { case toggle, command, information, section }
     enum PanelPart { case top, middle, bottom }
     var appearanceOverride: MenuAppearance?
-    var appearanceStyle: MenuSectionAppearance { (appearanceOverride ?? MenuAppearanceStore.shared.value).style(panelSection ?? item?.title) }
+    var appearanceTheme: MenuTheme { (appearanceOverride ?? MenuAppearanceStore.shared.value).theme(dark: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua) }
+    var appearanceStyle: MenuSectionAppearance { appearanceTheme.style(panelSection ?? item?.title) }
     var panelPart: PanelPart? { didSet { needsDisplay = true } }
     var panelSection: String? { didSet { if oldValue != panelSection { needsDisplay = true } } }
     weak var item: NSMenuItem?
@@ -87,7 +88,7 @@ final class MenuRowView: NSView {
         if !holdsMenuWidth && frame.width != width { setFrameSize(NSSize(width: width, height: frame.height)) }
     }
     var textDrawingRect: NSRect {
-        let x: CGFloat = kind == .section ? 44 : 25
+        let x: CGFloat = kind == .section && appearanceStyle.showIcon ? 44 : 25
         let shortcutWidth: CGFloat = displayedShortcut.isEmpty ? 0 : ceil((displayedShortcut as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 13)]).width) + 16
         return NSRect(x: x, y: 4, width: max(0, bounds.width - x - 14 - shortcutWidth), height: min(ceil(text.size().height), bounds.height - 4))
     }
@@ -152,7 +153,7 @@ final class MenuRowView: NSView {
     }
     /// Shared by drawing and the appearance regression tests. It keeps dynamic
     /// colors intact, including hints; selection and actual disabling are explicit.
-    private var sectionTint: NSColor { Self.tint(for: item?.title ?? "") }
+    private var sectionTint: NSColor { appearanceTheme.palette.color(item?.title ?? "") }
     static func tint(for section: String) -> NSColor {
         switch section {
         case "System": return .systemTeal
@@ -230,7 +231,7 @@ extension AppDelegate {
                 if row.panelPart != part { row.panelPart = part }
                 row.panelSection = section
                 if row.kind == .section {
-                    let height: CGFloat = 22 + MenuAppearanceStore.shared.value.style(section).gap
+                    let height: CGFloat = 22 + row.appearanceStyle.gap
                     if row.frame.height != height { row.setFrameSize(NSSize(width: row.frame.width, height: height)) }
                 }
             }
@@ -238,7 +239,10 @@ extension AppDelegate {
         }
         for item in menu.items {
             guard let row = item.view as? MenuRowView else { continue }
-            if row.kind == .section { finish(); section = item.title }
+            if row.kind == .section {
+                finish(); section = item.title
+                if section == "System" { item.isHidden = row.appearanceStyle.showTitle == false }
+            }
             if !item.isHidden { rows.append(row) }
         }
         finish()

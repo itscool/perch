@@ -6,11 +6,12 @@ import Darwin
     func status(_ reply: @escaping (Data) -> Void)
     func setEnabled(_ enabled: Bool, reply: @escaping (Data) -> Void)
     func renew(_ token: String, reply: @escaping (Data) -> Void)
+    func countdown(_ direction: Int, token: String?, request: String, reply: @escaping (Data) -> Void)
     func prepareRestart(_ token: String, targetIdentity: String, reply: @escaping (Data) -> Void)
     func cancelRestart(_ token: String, ticket: String, reply: @escaping (Data) -> Void)
     func resumeRestart(_ ticket: String, reply: @escaping (Data) -> Void)
 }
-struct LidGuardReply: Codable { var status: LidGuardStatus; var token: String?; var restart: LidRestartTicket? = nil; var restartError: String? = nil }
+struct LidGuardReply: Codable { var status: LidGuardStatus; var token: String?; var restart: LidRestartTicket? = nil; var restartError: String? = nil; var countdownError: String? = nil }
 enum LidGuardOwnership {
     static let path = "/var/run/local.scott.perch.lid.active"
     static var recorded: Bool { exists || LidSleepOverride.owned }
@@ -133,6 +134,8 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
     private var restart = LidRestartHandoff()
     private var startingUntil: Double?
     private var snapshot = LidGuardStatus(updatedAt: 0, armed: false, remaining: nil, detail: "Lid protection is off.")
+    private var lastCountdownRequest: String?
+    private var lastCountdownEvent: String?
     private var connections: [NSXPCConnection] = []
     init(owner: uid_t) { self.owner = owner; super.init(); listener.delegate = self; restartListener.delegate = self }
     func run() -> Never {
@@ -168,7 +171,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
         let now = LidGuardClock.now
         let remaining = policy.deadline.map { " Battery deadline had \(LidActivityTracker.seconds($0 - now)) remaining." } ?? " No battery countdown was active."
         activity.record("Sleep interrupted an active lid session. This helper had not requested sleep in the session; check earlier Watchdog entries too.\(remaining) macOS does not provide the cause in this notification.")
-        policy.systemSleepBegan()
+        policy.systemSleepBegan(now: now)
         snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: policy.sleepInterruption!, error: policy.sleepInterruption)
         // The next supervised tick releases the command. Never perform power
         // mutations inside the macOS notification callback.
@@ -184,11 +187,25 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
             if let until = startingUntil, !watched, now < until {
                 _ = channel?.send(LidGuardLease(token: token, expires: min(now+3, leaseEnds), deadline: nil)); return
             }
-            if !policy.stopped && (now >= leaseEnds || !watched) {
+            let manualDecision = policy.countdownControlsDecision
+            let expectedCountdownEnd = manualDecision && (policy.countdown.map { !$0.active || now >= $0.deadline || (observation.closed == false && $0.sawClosed) } ?? false)
+            if !policy.stopped && !expectedCountdownEnd && (now >= leaseEnds || !watched) {
                 activity.record(now >= leaseEnds ? "App heartbeat expired. Ending lid protection." : "Independent watchdog confirmation was lost. Ending lid protection.")
             }
             let decision = policy.step(observation, now: now, authorized: now < leaseEnds && watched)
-            for message in activityTracker.decision(decision, observation: observation, deadline: policy.deadline, now: now) { activity.record(message) }
+            if let countdown = policy.countdown {
+                let event = "\(countdown.id):\(countdown.end?.rawValue ?? String(countdown.deadline))"
+                if lastCountdownEvent != event {
+                    activity.record(countdown.active ? "Perch countdown adjusted: \(LidCountdown.clockText(countdown.remaining(at: now))) remaining." : "Perch countdown finished: \(countdown.end!.rawValue), \(LidCountdown.clockText(countdown.remaining(at: now))) remaining.")
+                    lastCountdownEvent = event; activityTracker.endSession()
+                }
+            }
+            if manualDecision && policy.countdown?.active == false && decision.preventLidSleep {
+                activity.record("Normal lid protection resumed after Perch countdown.")
+            }
+            if !manualDecision || (policy.countdown?.active == false && decision.preventLidSleep) {
+                for message in activityTracker.decision(decision, observation: observation, deadline: policy.deadline, now: now) { activity.record(message) }
+            }
             do {
                 // Recheck after the watchdog handshake: the power source or lid
                 // may have changed since the initial enable request.
@@ -212,6 +229,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                 snapshot = .init(updatedAt: now, armed: decision.preventLidSleep, remaining: decision.remaining, detail: decision.detail, error: policy.sleepInterruption)
             } catch {
                 activity.record("Lid session failed: \(error.localizedDescription)", coalesce: true)
+                policy.interruptCountdown(now: now)
                 token = nil
                 restartLock.withLock { restart.clear() }
                 try? idleAwake.set(false)
@@ -236,9 +254,38 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
             snapshot.updatedAt = now
         }
         snapshot.activityError = activity.error
-        if channel?.send(LidGuardLease(token: token, expires: min(now+3, token == nil ? now+3 : leaseEnds), deadline: policy.deadline)) == false { ack = nil }
+        snapshot.countdown = policy.countdown
+        if channel?.send(LidGuardLease(token: token, expires: min(now+3, token == nil ? now+3 : leaseEnds), deadline: policy.deadline, countdown: policy.countdown)) == false { ack = nil }
     }
-    private func encoded(restartError: String? = nil) -> Data { (try? JSONEncoder().encode(LidGuardReply(status: snapshot, token: token, restart: restartLock.withLock { restart.pending }, restartError: restartError))) ?? Data() }
+    private func encoded(restartError: String? = nil, countdownError: String? = nil) -> Data { (try? JSONEncoder().encode(LidGuardReply(status: snapshot, token: token, restart: restartLock.withLock { restart.pending }, restartError: restartError, countdownError: countdownError))) ?? Data() }
+    func countdown(_ direction: Int, token supplied: String?, request: String, reply: @escaping (Data) -> Void) {
+        DispatchQueue.main.async {
+            guard [-1, 0, 1].contains(direction), UUID(uuidString: request) != nil else { reply(self.encoded(countdownError: "Invalid countdown command.")); return }
+            if self.lastCountdownRequest == request { reply(self.encoded()); return }
+            let wasActive = self.token != nil
+            guard !wasActive || self.token == supplied else { reply(self.encoded(countdownError: "This Perch launch does not own the lid session.")); return }
+            guard wasActive || direction == 1 else { reply(self.encoded()); return }
+            let apply = {
+                do {
+                    let now = LidGuardClock.now
+                    guard self.token != nil, self.snapshot.armed, now < self.leaseEnds,
+                          self.restartLock.withLock({ self.restart.pending == nil }) else { throw AppError(message: "Lid protection is not ready. Finish Setup → Lid protection, then retry.") }
+                    try self.policy.adjustCountdown(direction, now: now, observation: self.hardware.observe(), restoreSession: wasActive)
+                    self.lastCountdownRequest = request; self.leaseEnds = now + 5
+                    // Send the new deadline before ticking; the watchdog may have
+                    // an earlier ordinary battery deadline to replace.
+                    _ = self.channel?.send(LidGuardLease(token: self.token, expires: now + 3, deadline: self.policy.deadline, countdown: self.policy.countdown))
+                    self.tick()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.tick()
+                        reply(self.encoded(countdownError: self.policy.countdown?.end == .interrupted ? "Countdown protection stopped before confirmation. Review Lid activity." : nil))
+                    }
+                } catch { reply(self.encoded(countdownError: error.localizedDescription)) }
+            }
+            if wasActive { apply() }
+            else { self.setEnabled(true) { _ in apply() } }
+        }
+    }
     func status(_ reply: @escaping (Data) -> Void) { DispatchQueue.main.async { reply(self.encoded()) } }
     func renew(_ token: String, reply: @escaping (Data) -> Void) {
         DispatchQueue.main.async {
@@ -311,12 +358,14 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                     return
                 } else if !enabled {
                     self.activity.record("Disable lid protection requested.")
+                    try? self.policy.adjustCountdown(0, now: now, observation: observation, restoreSession: false)
                     self.token = nil
                     self.restartLock.withLock { self.restart.clear() }
                     try self.idleAwake.set(false)
                     try LidGuardOwnership.release(self.enforcer, sleep: observation.closed != false && observation.power != .external, now: now)
                     _ = try LidSleepOverride.recover(force: true)
                     self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: "Lid protection is off. Normal macOS lid behavior applies.")
+                    self.snapshot.countdown = self.policy.countdown
                     self.activityTracker.endSession(); self.activity.record("Lid protection disabled.")
                 }
             } catch { self.snapshot = .init(updatedAt: now, armed: false, remaining: nil, detail: error.localizedDescription, error: error.localizedDescription); self.activity.record("Lid setting failed: \(error.localizedDescription)") }
@@ -349,6 +398,7 @@ private final class LidGuardConnection: NSObject, LidGuardProtocol {
     init(service: LidGuardService, pinnedTicket: String?) { self.service = service; self.pinnedTicket = pinnedTicket }
     func status(_ reply: @escaping (Data) -> Void) { service.status(reply) }
     func renew(_ token: String, reply: @escaping (Data) -> Void) { service.renew(token, reply: reply) }
+    func countdown(_ direction: Int, token: String?, request: String, reply: @escaping (Data) -> Void) { service.countdown(direction, token: token, request: request, reply: reply) }
     func setEnabled(_ enabled: Bool, reply: @escaping (Data) -> Void) { service.setEnabled(enabled, reply: reply) }
     func prepareRestart(_ token: String, targetIdentity: String, reply: @escaping (Data) -> Void) { service.prepareRestart(token, targetIdentity: targetIdentity, reply: reply) }
     func cancelRestart(_ token: String, ticket: String, reply: @escaping (Data) -> Void) { service.cancelRestart(token, ticket: ticket, reply: reply) }

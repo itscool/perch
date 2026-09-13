@@ -132,6 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self?.presentLidSleepNotice(detail: detail, acknowledge: acknowledge)
         }
         lidSleepNotice.start()
+        LidCountdownController.shared.start()
+        LidCountdownController.shared.openSetup = { [weak self] in self?.openSetupStage("lid-setup") }
         AppUpdate.completeLaunch { [weak self] in
             PerchUpdater.shared.completeLaunch { [weak self] in
                 PerchUpdater.shared.showRecovery = { [weak self] in

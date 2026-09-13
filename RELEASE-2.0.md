@@ -284,3 +284,12 @@ normal navigation path and its draft rules. See LID-SLEEP-NOTICE-2.0.md.
 The configurable 1–20 minute grace and one-time meeting shortcut are a separate
 proposal awaiting timer semantics; this correction does not alter enforcement.
 No live sleep, helper replacement, installation, notarization or publication.
+
+## Countdown, appearance and responsive Desk candidate
+
+September 13: 2.0.105 adds a bounded manual countdown, configurable +/- shortcuts,
+zero-on-Cancel completion, independent light/dark appearance with selective batch
+edits and saved presets, and Desk auto-fit. Helper/protocol 3 requires the normal
+coordinated helper update. Native checks use disposable preferences, simulated
+countdown time and monitor operations. This candidate is not installed, notarized
+or published; installed/public remains 2.0.94. See LID-COUNTDOWN-2.0.md for evidence.

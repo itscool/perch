@@ -11,6 +11,12 @@ struct SettingsDestination {
     let open: () -> Void
 }
 
+enum SettingsSetupStatus: String {
+    case ready = "Ready", attention = "Needs attention", optional = "Optional", checking = "Checking"
+    var symbol: String { switch self { case .ready: "checkmark.circle.fill"; case .attention: "exclamationmark.triangle.fill"; case .optional: "circle"; case .checking: "clock" } }
+    var color: NSColor { switch self { case .ready: .systemGreen; case .attention: .systemOrange; case .optional, .checking: .secondaryLabelColor } }
+}
+
 final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let table = NSTableView()
     let scroll = NSScrollView()
@@ -19,6 +25,35 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     var choose: ((SettingsDestination) -> Void)?
     private var synchronizing = false
     private var available = true
+    var readSetupStatus: (() -> [String: SettingsSetupStatus])?
+    private(set) var setupStatuses: [String: SettingsSetupStatus] = [:]
+    private var statusTimer: Timer?
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        statusTimer?.invalidate(); statusTimer = nil
+        guard window != nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, self.window?.isVisible == true else { return }
+            self.refreshSetupStatus()
+        }
+        timer.tolerance = 0.2; statusTimer = timer; RunLoop.main.add(timer, forMode: .common)
+    }
+    func refreshSetupStatus() {
+        guard let values = readSetupStatus?(), values != setupStatuses else { return }
+        setupStatuses = values
+        // Update visible cells in place: never reload selection or interrupt editing.
+        for (row, item) in destinations.enumerated() {
+            guard item.setupStage, row < table.numberOfRows, let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView else { continue }
+            updateStatus(cell, item: item)
+        }
+    }
+    private func updateStatus(_ cell: NSTableCellView, item: SettingsDestination) {
+        let state = setupStatuses[item.id] ?? .checking
+        cell.imageView?.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.rawValue)
+        cell.imageView?.contentTintColor = state.color
+        cell.toolTip = item.title + " — " + state.rawValue
+        cell.setAccessibilityValue(state.rawValue)
+    }
     override init(frame: NSRect) {
         super.init(frame: frame)
         let column = NSTableColumn(identifier: .init("destination"))
@@ -49,6 +84,7 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     }
     func configure(_ destinations: [SettingsDestination]) {
         self.destinations = destinations
+        setupStatuses = readSetupStatus?() ?? [:]
         table.reloadData()
     }
     func update(selected id: String?, busy: Bool) {
@@ -75,6 +111,12 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
         label.autoresizingMask = [.width]
         cell.textField = label; cell.addSubview(label)
         cell.setAccessibilityLabel(item.title)
+        if item.setupStage {
+            label.frame.size.width = max(0, label.frame.width - 22)
+            let icon = NSImageView(frame: NSRect(x: tableView.bounds.width - 23, y: 7, width: 14, height: 14))
+            icon.autoresizingMask = [.minXMargin]
+            cell.imageView = icon; cell.addSubview(icon); updateStatus(cell, item: item)
+        }
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {

@@ -1,13 +1,14 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.112 is installed on disk
-in /Applications. The agent left the 2.0.110 process (PID 74095) running;
-Scott can restart to load the changes. The previous bundle is retained.
-Public/notarized remains 2.0.94; 2.0.112 is not notarized or published. Latest source and
-builds have bounded native/automated acceptance; physical QA and coordinated
-helper/protocol 3 maintenance remain. Dated installation statements below are
-historical checkpoints. Categories are distinct: known defects, features, QA,
-release and backlog. Order within each category is planned work order.
+2.0 development, September 13, 2026. Developer ID 2.0.113 is installed on disk
+in /Applications. The existing process (PID 98528, started before replacement)
+was left running; Scott can restart to load 2.0.113. The previous bundle is
+retained at /Applications/.perch-previous-xf2si3tf/Perch.app.
+Public/notarized remains 2.0.94; 2.0.113 is not notarized or published. The matching
+input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
+maintenance also remains. No helper, permission or hardware changes were made.
+Dated installation statements below are historical checkpoints. Categories are
+known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
@@ -160,6 +161,21 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Settings consolidation and setup readiness.** Sidebar status icons,
+  anchored permission disclosures, one Hotkeys page, inline Desk/preset names,
+  removed Scrolling/Displays/Desk-settings wrapper pages, and plural Displays
+  menu heading. Isolated source/native-control checks pass; installation recorded above.
+- [x] **External Num Lock navigation.** Default off; per-identified-external-device
+  Num Lock/Clear toggle, balanced repeats/releases across preference changes,
+  native operators/number-mode punctuation, unknown/built-in passthrough. Needs
+  matching input helper. Physical keyboard and LED behavior remain QA; Perch
+  does not synchronize hardware LEDs or promise Windows Insert behavior in every app.
+- [x] **Physical panel estimates and wire layout.** Reported physical millimetres
+  remain stored. Diagonal inches uses detected native mode/reported panel ratio;
+  manual ratio is fallback only. Existing exact dimensions are not overwritten
+  by discovery. Saved wires use live layout anchors; active wire targets refresh
+  after layout/scrolling and membership/connector changes.
+
 - [x] **Distinct appearance compositions and broader palettes.** Perch original,
   Quiet, Signal, Soft tiles, Outline, Ribbon and Horizon differ in geometry, fill, borders,
   spacing and typography. Palettes are independently selectable: Rainbow, Graphite,
@@ -256,6 +272,13 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **Latest settings, keypad and geometry acceptance.** Confirm sidebar icons,
+  new Hotkeys and inline-name routes, stable permission disclosures, and wire
+  endpoints after resize/scroll/peer edits. Enter 27/32-inch diagonal on the real
+  panels; check automatically detected ratio and rotation. Update the matching
+  input helper before testing Num Lock navigation, two external keyboards and
+  physical repeats/modifiers; no permission/helper changes were made by this task.
 
 - [ ] **New countdown integration and appearance acceptance.** App 2.0.106 is installed;
   complete coordinated helper/protocol 3 maintenance. Check physical configurable

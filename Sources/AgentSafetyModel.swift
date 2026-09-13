@@ -32,6 +32,7 @@ struct SafetyConfiguration: Codable, Equatable {
     var shortcut = PanicShortcut()
     var resetAgentPermissions = true
     var resetAllPermissions: Bool? = true
+    var keypadNavigation: Bool? = nil
     var navigation: NavigationPreferences?
     var navigationProfiles: [NavigationKeyboardProfile]?
     var keepAwake = false

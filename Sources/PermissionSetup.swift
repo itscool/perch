@@ -10,8 +10,7 @@ final class PermissionSetup: NSObject {
     private var presentedHeight: CGFloat?
     var reviewButton: SettingsActionButton!
     var repairButton: SettingsActionButton!
-    private var reviewing = false
-    private var lastReady = false
+    private var disclosure = SetupDisclosure()
     var timer: Timer?
     var returnsToSettings = false
     private let helperApp: () -> URL?
@@ -28,14 +27,16 @@ final class PermissionSetup: NSObject {
         open.bezelStyle = .rounded
         open.frame = NSRect(x: 20, y: 20, width: 180, height: 30)
         content.addSubview(open)
-        let drag = PermissionDragItem(title: "Perch Helper · drag / copy path") {
+        let drag = PermissionDragItem(title: "Perch Helper") {
             helperApp() ?? SafetyFiles.helperApp
         }
         permissionDrag = drag
         drag.frame = NSRect(x: 210, y: 16, width: 290, height: 38)
         content.addSubview(drag)
-        reviewButton = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
+        reviewButton = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.disclosure.toggle(); self?.refresh() }
         reviewButton.frame = NSRect(x: 20, y: 195, width: 480, height: 30)
+        reviewButton.isBordered = false; reviewButton.alignment = .left
+        reviewButton.font = .systemFont(ofSize: 12, weight: .semibold)
         content.addSubview(reviewButton)
         repairButton = SettingsActionButton(title: "Background helpers in Setup…") {
             SettingsWindow.shared.navigateToSetupStage("maintenance")
@@ -65,19 +66,21 @@ final class PermissionSetup: NSObject {
         present(InputReadiness.assess(state, config: config))
     }
     private func present(_ readiness: InputReadiness) {
-        if lastReady != readiness.ready { reviewing = false }; lastReady = readiness.ready
-        instructions.isHidden = readiness.route != "input" || (readiness.ready && !reviewing)
-        permissionDrag.isHidden = instructions.isHidden || helperApp() == nil
-        reviewButton.isHidden = !readiness.ready
-        reviewButton.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
+        disclosure.update(ready: readiness.ready)
+        let expanded = disclosure.expanded && readiness.route == "input"
+        instructions.isHidden = !expanded
+        permissionDrag.isHidden = !expanded || helperApp() == nil
+        reviewButton.isHidden = readiness.route != "input"
+        reviewButton.isEnabled = readiness.ready
+        reviewButton.title = readiness.ready ? disclosure.title : "Permission instructions"
         repairButton.isHidden = readiness.route != "repair"
         status.stringValue = readiness.message
         status.textColor = readiness.ready ? StatusColors.success : StatusColors.warning
-        let expanded = !instructions.isHidden
-        let height: CGFloat = expanded ? 310 : readiness.ready ? 160 : 190
-        status.frame = expanded ? NSRect(x: 20, y: 66, width: 480, height: 42) : NSRect(x: 20, y: height-102, width: 480, height: 90)
-        reviewButton.frame.origin.y = expanded ? 255 : 20
-        repairButton.frame.origin.y = 20
+        let height: CGFloat = expanded ? 410 : 160
+        status.frame = NSRect(x: 20, y: height-108, width: 480, height: 100)
+        reviewButton.frame.origin.y = height-150
+        instructions.frame = NSRect(x: 20, y: 100, width: 480, height: 150)
+        repairButton.frame.origin.y = height-150
         openButton.isHidden = !expanded
         do {
             content.frame.size.height = height

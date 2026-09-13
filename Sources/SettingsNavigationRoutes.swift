@@ -14,6 +14,24 @@ extension AppDelegate {
         func item(_ id: String, _ title: String, _ pages: [String], _ selector: Selector, depth: Int = 0, setupStage: Bool = false) -> SettingsDestination {
             SettingsDestination(id: id, title: title, pageTitles: pages, depth: depth, setupStage: setupStage, open: { [weak self] in _ = self?.perform(selector) })
         }
+        SettingsWindow.shared.sidebar.readSetupStatus = { [weak self] in
+            guard let self else { return [:] }
+            let snapshot = self.setupSnapshot()
+            let helper = snapshot.checks.first { $0.id == "helpers" }?.state
+            let tracking = snapshot.checks.first { $0.id == "events" }?.state
+            let inputReady = InputReadiness.assess(input: snapshot.input, config: snapshot.config)
+            func status(_ state: SetupCheck.State?) -> SettingsSetupStatus {
+                switch state { case .ready: .ready; case .attention, .unverified: .attention; case .optional: .optional; default: .checking }
+            }
+            return [
+                "maintenance": snapshot.loginNeedsApproval ? .attention : status(helper),
+                "keyboard-access": NavigationProbeHID.hasAccess ? .ready : .attention,
+                "input-access": inputReady.ready ? .ready : snapshot.input?.fresh != true ? .checking : .attention,
+                "sharing-access": AXIsProcessTrusted() && CGPreflightPostEventAccess() && CGPreflightListenEventAccess() ? .ready : .attention,
+                "lid-setup": snapshot.lidHelperUpdatePending ? .attention : snapshot.lidHelperInstalled ? .ready : snapshot.lidWanted ? .attention : .optional,
+                "events": status(tracking)
+            ]
+        }
         SettingsWindow.shared.configureNavigation([
             item("overview", "Setup", ["Setup & status"], #selector(setupOverview)),
             item("maintenance", "Background helpers", ["Background helpers"], #selector(presentBackgroundSetup), depth: 1, setupStage: true),
@@ -27,19 +45,17 @@ extension AppDelegate {
             item("layouts", "Keyboard layouts", ["Set up navigation keys"], #selector(testNavigationKeys), depth: 1),
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
             item("keyboard-details", "Keyboard details", ["Keyboard details"], #selector(keyboardDetails), depth: 1),
-            item("scrolling", "Scrolling", ["Scrolling"], #selector(scrollingSettings)),
-            item("displays", "Displays", ["Displays"], #selector(displaySettings)),
-            item("desk", "Desk", ["Desk"], #selector(deskSettings), depth: 1),
-            item("desk-preferences", "Desk settings", ["Desk settings"], #selector(deskPreferences), depth: 1),
+            item("desk", "Desk", ["Desk"], #selector(deskSettings)),
             item("desk-input", "Keyboard & mouse sharing", ["Keyboard & mouse sharing"], #selector(deskInputPreferences), depth: 1),
-            item("awake", "Keep awake", ["Keep awake", "Countdown shortcuts"], #selector(keepAwakeSettings)),
+            item("awake", "Keep awake", ["Keep awake"], #selector(keepAwakeSettings)),
             item("lid-activity", "Lid activity", ["Lid activity"], #selector(lidActivity), depth: 1),
             item("agents", "Agent Kill Switch", ["Agent Kill Switch"], #selector(configurePanic)),
-            item("agent-choices", "Agents & shortcut", ["Agents, shortcut & panic actions"], #selector(editSafetyConfiguration), depth: 1),
+            item("agent-choices", "Agents & panic actions", ["Agents & panic actions"], #selector(editSafetyConfiguration), depth: 1),
             item("custom-agents", "Add or remove agents", ["Add or remove agents"], #selector(manageAgents), depth: 1),
             item("recognition", "Recognition", ["Agent recognition"], #selector(agentRecognition), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
+            item("hotkeys", "Hotkeys", ["Hotkeys"], #selector(hotkeySettings), depth: 1),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),
             item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
             item("reset", "Resets", ["Resets"], #selector(resetHub))

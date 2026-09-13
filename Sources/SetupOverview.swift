@@ -49,7 +49,7 @@ struct SetupSnapshot {
 
     var checks: [SetupCheck] {
         let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
-        let inputWanted = config.reverseTrackpad || config.reverseWheel || config.navigation?.enabled == true
+        let inputWanted = config.reverseTrackpad || config.reverseWheel || config.navigation?.enabled == true || config.keypadNavigation == true
         let helperWanted = agentWanted || inputWanted || config.keepAwake
         let guardianReady = guardian?.fresh == true
         let inputReady = input?.fresh == true
@@ -66,7 +66,7 @@ struct SetupSnapshot {
             "Background helpers…", .maintenance)
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
-            add("scrolling", "Scrolling & navigation access", .ready, inputWanted ? "Perch Helper has Accessibility access and the enabled input controls are running." : "Perch Helper has Accessibility access. Choose scroll or navigation behavior in Settings.", "Open scrolling…", .settings)
+            add("scrolling", "Scrolling & navigation access", .ready, inputWanted ? "Perch Helper has Accessibility access and the enabled input controls are running." : "Perch Helper has Accessibility access. Choose scrolling in the main menu or navigation behavior in Keyboards.", "View access…", .inputAccess)
         } else if !inputWanted {
             add("scrolling", "Scrolling & navigation access", .optional, "Enable scroll reversal or navigation changes when you want them. Perch Helper will need Accessibility access.", "Set up access…", .inputAccess)
         } else if !inputReady {

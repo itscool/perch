@@ -32,6 +32,10 @@ func mouse(_ type: NSEvent.EventType, _ x: CGFloat) -> NSEvent {
 }
 port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
 precondition(connections == 0 && interaction.target == computer.socketID, "Wire must preview before committing")
+computer.setFrameOrigin(CGPoint(x: 180, y: 10)); container.layoutSubtreeIfNeeded(); interaction.geometryDidChange()
+precondition(interaction.target == nil, "Resizing/moving a connector left a stale target")
+computer.setFrameOrigin(CGPoint(x: 110, y: 10)); container.layoutSubtreeIfNeeded(); interaction.geometryDidChange()
+precondition(interaction.target == computer.socketID, "Layout returning beneath the pointer did not restore target")
 port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 1)
 port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 250)); port.mouseUp(with: mouse(.leftMouseUp, 250))
 precondition(connections == 1 && interaction.gesture.source == nil, "Release over empty canvas must cancel")

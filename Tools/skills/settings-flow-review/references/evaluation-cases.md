@@ -435,3 +435,29 @@ not suppress a later actual interruption. Distinguish saved intent from active
 protection. Where acknowledgement of an unexpected incident is warranted, use a
 separate notice, defer during existing interactions and preserve Settings drafts.
 Open history only when requested; missing evidence cannot establish a cause.
+
+## Navigation that earns its place
+
+A menu utility has a Scrolling page repeating two menu switches and an access link,
+a Displays page containing only Open Desk and Turn display off, and Desk settings
+for three names and shortcuts. Setup already owns access. Other pages contain
+keyboard exceptions and live event diagnostics.
+
+Expected: consolidate the wrapper pages, edit names beside their objects, group
+shortcut editing in one home and preserve meaningful exceptions/diagnostics. Do not
+ban every contextual link or erase feature-specific configuration. Ready/attention
+markers beside Setup entries must use observed state, preserve optional/unknown
+meaning, and update without selection or focus churn.
+
+## Stable permission disclosure
+
+A ready permission page replaces its status with a large repair layout when Show
+instructions is clicked; the status moves below the instructions. Another page
+shows both a settings link and a settings button with staggered helper drag cards.
+
+Expected: status stays anchored above disclosure; required recovery is expanded
+and cannot be collapsed, ready recovery defaults collapsed and can be reviewed.
+Exercise readiness loss/regain, partial grants and manual expansion without losing
+focus. Align correctly identified file targets and provide one action per OS
+destination. A missing helper needing installation must not instruct the user to
+grant a nonexistent or unverified file.

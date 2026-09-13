@@ -31,7 +31,7 @@ struct DeskLiveSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             contents
             // Temporary sheets already present model.problem; stable sidebar pages own their error display.
-            if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["desk", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["hotkeys", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
         }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "removeComputer" { removing = true }; if ["control", "monitorSetup"].contains(kind) { loadControl() }; if kind == "monitorSetup", let computer, !display.isEmpty { runtime.inspect(display, computer: computer) } }
             .onChange(of: node.completedPairing) { _, value in if kind == "computer", value != nil { close() } }
             .onDisappear { if kind == "computer" { node.closePairing() } }
@@ -41,7 +41,7 @@ struct DeskLiveSheet: View {
         switch kind {
         case "computer": pairing
         case "screen": addScreen
-        case "desk": deskSettings
+        case "hotkeys": shortcutSettings
         case "input": DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
         case "computerDetails", "removeComputer": computerDetails
         case "conflict": conflict
@@ -183,29 +183,23 @@ struct DeskLiveSheet: View {
             Button("Refresh connected screens") { runtime.refreshAllDisplays() }.disabled(runtime.discovering)
         }
     }
-    var deskSettings: some View {
+    var shortcutSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
-            DeskTextSetting("Desk name", saved: node.group.name) { value in var group = node.group; group.name = value; try node.edit(group) }.id(node.group.id)
             ForEach(node.group.presets.indices, id: \.self) { i in
                 VStack(alignment: .leading, spacing: 8) {
-                    let preset = node.group.presets[i]
-                    DeskTextSetting("Preset \(i+1)", saved: preset.name) { value in
-                        var group = node.group
-                        guard let index = group.presets.firstIndex(where: { $0.id == preset.id }) else { throw KVMError("This preset was replaced on another computer.") }
-                        group.presets[index].name = value; try node.edit(group)
-                    }.id(preset.id)
+                    Text(node.group.presets[i].name).font(.headline)
                     HStack {
                         Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(DeskShortcutKey.names, id: \.self) { Text($0).tag($0) } }.frame(width: 100)
                         modifier("Ctrl", \.control, i); modifier("Opt", \.option, i); modifier("Cmd", \.command, i); modifier("Shift", \.shift, i)
                     }
                 }
             }
-            Text("These names, presets and shortcuts are shared with every computer in this desk. Editing does not switch the screens. Keyboard & mouse sharing is a separate settings page.").font(.callout).foregroundStyle(.secondary)
+            Text("Desk shortcuts are shared with every computer in this desk. Editing does not switch the screens.").font(.callout).foregroundStyle(.secondary)
             if !node.pendingPeers.isEmpty { Text("Saved here. Waiting for \(node.group.computers.filter { node.pendingPeers.contains($0.id) }.map(\.name).joined(separator: ", ")) to acknowledge the latest change.").font(.callout).foregroundStyle(.orange) }
             if let issue = runtime.shortcutProblem { Text(issue).foregroundStyle(.orange) }
         }
     }
-    func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); guard !group.presets[i].shortcut.matches(SafetyConfiguration.load().shortcut) else { throw KVMError("Those keys are used by Agent Kill Switch on this Mac. Choose another combination.") }; try node.edit(group) } }
+    func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); guard !([SafetyConfiguration.load().shortcut, LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease].contains { group.presets[i].shortcut.matches($0) }) else { throw KVMError("Those keys are used by another Perch action on this Mac. Choose another combination.") }; try node.edit(group) } }
     func modifier(_ title: String, _ key: WritableKeyPath<KVMShortcut, Bool>, _ i: Int) -> some View {
         Toggle(title, isOn: Binding(get: { node.group.presets[i].shortcut[keyPath: key] }, set: { value in changeShortcut(i) { $0[keyPath: key] = value } }))
     }
@@ -405,13 +399,12 @@ struct DeskPreferencesMember: View {
     }
 }
 extension AppDelegate {
-    @objc func deskPreferences() { presentDeskPreferences(input: false) }
-    @objc func deskInputPreferences() { presentDeskPreferences(input: true) }
-    private func presentDeskPreferences(input: Bool) {
-        let view = NSHostingView(rootView: DeskPreferencesRoot(kind: input ? "input" : "desk"))
+    @objc func deskPreferences() { hotkeySettings() }
+    @objc func deskInputPreferences() {
+        let view = NSHostingView(rootView: DeskPreferencesRoot(kind: "input"))
         view.frame = NSRect(x: 0, y: 0, width: 650, height: 610)
-        SettingsWindow.shared.show(.init(title: input ? "Keyboard & mouse sharing" : "Desk settings",
-            detail: input ? "Enable control on this Mac, review its access, and manage shared keyboards. Changes save immediately; sharing a session is a separate action." : "Desk and preset names and shortcuts are shared with every member. Changes save immediately without switching monitor inputs.",
+        SettingsWindow.shared.show(.init(title: "Keyboard & mouse sharing",
+            detail: "Enable control on this Mac and manage shared keyboards. Changes save immediately; sharing a session is a separate action.",
             view: view, preferredBodyWidth: 650))
     }
 }

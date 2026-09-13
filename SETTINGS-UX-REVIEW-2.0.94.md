@@ -370,3 +370,21 @@ Remaining acceptance is explicit: full native fixture execution, actual clicks
 and keyboard focus through the affected pages, two-Mac concurrent edits, OS grant
 recovery and physical shortcut behavior. Installed/public 2.0.94 still predates
 these corrections. Compilation is not evidence that those live journeys passed.
+
+## Sidebar, permission disclosure and task consolidation (September 13)
+
+| Journey | Change | Evidence / boundary |
+| --- | --- | --- |
+| Choose a Setup stage | Ready/attention/optional/checking symbols beside each prerequisite; refreshed in place without reloading navigation | Source mapping uses current permission/readiness models; native sidebar update fixture pending below |
+| Keyboard and helper access | Status/disclosure keep their top offsets; needed instructions open and cannot collapse; ready instructions initially collapsed and optionally expanded | Offscreen production controls: readiness loss/regain, stable polling, disclosure presses; no OS actions |
+| Shared input access | Status remains first, disclosure next, required instructions beneath; same disclosure state contract | Source trace and full build; live two-grant transition remains manual QA |
+| Agent tracking | Aligned named file targets, one Full Disk Access button, optional instructions after ready | Actual native constructor rendered offscreen; collector and permission operations not executed |
+| Shortcut editing | App settings → Hotkeys owns emergency/countdown/Desk edits, with local/shared scope and fixed shortcut references | Existing validation/persistence owners retained; production compilation and isolated state tests; live global registration not exercised |
+| Desk names | Pencil beside desk/preset names; bounded inline editor retains autosave/error/concurrent-edit handling; Play remains independent | Source trace and offscreen Desk fixture; two-Mac rename acceptance remains manual |
+| Remove wrapper pages | Scrolling controls remain in main menu, access stays in Setup; Displays wrapper removed; Desk is top-level; Desk settings and Countdown shortcuts routes consolidated | Full route inventory updated, no capability removal from layout/exception/sharing/history pages |
+
+Sidebar audit disposition: Keyboards/layouts/app exceptions retain distinct device configuration; keyboard details and activity retain diagnostics; sharing retains session/device choices; Agent configuration/recognition/targets retain distinct safety configuration and inspection; Appearance/Updates/Resets retain independent tasks. Keep awake still provides session status and resume/recovery, beyond its ordinary menu toggles. This audit does not claim all native interactions or hardware acceptance passed.
+
+Final isolated checks cover shortcut save/conflict/retry and agent-editor separation, sidebar status updates preserving cell identity/selection, permission disclosure transitions and top offsets, and the three default Desk hotkeys. The first sidebar fixture exposed an out-of-range access before table reload; configure now reads initial states without touching not-yet-created rows. New keypad and physical-size policy checks run independently of devices/windows. Wire target tests explicitly move connectors while holding the pointer stationary. Live global registration, helper changes and hardware remain untested in this batch.
+
+Build/install: Developer ID 2.0.113 compiled and passed Sparkle load-path, architecture, bundle layout and nested signature verification. Installed through a verified whole-bundle swap, keeping the prior bundle. The running app was not restarted and no live input, helper, permissions, sleep or monitor tests were performed. Keypad/size checks: 695 cases passed. Native wire resize/target tests and permission/sidebar offscreen checks passed. The reusable settings skill was updated and validated.

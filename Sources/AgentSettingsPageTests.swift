@@ -10,7 +10,7 @@ func runAgentSettingsPageTests() throws {
     try check(stored.shortcut.key == UInt32(kVK_Escape) && stored.shortcut.modifiers == UInt32(controlKey | optionKey | cmdKey), "Fresh configuration has the wrong emergency shortcut")
     stored.shortcut.enabled = false
     let makePage = {
-        AgentSettingsPage(load: { stored }, save: { value in
+        AgentSettingsPage(mode: .fixtureCombined, load: { stored }, save: { value in
             if failWrite { throw AppError(message: "Fixture write failure") }
             stored = value; writes += 1
         }, conflicts: { _ in conflict })
@@ -47,7 +47,7 @@ func runAgentSettingsPageTests() throws {
     conflict = true
     reopened.keys.selectItem(withTitle: "F8")
     _ = NSApp.sendAction(reopened.keys.action!, to: reopened.keys.target, from: reopened.keys)
-    try check(stored.shortcut == validShortcut && reopened.status.stringValue.contains("already switch displays"), "Conflicting monitor shortcut was saved")
+    try check(stored.shortcut == validShortcut && reopened.status.stringValue.contains("already used by another Perch action"), "Conflicting monitor shortcut was saved")
     conflict = false
     failWrite = true
     _ = NSApp.sendAction(reopened.keys.action!, to: reopened.keys.target, from: reopened.keys)

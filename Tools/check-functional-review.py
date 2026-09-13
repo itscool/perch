@@ -63,6 +63,10 @@ declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Curr
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.contains("--settings-offscreen") {
+    do { try runSettingsConsolidationTests(); exit(0) }
+    catch { fputs("OFFSCREEN SETTINGS FAILED: \\(error)\\n", stderr); exit(1) }
+}
 if CommandLine.arguments.contains("--desk-native-fixture") {
     do { try runDeskNativeFixture(); NSApp.run(); exit(0) }
     catch { fputs("NATIVE FIXTURE FAILED: \\(error)\\n", stderr); exit(1) }

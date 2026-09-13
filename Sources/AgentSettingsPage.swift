@@ -4,6 +4,8 @@ import Carbon
 /// A regular settings page: no nested modal session or detached alert accessory.
 /// Each change merges into fresh configuration, preserving unrelated settings.
 final class AgentSettingsPage: NSObject {
+    enum Mode { case agents, shortcut, fixtureCombined }
+    let mode: Mode
     let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 500))
     let status = SettingsStatusField(wrappingLabelWithString: "")
     let enabled = NSButton(checkboxWithTitle: "Enable emergency shortcut", target: nil, action: nil)
@@ -23,11 +25,11 @@ final class AgentSettingsPage: NSObject {
     private var timer: Timer?
     private let readStatus: () -> SafetyStatus?
 
-    init(load: @escaping () -> SafetyConfiguration = SafetyConfiguration.load,
+    init(mode: Mode = .agents, load: @escaping () -> SafetyConfiguration = SafetyConfiguration.load,
          save: @escaping (SafetyConfiguration) throws -> Void,
          conflicts: @escaping (PanicShortcut) -> Bool, didSave: @escaping () -> Void = {},
          readStatus: @escaping () -> SafetyStatus? = { GuardianInstall.status }) {
-        self.load = load; self.save = save; self.conflicts = conflicts; self.didSave = didSave; self.readStatus = readStatus
+        self.mode = mode; self.load = load; self.save = save; self.conflicts = conflicts; self.didSave = didSave; self.readStatus = readStatus
         super.init()
         let config = load()
         func caption(_ text: String, _ y: CGFloat) {
@@ -48,6 +50,7 @@ final class AgentSettingsPage: NSObject {
             box.state = target.enabled ? .on : .off
             list.addSubview(box); agents.append((target.id, box))
         }
+        let agentViews = view.subviews
         caption("Emergency shortcut · fires immediately, without confirmation", 263)
         enabled.frame = NSRect(x: 8, y: 232, width: 548, height: 28)
         enabled.toolTip = "Enable the configured emergency shortcut. Outside Test shortcut, it runs Panic immediately without confirmation."
@@ -68,6 +71,7 @@ final class AgentSettingsPage: NSObject {
         keys.addItems(withTitles: PanicShortcut.keys.map(\.0))
         keys.selectItem(at: PanicShortcut.keys.firstIndex { $0.1 == config.shortcut.key } ?? 0)
         keys.target = self; keys.action = #selector(shortcutChanged); view.addSubview(keys)
+        let shortcutViews = view.subviews.filter { !agentViews.contains($0) }
         caption("After stopping agents", 164)
         reset.frame = NSRect(x: 8, y: 128, width: 556, height: 30)
         reset.toolTip = "Choose which privacy permissions Panic resets after stopping agents. This saves your choice; no permissions change now."
@@ -77,6 +81,7 @@ final class AgentSettingsPage: NSObject {
         let note = NSTextField(wrappingLabelWithString: "Changing this choice does not reset permissions now. A reset during Panic requires granting access again afterward.")
         note.font = .systemFont(ofSize: 12); note.textColor = .secondaryLabelColor
         note.frame = NSRect(x: 8, y: 86, width: 556, height: 38); view.addSubview(note)
+        let actionViews = view.subviews.filter { !agentViews.contains($0) && !shortcutViews.contains($0) }
         status.font = .systemFont(ofSize: 12)
         status.frame = NSRect(x: 8, y: 8, width: 412, height: 72); view.addSubview(status)
         retry.frame = NSRect(x: 430, y: 30, width: 134, height: 30); retry.bezelStyle = .rounded
@@ -84,10 +89,21 @@ final class AgentSettingsPage: NSObject {
         // Registration failures and retained-shortcut explanations must fit alongside save feedback.
         for child in view.subviews where child !== status && child !== retry { child.frame.origin.y += 150 }
         view.frame.size.height += 150; status.frame.size.height += 150; retry.frame.origin.y += 75
+        switch mode {
+        case .agents:
+            shortcutViews.forEach { $0.removeFromSuperview() }
+            agentViews.forEach { $0.frame.origin.y -= 120 }
+            view.frame.size.height -= 120
+        case .shortcut:
+            (agentViews + actionViews).forEach { $0.removeFromSuperview() }
+            shortcutViews.forEach { $0.frame.origin.y -= 150 }
+            view.frame.size.height = 300; status.frame.size.height = 155; retry.frame.origin.y = 65
+        case .fixtureCombined: break
+        }
         updateStatus()
     }
     func show() {
-        SettingsWindow.shared.show(.init(title: "Agents, shortcut & panic actions", detail: "Panic force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved work can be lost. The watcher cannot stop remote jobs, root processes or children it never observed.\n\nChanges save automatically. Incomplete shortcut edits keep the saved shortcut. Leaving this page discards incomplete shortcut edits.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [self] in updateStatus() }))
+        SettingsWindow.shared.show(.init(title: mode == .shortcut ? "Hotkeys" : "Agents & panic actions", detail: "Panic force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved work can be lost. The watcher cannot stop remote jobs, root processes or children it never observed.\n\nChanges save automatically. Configure shortcuts in App settings → Hotkeys.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [self] in updateStatus() }))
         self.timer?.invalidate()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === self.view else { return }
@@ -106,7 +122,12 @@ final class AgentSettingsPage: NSObject {
     @objc private func shortcutChanged() { apply(.shortcut(shortcut)) }
     @objc private func resetChanged() { apply(.reset(reset.indexOfSelectedItem)) }
     @objc private func retrySaving() { if let pending { apply(pending) } }
-    private func updateStatus() {
+    func updateStatus() {
+        if mode == .agents {
+            status.stringValue = message
+            status.textColor = pending == nil ? .secondaryLabelColor : StatusColors.warning
+            return
+        }
         let saved = load().shortcut
         let current = saved.enabled ? "Saved shortcut: \(saved.title)." : "Emergency shortcut is off."
         let unsaved = shortcut != saved ? " Shortcut edits are not saved. \(shortcutIssue ?? "The saved shortcut remains in effect.")" : ""
@@ -134,7 +155,7 @@ final class AgentSettingsPage: NSObject {
                 pending = nil; retry.isHidden = true; shortcutIssue = "Choose at least two modifiers."; updateStatus(); return
             }
             if value.enabled && conflicts(value) {
-                pending = nil; retry.isHidden = true; shortcutIssue = "Those keys already switch displays. Choose another combination."; updateStatus(); return
+                pending = nil; retry.isHidden = true; shortcutIssue = "Those keys are already used by another Perch action. Choose another combination."; updateStatus(); return
             }
             config.shortcut = value
         case let .reset(index):

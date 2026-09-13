@@ -100,6 +100,8 @@ extension AppDelegate {
         let hideControls = names.isEmpty
         if externalSwapItem.isHidden != hideControls { externalSwapItem.isHidden = hideControls }
         if externalFnItem.isHidden != hideControls { externalFnItem.isHidden = hideControls }
+        keypadItem?.isHidden = hideControls
+        refreshKeypadNavigation()
         let profiles = registrations.compactMap { $0.profile }
         homeEndItem.isHidden = hideControls || !profiles.contains { $0.hasHomeEnd }
         pageKeysItem.isHidden = hideControls || !profiles.contains { $0.hasPageKeys }
@@ -215,5 +217,30 @@ extension AppDelegate {
         }
         open.frame = NSRect(x: 200,y: 51,width: 355,height: 30); view.addSubview(open)
         SettingsWindow.shared.show(.init(title: "Keyboard details", detail: "Read the result for the affected keyboard. Recheck only reads device state; it does not reapply saved choices. Navigation recognition is separate from function keys and modifier swaps.", view: view, refresh: { [weak self] in self?.keyboardDetails() }))
+    }
+}
+
+
+extension AppDelegate {
+    func refreshKeypadNavigation() {
+        guard let item = keypadItem else { return }
+        let saved = SafetyConfiguration.load().keypadNavigation == true
+        let helper = HelperStatusIPC.inputClient.value
+        item.state = saved ? .on : .off
+        let ready = helper?.fresh == true && helper?.keypadSupported == true && helper?.trusted == true
+        let nav = helper?.keypadNavigationDevices ?? 0, count = helper?.keypadDevices ?? 0
+        let hint = !ready ? "Setup needed" : !saved ? "" : count == 0 ? "Waiting for keyboard" : nav == 0 ? "Numbers" : nav == count ? "Navigation" : "Mixed modes"
+        label(item, "Use Num Lock for keypad navigation", hint: hint, hintColor: ready ? .secondaryLabelColor : StatusColors.warning)
+        (item.view as? MenuRowView)?.opensAnotherInterface = { !saved && !ready }
+    }
+    @objc func toggleKeypadNavigation() {
+        var config = SafetyConfiguration.load()
+        if config.keypadNavigation != true {
+            let helper = HelperStatusIPC.inputClient.value
+            guard helper?.fresh == true && helper?.keypadSupported == true else { openSetupStage("maintenance"); return }
+            guard helper?.trusted == true else { openSetupStage("input-access"); return }
+        }
+        config.keypadNavigation = config.keypadNavigation != true
+        do { try config.save(); refreshKeypadNavigation() } catch { showError(error) }
     }
 }

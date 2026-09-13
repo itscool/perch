@@ -127,7 +127,8 @@ extension AppDelegate {
 
     @objc func configurePanic() {
         var options: [(String,String,Selector)] = [
-            ("Agents, shortcut & panic actions…", "Choose which agents panic terminates, its key combination, and which privacy grants it resets.", #selector(editSafetyConfiguration)),
+            ("Agents & panic actions…", "Choose which agents panic terminates and which privacy grants it resets.", #selector(editSafetyConfiguration)),
+            ("Hotkeys…", "Configure emergency, countdown and Desk shortcuts together.", #selector(hotkeySettings)),
             ("Add or remove agents…", "Add a missing app or executable, or forget one custom entry without resetting the others.", #selector(manageAgents)),
             ("Agent recognition…", "Import definitions and review changes to how agents are identified.", #selector(agentRecognition)),
             (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Agent tracking setup…" : "⚠ Agent tracking setup…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
@@ -193,25 +194,28 @@ extension AppDelegate {
             remove.frame = NSRect(x: 428, y: y+8, width: 144, height: 30)
             view.addSubview(label); view.addSubview(remove)
         }
-        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Custom entries are listed below. Forget entry removes only its Perch configuration; the app remains installed and running. Built-in agents can be unchecked in Agents, shortcut & panic actions.", view: view))
+        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Custom entries are listed below. Forget entry removes only its Perch configuration; the app remains installed and running. Built-in agents can be unchecked in Agents & panic actions.", view: view))
     }
     @objc func editSafetyConfiguration() {
         editSafetyForm(save: { try $0.save() })
     }
     @discardableResult
     func editSafetyForm(save: @escaping (SafetyConfiguration) throws -> Void) -> AgentSettingsPage {
-        let page = AgentSettingsPage(save: save, conflicts: { [weak self] shortcut in
+        let page = makeAgentSettingsPage(save: save)
+        page.show()
+        return page
+    }
+    func makeAgentSettingsPage(mode: AgentSettingsPage.Mode = .agents, save: @escaping (SafetyConfiguration) throws -> Void = { try $0.save() }) -> AgentSettingsPage {
+        AgentSettingsPage(mode: mode, save: save, conflicts: { [weak self] shortcut in
             guard let self else { return false }
             if !self.legacyMonitorFixture {
-                return DeskCoordinator.shared.runtime?.node.group.presets.contains { $0.shortcut.matches(shortcut) } == true
+                return DeskCoordinator.shared.runtime?.node.group.presets.contains { $0.shortcut.matches(shortcut) } == true || [LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease].contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
             }
             return [self.monitorInputs.plan.shortcut, self.monitorInputs.groups.active?.shortcut].compactMap { $0 }.contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
         }, didSave: { [weak self] in
             DeskCoordinator.shared.runtime?.registerShortcuts()
             if self?.safetyItem != nil { self?.refreshSafety() }
         })
-        page.show()
-        return page
     }
     @objc func addAgentApp() { addTarget(app: true) }
     @objc func addAgentExecutable() { addTarget(app: false) }

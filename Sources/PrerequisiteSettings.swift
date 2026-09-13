@@ -40,32 +40,26 @@ extension AppDelegate {
     }
     func presentSharingAccess(readAccessibility: @escaping () -> Bool, readMonitoring: @escaping () -> Bool) {
         let page = SettingsTaskPage(title: "Shared input access", detail: "Keyboard and mouse sharing needs Accessibility and Input Monitoring for Perch itself. Scrolling and navigation use Perch Helper’s separate grant. Checking access does not start sharing.", height: 460, statusHeight: 100)
-        var reviewing = false
-        var previousReady: Bool?
+        var disclosure = SetupDisclosure()
+        let review = page.add("Show permission instructions", detail: "Instructions stay open while access needs attention.") { [weak page] in
+            disclosure.toggle(); page?.refresh()
+        }
+        review.isBordered = false; review.alignment = .left
+        review.font = .systemFont(ofSize: 12, weight: .semibold)
         let accessibilityButton = page.add("Open macOS Accessibility…", detail: "Add Perch and enable it. If an old enabled copy still fails, replace only that entry with the app below.") {
             SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
         }
         let monitoringButton = page.add("Keyboard access · Input Monitoring…", detail: "Uses the same Perch grant as external keyboard controls. Review its current state and instructions in Keyboard access.") { [weak self] in self?.keyboardAccessRecovery() }
-        let review = page.add("Show permission instructions", detail: "Optionally review a working grant if macOS or another feature reports a problem.") { [weak page] in
-            reviewing.toggle(); page?.refresh()
-        }
-        page.add("Keyboard & mouse sharing…", detail: "Return to the feature to enable sharing and choose a confirmed screen after access is ready.") {
-            guard let destination = SettingsWindow.shared.sidebar.destinations.first(where: { $0.id == "desk-input" }) else { return }
-            SettingsWindow.shared.navigate(to: destination)
-        }
-        let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+        let drag = PermissionDragItem(title: "Perch") { Bundle.main.bundleURL }
         drag.frame = NSRect(x: 8, y: 15, width: 556, height: 42); page.view.addSubview(drag)
         page.update = { [weak page] in
             let accessibility = readAccessibility(), monitoring = readMonitoring()
             let ready = accessibility && monitoring
-            if previousReady != ready { reviewing = false }; previousReady = ready
-            review.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
-            var hidden: [NSButton] = []
-            if accessibility && !reviewing { hidden.append(accessibilityButton) }
-            if monitoring && !reviewing { hidden.append(monitoringButton) }
-            if !ready { hidden.append(review) }
-            drag.isHidden = accessibility && !reviewing
-            page?.arrangeRows(hiding: hidden, footerHeight: drag.isHidden ? 0 : 58)
+            disclosure.update(ready: ready)
+            review.title = ready ? disclosure.title : "Permission instructions"
+            review.isEnabled = ready
+            drag.isHidden = !disclosure.expanded
+            page?.arrangeRows(hiding: disclosure.expanded ? [] : [accessibilityButton, monitoringButton], footerHeight: drag.isHidden ? 0 : 58)
             page?.status.stringValue = "Accessibility: " + (accessibility ? "ready" : "needs attention") + "\nInput Monitoring: " + (monitoring ? "ready" : "needs attention") + "\n" + (accessibility && monitoring ? "Access is ready. Return to Keyboard & mouse sharing when you want to enable it." : "Complete the missing access below. Perch checks automatically; sharing remains under your control.")
             page?.status.textColor = accessibility && monitoring ? StatusColors.success : StatusColors.warning
         }

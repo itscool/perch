@@ -24,8 +24,8 @@ func runSettingsReviewFixTests() throws {
     try check(!drag.isHidden, "Lost access did not restore recovery")
     host.navigate(to: host.sidebar.destinations.first { $0.id == "desk-input" }!)
     try check(host.pages.count == 1 && host.pages.last?.title == "Keyboard & mouse sharing" && host.back.isHidden && !host.interactionBusy, "Input settings is not a stable sidebar destination")
-    host.navigate(to: host.sidebar.destinations.first { $0.id == "desk-preferences" }!)
-    try check(host.pages.count == 1 && host.pages.last?.title == "Desk settings" && host.back.isHidden, "Desk preferences retained sheet navigation")
+    host.navigate(to: host.sidebar.destinations.first { $0.id == "hotkeys" }!)
+    try check(host.pages.count == 1 && host.pages.last?.title == "Hotkeys" && host.back.isHidden, "Desk preferences retained sheet navigation")
 
     // Every entry shares a canonical Setup stage and a single retained overview.
     let stages: [(String, () -> Void)] = [
@@ -91,7 +91,7 @@ func runSettingsReviewFixTests() throws {
     try check(!presetShortcut.matches(changedModifiers) && !presetShortcut.matches(disabledEmergency), "Shortcut validation rejected a distinct or disabled shortcut")
     var config = SafetyConfiguration(); config.shortcut.enabled = true
     var reported: SafetyStatus? = nil
-    let agents = AgentSettingsPage(load: { config }, save: { config = $0 }, conflicts: { _ in false }, readStatus: { reported })
+    let agents = AgentSettingsPage(mode: .shortcut, load: { config }, save: { config = $0 }, conflicts: { _ in false }, readStatus: { reported })
     agents.show()
     try check(agents.status.stringValue.contains("Waiting"), "Saved shortcut was called ready without registration")
     reported = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: nil, inputActive: false, keepAwakeActive: false, trackedCount: 0, targets: [], message: "Fixture", testResultID: nil, testUntil: nil, error: nil, registeredShortcut: config.shortcut)

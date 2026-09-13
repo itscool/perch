@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var nativeKeyboards: [NativeKeyboard] = []
     var fnItem: NSMenuItem!
     var externalFnItem: NSMenuItem!
+    var keypadItem: NSMenuItem!
     var keyboardSetupItem: NSMenuItem!
     var homeEndItem: NSMenuItem!
     var pageKeysItem: NSMenuItem!
@@ -176,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             menu.addItem(item); systemItems.append(item)
         }
         setupSafetyMenu()
-        section("Display")
+        section("Displays")
         let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
         if legacyMonitorFixture {
@@ -197,6 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys), help: ControlHelp.builtInFn)
         externalKeyboardSection = section("External keyboards")
         externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers), help: ControlHelp.externalModifiers)
+        keypadItem = add("Use Num Lock for keypad navigation", #selector(toggleKeypadNavigation), help: "Num Lock/Clear switches each external keypad between numbers and navigation keys. Starts in number mode after restart or wake. Decimal punctuation is unchanged in number mode; hardware LEDs may not reflect Perch’s mode.")
         externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys), help: ControlHelp.externalFn)
         homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd), help: ControlHelp.homeEnd)
         pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys), help: ControlHelp.pageKeys)
@@ -217,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let quit = add("Quit Perch", #selector(quit), help: ControlHelp.quit)
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
-        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
+        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, keypadItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
         (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
@@ -305,6 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for (item, enabled) in [(trackpadItem!, inputs.reverseTrackpad), (wheelItem!, inputs.reverseWheel)] {
             item.state = enabled ? .on : .off
         }
+        refreshKeypadNavigation()
         refreshScrolling(input: HelperStatusIPC.inputClient.value)
         refreshModifierItems()
         if !checkedStartupInputAccess, Date() >= inputStartupGraceEnds,

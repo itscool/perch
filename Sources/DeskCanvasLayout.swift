@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Fit the physical arrangement, including rotated/negative-coordinate screens,
 /// into the viewport. This transform never changes saved monitor geometry.
@@ -116,5 +117,15 @@ struct DeskWireGesture {
         if !dragging { return insideSource ? .click : .cancel }
         guard let target, Self.compatible(source, target) else { return .cancel }
         return .connect(source, target)
+    }
+}
+
+
+/// Estimates the visible panel, before rotation, from its diagonal and detected ratio.
+enum DeskPhysicalSize {
+    static func estimate(inches: Double, aspect: Double) -> CGSize? {
+        guard inches.isFinite, aspect.isFinite, (1...300).contains(inches), (0.1...10).contains(aspect) else { return nil }
+        let height = inches * 25.4 / hypot(aspect, 1)
+        return CGSize(width: height * aspect, height: height)
     }
 }

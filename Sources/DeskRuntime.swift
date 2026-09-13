@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Combine
 import Carbon
+import IOKit.graphics
 
 struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     let id: String
@@ -14,6 +15,7 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     let canControl: Bool
     var inputs: [MonitorInput]
     var mode: String
+    var panelAspect: Double? = nil
     var pointWidth: Double? = nil
     var pointHeight: Double? = nil
     var lgIdentity: UInt16? = nil
@@ -101,7 +103,7 @@ final class DeskRuntime: ObservableObject {
             mappingOptions: { [weak self] in self?.mappingOptions ?? [] }, map: { [weak self] in self?.map($0, choice: $1) },
             identify: { [weak self] in self?.identify($0) }, sheet: { [weak self] kind, selection, close in
                 guard let self else { return AnyView(EmptyView()) }; return AnyView(DeskLiveSheet(runtime: self, kind: kind, selection: selection, close: close))
-            }, openSettings: { (NSApp.delegate as? AppDelegate)?.deskPreferences() },
+            },
             identifyDisplay: { [weak self] computer, display in self?.identifyDetected(display, computer: computer, name: "Is this the screen?") },
             identifyingDisplay: { [weak self] computer, display in self?.identifications.active[computer.uuidString + "|" + display] != nil },
             identifyingMonitor: { [weak self] monitor in self?.identifications.active["monitor:" + monitor.uuidString] != nil },
@@ -135,6 +137,16 @@ final class DeskRuntime: ObservableObject {
         switching.otherMessage = { [weak self] peer, data in
             guard let self else { return }
             if !self.input.receive(data, peer: peer) { self.receiveDevices(data, peer: peer) }
+        }
+        model.live?.panelAspect = { [weak self] id in
+            guard let self else { return nil }
+            let ratios = self.node.group.connections.filter { $0.monitor == id }.compactMap { cable -> Double? in
+                guard let computer = cable.computer, let display = cable.localDisplay else { return nil }
+                return self.displays[computer]?.first { $0.id == display }?.panelAspect
+            }
+            // Reports for the same physical monitor must agree before choosing automatically.
+            guard let first = ratios.first, ratios.allSatisfy({ abs($0-first) < 0.02 }) else { return nil }
+            return first
         }
         node.peersChanged = { [weak self] in self?.refreshAllDisplays(); self?.updateModel() }
         inputAdapter.presetShortcut = { [weak self] in self?.activatePreset($0) }
@@ -238,6 +250,16 @@ final class DeskRuntime: ObservableObject {
                             serial: CGDisplaySerialNumber(display.displayID), width: max(1, size.width), height: max(1, size.height), canControl: display.ddcAvailable,
                             inputs: profile?.inputs ?? [], mode: profile?.alternate == true ? "lg" : "standard",
                             pointWidth: CGDisplayBounds(display.displayID).width, pointHeight: CGDisplayBounds(display.displayID).height)
+                        let modes = CGDisplayCopyAllDisplayModes(display.displayID, nil) as? [CGDisplayMode] ?? []
+                        let native = modes.filter { $0.ioFlags & UInt32(kDisplayModeNativeFlag) != 0 }.max { $0.pixelWidth * $0.pixelHeight < $1.pixelWidth * $1.pixelHeight }
+                        let largest = modes.max { $0.pixelWidth * $0.pixelHeight < $1.pixelWidth * $1.pixelHeight }
+                        if let mode = native, mode.pixelWidth > 0, mode.pixelHeight > 0 {
+                            detected.panelAspect = Double(mode.pixelWidth) / Double(mode.pixelHeight)
+                        } else if size.width > 1 && size.height > 1 {
+                            detected.panelAspect = size.width / size.height
+                        } else if let mode = largest, mode.pixelWidth > 0, mode.pixelHeight > 0 {
+                            detected.panelAspect = Double(mode.pixelWidth) / Double(mode.pixelHeight)
+                        }
                         detected.matchedProfileName = profile?.name
                         detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
                         return detected
@@ -301,6 +323,7 @@ final class DeskRuntime: ObservableObject {
         case .displays(let values):
             guard values.count <= 16, Set(values.map(\.id)).count == values.count,
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
+            guard values.allSatisfy({ $0.panelAspect.map { $0.isFinite && (0.1...10).contains($0) } ?? true }) else { return }
             guard values.allSatisfy({ value in [value.pointWidth, value.pointHeight].allSatisfy { $0.map { $0.isFinite && (1...100_000).contains($0) } ?? true } }) else { return }
             displays[peer] = values; remoteDisplayProblems[peer] = nil; resolvePendingDisplays(); updateModel()
         case .displayProblem(let problem):
@@ -323,6 +346,7 @@ final class DeskRuntime: ObservableObject {
         else {
             let screen = KVMMonitor(name: name, geometry: .init(x: group.monitors.map { $0.geometry.right }.max() ?? 0, y: 0, width: detected.width > 1 ? detected.width : 550, height: detected.height > 1 ? detected.height : 310), control: .init(computer: computer, localDisplay: display, mode: detected.mode))
             monitor = screen.id; group.monitors.append(screen)
+            group.monitors[group.monitors.count - 1].panelAspect = detected.panelAspect
             group.monitors[group.monitors.count - 1].inputProfile = profile?.name ?? detected.matchedProfileName
         }
         for port in detected.inputs where !group.connections.contains(where: { $0.monitor == monitor && $0.inputCode == port.code }) {
@@ -435,7 +459,7 @@ final class DeskRuntime: ObservableObject {
         do {
             for (i, shortcut) in shortcuts.enumerated() {
                 let key = DeskShortcutKey.code(shortcut.key)
-                guard let key else { throw KVMError("This Mac cannot register \(shortcut.label). Change the shortcut in Desk settings.") }
+                guard let key else { throw KVMError("This Mac cannot register \(shortcut.label). Change the shortcut in App settings → Hotkeys.") }
                 let hotkey = PanicHotKey(signature: UInt32(0x50444B30 + i))
                 var modifiers: UInt32 = 0
                 if shortcut.control { modifiers |= UInt32(controlKey) }; if shortcut.option { modifiers |= UInt32(optionKey) }

@@ -240,9 +240,5 @@ struct CountdownShortcutSettings: View {
 }
 
 extension AppDelegate {
-    @objc func countdownSettings() {
-        let view = NSHostingView(rootView: CountdownShortcutSettings(model: .shared))
-        view.frame = NSRect(x: 0, y: 0, width: 580, height: 240)
-        SettingsWindow.shared.show(.init(title: "Countdown shortcuts", detail: "Start five minutes of temporary keep awake, including with the lid closed. Each press adds or subtracts five minutes, up to \(Int(LidCountdownLimits.maximum / 60)) minutes remaining. Opening the lid finishes it; connecting power does not change the time.", view: view))
-    }
+    @objc func countdownSettings() { hotkeySettings() }
 }

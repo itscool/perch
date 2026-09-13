@@ -9,13 +9,17 @@ struct DeskView: View {
     @State private var draftScreen: UUID?
     @State private var draftConnection: UUID?
     @State private var showRemove = false
+    @State private var fallbackAspect = 16.0 / 9.0
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "bird.fill").font(.system(size: 26)).foregroundStyle(.teal)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(model.group.name).font(.system(size: 27, weight: .semibold))
+                    DeskInlineName(title: "Desk name", saved: model.group.name) { value in
+                        model.edit { $0.name = value }
+                        if let problem = model.problem { throw KVMError(problem) }
+                    }.id(model.group.id).font(.system(size: 27, weight: .semibold))
                     Text("\(model.group.computers.count) computers · \(model.group.monitors.count) screens").foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -26,22 +30,26 @@ struct DeskView: View {
                     Button("First-use desk…") { draftName = "My new desk"; sheet = "newDesk" }
                 } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
-                Button { if let open = model.live?.openSettings { open() } else { draftName = model.group.name; sheet = "desk" } } label: { Label("Desk settings", systemImage: "slider.horizontal.3") }
             }.padding(24)
             HStack(alignment: .top, spacing: 12) {
                 ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { index, preset in
                     HStack(spacing: 8) {
-                        Button { model.presetIndex = index; model.problem = nil } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(preset.name).font(.system(size: 14, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 8) {
+                            DeskInlineName(title: "Preset \(index + 1) name", saved: preset.name, select: { model.presetIndex = index; model.problem = nil }) { value in
+                                model.edit { group in
+                                    if let i = group.presets.firstIndex(where: { $0.id == preset.id }) { group.presets[i].name = value }
+                                }
+                                if let problem = model.problem { throw KVMError(problem) }
+                            }.id(preset.id).font(.system(size: 14, weight: .semibold))
+                            Button { model.presetIndex = index; model.problem = nil } label: {
                                 HStack(spacing: 6) {
                                     Text(model.presetIndex == index ? "Editing" : "\(preset.assignments.count) screens").font(.system(size: 11)).foregroundStyle(.secondary)
                                     if model.active?.id == preset.id {
                                         Label(model.changedSinceUse ? "Active · edited" : "Active", systemImage: "checkmark.circle.fill").font(.system(size: 10)).foregroundStyle(.teal)
                                     }
-                                }
-                            }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityLabel("Edit \(preset.name)\(model.presetIndex == index ? ", selected for editing" : "")\(model.active?.id == preset.id ? ", active preset" : "")").help("Edit this preset without changing the running screens or input.")
+                                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityLabel("Edit \(preset.name)").help("Edit this preset without switching screens.")
+                        }.frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 6) {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
                                 .buttonStyle(.bordered).tint(.teal).disabled(model.readinessIssue(for: index) != nil)
@@ -230,20 +238,10 @@ struct DeskView: View {
     }
 
     @ViewBuilder var sheetContents: some View {
-        if let live = model.live, let sheet, ["computer", "screen", "computerDetails", "removeComputer", "conflict", "connections", "removeConnection", "desk", "control", "monitorSetup"].contains(sheet) {
+        if let live = model.live, let sheet, ["computer", "screen", "computerDetails", "removeComputer", "conflict", "connections", "removeConnection", "control", "monitorSetup"].contains(sheet) {
             live.sheet(sheet, ["computerDetails", "removeComputer"].contains(sheet) ? draftComputer : (sheet == "removeConnection" || sheet == "correctConnection" ? draftConnection : model.selected), { self.sheet = nil })
         } else {
         switch sheet {
-        case "desk":
-            Text("Desk settings").font(.title2).fontWeight(.semibold)
-            TextField("Desk name", text: $draftName).textFieldStyle(.roundedBorder).onChange(of: draftName) { _, value in model.edit { $0.name = value } }
-            Text("Names and presets save immediately in this demo. Group synchronization is tested separately in the core; this lab does not connect to another computer.").foregroundStyle(.secondary)
-            ForEach(0..<3, id: \.self) { i in
-                HStack {
-                    TextField("Preset \(i + 1) name", text: Binding(get: { model.group.presets[i].name }, set: { name in model.edit { $0.presets[i].name = name } })).textFieldStyle(.roundedBorder)
-                    Text(model.group.presets[i].shortcut.label).font(.callout).foregroundStyle(.secondary)
-                }
-            }
         case "computer":
             Text("Add a computer").font(.title2).fontWeight(.semibold)
             Text("The production flow will find nearby Perches and confirm membership on both computers. Here, add a simulated member to explore a larger desk.").foregroundStyle(.secondary)
@@ -304,6 +302,23 @@ struct DeskView: View {
             Text("Physical size & position").font(.title2.bold())
             Text("Use the visible panel’s physical width and height in millimetres, before rotation. These proportions are independent of screen resolution.").foregroundStyle(.secondary)
             if let monitor = model.selectedMonitor {
+                let detectedAspect = model.live?.panelAspect?(monitor.id) ?? monitor.panelAspect
+                let aspect = detectedAspect ?? fallbackAspect
+                HStack {
+                    Text("Diagonal (inches)")
+                    TextField("Screen diagonal in inches", value: Binding(get: { hypot(monitor.geometry.width, monitor.geometry.height) / 25.4 }, set: { inches in
+                        if let size = DeskPhysicalSize.estimate(inches: inches, aspect: aspect) { model.resize(width: size.width, height: size.height) }
+                        else { model.problem = "Enter a diagonal from 1 to 300 inches." }
+                    }), format: .number.precision(.fractionLength(1))).textFieldStyle(.roundedBorder).frame(width: 90)
+                }
+                if detectedAspect != nil {
+                    Text("Aspect ratio detected from the display. Changing the diagonal estimates the panel’s width and height below.").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Picker("Aspect ratio unavailable", selection: $fallbackAspect) {
+                        Text("16:9").tag(16.0 / 9.0); Text("16:10").tag(1.6); Text("21:9").tag(21.0 / 9.0); Text("32:9").tag(32.0 / 9.0); Text("4:3").tag(4.0 / 3.0)
+                    }
+                    Text("No display capabilities are available yet. Choose a ratio only to estimate from a diagonal; exact millimetres remain editable.").font(.caption).foregroundStyle(.secondary)
+                }
                 HStack {
                     Text("X"); TextField("X", value: Binding(get: { monitor.geometry.x }, set: { model.move(monitor.id, x: $0, y: monitor.geometry.y) }), format: .number).textFieldStyle(.roundedBorder)
                     Text("Y"); TextField("Y", value: Binding(get: { monitor.geometry.y }, set: { model.move(monitor.id, x: monitor.geometry.x, y: $0) }), format: .number).textFieldStyle(.roundedBorder)
@@ -548,14 +563,41 @@ struct DeskCanvas: View {
     private var sockets: [String: WeakSocket] = [:]
     private var escapeMonitor: Any?
     private var resignObserver: NSObjectProtocol?
+    private var geometryObservers: [NSObjectProtocol] = []
+    private var geometryPending = false
+    private var lastGeometry: [String: CGRect] = [:]
+    func scheduleGeometryUpdate() {
+        guard gesture.source != nil, !geometryPending else { return }
+        geometryPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }; self.geometryPending = false; self.geometryDidChange()
+        }
+    }
+    func geometryDidChange() {
+        guard gesture.source != nil else { return }
+        let current = sockets.compactMapValues { $0.view.map { $0.convert($0.bounds.intersection($0.visibleRect), to: nil) } }
+        guard current != lastGeometry else { return }
+        lastGeometry = current
+        move(to: gesture.point)
+    }
     private(set) var gesture = DeskWireGesture()
     private(set) var target: String?
     var connect: ((UUID, UUID) -> Void)?
-    func register(_ view: DeskWireSocketView) { sockets[view.socketID] = WeakSocket(view) }
+    func register(_ view: DeskWireSocketView) {
+        sockets[view.socketID] = WeakSocket(view)
+        if gesture.source != nil { observeGeometry(of: view); scheduleGeometryUpdate() }
+    }
+    private func observeGeometry(of view: NSView) {
+        var ancestor: NSView? = view
+        while let current = ancestor {
+            current.postsFrameChangedNotifications = true; current.postsBoundsChangedNotifications = true
+            ancestor = current.superview
+        }
+    }
     func remove(_ view: DeskWireSocketView) {
         guard sockets[view.socketID]?.view === view else { return }
         sockets[view.socketID] = nil
-        if gesture.source == view.socketID { cancel() }
+        if gesture.source == view.socketID { cancel() } else { scheduleGeometryUpdate() }
     }
     func socket(_ id: String?) -> DeskWireSocketView? { id.flatMap { sockets[$0]?.view } }
     func center(_ id: String?) -> CGPoint? {
@@ -564,6 +606,12 @@ struct DeskCanvas: View {
     }
     func begin(_ id: String, at point: CGPoint) {
         cancel(); gesture.begin(id, at: point)
+        for socket in sockets.values { if let view = socket.view { observeGeometry(of: view) } }
+        for name in [NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification] {
+            geometryObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleGeometryUpdate() }
+            })
+        }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             if event.keyCode == 53 { self.cancel(); return nil }; return event
@@ -579,7 +627,8 @@ struct DeskCanvas: View {
         gesture.move(to: point)
         target = gesture.dragging ? sockets.keys.sorted().first { key in
             guard DeskWireGesture.compatible(source, key), let view = socket(key), view.window === origin.window, !view.isHiddenOrHasHiddenAncestor else { return false }
-            return view.bounds.insetBy(dx: -6, dy: -6).contains(view.convert(point, from: nil))
+            let visible = view.bounds.intersection(view.visibleRect)
+            return !visible.isEmpty && visible.insetBy(dx: -6, dy: -6).contains(view.convert(point, from: nil))
         } : nil
         refresh()
     }
@@ -600,6 +649,8 @@ struct DeskCanvas: View {
     }
     func cancel() {
         gesture = DeskWireGesture(); target = nil
+        for observer in geometryObservers { NotificationCenter.default.removeObserver(observer) }
+        geometryObservers = []; lastGeometry = [:]
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }; escapeMonitor = nil
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }; resignObserver = nil
         refresh()
@@ -677,6 +728,9 @@ struct DeskWireOverlay: NSViewRepresentable {
 final class DeskWireOverlayView: NSView {
     weak var controller: DeskWireController?
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func layout() {
+        super.layout(); needsDisplay = true; controller?.scheduleGeometryUpdate()
+    }
     override func draw(_ dirtyRect: NSRect) {
         guard let controller, controller.gesture.dragging, let start = controller.center(controller.gesture.source) else { return }
         let a = convert(start, from: nil), b = convert(controller.center(controller.target) ?? controller.gesture.point, from: nil)

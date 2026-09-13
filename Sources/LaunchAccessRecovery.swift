@@ -50,8 +50,7 @@ final class KeyboardAccessPage {
     let status = SettingsStatusField(wrappingLabelWithString: "")
     let instructions = NSTextField(wrappingLabelWithString: LaunchAccessRecovery.detail)
     private let readAccess: () -> Bool
-    private var reviewing = false
-    private var previousAccess: Bool?
+    private var disclosure = SetupDisclosure()
     private var presentedHeight: CGFloat?
     private var timer: Timer?
     private var repairControls: [NSView] = []
@@ -61,7 +60,9 @@ final class KeyboardAccessPage {
         status.font = .systemFont(ofSize: 13); view.addSubview(status)
         instructions.font = .systemFont(ofSize: 13)
         instructions.frame = NSRect(x: 8, y: 175, width: 556, height: 245); view.addSubview(instructions)
-        review = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
+        review = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.disclosure.toggle(); self?.refresh() }
+        review.isBordered = false; review.alignment = .left
+        review.font = .systemFont(ofSize: 12, weight: .semibold)
         view.addSubview(review)
         let open = SettingsActionButton(title: "Open macOS Input Monitoring", action: openSettings)
         open.frame = NSRect(x: 0, y: 130, width: 330, height: 30); view.addSubview(open)
@@ -73,7 +74,7 @@ final class KeyboardAccessPage {
         view.addSubview(finder)
         let check = SettingsActionButton(title: "Recheck access") { [weak self] in recheck(); self?.refresh() }
         check.frame = NSRect(x: 310, y: 90, width: 254, height: 30); view.addSubview(check)
-        let drag = PermissionDragItem(title: "Perch · drag / copy path") { Bundle.main.bundleURL }
+        let drag = PermissionDragItem(title: "Perch") { Bundle.main.bundleURL }
         drag.frame = NSRect(x: 8, y: 20, width: 556, height: 42); view.addSubview(drag)
         repairControls = [instructions, open, finder, check, drag]
     }
@@ -87,13 +88,13 @@ final class KeyboardAccessPage {
         let host = SettingsWindow.shared
         guard !host.interactionBusy, host.pages.last?.view === view else { return }
         let granted = readAccess()
-        if previousAccess != granted { reviewing = false }; previousAccess = granted
-        let expanded = !granted || reviewing
+        disclosure.update(ready: granted)
+        let expanded = disclosure.expanded
         let height: CGFloat = expanded ? 560 : 160
         repairControls.forEach { $0.isHidden = !expanded }
-        review.isHidden = !granted
-        review.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
-        review.frame = NSRect(x: 0, y: expanded ? 425 : 15, width: 572, height: 30)
+        review.isEnabled = granted
+        review.title = granted ? disclosure.title : "Permission instructions"
+        review.frame = NSRect(x: 0, y: height-135, width: 572, height: 30)
         status.stringValue = granted ? "✓ Keyboard access is ready. Perch can read supported external keyboards. Choose Keyboards or Keyboard layouts in the sidebar to review your devices." : LaunchAccessRecovery.summary
         status.textColor = granted ? StatusColors.success : StatusColors.warning
         status.frame = NSRect(x: 8, y: height-98, width: 556, height: 90)

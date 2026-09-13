@@ -48,3 +48,31 @@ struct DeskTextSetting: View {
         } catch { problem = "Not saved. " + error.localizedDescription }
     }
 }
+
+/// Rename belongs to the object. Selecting a preset and activating it remain
+/// separate actions; opening an editor never changes its live assignment.
+struct DeskInlineName: View {
+    let title: String
+    let saved: String
+    var select: (() -> Void)? = nil
+    let save: (String) throws -> Void
+    @State private var editing = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                if let select { Button(saved, action: select).buttonStyle(.plain) }
+                else { Text(saved) }
+                Button { editing.toggle() } label: {
+                    Image(systemName: editing ? "chevron.up" : "pencil").font(.system(size: 11))
+                }.buttonStyle(.plain).accessibilityLabel(editing ? "Collapse \(title) editor" : "Rename \(title)")
+                    .help(editing ? "Collapse the name editor. Valid changes are already saved." : "Rename \(title). Changes save immediately.")
+            }
+            if editing {
+                DeskTextSetting(title, saved: saved, save: save)
+                    .font(.body).padding(8)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
+            }
+        }
+    }
+}

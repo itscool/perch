@@ -20,7 +20,7 @@ struct InputReadiness {
         guard input.trusted else {
             return .init(ready: false, title: "Input access needed", message: "⚠ Waiting for Accessibility access for Perch Helper. Toggling an outdated entry may not grant access to this version.", route: "input")
         }
-        let wanted = config.reverseTrackpad || config.reverseWheel || config.navigation?.enabled == true
+        let wanted = config.reverseTrackpad || config.reverseWheel || config.navigation?.enabled == true || config.keypadNavigation == true
         guard !wanted || input.active else {
             return .init(ready: false, title: "Input controls not running", message: "⚠ Accessibility granted, but the enabled input controls are not running. If this persists, repair background protection in Settings.", route: "repair")
         }

@@ -39,7 +39,7 @@ struct MenuSectionAppearance: Codable, Equatable {
 enum MenuPalette: String, Codable, CaseIterable {
     case rainbow = "Rainbow", graphite = "Graphite", coast = "Coast", dusk = "Dusk"
     case woodland = "Woodland", mineral = "Mineral", jewel = "Jewel", sorbet = "Sorbet"
-    static let sections = ["Agent Kill Switch", "Display", "Audio", "Scrolling", "Built-in keyboard", "External keyboards", "Sleep", "Perch", "System"]
+    static let sections = ["Agent Kill Switch", "Displays", "Audio", "Scrolling", "Built-in keyboard", "External keyboards", "Sleep", "Perch", "System"]
     /// A complete color assignment per section, except Coast's deliberate triad.
     var swatches: [NSColor] {
         let hex: [UInt32]
@@ -461,7 +461,7 @@ final class MenuAppearancePreviewHost: NSView {
             ("System", [("Mac · Apple silicon", .information), ("CPU 12%", .information),
                         ("GPU 4%", .information), ("Memory 42%", .information), ("Thermal · Normal", .information)]),
             ("Agent Kill Switch", [("Panic…", .command)]),
-            ("Display", [("Turn display off", .command)]),
+            ("Displays", [("Turn display off", .command)]),
             ("Audio", [("Mute audio", .toggle)])
         ]
         for (section, samples) in sections {

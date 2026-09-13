@@ -82,7 +82,6 @@ struct DeskLiveActions {
     let map: (UUID, String) -> Void
     let identify: (UUID?) -> Void
     let sheet: (String, UUID?, @escaping () -> Void) -> AnyView
-    var openSettings: (() -> Void)? = nil
     var identifyDisplay: ((UUID, String) -> Void)? = nil
     var identifyingDisplay: ((UUID, String) -> Bool)? = nil
     var identifyingMonitor: ((UUID) -> Bool)? = nil
@@ -90,6 +89,7 @@ struct DeskLiveActions {
     var removalIssue: ((UUID) -> String?)? = nil
     var mapComputer: ((UUID, UUID) -> Void)? = nil
     var displayStatus: ((UUID) -> String?)? = nil
+    var panelAspect: ((UUID) -> Double?)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.

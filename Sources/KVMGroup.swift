@@ -72,6 +72,7 @@ struct KVMMonitor: Codable, Equatable, Identifiable {
     var geometry: KVMGeometry
     var control: KVMMonitorControl? = nil
     var inputProfile: String? = nil
+    var panelAspect: Double? = nil
 }
 
 struct KVMConnection: Codable, Equatable, Identifiable {
@@ -147,6 +148,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
             if let control = monitor.control {
                 try require(computers.contains { $0.id == control.computer } && UUID(uuidString: control.localDisplay) != nil && control.mode.utf8.count <= 2048 && (control.mode == "standard" || control.mode == "lg" || control.mode.hasPrefix("route:")), "Choose a valid monitor control connection.")
             }
+            if let aspect = monitor.panelAspect { try require(aspect.isFinite && (0.1...10).contains(aspect), "Invalid panel aspect ratio.") }
             let g = monitor.geometry
             try require([g.x, g.y, g.width, g.height].allSatisfy(\.isFinite) && abs(g.x) <= 100_000 && abs(g.y) <= 100_000 &&
                         (1...10_000).contains(g.width) && (1...10_000).contains(g.height), "Screen positions and physical sizes must be valid.")

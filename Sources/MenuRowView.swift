@@ -56,7 +56,7 @@ final class MenuRowView: NSView {
     private var hoverTrackingArea: NSTrackingArea?
     init(item: NSMenuItem, kind: Kind, text: NSAttributedString? = nil) {
         self.item = item; self.kind = kind
-        let symbols = ["System":"gauge.with.dots.needle.50percent", "Sleep":"moon", "Display":"display", "Audio":"speaker.wave.2", "Scrolling":"computermouse", "Built-in keyboard":"keyboard", "External keyboards":"keyboard", "Agent Kill Switch":"shield", "Perch":"bird"]
+        let symbols = ["System":"gauge.with.dots.needle.50percent", "Sleep":"moon", "Displays":"display", "Audio":"speaker.wave.2", "Scrolling":"computermouse", "Built-in keyboard":"keyboard", "External keyboards":"keyboard", "Agent Kill Switch":"shield", "Perch":"bird"]
         sectionSymbol = kind == .section ? NSImage(systemSymbolName: symbols[item.title] ?? (item.title.hasPrefix("External keyboard") ? "keyboard" : "circle"), accessibilityDescription: nil) : nil
         // Keep the canonical section identity for its palette, icon and grouping.
         let title = kind == .section && item.title == "Perch" ? "Perch \(PerchVersion.current)" : item.title
@@ -160,7 +160,7 @@ final class MenuRowView: NSView {
         switch section {
         case "System": return .systemTeal
         case "Sleep": return .systemPurple
-        case "Display": return .systemOrange
+        case "Displays": return .systemOrange
         case "Audio": return .systemYellow
         case "Scrolling": return .systemGreen
         case "Built-in keyboard": return .systemBlue

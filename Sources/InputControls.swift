@@ -48,10 +48,11 @@ final class InputControls {
     var reverseWheel = UserDefaults.standard.bool(forKey: "reverseWheel")
     var swapModifiers = false // v1.1 uses native per-keyboard modifier settings.
     let navigation = NavigationEngine()
+    let keypad = KeypadNavigation()
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var configuredMask: CGEventMask = 0
-    var wanted: Bool { reverseTrackpad || reverseWheel || swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys }
+    var wanted: Bool { reverseTrackpad || reverseWheel || swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys || keypad.enabled || keypad.hasHeldKeys }
     var active: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
     func save() {
@@ -73,25 +74,39 @@ final class InputControls {
         var types: [CGEventType] = []
         if reverseTrackpad || reverseWheel { types.append(.scrollWheel) }
         if swapModifiers { types.append(.flagsChanged) }
-        if swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys { types += [.keyDown, .keyUp] }
+        if swapModifiers || navigation.preferences.enabled || navigation.hasHeldKeys || keypad.enabled || keypad.hasHeldKeys { types += [.keyDown, .keyUp] }
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
-        if let tap, configuredMask == mask || navigation.hasHeldKeys {
+        if let tap, configuredMask == mask || navigation.hasHeldKeys || keypad.hasHeldKeys {
             // The same verified state feeds the heartbeat; avoid asking
             // WindowServer twice on every unchanged maintenance tick.
             if CGEvent.tapIsEnabled(tap: tap) { return true }
             CGEvent.tapEnable(tap: tap, enable: true)
             return CGEvent.tapIsEnabled(tap: tap)
         }
-        stop()
+        stop(preservingKeypadMode: true)
         configuredMask = mask
         tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask, callback: { _, type, event, context in
             guard let context else { return Unmanaged.passUnretained(event) }
             let controls = Unmanaged<InputControls>.fromOpaque(context).takeUnretainedValue()
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                controls.navigation.reset()
+                controls.navigation.reset(); controls.keypad.reset()
                 if let tap = controls.tap, controls.wanted { CGEvent.tapEnable(tap: tap, enable: true) }
             } else if event.getIntegerValueField(.eventSourceUserData) != KVMNativeEvent.eventTag {
                 InputTransform.apply(event, type: type, trackpad: controls.reverseTrackpad, wheel: controls.reverseWheel, swap: controls.swapModifiers)
+                if type == .keyDown || type == .keyUp {
+                    let sender = UInt64(bitPattern: event.getIntegerValueField(NavigationEngine.senderField))
+                    let output = controls.keypad.event(sender: sender, key: event.getIntegerValueField(.keyboardEventKeycode), down: type == .keyDown,
+                        repeating: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+                        commandModifiers: !event.flags.intersection([.maskControl, .maskAlternate, .maskCommand]).isEmpty)
+                    switch output {
+                    case .original: break
+                    case .suppress: return nil
+                    case let .key(key, character):
+                        event.setIntegerValueField(.keyboardEventKeycode, value: key)
+                        var character = character
+                        event.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+                    }
+                }
                 controls.navigation.apply(event, type: type)
             }
             return Unmanaged.passUnretained(event)
@@ -103,12 +118,12 @@ final class InputControls {
         }
         return active
     }
-    func stop() {
+    func stop(preservingKeypadMode: Bool = false) {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         source = nil
         tap = nil
-        navigation.reset()
+        navigation.reset(); keypad.reset(keepingMode: preservingKeypadMode)
     }
     deinit { stop() }
 }

@@ -3,12 +3,16 @@ import AppKit
 // One persistent window, one next action, and observed results rather than an assumed grant.
 final class EventCollectorSetup: NSObject {
     static let shared = EventCollectorSetup()
-    let content = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 450))
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 510))
     let installState = SettingsStatusField(wrappingLabelWithString: "")
     let accessState = SettingsStatusField(wrappingLabelWithString: "")
     let readyState = SettingsStatusField(wrappingLabelWithString: "")
     let guidance = SettingsStatusField(wrappingLabelWithString: "")
     let primary = NSButton()
+    let openSettings = NSButton()
+    var review: SettingsActionButton!
+    private var disclosure = SetupDisclosure()
+    private let permissionInstructions = "Drag eslogger into Full Disk Access and enable it. If events still do not arrive, add PerchEventLauncher as well.\n\nKeyboard: focus a file below and press Space to copy its path. In System Settings choose +, press ⌘⇧G, paste, then Open. Perch checks incoming events automatically (allow up to 45 seconds)."
     var permissionDrag: PermissionDragItem!
     var launcherDrag: PermissionDragItem!
     let intro = NSTextField(wrappingLabelWithString: "")
@@ -42,11 +46,11 @@ final class EventCollectorSetup: NSObject {
     override init() {
         super.init()
         intro.stringValue = "Remember agent subprocesses as they start—even if their parents exit quickly. Setup and health are checked automatically."
-        intro.frame = NSRect(x: 24, y: 381, width: 512, height: 46)
+        intro.frame = NSRect(x: 24, y: 441, width: 512, height: 46)
         content.addSubview(intro)
         for (index, label) in [installState, accessState, readyState].enumerated() {
             label.font = .systemFont(ofSize: 14, weight: .medium)
-            label.frame = NSRect(x: 24, y: 340 - index * 35, width: 512, height: 27)
+            label.frame = NSRect(x: 24, y: 400 - index * 35, width: 512, height: 27)
             content.addSubview(label)
         }
         guidance.frame = NSRect(x: 24, y: 110, width: 512, height: 154)
@@ -54,19 +58,23 @@ final class EventCollectorSetup: NSObject {
         primary.bezelStyle = .rounded; primary.target = self; primary.action = #selector(nextStep)
         primary.frame = NSRect(x: 306, y: 26, width: 230, height: 32)
         content.addSubview(primary)
-        let drag = PermissionDragItem(title: "eslogger · drag / copy path") { URL(fileURLWithPath: "/usr/bin/eslogger") }
+        let drag = PermissionDragItem(title: "eslogger") { URL(fileURLWithPath: "/usr/bin/eslogger") }
         permissionDrag = drag
-        drag.frame = NSRect(x: 24, y: 22, width: 245, height: 42)
+        drag.frame = NSRect(x: 24, y: 65, width: 250, height: 38)
         content.addSubview(drag)
-        launcherDrag = PermissionDragItem(title: "Collector · drag / copy path") { URL(fileURLWithPath: CollectorIdentity.launcher) }
-        launcherDrag.frame = NSRect(x: 276, y: 65, width: 260, height: 32)
+        launcherDrag = PermissionDragItem(title: "PerchEventLauncher") { URL(fileURLWithPath: CollectorIdentity.launcher) }
+        launcherDrag.frame = NSRect(x: 286, y: 65, width: 250, height: 38)
         content.addSubview(launcherDrag)
-        let openSettings = NSButton(title: "Open Full Disk Access…", target: self, action: #selector(openPrivacySettings))
-        openSettings.isBordered = false
-        openSettings.font = .systemFont(ofSize: 12)
-        openSettings.contentTintColor = .linkColor
-        openSettings.frame = NSRect(x: 20, y: 65, width: 230, height: 22)
+        openSettings.title = "Open Full Disk Access"
+        openSettings.target = self; openSettings.action = #selector(openPrivacySettings)
+        openSettings.bezelStyle = .rounded
+        openSettings.frame = NSRect(x: 24, y: 26, width: 230, height: 32)
         content.addSubview(openSettings)
+        review = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.disclosure.toggle(); self?.refresh() }
+        review.frame = NSRect(x: 24, y: 285, width: 512, height: 30)
+        review.isBordered = false; review.alignment = .left
+        review.font = .systemFont(ofSize: 12, weight: .semibold)
+        content.addSubview(review)
 
     }
     func show(fromSettings: Bool) {
@@ -89,7 +97,13 @@ final class EventCollectorSetup: NSObject {
         if waitingForSession, let session = state?.eventSessionID, session != previousSession { waitingForSession = false }
         let receiving = fresh && state?.eventConnected == true && (state?.eventLastSeen.map { Date().timeIntervalSince($0) < 45 } ?? false)
         let ready = Self.collectionReady(state, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession)
-        permissionDrag.isHidden = ready || receiving || !installed
+        disclosure.update(ready: ready)
+        review.isEnabled = ready
+        review.title = ready ? disclosure.title : "Permission instructions"
+        review.isHidden = !installed || needsRepair || waitingForSession || !fresh
+        let showPermissions = disclosure.expanded && installed && !needsRepair && !waitingForSession && fresh && (!receiving || ready)
+        permissionDrag.isHidden = !showPermissions
+        openSettings.isHidden = !showPermissions
         launcherDrag.isHidden = permissionDrag.isHidden || !FileManager.default.fileExists(atPath: CollectorIdentity.launcher)
         intro.stringValue = ready ? "Process event collection is ready. No further setup is needed." : "Remember agent subprocesses as they start—even if their parents exit quickly. Complete the missing step below."
         installState.stringValue = needsRepair ? "⚠  1. Collector update needed" : installed ? "✓  1. Collector installed" : "1. Install Apple’s collector"
@@ -114,10 +128,10 @@ final class EventCollectorSetup: NSObject {
             guidance.stringValue = expired ? "The collector update finished, but the helper has not acknowledged the new observation session. Retry verification; if it still cannot respond, repair background protection in Settings." : "The collector update finished. Waiting for Perch to start a new observation session before checking readiness."
         } else if ready {
             primary.isHidden = true
-            guidance.stringValue = "Setup complete. Perch is receiving process events and its health check succeeded. Choose another settings category, or close the window.\n\nPanic still performs a fresh sweep and verifies process identities before termination."
+            guidance.stringValue = disclosure.expanded ? permissionInstructions : ""
         } else if let until = retryUntil, until > Date() {
             primary.title = "Checking…"; primary.isEnabled = false
-            guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the link below."
+            guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the button below."
         } else if !fresh {
             primary.title = "Background helpers in Setup…"; primary.isEnabled = true
             guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Review Setup → Background helpers, then return here to check collection."
@@ -129,8 +143,8 @@ final class EventCollectorSetup: NSObject {
             primary.title = "Checking automatically…"; primary.isEnabled = false
             guidance.stringValue = "Full Disk Access is working. Perch is now checking that a known process appears in the event stream. This can take up to 45 seconds; no further clicks are needed."
         } else {
-            primary.title = "Open Full Disk Access"
-            guidance.stringValue = "1. Open Full Disk Access.\n2. Drag eslogger below into the list and enable it.\n\nWith a keyboard: focus its icon and press Space to copy the path. In System Settings, choose +, press ⌘⇧G, paste, then Open.\n\nPerch checks incoming events automatically (allow up to 45 seconds). If none arrive, add and enable the Collector launcher below in the same list."
+            primary.isHidden = true
+            guidance.stringValue = permissionInstructions
         }
     }
     @objc func nextStep() {

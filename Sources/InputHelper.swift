@@ -8,6 +8,9 @@ struct InputHelperStatus: Codable {
     var statusProtocol: Int = HelperBuild.protocolVersion
     var trusted: Bool
     var active: Bool
+    var keypadSupported: Bool?
+    var keypadNavigationDevices: Int?
+    var keypadDevices: Int?
     var navigationDevices: Int?
     var navigationObserved: Bool?
     var navigationUnidentified: Bool?
@@ -16,7 +19,7 @@ struct InputHelperStatus: Codable {
 }
 final class InputHelper {
     let inputs = InputControls()
-    lazy var navigationRuntime = NavigationRuntime(engine: inputs.navigation)
+    lazy var navigationRuntime = NavigationRuntime(engine: inputs.navigation, keypad: inputs.keypad)
     let collectorConnection = CollectorPipeAnchor(path: ProcessEventStream.pipePath)
     var timer: Timer?
     var configSignal: FileChangeSignal?
@@ -43,7 +46,7 @@ final class InputHelper {
         configSignal?.refresh()
         // Input preferences only: no catalog parsing, process scans or app metadata queries.
         if let config = try? SafetyFiles.read(SafetyConfiguration.self, from: SafetyFiles.config) {
-            navigationRuntime.configure(config.navigation ?? NavigationPreferences(), profiles: config.navigationProfiles ?? [])
+            navigationRuntime.configure(config.navigation ?? NavigationPreferences(), profiles: config.navigationProfiles ?? [], keypadEnabled: config.keypadNavigation == true)
             inputs.reverseTrackpad = config.reverseTrackpad
             inputs.reverseWheel = config.reverseWheel
             inputs.swapModifiers = false // Native per-keyboard modifier settings replace the v1 global event filter.
@@ -52,7 +55,7 @@ final class InputHelper {
         if requested { try? FileManager.default.removeItem(at: InputHelperStatus.permissionRequest) }
         let trusted = AXIsProcessTrusted()
         let active = inputs.update(requestPermission: requested, trusted: trusted)
-        let status = InputHelperStatus(trusted: trusted, active: active, navigationDevices: inputs.navigation.devices.count, navigationObserved: inputs.navigation.observed, navigationUnidentified: inputs.navigation.unidentified)
+        let status = InputHelperStatus(trusted: trusted, active: active, keypadSupported: true, keypadNavigationDevices: inputs.keypad.navigationSenders.count, keypadDevices: inputs.keypad.externalSenders.count, navigationDevices: inputs.navigation.devices.count, navigationObserved: inputs.navigation.observed, navigationUnidentified: inputs.navigation.unidentified)
         if lastStatus?.trusted != status.trusted || lastStatus?.active != status.active || Date().timeIntervalSince(lastStatus?.timestamp ?? .distantPast) >= 1 {
             statusServer?.publish(status); lastStatus = status
         }

@@ -77,32 +77,8 @@ final class SettingsTaskPage {
 }
 
 extension AppDelegate {
-    @objc func displaySettings() {
-        let page = SettingsTaskPage(title: "Displays", detail: "Use Desk to group computers and switch monitor presets. Turning displays off is a separate action.", height: 240)
-        page.add("Open Desk…", detail: "Arrange shared screens, map connections and use three monitor presets.") { [weak self] in self?.deskSettings() }
-        page.add("Turn display off now", detail: "Turns off connected displays. Move the mouse or press a key to wake them.") { [weak self] in self?.turnDisplayOff() }
-        page.update = { [weak page] in page?.status.stringValue = DeskCoordinator.shared.runtime.map { "\($0.node.group.monitors.count) screens in \($0.node.group.name). " + ($0.input.enabled ? ($0.input.active ? "Keyboard and mouse sharing is active." : "Input sharing is enabled. Open Keyboard & mouse sharing to review readiness.") : "Keyboard and mouse sharing has its own settings page.") } ?? "Desk is optional. Set it up when you want to use computers and screens together." }
-        page.show(delegate: self)
-    }
-    @objc func scrollingSettings() {
-        let page = SettingsTaskPage(title: "Scrolling", detail: "Choose each device’s vertical scroll direction. Changes save immediately. Horizontal scrolling is unchanged.", height: 310)
-        let trackpad = page.add("Reverse trackpad scrolling", detail: ControlHelp.trackpad, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: true) }
-        let wheel = page.add("Reverse mouse-wheel scrolling", detail: ControlHelp.wheel, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: false) }
-        let access = page.add("Scrolling & navigation access…", detail: "Open Setup to check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
-            if HelperStatusIPC.inputClient.value?.fresh == true { self?.inputPermissionsFromSettings() }
-            else { self?.advancedSafetySettings() }
-        }
-        page.update = { [weak page] in
-            let config = SafetyConfiguration.load(), input = HelperStatusIPC.inputClient.value
-            trackpad.state = config.reverseTrackpad ? .on : .off; wheel.state = config.reverseWheel ? .on : .off
-            let granted = input?.fresh == true && input?.trusted == true
-            trackpad.isEnabled = granted || config.reverseTrackpad; wheel.isEnabled = granted || config.reverseWheel
-            access.title = input?.fresh != true ? "Background helpers in Setup…" : "Scrolling & navigation access…"
-            page?.status.stringValue = input?.fresh != true ? "Waiting for the input helper. Review helpers to restore controls; saved scroll choices are kept." : !granted ? "Accessibility is needed before scrolling controls can run. Your saved choices are kept." : (config.reverseTrackpad || config.reverseWheel) && input?.active != true ? "Your choices are saved. Waiting for the helper to apply them." : "Ready. Checked choices are saved and the helper has the required access."
-            page?.status.textColor = granted ? .labelColor : StatusColors.warning
-        }
-        page.show(delegate: self)
-    }
+    @objc func displaySettings() { deskSettings() }
+    @objc func scrollingSettings() { openSetupStage("input-access") }
     func setScrollChoice(trackpad: Bool) {
         // Disabling a saved choice remains possible after a permission reset and
         // does not request a grant just to turn that feature off.
@@ -126,7 +102,7 @@ extension AppDelegate {
         lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
         let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
         page.add("Start five-minute countdown", detail: "Temporary keep awake, including with the lid closed. Opening the lid finishes it. Power changes keep the same deadline.") { LidCountdownController.shared.adjust(1) }
-        page.add("Countdown shortcuts…", detail: "Change the shortcuts for adding and subtracting five minutes. Each press adjusts the time remaining.") { [weak self] in self?.countdownSettings() }
+        page.add("Hotkeys…", detail: "Change countdown, Desk and Agent Kill Switch shortcuts in App settings → Hotkeys.") { [weak self] in self?.countdownSettings() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
         let repair = page.add("Lid protection setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
             self?.lidProtectionSetup()

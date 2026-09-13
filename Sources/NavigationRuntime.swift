@@ -92,6 +92,7 @@ enum NavigationEventDevices {
 /// perform no I/O, preferences access, app lookup, allocation, or event posting.
 final class NavigationRuntime: NSObject {
     let engine: NavigationEngine
+    let keypad: KeypadNavigation
     private var profiles: [NavigationKeyboardProfile] = []
     private var port: IONotificationPortRef?
     private var added: io_iterator_t = 0
@@ -99,14 +100,15 @@ final class NavigationRuntime: NSObject {
     private var pending: DispatchWorkItem?
     private var revision = 0
     private var started = false
-    init(engine: NavigationEngine) { self.engine = engine; super.init() }
-    func configure(_ preferences: NavigationPreferences, profiles: [NavigationKeyboardProfile]) {
+    init(engine: NavigationEngine, keypad: KeypadNavigation = KeypadNavigation()) { self.engine = engine; self.keypad = keypad; super.init() }
+    func configure(_ preferences: NavigationPreferences, profiles: [NavigationKeyboardProfile], keypadEnabled: Bool = false) {
+        if keypad.enabled != keypadEnabled { keypad.enabled = keypadEnabled; if !keypadEnabled { keypad.navigationDisabled() } }
         let profilesChanged = self.profiles != profiles
         let changed = profilesChanged || engine.preferences != preferences
         self.profiles = profiles
         engine.preferences = preferences
-        if preferences.enabled && !started { start() }
-        else if !preferences.enabled && started { stop() }
+        if (preferences.enabled || keypadEnabled) && !started { start() }
+        else if !preferences.enabled && !keypadEnabled && started { stop() }
         else if profilesChanged && started { queue() }
         if started && changed { appChanged() }
     }
@@ -133,20 +135,23 @@ final class NavigationRuntime: NSObject {
         guard let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { engine.excluded = true; return }
         engine.excluded = engine.preferences.excludedApps.contains(id)
     }
-    @objc private func woke() { engine.reset(); queue() }
+    @objc private func woke() { engine.reset(); keypad.reset(); queue() }
     private func queue() {
         guard started else { return }
         revision &+= 1; let generation = revision
         engine.devices = [:]
+        keypad.externalSenders = []
         pending?.cancel()
         let profiles = self.profiles
         let job = DispatchWorkItem { [weak self] in
             DispatchQueue.global(qos: .utility).async {
                 let devices = NavigationEventDevices.read(profiles: profiles)
-                let builtIn = Set(NativeModifierKeys.keyboards().filter { $0.builtIn }.compactMap { (IOHIDServiceClientGetRegistryID($0.service) as? NSNumber)?.uint64Value })
+                let keyboards = NativeModifierKeys.keyboards()
+                let external = Set(keyboards.filter { !$0.builtIn && NavigationDeviceScope.isExternal(builtIn: $0.builtIn, transport: IOHIDServiceClientCopyProperty($0.service, "Transport" as CFString) as? String ?? "") }.compactMap { (IOHIDServiceClientGetRegistryID($0.service) as? NSNumber)?.uint64Value })
+                let builtIn = Set(keyboards.filter { $0.builtIn }.compactMap { (IOHIDServiceClientGetRegistryID($0.service) as? NSNumber)?.uint64Value })
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.started, self.revision == generation else { return }
-                    self.engine.devices = devices; self.engine.builtInSenders = builtIn
+                    self.engine.devices = devices; self.engine.builtInSenders = builtIn; self.keypad.setDevices(external)
                 }
             }
         }
@@ -155,6 +160,7 @@ final class NavigationRuntime: NSObject {
     private func stop() {
         started = false; revision &+= 1; pending?.cancel(); pending = nil
         engine.devices = [:]
+        keypad.externalSenders = []
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         if added != 0 { IOObjectRelease(added); added = 0 }
         if removed != 0 { IOObjectRelease(removed); removed = 0 }

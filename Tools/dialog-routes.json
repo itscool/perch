@@ -221,18 +221,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "SettingsPages.swift:displaySettings:task-page:1": {
-    "file": "SettingsPages.swift",
-    "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "SettingsPages.swift:scrollingSettings:task-page:1": {
-    "file": "SettingsPages.swift",
-    "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "SettingsPages.swift:presentKeepAwakeSettings:task-page:1": {
     "file": "SettingsPages.swift",
     "kind": "task-page",
@@ -303,12 +291,6 @@
     "review": "SETUP-REVIEW-2.0.94.md: recovery findings; error stays inline or modeless with an actionable setup route; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
     "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
   },
-  "DeskLiveSettings.swift:presentDeskPreferences:page:1": {
-    "file": "DeskLiveSettings.swift",
-    "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "LaunchAccessRecovery.swift:show:page:1": {
     "file": "LaunchAccessRecovery.swift",
     "kind": "page",
@@ -355,8 +337,14 @@
     "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
     "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
   },
-  "LidCountdownUI.swift:countdownSettings:page:1": {
-    "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
-    "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
+  "DeskLiveSettings.swift:deskInputPreferences:page:1": {
+    "file": "DeskLiveSettings.swift",
+    "kind": "page",
+    "review": "Shared input retains its feature settings; Desk names move inline and all shortcut controls belong to Hotkeys.",
+    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
+  },
+  "HotkeySettings.swift:hotkeySettings:page:1": {
+    "review": "Single navigable Hotkeys page owns emergency, countdown and Desk editors; local/shared scope, registration errors and harmless test retained. Fixed keys are references.",
+    "acceptance": "Source routing reviewed; offscreen and build checks tracked in SETTINGS-UX-REVIEW-2.0.94.md. Native clicks remain manual QA."
   }
 }

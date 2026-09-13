@@ -314,7 +314,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.101 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.102 candidate is prepared with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

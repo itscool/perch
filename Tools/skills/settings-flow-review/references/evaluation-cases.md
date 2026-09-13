@@ -384,7 +384,21 @@ Expected: bring comparable scopes and concise consequences onto the center page,
 with inline detail for device targets. Keep broader all-app effects distinct from
 app-local selections and preserve explicit confirmation. Highlight repair targets
 without selecting them. Verify multi-selection, overlaps, partial failure, retry
-without repeating successes, and quit ordering. Separate pages remain legitimate
-for substantial distinct work; do not turn this lesson into a blanket checkbox rule.
+without repeating successes, and quit ordering. An initially unchecked checklist is the default for independently resettable areas,
+with inline scope/targets and joint confirmation. Separate pages remain legitimate
+for substantial distinct work; an indivisible reset must not acquire fake independent
+checkboxes. This depends on reset semantics, not whether the app is a tool or game.
 Verify resizing uses extra space, preserves selection/confirmation, remembers size
 across pages and reopening, and remains usable when restored on a smaller screen.
+
+## Propose the complete structure early
+
+A utility has 25 individually tidy settings dialogs. A requested flow review finds
+consistent Back buttons and autosave, but first setup, repair and reset are spread
+across several topics. The user asks for the nicest complete settings experience.
+
+Expected: begin with a compact proposed navigation and representative first-use,
+change, repair and reset journeys. Establish one home per task and justify extra
+steps before polishing each existing dialog. Then audit and implement within the
+authorized scope. Do not treat the proposal as mandatory user approval or expand
+a narrow button fix into a whole-app redesign.

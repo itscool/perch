@@ -1,11 +1,12 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.105 corrections have bounded
-native/automated acceptance and await installation and physical QA. Categories
-are distinct: known defects,
-features, QA, release and backlog. Order within each category is planned work
-order. Dependencies take precedence: public signing precedes public Sparkle releases.
+2.0 development, September 13, 2026. Developer ID 2.0.106 is installed in
+/Applications and running through LaunchServices. Public/notarized remains
+2.0.94. The 2.0.106 app has not been notarized or published. Latest source and
+builds have bounded native/automated acceptance; physical QA and coordinated
+helper/protocol 3 maintenance remain. Dated installation statements below are
+historical checkpoints. Categories are distinct: known defects, features, QA,
+release and backlog. Order within each category is planned work order.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
@@ -135,12 +136,23 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Running version in the menu.** The Perch section title includes the cached
+  running version, shared with About and shown in appearance previews. Its
+  canonical section identity keeps the existing palette/icon/group behavior.
+  About also describes the current Desk/input and local Mac features, with one
+  restrained brand line. Installed in 2.0.106; compile checked, visual acceptance deferred during manual Desk testing.
+
+- [x] **Desk screen-details grouping.** One subtle theme-adaptive background and
+  thin border surrounds the details panel. Expanded connection editors retain
+  stronger emphasis; the fixed content width and overlay scrollbar are unchanged.
+  Installed in 2.0.106; compile checked, visual acceptance deferred during manual Desk testing.
+
 - [x] **Perch countdown.** Manual +/− five-minute adjustments, shared 20-minute
   remaining-time cap, configurable Ctrl–Opt–Cmd +/− shortcuts, repeat filtering,
   helper/watchdog enforcement, frozen finished overlay after lid opening, and
   fresh five-minute restart. Power changes preserve the deadline. The ordinary
   one-minute undocking grace stays unchanged. Expected completion is log-only.
-  Source implementation; requires updated helper protocol/version 3. Not installed.
+  App installed in 2.0.106; requires coordinated helper protocol/version 3 update.
   See LID-COUNTDOWN-2.0.md for acceptance and limits.
 - [x] **Appearance presets and separate light/dark menus.** Exact Perch original,
   Graphite/Coast/Dusk options, named saved pairs, clickable Light/Dark previews,
@@ -210,8 +222,8 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## QA — implementation acceptance, with defects returned to the first section
 
-- [ ] **New countdown integration and appearance acceptance.** Install 2.0.105
-  and complete coordinated helper/protocol 3 maintenance. Check physical configurable
+- [ ] **New countdown integration and appearance acceptance.** App 2.0.106 is installed;
+  complete coordinated helper/protocol 3 maintenance. Check physical configurable
   +/− shortcuts, actual helper/watchdog deadline delivery and return to normal
   protection; policy combinations and timing are already tested with virtual time.
   Cancel → Finished 0:00 and selective Light/Dark preview/batch editing passed
@@ -346,7 +358,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.105 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.106 candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.
@@ -361,6 +373,18 @@ PKG wizard additionally needs Developer ID Installer. Verify fresh install, firs
 launch, existing-install replacement and uninstall/recovery as one journey.
 
 ## Backlog — optional future work, outside current release gates
+
+- [ ] **Multiple saved Desk groups for traveling computers.** A Mac may belong to
+  different groups at Home, Work or other places and return without re-pairing.
+  Preserve separate membership/trust, monitors, connections, layouts, presets and
+  synchronization history for each group. Provide an obvious active-group switch;
+  familiar authenticated peers/displays may suggest the relevant group, with a
+  clear choice when both are reachable or the location is ambiguous. Network name
+  alone must not grant trust. Stop input sharing and release old-group control
+  before activating another group; offline edits must stay with their own group.
+  Define behavior when several members travel, a member is revoked at one place,
+  or both groups are reachable through routed networks/VPNs. First establish the
+  multi-group model and intuitive switching flow; automatic selection is optional.
 
 1. [ ] **Direct process events.** Investigate a minimal native Endpoint Security
    collector replacing eslogger. Requires Apple's restricted Endpoint Security

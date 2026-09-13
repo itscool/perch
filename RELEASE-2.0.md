@@ -1,5 +1,8 @@
 # Perch 2.0 development
 
+Current local app: **2.0.106** (September 13). Public/notarized: **2.0.94**.
+Earlier installation checkpoints below retain their historical versions.
+
 September 10, 2026. Developer ID 2.0.94 is now installed in /Applications and
 running through LaunchServices. Apple accepted its notarization; the stapled app
 passes strict nested signature verification and Gatekeeper as Notarized Developer ID.
@@ -293,3 +296,20 @@ edits and saved presets, and Desk auto-fit. Helper/protocol 3 requires the norma
 coordinated helper update. Native checks use disposable preferences, simulated
 countdown time and monitor operations. This candidate is not installed, notarized
 or published; installed/public remains 2.0.94. See LID-COUNTDOWN-2.0.md for evidence.
+
+## 2.0.106 local installation
+
+September 13: built and verified the same Developer ID identity and bundled
+Sparkle layout/signatures. Installed 2.0.106 and launched through LaunchServices,
+replacing 2.0.94 after normal application termination. Read-only preflight showed
+no active lid ownership or sleep override. After launch the saved lid choice was
+unchanged, SleepDisabled remained 0, and exactly one new main app process was
+running. The prior app is retained for rollback. No helper maintenance, permissions
+reset, notarization or publication occurred; no AGENT MODE or automated desktop
+interaction was used during the user's manual Desk testing.
+
+This app includes the countdown/appearance/Desk-fit work plus the subtly framed
+screen-details panel, cached running version beside the Perch menu title, and
+updated About description. Both visual follow-ups compile; their visual acceptance
+is deferred to manual testing. The Home/Work multi-group traveling-computer
+mechanism is recorded in Backlog, not implemented.

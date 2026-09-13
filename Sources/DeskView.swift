@@ -72,8 +72,9 @@ struct DeskView: View {
                     DeskCanvas(model: model, remove: { id in model.selected = id; sheet = "removeScreen" }, dimensions: { id in model.selected = id; sheet = "dimensions" }).frame(minHeight: 270, maxHeight: .infinity)
 
                 }.padding(24)
-                Divider()
                 inspector.frame(width: 276).padding(.leading, 16).padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.025)))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.25), lineWidth: 1).allowsHitTesting(false))
             }.background(Color(nsColor: .textBackgroundColor))
             Divider()
             HStack(spacing: 14) {

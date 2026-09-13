@@ -614,7 +614,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             .applicationName: "Perch",
             .applicationVersion: PerchVersion.current,
             .version: "",
-            .credits: NSAttributedString(string: "Your Mac, ready for AI work.\n\nShared monitor presets, keyboard preferences,\nkeep-awake controls and local workload monitoring.",
+            .credits: NSAttributedString(string: "Many computers. One place to land.\n\nShared monitor presets and keyboard/mouse control.\nKeyboard and scrolling preferences, keep-awake controls,\nlocal workload monitoring and agent safeguards.",
                 attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor])
         ])
         NSApp.activate(ignoringOtherApps: true)

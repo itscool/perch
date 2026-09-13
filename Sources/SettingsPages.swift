@@ -88,7 +88,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Scrolling", detail: "Choose each device’s vertical scroll direction. Changes save immediately. Horizontal scrolling is unchanged.", height: 310)
         let trackpad = page.add("Reverse trackpad scrolling", detail: ControlHelp.trackpad, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: true) }
         let wheel = page.add("Reverse mouse-wheel scrolling", detail: ControlHelp.wheel, checkbox: true) { [weak self] in self?.setScrollChoice(trackpad: false) }
-        let access = page.add("Review input setup…", detail: "Open Setup to check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
+        let access = page.add("Scrolling & navigation access…", detail: "Open Setup to check Perch Helper’s access or restore it after a system permission reset.") { [weak self] in
             if HelperStatusIPC.inputClient.value?.fresh == true { self?.inputPermissionsFromSettings() }
             else { self?.advancedSafetySettings() }
         }
@@ -97,7 +97,7 @@ extension AppDelegate {
             trackpad.state = config.reverseTrackpad ? .on : .off; wheel.state = config.reverseWheel ? .on : .off
             let granted = input?.fresh == true && input?.trusted == true
             trackpad.isEnabled = granted || config.reverseTrackpad; wheel.isEnabled = granted || config.reverseWheel
-            access.title = input?.fresh != true ? "Review helper setup…" : "Review input setup…"
+            access.title = input?.fresh != true ? "Background helpers in Setup…" : "Scrolling & navigation access…"
             page?.status.stringValue = input?.fresh != true ? "Waiting for the input helper. Review helpers to restore controls; saved scroll choices are kept." : !granted ? "Accessibility is needed before scrolling controls can run. Your saved choices are kept." : (config.reverseTrackpad || config.reverseWheel) && input?.active != true ? "Your choices are saved. Waiting for the helper to apply them." : "Ready. Checked choices are saved and the helper has the required access."
             page?.status.textColor = granted ? .labelColor : StatusColors.warning
         }
@@ -126,7 +126,7 @@ extension AppDelegate {
         lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
         let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
-        let repair = page.add("Review lid setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
+        let repair = page.add("Lid protection setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
             self?.lidProtectionSetup()
         }
         page.update = { [weak self, weak page] in
@@ -137,7 +137,7 @@ extension AppDelegate {
             // The menu remembers the lid choice while Keep awake is off. This page
             // distinguishes that preference from the observed macOS override.
             let helper = readHelper()
-            repair.title = helper.helper.pending ? "Lid helper update needed — review setup…" : "Review lid setup…"
+            repair.title = helper.helper.pending ? "Lid helper update needed — open Setup…" : "Lid protection setup…"
             repair.contentTintColor = helper.helper.pending ? StatusColors.warning : nil
             let guarded = LidGuardClient.shared.active
             lid.state = presentation.lid
@@ -181,7 +181,7 @@ extension AppDelegate {
         cpu.identifier = NSUserInterfaceItemIdentifier(CPUDisplaySettings.key)
         let restartButton = page.add("Restart Perch", detail: "Close and reopen Perch, keeping your saved choices. An active lid session keeps its existing timeout.") { [weak page] in restart(); page?.refresh() }
         page.add("Setup & status…", detail: "Review prerequisite readiness and repair missing access or helpers in Setup.") { [weak self] in self?.setupOverview() }
-        page.add("Reset Perch settings…", detail: "Choose saved device setup or Perch preferences to forget, with a separate confirmation.") { [weak self] in self?.resetSettingsPage() }
+        page.add("Resets…", detail: "Reset saved choices, keyboard layouts, menu appearance, privacy permissions or sleep and audio. Choose a scope before making changes.") { [weak self] in self?.openResets() }
         page.add("About Perch…", detail: "Version and build information.") { [weak self] in self?.about() }
         page.update = { [weak page] in
             let status = SMAppService.mainApp.status
@@ -194,5 +194,5 @@ extension AppDelegate {
         }
         page.show(delegate: self)
     }
-    @objc func perchPrivacyResetFromSettings() { privacyOnlyReset(global: false) }
+    @objc func perchPrivacyResetFromSettings() { openResets() }
 }

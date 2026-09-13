@@ -42,7 +42,7 @@ extension AppDelegate {
             item("app", "App settings", ["App settings"], #selector(appSettings)),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),
             item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
-            item("reset", "Reset Perch settings", ["Reset settings"], #selector(resetSettingsPage), depth: 1)
+            item("reset", "Resets", ["Resets"], #selector(resetHub))
         ])
     }
 }

@@ -159,7 +159,7 @@ extension AppDelegate {
             let status = keyboardModes.blocksFunctionKeyChanges ? "Reading connected keyboards…" : keyboardModes.needsAccess ? "Some external controls need Input Monitoring. Review Setup → Keyboard access to restore the affected controls." : keyboardModes.results.contains(where: { !$0.verified }) || !keyboardModes.modifierErrors.isEmpty ? "Some keyboard controls need attention. Keyboard details lists the affected devices and the next step." : !nativeKeyboards.contains(where: { !$0.builtIn }) ? "No external keyboard is connected. Its controls become available when one connects." : externalModes.isEmpty ? "External F1–F12 status is unavailable. Recheck keyboards, or open details for supported controls and access setup." : "Connected keyboard controls are available. Navigation keys and app exceptions are optional choices below."
             if keyboardModes.needsAccess && !keyboardModes.blocksFunctionKeyChanges {
                 text(LaunchAccessRecovery.summary, 282, 54, color: StatusColors.warning)
-                let recovery = SettingsActionButton(title: "Review keyboard access in Setup…") { [weak self] in self?.keyboardAccessRecovery() }
+                let recovery = SettingsActionButton(title: "Keyboard access in Setup…") { [weak self] in self?.keyboardAccessRecovery() }
                 recovery.frame = NSRect(x: 0, y: 249, width: 572, height: 32); view.addSubview(recovery)
             } else { text(status, 250, 70, color: .secondaryLabelColor) }
             let navigation = SettingsActionButton(title: "Navigation keys…") { [weak self] in self?.navigationSettings() }
@@ -209,7 +209,7 @@ extension AppDelegate {
         navigation.frame = NSRect(x: 8, y: 105, width: 273, height: 30); view.addSubview(navigation)
         let retry = SettingsActionButton(title: "Recheck keyboards") { [weak self] in self?.keyboardModes.recheck() }
         retry.isEnabled = !keyboardModes.working; retry.frame = NSRect(x: 8,y: 51,width: 185,height: 30); view.addSubview(retry)
-        let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Review keyboard access in Setup…" : "Open macOS Keyboard Settings") { [weak self] in
+        let open = SettingsActionButton(title: keyboardModes.needsAccess ? "Keyboard access in Setup…" : "Open macOS Keyboard Settings") { [weak self] in
             let permission = self?.keyboardModes.needsAccess == true
             self?.openKeyboardPreferences(permission: permission)
         }

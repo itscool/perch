@@ -1,3 +1,5 @@
+Resets now collects saved settings, keyboard layouts, menu appearance, privacy permissions, and sleep/audio recovery in one clearly scoped page. Setup and feature links name their destinations; ready permission pages offer optional Show/Hide instructions.
+
 Setup now owns permissions, helper installation and recovery in one place. Keyboard, scrolling, sharing, sleep and agent pages keep their behavior controls and link directly to the relevant Setup stage when attention is needed. Setup stages share one checklist and a consistent return; ready access stops asking you to grant it again.
 
 Recent corrections also fix local Sparkle packaging/launch failures, reopening saved Desk and restart-handoff files, and input interruptions during sustained Desk synchronization. Pending lid-helper updates are clearly marked as needing attention.

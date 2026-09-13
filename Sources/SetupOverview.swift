@@ -58,35 +58,35 @@ struct SetupSnapshot {
             items.append(.init(id: id, title: title, state: state, detail: detail, action: action, route: route))
         }
         if loginNeedsApproval {
-            add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Review Login Items in background setup.", "Review background setup…", .maintenance)
+            add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Review Login Items in background setup.", "Background helpers in Setup…", .maintenance)
         }
         let helpersReady = guardianReady && (!inputWanted || inputReady)
         add("helpers", "Background controls", helpersReady ? .ready : helperWanted ? .attention : .optional,
             helpersReady ? "Perch’s background controls are responding and up to date." : helperWanted ? "A required helper is unavailable or outdated. Repair it to restore the features that depend on it." : "Needed for scrolling, keep-awake requests and agent protection.",
-            helpersReady ? "Review helper setup…" : "Review repair…", .maintenance)
+            "Background helpers…", .maintenance)
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
             add("scrolling", "Scrolling & navigation access", .ready, inputWanted ? "Perch Helper has Accessibility access and the enabled input controls are running." : "Perch Helper has Accessibility access. Choose scroll or navigation behavior in Settings.", "Open scrolling…", .settings)
         } else if !inputWanted {
             add("scrolling", "Scrolling & navigation access", .optional, "Enable scroll reversal or navigation changes when you want them. Perch Helper will need Accessibility access.", "Set up access…", .inputAccess)
         } else if !inputReady {
-            add("scrolling", "Scrolling & navigation access", .checking, "Waiting for the input helper. Its Accessibility permission is not yet known.", "Review helpers…", .maintenance)
+            add("scrolling", "Scrolling & navigation access", .checking, "Waiting for the input helper. Its Accessibility permission is not yet known.", "Background helpers…", .maintenance)
         } else if input?.trusted != true {
             add("scrolling", "Scrolling & navigation access", .attention, "Accessibility access for Perch Helper is missing. Your saved input choices are retained.", "Restore access…", .inputAccess)
         } else {
-            add("scrolling", "Scrolling & navigation access", .attention, "Accessibility is granted, but enabled input controls are not running.", "Review repair…", .maintenance)
+            add("scrolling", "Scrolling & navigation access", .attention, "Accessibility is granted, but enabled input controls are not running.", "Background helpers…", .maintenance)
         }
 
         let keyboardNeedsWork = keyboardAccessNeeded || keyboardErrors || (config.navigation?.enabled == true && navigationNeedsLearning)
         add("keyboards", "Keyboards", keyboardsBusy ? .checking : keyboardNeedsWork ? (keyboardSetupWanted || (keyboardAccessNeeded && keyboardCount > 0) ? .attention : .optional) : keyboardCount > 0 ? .ready : .optional,
-            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", keyboardAccessNeeded ? "Review keyboard access…" : "Review keyboards…", keyboardAccessNeeded ? .keyboardAccess : .keyboards)
+            keyboardsBusy ? "Reading connected keyboards without applying saved modes." : keyboardAccessNeeded ? LaunchAccessRecovery.summary : keyboardNeedsWork ? "Review the affected keyboard or navigation layout. Other supported controls remain available." : keyboardCount > 0 ? "Connected keyboards are available. Known navigation layouts are recognized automatically." : "Connect a keyboard to review its supported controls or saved layout.", keyboardAccessNeeded ? "Keyboard access…" : "Keyboards…", keyboardAccessNeeded ? .keyboardAccess : .keyboards)
 
         let monitorState: SetupCheck.State = monitorBusy ? .checking : !monitorConfigured ? .optional : !monitorAvailable || monitorWarning ? .attention : monitorNeedsVerification ? .unverified : .ready
         add("displays", "Desk monitor presets", monitorState,
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
-            monitorConfigured ? "Review display…" : "Set up display…", .displays)
+            monitorConfigured ? "Displays…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
-            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), deskInputAccessNeeded ? "Review sharing access…" : "Review input sharing…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
+            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), deskInputAccessNeeded ? "Shared input access…" : "Keyboard & mouse sharing…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
@@ -95,19 +95,19 @@ struct SetupSnapshot {
         }
 
         if lidDisabled == true {
-            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Review sleep…", .awake)
+            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Keep awake…", .awake)
         } else if lidHelperUpdatePending {
-            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Review helper update…", .lidSetup)
+            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Lid protection setup…", .lidSetup)
         } else if lidGuard?.error != nil {
-            add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
+            add("awake", "Keep awake", .attention, lidGuard!.detail, "Keep awake…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
-            add("awake", "Keep awake", .unverified, lidGuard!.displayDetail, "Review sleep…", .awake)
+            add("awake", "Keep awake", .unverified, lidGuard!.displayDetail, "Keep awake…", .awake)
         } else if !config.keepAwake {
             add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
         } else if !guardianReady && config.keepAwake {
-            add("awake", "Keep awake", .checking, "Waiting for the helper to confirm the saved keep-awake request.", "Review helpers…", .maintenance)
+            add("awake", "Keep awake", .checking, "Waiting for the helper to confirm the saved keep-awake request.", "Background helpers…", .maintenance)
         } else if guardian?.keepAwakeActive != true || (lidWanted && lidGuard?.armed != true) {
-            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Review Keep awake for status and Resume lid protection." : "The observed sleep state does not confirm your saved keep-awake request.", "Review sleep…", .awake)
+            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Review Keep awake for status and Resume lid protection." : "The observed sleep state does not confirm your saved keep-awake request.", "Keep awake…", .awake)
         } else {
             add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Adjust sleep…", .awake)
         }
@@ -115,21 +115,21 @@ struct SetupSnapshot {
         if !agentWanted {
             add("agents", "Agent Kill Switch", .optional, "Choose the agents and effects you want before relying on an emergency stop.", "Choose agents…", .agents)
         } else if !guardianReady {
-            add("agents", "Agent Kill Switch", .checking, "Waiting for the protection helper. A saved shortcut does not establish that it is registered.", "Review helpers…", .maintenance)
+            add("agents", "Agent Kill Switch", .checking, "Waiting for the protection helper. A saved shortcut does not establish that it is registered.", "Background helpers…", .maintenance)
         } else if guardian?.locked == true {
-            add("agents", "Agent Kill Switch", .attention, "Agent activity is blocked after a previous stop. Review protection to resume when you are ready.", "Review protection…", .agents)
+            add("agents", "Agent Kill Switch", .attention, "Agent activity is blocked after a previous stop. Review protection to resume when you are ready.", "Agent Kill Switch…", .agents)
         } else if config.shortcut.enabled && guardian?.shortcutActive != true && guardian?.testUntil == nil {
-            add("agents", "Agent Kill Switch", .attention, "Your enabled emergency shortcut is not registered. Review it and run the harmless shortcut test.", "Review protection…", .agents)
+            add("agents", "Agent Kill Switch", .attention, "Your enabled emergency shortcut is not registered. Review it and run the harmless shortcut test.", "Agent Kill Switch…", .agents)
         } else if let error = guardian?.error, error.contains("configuration is unreadable") || error.contains("Lockdown could not be saved") {
-            add("agents", "Agent Kill Switch", .attention, "Perch could not read or save protection state. Review the repair details before relying on it.", "Review repair…", .maintenance)
+            add("agents", "Agent Kill Switch", .attention, "Perch could not read or save protection state. Review the repair details before relying on it.", "Background helpers…", .maintenance)
         } else {
-            add("agents", "Agent Kill Switch", .ready, config.shortcut.enabled ? "Protection is responding and the shortcut is registered. Use the harmless test to check the physical keys." : "Protection is responding. The keyboard shortcut is intentionally off.", "Review or test…", .agents)
+            add("agents", "Agent Kill Switch", .ready, config.shortcut.enabled ? "Protection is responding and the shortcut is registered. Use the harmless test to check the physical keys." : "Protection is responding. The keyboard shortcut is intentionally off.", "Agent Kill Switch…", .agents)
         }
 
         if !collectorInstalled {
             add("events", "Live agent tracking", .optional, "Improves tracking of short-lived agent subprocesses. Setup uses Full Disk Access for Apple’s eslogger.", "Set up tracking…", .events)
         } else if !guardianReady {
-            add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Review helpers…", .maintenance)
+            add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Background helpers…", .maintenance)
         } else if EventCollectorSetup.collectionReady(guardian, installed: collectorInstalled, needsRepair: collectorNeedsRepair, waitingForSession: collectorWaitingForSession) {
             add("events", "Live agent tracking", .ready, "Recent events and the live health check confirm that collection is working.", "View status…", .events)
         } else {

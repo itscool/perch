@@ -11,6 +11,7 @@ func runSettingsTests() throws {
     try runSleepPresentationTests()
     try runSettingsJourneyFixTests()
     try runSettingsReviewFixTests()
+    try runResetNavigationTests()
     try runStatusColorTests()
     try runReleaseUITests()
     try runNavigationProbeUITests()

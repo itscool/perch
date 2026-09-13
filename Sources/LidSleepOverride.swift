@@ -96,7 +96,7 @@ struct LidOverrideStore {
         }
         // Never take ownership of another app's or the user's existing override.
         guard !FileManager.default.fileExists(atPath: recordPath), !disabled else {
-            throw AppError(message: "A system sleep override already exists. Review sleep reset before enabling lid protection.")
+            throw AppError(message: "A system sleep override already exists. Resets → Sleep & audio can remove Perch-owned protection; overrides owned outside Perch must be cleared at their source.")
         }
         try write(LidOverrideRecord(token: token), path: recordPath, durable: true)
     }

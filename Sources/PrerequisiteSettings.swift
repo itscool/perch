@@ -19,8 +19,8 @@ extension AppDelegate {
             SettingsWindow.shared.navigate(to: destination)
             self?.settingsRefresh?()
         }
-        page.add("Review background helper setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
-        page.add("Review sleep reset…", detail: "Review an explicit reset to remove Perch’s sleep overrides if recovery is needed.") { [weak self] in self?.systemResetPage(includeAudio: false) }
+        page.add("Background helpers in Setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
+        page.add("Resets…", detail: "Choose Sleep & audio in Resets to end Perch’s sleep protection. Opening Resets makes no changes.") { [weak self] in self?.openResets() }
         page.update = { [weak page] in
             let helper = readHelper()
             repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
@@ -45,8 +45,8 @@ extension AppDelegate {
         let accessibilityButton = page.add("Open macOS Accessibility…", detail: "Add Perch and enable it. If an old enabled copy still fails, replace only that entry with the app below.") {
             SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
         }
-        let monitoringButton = page.add("Review Input Monitoring setup…", detail: "Uses the same Perch grant as external keyboard controls. Review its current state and instructions in Keyboard access.") { [weak self] in self?.keyboardAccessRecovery() }
-        let review = page.add("Review permission instructions…", detail: "Optionally review a working grant if macOS or another feature reports a problem.") { [weak page] in
+        let monitoringButton = page.add("Keyboard access · Input Monitoring…", detail: "Uses the same Perch grant as external keyboard controls. Review its current state and instructions in Keyboard access.") { [weak self] in self?.keyboardAccessRecovery() }
+        let review = page.add("Show permission instructions", detail: "Optionally review a working grant if macOS or another feature reports a problem.") { [weak page] in
             reviewing.toggle(); page?.refresh()
         }
         page.add("Keyboard & mouse sharing…", detail: "Return to the feature to enable sharing and choose a confirmed screen after access is ready.") {
@@ -59,7 +59,7 @@ extension AppDelegate {
             let accessibility = readAccessibility(), monitoring = readMonitoring()
             let ready = accessibility && monitoring
             if previousReady != ready { reviewing = false }; previousReady = ready
-            review.title = reviewing ? "Hide permission instructions" : "Review permission instructions…"
+            review.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
             var hidden: [NSButton] = []
             if accessibility && !reviewing { hidden.append(accessibilityButton) }
             if monitoring && !reviewing { hidden.append(monitoringButton) }

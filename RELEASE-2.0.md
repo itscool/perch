@@ -229,3 +229,17 @@ SETUP-CONSOLIDATION-2.0.md. Release notes in Release/notes.md include these chan
 so the normal one-command release workflow uses the correct notes for this
 candidate. 2.0.98 supersedes the prepared 2.0.96/97 candidates; installed/public
 2.0.94 remains unchanged. Notarization and publication require explicit approval.
+
+## Reset discovery — candidate 2.0.99
+
+Resets is an independent sidebar destination covering saved preferences, learned
+keyboard layouts, menu appearance, Perch privacy, sleep/audio and all-app privacy.
+Setup and feature reset links lead to that same home. Navigation and instruction
+disclosures use destination/Show/Hide names; actual review of proposed changes
+keeps its meaning. Ordinary editing and operational confirmations remain intact.
+
+All 23 isolated suites passed. Native fixture clicks passed all six reset scopes
+and Back plus setup/appearance entry links. Only injected/disposable writes were
+performed; no live reset, permission, helper or sleep operation was exercised.
+See RESET-DISCOVERABILITY-2.0.md. Candidate 2.0.99 supersedes prepared 2.0.98;
+installed/public 2.0.94 remains unchanged. No notarization/publication is included.

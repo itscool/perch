@@ -40,7 +40,7 @@ final class MenuAppearanceStore: ObservableObject {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.key) {
             if let decoded = try? JSONDecoder().decode(MenuAppearance.self, from: data), decoded.valid { value = decoded }
-            else { problem = "Saved appearance could not be read. Restore defaults to replace it." }
+            else { problem = "Saved appearance could not be read. Open Resets → Menu appearance to replace it." }
         }
     }
     func save(_ next: MenuAppearance, restoring: Bool = false) {
@@ -133,7 +133,7 @@ struct MenuAppearancePage: View {
                     Button("Outlined sections") { var s = MenuSectionAppearance(); s.borderScope = .full; s.sides = Set(MenuSectionAppearance.Side.allCases); s.backgroundScope = .full; s.radius = 6; s.thickness = 1; replace(s) }
                 }
                 Spacer()
-                Button("Restore all defaults") { store.save(MenuAppearance(), restoring: true) }.help("Restore Perch’s original appearance for rainbow sections and System.")
+                Button("Resets…") { SettingsWindow.shared.navigateToResets() }.help("Choose Menu appearance in Resets to restore both rainbow sections and System.")
             }
         }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

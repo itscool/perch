@@ -18,7 +18,6 @@ final class NavigationProbePage: NSObject {
     private let hasAccess: () -> Bool
     private let saveProfile: (NavigationKeyboardProfile) throws -> Void
     private let readProfiles: () throws -> [NavigationKeyboardProfile]
-    private let resetProfiles: (NavigationKeyboardIdentity?) throws -> Void
     private var profiles: [NavigationKeyboardProfile] = []
     private var profileReadError: String?
     private var saveAttempted = false
@@ -36,11 +35,10 @@ final class NavigationProbePage: NSObject {
          hasAccess: @escaping () -> Bool = { NavigationProbeHID.hasAccess },
          saveProfile: @escaping (NavigationKeyboardProfile) throws -> Void = { try KeyboardNavigationProfiles.save($0) },
          readProfiles: @escaping () throws -> [NavigationKeyboardProfile] = { try KeyboardNavigationProfiles.read() },
-         resetProfiles: @escaping (NavigationKeyboardIdentity?) throws -> Void = { try KeyboardNavigationProfiles.reset($0) },
          now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         session = NavigationProbeSession(now: now)
         self.enumerate = enumerate; self.hasAccess = hasAccess; self.saveProfile = saveProfile
-        self.readProfiles = readProfiles; self.resetProfiles = resetProfiles
+        self.readProfiles = readProfiles
         super.init()
         picker.identifier = .init("navigation.keyboard"); picker.setAccessibilityLabel("Keyboard to learn or manage")
         view.addSubview(picker)
@@ -52,11 +50,12 @@ final class NavigationProbePage: NSObject {
         registration.font = .systemFont(ofSize: 13, weight: .semibold); view.addSubview(registration)
         permission.frame = NSRect(x: 8, y: 378, width: 556, height: 24)
         permission.font = .systemFont(ofSize: 12); view.addSubview(permission)
-        launchRecovery = SettingsActionButton(title: "Review keyboard access in Setup…") {
+        launchRecovery = SettingsActionButton(title: "Keyboard access in Setup…") {
             SettingsWindow.shared.navigateToSetupStage("keyboard-access")
         }
         launchRecovery.frame = NSRect(x: 8, y: 333, width: 556, height: 30); view.addSubview(launchRecovery)
-        reset = SettingsActionButton(title: "Reset saved layout…") { [weak self] in self?.resetProfile() }
+        reset = SettingsActionButton(title: "Resets…") { SettingsWindow.shared.navigateToResets() }
+        reset.toolTip = "Choose Keyboard layouts in Resets to forget one or all learned layouts, including disconnected keyboards."
         reset.frame = NSRect(x: 8, y: 333, width: 230, height: 30); view.addSubview(reset)
         instruction.announcesChanges = true
         instruction.font = .systemFont(ofSize: 16, weight: .semibold); instruction.textColor = .labelColor
@@ -136,21 +135,6 @@ final class NavigationProbePage: NSObject {
               keyboard.identity.canRemember, !session.state.listening else { return }
         setupIdentity = keyboard.identity
         session.start(deviceID: keyboard.id, source: NavigationProbeHID(keyboard: keyboard, learning: true), guided: true)
-    }
-    private func resetProfile() {
-        let alert = NSAlert()
-        alert.messageText = "Reset saved navigation layout?"
-        alert.informativeText = "Forget this keyboard’s learned layout, or all saved layouts. Its keys and all Fn/modifier settings keep working as before. Bundled profiles remain available."
-        alert.addButton(withTitle: "Reset this keyboard"); alert.addButton(withTitle: "Reset all saved layouts"); alert.addButton(withTitle: "Cancel")
-        let identity = selectedIdentity
-        SettingsWindow.shared.present(alert) { [self] result in
-            guard result == .alertFirstButtonReturn || result == .alertSecondButtonReturn else { return }
-            do {
-                guard result == .alertSecondButtonReturn || identity != nil else { return }
-                try resetProfiles(result == .alertSecondButtonReturn ? nil : identity)
-                session.reset(); setupIdentity = nil; reload()
-            } catch { status.stringValue = "⚠ " + error.localizedDescription; status.textColor = StatusColors.warning }
-        }
     }
     private func tick() {
         if !hasAccess() { session.stop("Input Monitoring became unavailable. Setup stopped; your saved layout was kept.") }

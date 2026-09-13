@@ -17,7 +17,7 @@ func runSettingsReviewFixTests() throws {
     try check(!drag.isHidden && !host.interactionBusy, "Missing access has no usable repair route")
     granted = true; access.refresh()
     try check(drag.isHidden && access.status.stringValue.contains("ready"), "Ready permission still asks for setup")
-    buttons(access.view).first { $0.title == "Review permission setup…" }!.performClick(nil)
+    buttons(access.view).first { $0.title == "Show permission instructions" }!.performClick(nil)
     try check(!drag.isHidden, "Ready grant cannot be reviewed voluntarily")
     buttons(access.view).first { $0.title == "Hide permission instructions" }!.performClick(nil)
     granted = false; access.refresh()
@@ -68,7 +68,7 @@ func runSettingsReviewFixTests() throws {
     let featureButtons = buttons(host.pages.last!.view)
     try check(!featureButtons.contains { ["Set up lid protection…", "Repair lid protection…", "Finish lid helper update…"].contains($0.title) },
               "Keep awake still performs prerequisite installation")
-    featureButtons.first { $0.title == "Review lid setup…" }!.performClick(nil)
+    featureButtons.first { $0.title == "Lid protection setup…" }!.performClick(nil)
     try check(host.pages.last?.title == "Lid protection setup", "Keep awake repair link missed Setup")
     var sharingGrant = false
     app.presentSharingAccess(readAccessibility: { sharingGrant }, readMonitoring: { sharingGrant })

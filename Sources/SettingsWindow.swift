@@ -108,6 +108,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         }.first
         sidebar.update(selected: selected, busy: interactionBusy)
     }
+    func navigateToResets() {
+        guard let destination = sidebar.destinations.first(where: { $0.id == "reset" }) else { return }
+        navigate(to: destination)
+    }
     func navigateToSetupStage(_ id: String) {
         guard let destination = sidebar.destinations.first(where: { $0.id == id && $0.setupStage }) else { return }
         navigate(to: destination)

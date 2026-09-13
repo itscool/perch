@@ -75,7 +75,7 @@ func runPresentationHandoffTests() throws {
     for needsPermission in [false, true] {
         app.keyboardModes.results = [.init(name: "Fixture", detail: "Fixture", verified: !needsPermission, needsAccess: needsPermission)]
         app.keyboardDetails()
-        let title = needsPermission ? "Review keyboard access in Setup…" : "Open macOS Keyboard Settings"
+        let title = needsPermission ? "Keyboard access in Setup…" : "Open macOS Keyboard Settings"
         guard let button = host.pages.last?.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == title }) else { throw AppError(message: "Missing keyboard handoff route") }
         let before = opens; button.performClick(nil)
         if needsPermission {
@@ -88,7 +88,7 @@ func runPresentationHandoffTests() throws {
     }
     let navigation = NavigationProbePage(enumerate: { [] }, hasAccess: { false }, readProfiles: { [] })
     navigation.show()
-    guard let button = navigation.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == "Review keyboard access in Setup…" }) else { throw AppError(message: "Missing navigation handoff route") }
+    guard let button = navigation.view.subviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == "Keyboard access in Setup…" }) else { throw AppError(message: "Missing navigation handoff route") }
     let before = opens; button.performClick(nil)
     try check(opens == before && !host.externalHandoff && host.pages.last?.title == "Keyboard access", "Layout learning skipped the shared Setup stage")
     app.presentKeyboardAccess(readAccess: { false })

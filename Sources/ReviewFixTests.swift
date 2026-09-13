@@ -61,8 +61,9 @@ func runReviewFixTests() throws {
     restore() // Duplicate/out-of-order completion must not end another handoff.
     try check(host.authorizing && !host.window.isVisible, "Nested authorization restored Settings too early")
     nestedRestore()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-    try check(!host.authorizing && host.window.level == previousLevel && host.window.isFloatingPanel == previousFloating && host.window.isVisible && notices == 1 && host.pages.count == 1, "Authorization did not restore the page and pending notice exactly once")
+    let noticeDeadline = Date().addingTimeInterval(1)
+    while notices == 0 && Date() < noticeDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+    try check(!host.authorizing && host.window.level == previousLevel && host.window.isFloatingPanel == previousFloating && host.window.isVisible && notices == 1 && host.pages.count == 1, "Authorization restoration: authorizing=\(host.authorizing), level=\(host.window.level.rawValue)/\(previousLevel.rawValue), floating=\(host.window.isFloatingPanel)/\(previousFloating), visible=\(host.window.isVisible), notices=\(notices), pages=\(host.pages.map(\.title))")
     let retry = host.beginAuthorization()
     try check(!host.window.isVisible, "Retry retained the Settings panel")
     retry()
@@ -102,13 +103,13 @@ func runReviewFixTests() throws {
     try check(app.externalFnItem.isEnabled && app.externalFnItem.action == #selector(AppDelegate.keyboardDetails), "Unavailable Fn mode did not route to its detailed recovery")
     try check(app.validateMenuItem(app.externalFnItem), "Menu validation blocks the keyboard setup route")
     let keyboard = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Saved keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
-    var profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68,0x69,nil,nil])]
-    let offline = NavigationProbePage(enumerate: { [] }, hasAccess: { false }, saveProfile: { _ in }, readProfiles: { profiles }, resetProfiles: { identity in profiles.removeAll { $0.identity == identity } })
+    let profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68,0x69,nil,nil])]
+    let offline = NavigationProbePage(enumerate: { [] }, hasAccess: { false }, saveProfile: { _ in }, readProfiles: { profiles })
     offline.show()
     try check(offline.picker.titleOfSelectedItem?.contains("disconnected") == true && offline.picker.isEnabled, "Saved disconnected keyboard cannot be selected")
     host.modalTestDriver = { _ in .alertFirstButtonReturn }
-    offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Reset saved layout…" }!.performClick(nil)
-    try check(profiles.isEmpty, "Offline keyboard removal did not target the selected saved layout")
+    offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Resets…" }!.performClick(nil)
+    try check(host.pages.last?.title == "Resets" && profiles.count == 1, "Offline keyboard reset did not open Resets without changing saved layouts")
     host.goBack()
     print("PASS: runtime argument identity; helper build verification; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
 }

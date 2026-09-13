@@ -119,7 +119,7 @@ final class EventCollectorSetup: NSObject {
             primary.title = "Checking…"; primary.isEnabled = false
             guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the link below."
         } else if !fresh {
-            primary.title = "Review background setup…"; primary.isEnabled = true
+            primary.title = "Background helpers in Setup…"; primary.isEnabled = true
             guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Review Setup → Background helpers, then return here to check collection."
         } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
             primary.title = "Retry health check"

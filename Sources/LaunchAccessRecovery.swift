@@ -61,7 +61,7 @@ final class KeyboardAccessPage {
         status.font = .systemFont(ofSize: 13); view.addSubview(status)
         instructions.font = .systemFont(ofSize: 13)
         instructions.frame = NSRect(x: 8, y: 175, width: 556, height: 245); view.addSubview(instructions)
-        review = SettingsActionButton(title: "Review permission setup…") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
+        review = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
         view.addSubview(review)
         let open = SettingsActionButton(title: "Open macOS Input Monitoring", action: openSettings)
         open.frame = NSRect(x: 0, y: 130, width: 330, height: 30); view.addSubview(open)
@@ -92,7 +92,7 @@ final class KeyboardAccessPage {
         let height: CGFloat = expanded ? 560 : 160
         repairControls.forEach { $0.isHidden = !expanded }
         review.isHidden = !granted
-        review.title = reviewing ? "Hide permission instructions" : "Review permission setup…"
+        review.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
         review.frame = NSRect(x: 0, y: expanded ? 425 : 15, width: 572, height: 30)
         status.stringValue = granted ? "✓ Keyboard access is ready. Perch can read supported external keyboards. Choose Keyboards or Keyboard layouts in the sidebar to review your devices." : LaunchAccessRecovery.summary
         status.textColor = granted ? StatusColors.success : StatusColors.warning

@@ -355,3 +355,17 @@ a locked remote computer is not evidence of missing permission. Check every
 entry route, including permission loss during learning and helper update failures.
 Do not mandate a separate Setup section for a product with one trivial permission
 or move routine customization merely because it was first chosen during setup.
+
+## Destination names and reset discoverability
+
+A settings checklist says “Review repair,” a ready permission page says “Review
+setup,” and a sidebar Reset page only forgets preferences. Sleep, privacy,
+appearance and saved-device resets are hidden in unrelated feature pages.
+
+Expected: identify unclear destination/disclosure wording and incomplete reset
+ownership as one journey defect. Name destinations and Show/Hide instructions
+accurately; inventory all reset entry points and make their scopes discoverable
+from the reset center. Contextual links must select that same owner. Preserve
+real review of proposed changes, ordinary editing, destructive confirmation,
+Cancel, disconnected devices, and failed-write retry. Do not perform live resets
+to prove navigation. Verify navigation separately from injected scoped writes.

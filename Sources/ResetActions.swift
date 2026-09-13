@@ -52,7 +52,7 @@ final class PrivacyResetOperation {
 }
 
 extension AppDelegate {
-    @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.privacyOnlyReset(global:true) } }
+    @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.openResets() } }
     func privacyOnlyReset(global: Bool, operation: PrivacyResetOperation = PrivacyOnlyReset.operation) {
         let page = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 320))
         let scope = global
@@ -101,7 +101,7 @@ extension AppDelegate {
         }
         confirm.identifier = .init("privacy.reset"); confirmReference = confirm
         confirm.frame = NSRect(x: 0, y: 54, width: 572, height: 32)
-        let recovery = SettingsActionButton(title: "Review Perch setup & status…") { [weak self] in self?.setupOverview() }
+        let recovery = SettingsActionButton(title: "Setup & status…") { [weak self] in self?.setupOverview() }
         recovery.frame = NSRect(x: 0, y: 10, width: 572, height: 32)
         [explanation, status, confirm, recovery].forEach { page.addSubview($0) }
         let timer = Timer(timeInterval: 0.25, repeats: true) { _ in update() }

@@ -34,10 +34,10 @@ final class PermissionSetup: NSObject {
         permissionDrag = drag
         drag.frame = NSRect(x: 210, y: 16, width: 290, height: 38)
         content.addSubview(drag)
-        reviewButton = SettingsActionButton(title: "Review permission setup…") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
+        reviewButton = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.reviewing.toggle(); self?.refresh() }
         reviewButton.frame = NSRect(x: 20, y: 195, width: 480, height: 30)
         content.addSubview(reviewButton)
-        repairButton = SettingsActionButton(title: "Review background helper setup…") {
+        repairButton = SettingsActionButton(title: "Background helpers in Setup…") {
             SettingsWindow.shared.navigateToSetupStage("maintenance")
         }
         repairButton.frame = NSRect(x: 20, y: 145, width: 480, height: 30)
@@ -69,7 +69,7 @@ final class PermissionSetup: NSObject {
         instructions.isHidden = readiness.route != "input" || (readiness.ready && !reviewing)
         permissionDrag.isHidden = instructions.isHidden || helperApp() == nil
         reviewButton.isHidden = !readiness.ready
-        reviewButton.title = reviewing ? "Hide permission instructions" : "Review permission setup…"
+        reviewButton.title = reviewing ? "Hide permission instructions" : "Show permission instructions"
         repairButton.isHidden = readiness.route != "repair"
         status.stringValue = readiness.message
         status.textColor = readiness.ready ? StatusColors.success : StatusColors.warning

@@ -43,7 +43,7 @@ enum KeyboardNavigationProfiles {
         guard let object = defaults.object(forKey: key) else { return [] }
         guard let data = object as? Data, data.count <= 131_072, let records = try? JSONDecoder().decode([NavigationKeyboardProfile].self, from: data),
               records.count <= 64, Set(records.map { $0.identity }).count == records.count, records.allSatisfy({ $0.valid }) else {
-            throw AppError(message: "Saved keyboard profiles could not be read. Reset the saved profiles in navigation setup.")
+            throw AppError(message: "Saved keyboard profiles could not be read. Open Resets → Keyboard layouts to reset saved profiles.")
         }
         return records
     }

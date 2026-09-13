@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 func runSettingsResetTests() throws {
     try runDeskInspectionTests()
@@ -51,4 +51,75 @@ func runSettingsResetTests() throws {
     guard PrivacyOnlyReset.arguments(global:false) == ["reset","All","local.scott.perch"],
           PrivacyOnlyReset.arguments(global:true) == ["reset","All"] else { throw AppError(message:"Privacy-only scope incorrect") }
     print("PASS: selective/full preference reset with disposable files/defaults; settings preserved by section; no services stopped or system settings changed; LG identity-to-input mapping")
+}
+
+func runResetNavigationTests() throws {
+    let host = SettingsWindow.shared
+    host.testing = true; host.pages = []
+    let app = AppDelegate(); app.installSettingsNavigation()
+    defer { host.modalTestDriver = nil; host.windowWillClose(Notification(name: NSWindow.willCloseNotification)); host.pages = [] }
+    func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: "Resets: " + message) } }
+    func buttons() -> [NSButton] { host.pages.last!.view.subviews.compactMap { $0 as? NSButton } }
+    for enter in [app.lidProtectionSetup, app.advancedSafetySettings, app.appSettings] {
+        enter()
+        guard let link = buttons().first(where: { $0.title == "Resets…" }) else { throw AppError(message: "Recovery page has no named Resets route") }
+        link.performClick(nil)
+        try check(host.pages.count == 1 && host.pages.last?.title == "Resets" && host.back.isHidden &&
+                  host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset", "contextual reset failed to choose its canonical sidebar home")
+    }
+    let root = host.pages.last!.view
+    for title in ["Saved Perch settings…", "Keyboard layouts…", "Menu appearance…", "Perch privacy permissions…", "Sleep & audio…", "All apps’ privacy permissions…"] {
+        buttons().first { $0.title == title }!.performClick(nil)
+        try check(host.pages.count == 2 && host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset" && !host.interactionBusy,
+                  "scope lost Resets ownership: " + title)
+        if title == "Saved Perch settings…" || title == "Sleep & audio…" {
+            try check(buttons().allSatisfy { $0.state == .off }, "navigation preselected a destructive scope")
+        }
+        host.goBack()
+        try check(host.pages.count == 1 && host.pages.last?.view === root, "Back discarded reset choices or returned to a feature")
+    }
+    let keyboard = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Disconnected fixture", transport: "USB", usages: NavigationLearning.usages.sorted())
+    var profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68, 0x69, nil, nil])]
+    var writes: [NavigationKeyboardIdentity?] = []
+    var failRead = false, failWrite = false
+    app.presentKeyboardLayoutReset(read: {
+        if failRead { throw AppError(message: "Unreadable fixture") }
+        return profiles
+    }, reset: { identity in
+        if failWrite { throw AppError(message: "Fixture write failed") }
+        writes.append(identity); profiles.removeAll { identity == nil || $0.identity == identity }
+    })
+    let popup = host.pages.last!.view.subviews.compactMap { $0 as? NSPopUpButton }.first!
+    let reset = buttons().first { $0.title == "Reset selected layout…" }!
+    try check(!reset.isEnabled && popup.numberOfItems == 3 && writes.isEmpty, "opening layout reset selected or erased data")
+    popup.selectItem(at: 2); popup.sendAction(popup.action, to: popup.target)
+    try check(reset.isEnabled, "choosing disconnected layout did not enable its reset")
+    host.modalTestDriver = { _ in .alertFirstButtonReturn }
+    reset.performClick(nil)
+    try check(writes.isEmpty && profiles.count == 1 && !host.interactionBusy, "Cancel changed layouts or trapped navigation")
+    host.modalTestDriver = { _ in .alertSecondButtonReturn }
+    failWrite = true; reset.performClick(nil)
+    try check(writes.isEmpty && popup.indexOfSelectedItem == 2 && reset.isEnabled, "failed reset lost selection/retry")
+    failWrite = false; reset.performClick(nil)
+    try check(writes.count == 1 && writes[0] == keyboard && profiles.isEmpty && popup.indexOfSelectedItem == 0 && !reset.isEnabled,
+              "successful targeted reset affected wrong scope or retained stale action")
+    host.goBack()
+    failRead = true
+    app.presentKeyboardLayoutReset(read: { throw AppError(message: "Unreadable fixture") }, reset: { identity in writes.append(identity) })
+    let unreadable = host.pages.last!.view.subviews.compactMap { $0 as? NSPopUpButton }.first!
+    unreadable.selectItem(at: 1); unreadable.sendAction(unreadable.action, to: unreadable.target)
+    buttons().first { $0.title == "Reset selected layout…" }!.performClick(nil)
+    try check(writes.count == 2 && writes.last! == nil, "unreadable layouts cannot be explicitly cleared")
+    host.goBack()
+    let domain = "perch.appearance-reset-test." + UUID().uuidString
+    let defaults = UserDefaults(suiteName: domain)!
+    defer { defaults.removePersistentDomain(forName: domain) }
+    let store = MenuAppearanceStore(defaults: defaults)
+    var custom = MenuAppearance(); custom.sections.thickness = 5; custom.system.greyBackground = true
+    store.save(custom); defaults.set("kept", forKey: "unrelated")
+    app.presentAppearanceReset(store: store)
+    try check(store.value == custom, "opening appearance reset changed styling")
+    buttons().first { $0.title == "Restore original appearance" }!.performClick(nil)
+    try check(store.value == MenuAppearance() && defaults.string(forKey: "unrelated") == "kept", "appearance reset omitted System or touched other choices")
+    print("PASS: canonical Resets from setup/features; six scopes and Back; disconnected/unreadable layouts, Cancel/failure/retry and exact writes; scoped appearance defaults")
 }

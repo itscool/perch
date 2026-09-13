@@ -27,7 +27,7 @@ struct DeskInputSettings: View {
             if let issue = adapter.accessProblem {
                 Text(issue).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 if adapter.needsPermissionSetup {
-                    Button("Review shared input access in Setup…") { SettingsWindow.shared.navigateToSetupStage("sharing-access") }
+                    Button("Shared input access in Setup…") { SettingsWindow.shared.navigateToSetupStage("sharing-access") }
                 } else {
                     Button("Retry sharing") { adapter.enable(true) }
                 }

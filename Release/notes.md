@@ -1,3 +1,5 @@
+Normal closed-lid battery timeout now stays in Lid activity without a wake dialog. Unexpected sleep during expected protection uses a standalone notice; Settings keeps its current page unless you choose View lid activity.
+
 Settings, including Setup, can now be resized and remembers your chosen size. Resets shows a single checklist with each scope explained inline, an inline keyboard selector, explicit confirmation, and per-area results/retry. Repair links highlight the relevant unchecked row and retain the return to your setup step. All-app privacy remains a separate action.
 
 Repair links now open the specific reset option and return to the same setup step or feature page. Lid repair exposes sleep-only recovery; background repair targets Perch-only permissions. Cancelling or completing the reset retains a labeled return, while sidebar navigation ends that temporary journey.

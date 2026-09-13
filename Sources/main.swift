@@ -129,18 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         observeHelperPresentation()
         LidGuardClient.shared.start()
         lidSleepNotice.show = { [weak self] _, detail, acknowledge in
-            guard let self else { return }
-            self.withMenuClosed {
-                SettingsWindow.shared.afterInteraction {
-                    let alert = NSAlert(); alert.messageText = "Your Mac slept with the lid closed"
-                    alert.informativeText = detail; alert.alertStyle = .informational
-                    alert.addButton(withTitle: "View lid activity"); alert.addButton(withTitle: "Close")
-                    SettingsWindow.shared.present(alert) { result in
-                        acknowledge()
-                        if result == .alertFirstButtonReturn { self.configureSettings(); self.lidActivity() }
-                    }
-                }
-            }
+            self?.presentLidSleepNotice(detail: detail, acknowledge: acknowledge)
         }
         lidSleepNotice.start()
         AppUpdate.completeLaunch { [weak self] in

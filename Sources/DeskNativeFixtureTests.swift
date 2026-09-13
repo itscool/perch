@@ -62,4 +62,11 @@ func runDeskNativeFixture() throws {
     SettingsWindow.shared.window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
     if CommandLine.arguments.contains("--show-about") { app.about() }
+    if CommandLine.arguments.contains("--show-sleep-notice") {
+        // Let NSApp finish launching before entering the native modal loop,
+        // matching production delivery after wake rather than blocking startup.
+        DispatchQueue.main.async {
+            app.presentLidSleepNotice(detail: "Fixture: macOS reported sleep while lid protection was active. This is a simulated unexpected-sleep notice; no sleep or power changes were performed.", acknowledge: {})
+        }
+    }
 }

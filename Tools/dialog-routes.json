@@ -257,12 +257,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
     "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
   },
-  "main.swift:applicationDidFinishLaunching:alert:1": {
-    "file": "main.swift",
-    "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "PanicUI.swift:configurePanic:menu-entry:1": {
     "file": "PanicUI.swift",
     "kind": "menu-entry",
@@ -352,5 +346,9 @@
     "kind": "page",
     "review": "RESET-CHECKLIST-AND-RESIZE.md: flat scope selection, inline keyboard target, explicit frozen confirmation, partial results, retry and contextual highlight/return.",
     "acceptance": "Injected operations and disposable preferences; test and native evidence recorded in RESET-CHECKLIST-AND-RESIZE.md. No live reset is authorized by these checks."
+  },
+  "LidSleepNotice.swift:presentLidSleepNotice:alert:1": {
+    "review": "LID-SLEEP-NOTICE-2.0.md: expected grace expiry remains log-only; evidenced unexpected sleep uses a standalone native modal with OK and View lid activity.",
+    "acceptance": "Temporal classification and delivery tests, isolated modal ownership plus native fixture dismissal; no live sleep or hardware changes."
   }
 }

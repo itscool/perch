@@ -271,3 +271,16 @@ it stable through page changes; Setup uses available width and height.
 See RESET-CHECKLIST-AND-RESIZE.md for automated/native evidence and limitations.
 This candidate supersedes prepared 2.0.101 and is not installed, notarized or
 published. Installed/public 2.0.94 is unchanged.
+
+## Unexpected sleep notice — candidate 2.0.103
+
+Expected closed-lid battery grace expiry remains in Lid activity and no longer
+produces a wake dialog. A saved choice alone is insufficient: notice delivery
+requires active protection or evidence of an interruption/lost supervision, while
+current-interval timeout/disable records suppress it. Unexpected incidents use a
+standalone native modal, leaving Settings in place. View lid activity follows the
+normal navigation path and its draft rules. See LID-SLEEP-NOTICE-2.0.md.
+
+The configurable 1–20 minute grace and one-time meeting shortcut are a separate
+proposal awaiting timer semantics; this correction does not alter enforcement.
+No live sleep, helper replacement, installation, notarization or publication.

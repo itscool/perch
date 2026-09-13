@@ -422,3 +422,16 @@ release history, or claim a prototype proves runtime behavior.
 Boundary: “Add a launch-at-login preference to this established settings page”
 should inherit its save/navigation conventions and handle an unavailable or failed
 write. It must not trigger a new sidebar, setup wizard, reset center or framework.
+
+## Expected automation versus an incident
+
+A utility intentionally stops protection after a configured grace interval and
+records the result. Its wake observer sees a saved enable flag plus a briefly stale
+active status, then replaces the user's Settings page with an error about sleep.
+
+Expected: planned expiry remains in history without an incident dialog. Correlate
+current-interval evidence, including reordered callbacks; old expiry records must
+not suppress a later actual interruption. Distinguish saved intent from active
+protection. Where acknowledgement of an unexpected incident is warranted, use a
+separate notice, defer during existing interactions and preserve Settings drafts.
+Open history only when requested; missing evidence cannot establish a cause.

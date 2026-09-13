@@ -1,7 +1,7 @@
 # Perch work checklist
 
 2.0 development, September 13, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.102 corrections have bounded
+in /Applications. 2.0.94 is published; signed 2.0.103 corrections have bounded
 native/automated acceptance and await installation and physical QA. Categories
 are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
@@ -9,6 +9,12 @@ order. Dependencies take precedence: public signing precedes public Sparkle rele
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [x] **Normal lid timeout raised an unexpected-sleep dialog.** Normal helper or
+  watchdog grace expiry stays in Lid activity and clears only the pending notice.
+  Inactive saved intent alone does not trigger it. Unexpected protection loss uses
+  a standalone acknowledgement with optional View lid activity, preserving the
+  current Settings page. See LID-SLEEP-NOTICE-2.0.md; not installed.
 
 - [x] **Reset choices required unnecessary subpage discovery; Setup could not resize.**
   Resets now has unchecked scopes and inline keyboard targets, one confirmation,
@@ -128,6 +134,18 @@ bounded real native journeys are recorded in NATIVE-QA-2.0.95.md. Actual hardwar
 remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
+
+- [ ] **Configurable closed-lid battery grace and one-time meeting shortcut.**
+  Proposed: normal delay 1–20 minutes (default 1), clear enclosed-bag caution above
+  5 minutes (a UX threshold, not a safety guarantee), one-time duration default 10
+  capped at 20. Pending choice: start the countdown at the keypress (simpler revised proposal)
+  or at closed-lid battery entry. For the latter, expire unused arming after 10
+  minutes. Deliberate presses may restart the chosen countdown with visible
+  feedback; ignore held-key repeats and require release between activations.
+  The proposed 20-minute cap applies per deliberate activation. Opening the
+  lid/stable power clears a consumed override. Carry agreed policy through the helper,
+  watchdog, restart handoff, settings, shortcut and logs; expected expiry remains
+  log-only. Do not implement unresolved timer semantics as an assumed decision.
 
 - [x] **One home for setup and recovery.** Permissions, background-helper repair,
   lid-helper maintenance and collector setup are grouped beneath Setup. Keyboard,
@@ -314,7 +332,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.102 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.103 candidate is prepared with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

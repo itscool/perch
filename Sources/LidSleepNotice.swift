@@ -21,15 +21,45 @@ struct LidSleepIncident: Codable, Equatable {
         }
         return next?.message.contains("wake completed") == true
     }
+    private func precedingEvents(_ events: [LidActivityEntry]) -> [LidActivityEntry] {
+        // Anchor to the helper's notification when available: its callback and
+        // NSWorkspace's callback can arrive on opposite sides of the last log write.
+        let sleep = events.filter { $0.message == "macOS notification: system sleep is beginning." && abs($0.date.timeIntervalSince(began)) < 10 }
+            .min { abs($0.date.timeIntervalSince(began)) < abs($1.date.timeIntervalSince(began)) }
+        let end = sleep?.date ?? began
+        let before = events.filter { $0.date <= end && $0.date >= end.addingTimeInterval(-120) }.sorted { $0.date < $1.date }
+        let boundary = before.lastIndex {
+            $0.message.contains("wake completed") || $0.message == "Enable lid protection requested." ||
+            $0.message.contains("pending idle-sleep attempt was cancelled") ||
+            ($0.message == "macOS notification: system sleep is beginning." && $0.id != sleep?.id)
+        }
+        return boundary.map { Array(before.suffix(from: before.index(after: $0))) } ?? before
+    }
+    func shouldNotify(events: [LidActivityEntry]) -> Bool {
+        let recent = precedingEvents(events)
+        // A normal battery grace expiry is expected, even if the last app-side
+        // status still says armed. Keep the existing journal; clear only the notice.
+        if recent.contains(where: {
+            $0.message.hasPrefix("Lid not opened and external power not restored within 60 seconds.") ||
+            $0.message == "Watchdog recovery: The lid stayed closed on battery for 60 seconds. Requesting sleep." ||
+            $0.message == "Disable lid protection requested."
+        }) { return false }
+        let lostProtection = recent.contains {
+            $0.message == "App heartbeat expired. Ending lid protection." ||
+            $0.message == "Independent watchdog confirmation was lost. Ending lid protection." ||
+            $0.message.hasPrefix("Independent recovery restored normal system sleep")
+        }
+        let interrupted = events.contains {
+            abs($0.date.timeIntervalSince(began)) < 2 && $0.message.hasPrefix("Sleep interrupted an active lid session.")
+        }
+        // A saved choice alone does not establish that sleep was unexpected.
+        return protectionRequested == true || lostProtection || interrupted
+    }
     func explanation(events: [LidActivityEntry]) -> String {
-        // A previous sleep/wake or new session is an attribution boundary.
-        // A nearby command is evidence of a request, never proof of causality.
-        let before = events.filter { $0.date <= began && $0.date >= began.addingTimeInterval(-120) }.sorted { $0.date < $1.date }
-        let boundary = before.lastIndex { $0.message.contains("wake completed") || $0.message == "Enable lid protection requested." }
-        let recent = boundary.map { Array(before.suffix(from: before.index(after: $0))) } ?? before
+        let recent = precedingEvents(events)
         let expiry = recent.contains { $0.message.hasPrefix("Lid not opened and external power not restored within 60 seconds.") }
         let supervision = recent.contains { $0.message == "App heartbeat expired. Ending lid protection." || $0.message == "Independent watchdog confirmation was lost. Ending lid protection." || $0.message.hasPrefix("Independent recovery restored normal system sleep") }
-        var detail = "macOS reported sleep and then wake while your saved lid choice was on. "
+        var detail = "Your Mac slept while Perch was expected to keep it awake with the lid closed. "
         if expiry { detail += "Before sleep, Perch recorded that the 60-second interval expired without the lid opening or external power being restored, and requested sleep." }
         else if supervision { detail += "Before sleep, Perch recorded lost supervision and ended lid protection. Normal system sleep was allowed again." }
         else if protectionRequested == false { detail += "Lid protection was already inactive when sleep began." }
@@ -90,7 +120,9 @@ final class LidSleepNotice {
                 guard self.pending?.id == incident.id else { self.presenting = false; return }
                 // After a process restart, a will-sleep notification alone is
                 // insufficient: require the same sleep interval's wake record.
-                guard incident.hasWakeEvidence(events: events), let show = self.show else { self.presenting = false; return }
+                guard incident.hasWakeEvidence(events: events) else { self.presenting = false; return }
+                guard incident.shouldNotify(events: events) else { self.pending = nil; self.presenting = false; return }
+                guard let show = self.show else { self.presenting = false; return }
                 show(incident, incident.explanation(events: events)) {
                     if self.pending?.id == incident.id { self.pending = nil }
                     self.presenting = false
@@ -99,4 +131,27 @@ final class LidSleepNotice {
         }
     }
     deinit { for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) } }
+}
+
+
+extension AppDelegate {
+    func presentLidSleepNotice(detail: String, acknowledge: @escaping () -> Void) {
+        withMenuClosed { [weak self] in
+            guard let self else { return }
+            SettingsWindow.shared.afterInteraction {
+                let alert = NSAlert(); alert.messageText = "Your Mac slept unexpectedly"
+                alert.informativeText = detail; alert.alertStyle = .informational
+                alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "View lid activity")
+                SettingsWindow.shared.presentStandaloneNotice(alert) { result in
+                    guard result != .abort else { return }
+                    acknowledge()
+                    if result == .alertSecondButtonReturn {
+                        let host = SettingsWindow.shared
+                        if !host.hasSidebar { self.installSettingsNavigation() }
+                        if let destination = host.sidebar.destinations.first(where: { $0.id == "lid-activity" }) { host.navigate(to: destination) }
+                    }
+                }
+            }
+        }
+    }
 }

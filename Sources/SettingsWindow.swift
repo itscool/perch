@@ -53,7 +53,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private(set) var modal = false { didSet { updateSidebar() } }
     private(set) var picking = false { didSet { updateSidebar() } }
     private(set) var externalHandoff = false { didSet { updateSidebar() } }
-    var interactionBusy: Bool { authorizing || modal || picking || externalHandoff }
+    private(set) var standaloneNotice = false { didSet { updateSidebar() } }
+    var standaloneNoticeTestDriver: ((NSAlert) -> NSApplication.ModalResponse)?
+    var interactionBusy: Bool { authorizing || modal || picking || externalHandoff || standaloneNotice }
     private(set) var authorizing = false { didSet { updateSidebar() } }
     private var authorizationDepth = 0
     private var authorizationRestore: (() -> Void)?
@@ -407,7 +409,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         pages.append(page); display(page)
     }
     @objc func goBack() {
-        guard !picking, !authorizing else { return }
+        guard !picking, !authorizing, !standaloneNotice else { return }
         if modal { if modalAllowsCancel, let activeAlert { finish(activeAlert, response: cancelCode) }; return }
         guard pages.last?.beforeBack?() != false else { return }
         guard pages.count > 1 else {
@@ -529,6 +531,22 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             notifyAccessibilityPage()
         }
     }
+    /// A native app-modal notice owns its own window and modal loop. Settings
+    /// keeps its current page/draft and is never opened to show this notice.
+    func presentStandaloneNotice(_ alert: NSAlert, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+        guard !interactionBusy else { afterInteraction { [weak self] in self?.presentStandaloneNotice(alert, completion: completion) }; return }
+        standaloneNotice = true
+        let response: NSApplication.ModalResponse
+        if testing { response = standaloneNoticeTestDriver?(alert) ?? .abort }
+        else {
+            alert.window.level = .floating
+            NSApp.activate(ignoringOtherApps: true)
+            response = alert.runModal()
+        }
+        standaloneNotice = false
+        completion(response)
+        drainPresentationQueue()
+    }
     @discardableResult
     func finish(_ alert: NSAlert, response: NSApplication.ModalResponse = .stop) -> Bool {
         guard modal, activeAlert === alert, !picking, !authorizing, modalResponseRequested == nil else { return false }
@@ -584,7 +602,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         return result
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard !picking, !authorizing else { return false }
+        guard !picking, !authorizing, !standaloneNotice else { return false }
         if modal { if modalAllowsCancel, let activeAlert { finish(activeAlert, response: cancelCode) }; return false }
         return true
     }

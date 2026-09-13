@@ -58,6 +58,22 @@ func runSleepPresentationTests() throws {
     try check(!incident.hasWakeEvidence(events: [sleepEvent, cancelEvent, wakeEvent]), "Cancelled attempt borrowed a later wake")
     let unknownIncident = LidSleepIncident.capture(wanted: true, observation: .init(closed: true, power: .unknown), active: nil, now: now)!
     try check(unknownIncident.explanation(events: []).contains("could not be confirmed"), "Stale helper status was presented as definitely inactive")
+    try check(!incident.shouldNotify(events: [expiry, sleepEvent, wakeEvent]), "Expected grace expiry raised an unexpected-sleep notice")
+    let watchdogExpiry = LidActivityEntry(date: expiry.date, source: "Watchdog", message: "Watchdog recovery: The lid stayed closed on battery for 60 seconds. Requesting sleep.")
+    try check(!incident.shouldNotify(events: [watchdogExpiry, sleepEvent, wakeEvent]), "Watchdog grace expiry raised a notice")
+    try check(incident.shouldNotify(events: []) && incident.shouldNotify(events: [stale]), "Active unexpected sleep was suppressed by missing/stale history")
+    let cancelled = LidActivityEntry(date: now.addingTimeInterval(-0.5), source: "Helper", message: cancelEvent.message)
+    let enabled = LidActivityEntry(date: cancelled.date, source: "Helper", message: "Enable lid protection requested.")
+    for boundary in [wake, cancelled, enabled] {
+        try check(incident.shouldNotify(events: [expiry, boundary, sleepEvent]), "Earlier expiry suppressed a new sleep interval/session")
+    }
+    var inactive = incident; inactive.protectionRequested = false
+    try check(!inactive.shouldNotify(events: []) && !unknownIncident.shouldNotify(events: []), "Saved intent alone was labeled unexpected sleep")
+    let failed = LidActivityEntry(date: expiry.date, source: "Helper", message: "Independent watchdog confirmation was lost. Ending lid protection.")
+    try check(inactive.shouldNotify(events: [failed]), "Lost protection failure was hidden")
+    let laterExpiry = LidActivityEntry(date: now.addingTimeInterval(0.2), source: "Helper", message: expiry.message)
+    let laterSleep = LidActivityEntry(date: now.addingTimeInterval(0.3), source: "Helper", message: sleepEvent.message)
+    try check(!incident.shouldNotify(events: [laterExpiry, laterSleep, wakeEvent]), "Callback ordering turned normal timeout into unexpected sleep")
     let domain = "perch.sleep-notice-test." + UUID().uuidString
     let defaults = UserDefaults(suiteName: domain)!
     defer { defaults.removePersistentDomain(forName: domain) }
@@ -78,8 +94,31 @@ func runSleepPresentationTests() throws {
     delivery.deliver(); try check(delivered == 1, "An open wake notice was presented again")
     acknowledge?(); delivery.deliver()
     try check(delivery.pending == nil && delivered == 1, "Acknowledged notice repeated")
+    let expectedDelivery = LidSleepNotice(defaults: defaults, readEvents: { [expiry, sleepEvent, wakeEvent] })
+    expectedDelivery.show = { _, _, _ in delivered += 1 }
+    expectedDelivery.pending = incident; expectedDelivery.deliver()
+    let suppressedDeadline = Date().addingTimeInterval(2)
+    while expectedDelivery.pending != nil && Date() < suppressedDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+    try check(expectedDelivery.pending == nil && delivered == 1, "Expected timeout notice was delivered or persisted for another launch")
     let host = SettingsWindow.shared
     host.testing = true
+    let preservedPages = host.pages.map(\.title), wasVisible = host.window.isVisible
+    var noticeAcknowledged = 0, noticeShown = 0, deferred = false
+    host.standaloneNoticeTestDriver = { alert in
+        noticeShown += 1
+        precondition(alert.window !== host.window && host.standaloneNotice && host.interactionBusy)
+        precondition(host.pages.map(\.title) == preservedPages && host.window.isVisible == wasVisible)
+        host.afterInteraction { deferred = true }
+        return .alertFirstButtonReturn
+    }
+    app.presentLidSleepNotice(detail: incident.explanation(events: []), acknowledge: { noticeAcknowledged += 1 })
+    try check(noticeShown == 1 && noticeAcknowledged == 1 && !host.interactionBusy && !deferred, "Standalone notice lost acknowledgement or interaction ownership")
+    app.installSettingsNavigation()
+    host.standaloneNoticeTestDriver = { _ in .alertSecondButtonReturn }
+    app.presentLidSleepNotice(detail: "Fixture", acknowledge: { noticeAcknowledged += 1 })
+    try check(noticeAcknowledged == 2 && host.pages.last?.title == "Lid activity" && host.pages.count == 1, "View activity did not navigate to its Settings owner")
+    host.standaloneNoticeTestDriver = nil
+
     app.configureSettings(); app.presentKeyboardAccess(readAccess: { false })
     try check(host.pages.last?.title == "Keyboard access" && host.pages.last!.view.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("already enabled") && !$0.isHidden }, "Access recovery omitted the existing-grant journey")
     try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Show Perch in Finder" }, "Access recovery has no route to the installed copy")

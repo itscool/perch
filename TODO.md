@@ -136,8 +136,12 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Appearance preview order.** Compact samples now use the first four main-
+  menu sections: System, Agent Kill Switch, Display, Audio. Source follow-up after
+  2.0.106; not installed.
+
 - [x] **Running version in the menu.** The Perch section title includes the cached
-  running version, shared with About and shown in appearance previews. Its
+  running version, shared with About. Its
   canonical section identity keeps the existing palette/icon/group behavior.
   About also describes the current Desk/input and local Mac features, with one
   restrained brand line. Installed in 2.0.106; compile checked, visual acceptance deferred during manual Desk testing.

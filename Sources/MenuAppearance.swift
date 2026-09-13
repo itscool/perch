@@ -312,22 +312,31 @@ final class MenuAppearancePreviewHost: NSView {
     var rows: [MenuRowView] = []
     override init(frame: NSRect) {
         super.init(frame: frame)
-        for (title, kind) in [("System", MenuRowView.Kind.section), ("CPU 12% · Memory 48%", .information), ("Sleep", .section), ("Keep awake", .toggle), ("Audio", .section), ("Mute audio", .toggle), ("Perch", .section), ("Settings…", .command)] {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            let row = MenuRowView(item: item, kind: kind)
-            // NSMenu takes ownership of its item views' frames. A preview retains
-            // the model items directly and owns its own layout instead.
-            row.setAccessibilityElement(false)
-            items.append(item); rows.append(row); addSubview(row)
+        // Show the first four main-menu sections, in their actual order.
+        let sections: [(String, String, MenuRowView.Kind)] = [
+            ("System", "CPU 12%", .information),
+            ("Agent Kill Switch", "Panic…", .command),
+            ("Display", "Turn display off", .command),
+            ("Audio", "Mute audio", .toggle)
+        ]
+        for (section, sample, sampleKind) in sections {
+            for (title, kind) in [(section, MenuRowView.Kind.section), (sample, sampleKind)] {
+                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                let row = MenuRowView(item: item, kind: kind)
+                row.panelSection = section
+                // The preview owns layout and exposes no sample actions.
+                row.setAccessibilityElement(false)
+                items.append(item); rows.append(row); addSubview(row)
+            }
         }
     }
+
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
         super.layout()
         setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel(dark ? "Dark menu preview" : "Light menu preview")
         var y = bounds.height
         for (i, row) in rows.enumerated() {
-            row.panelSection = i < 2 ? "System" : i < 4 ? "Sleep" : i < 6 ? "Audio" : "Perch"
             row.panelPart = i % 2 == 0 ? .top : .bottom
             row.appearanceOverride = value
             let style = value.style(row.panelSection, dark: dark)

@@ -1,8 +1,9 @@
 # Perch work checklist
 
 2.0 development, September 13, 2026. Developer ID 2.0.110 is installed on disk
-in /Applications; the existing 2.0.106 process remains running through
-LaunchServices until Scott restarts it. The previous bundle is retained.
+in /Applications. After the bundle swap, Perch’s own restart handoff launched
+2.0.110 (PID 74095); the agent did not quit or relaunch it. The previous bundle
+is retained.
 Public/notarized remains 2.0.94; 2.0.110 is not notarized or published. Latest source and
 builds have bounded native/automated acceptance; physical QA and coordinated
 helper/protocol 3 maintenance remain. Dated installation statements below are
@@ -32,7 +33,7 @@ This supersedes stale open-item wording in dated review checkpoints.
   repeated local clicks. Discovery, listener, peer and pairing errors have separate
   recovery lifetimes; failed redundant routes do not obscure a working peer.
   Source and isolated TLS tests pass; native two-Mac acceptance remains pending.
-  Included in the on-disk 2.0.110 candidate; restart pending.
+  Included in the installed 2.0.110 candidate.
   See DESK-JOINING-AND-APPEARANCE-2.0.md.
 
 - [x] **Normal lid timeout raised an unexpected-sleep dialog.** Normal helper or

@@ -43,8 +43,10 @@ func runAppUpdateTests() throws {
     helper.helper = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true)
     host.pages.last?.refresh?()
     try check(finish.isEnabled, "Opening the lid did not expose helper completion")
+    try check(finish.contentTintColor == StatusColors.warning && page.view.subviews.compactMap { $0 as? SettingsStatusField }.first?.textColor == StatusColors.warning, "Queued helper update lost its attention color")
     helper.busy = true; host.pages.last?.refresh?()
     try check(!finish.isEnabled, "Busy helper update allowed competing installation")
+    try check(finish.contentTintColor == nil, "In-progress helper installation still asks for an action")
     helper.busy = false; helper.result = "Helper update is still queued. Administrator authorization was canceled."
     host.pages.last?.refresh?()
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-helper-update-recovery.png")

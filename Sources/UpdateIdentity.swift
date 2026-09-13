@@ -52,7 +52,9 @@ enum NetworkUpdateHandoffFile {
             throw AppError(message: "The update folder must not be a symbolic link.")
         }
         let data = try JSONEncoder().encode(record)
-        try data.write(to: url, options: [.atomic, .completeFileProtectionUnlessOpen])
+        // A new process must reopen the record after restart. Use macOS's
+        // after-login class; "unless open" can make a closed file unreadable.
+        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
     static func read() -> NetworkUpdateHandoff? {

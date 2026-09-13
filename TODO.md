@@ -1,12 +1,23 @@
 # Perch work checklist
 
-2.0 development, September 10, 2026. Developer ID 2.0.94 is notarized and installed
+2.0 development, September 12, 2026. Developer ID 2.0.94 is notarized and installed
 in /Applications. 2.0.94 is published; source corrections are awaiting native acceptance and installation. Categories are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
 order. Dependencies take precedence: public signing precedes public Sparkle releases.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [x] **Update handoff and Desk files could not reopen after saving.** Corrected
+  file-protection class while retaining atomic writes and owner-only modes.
+  Round-trip/network regressions and a real disposable Sparkle restart/claim pass.
+- [x] **Lid update attention and misleading active-session wording.** Queued
+  helper updates use warning colors; active status explains the helper report
+  and macOS limitation separately. Source-only until the next installation.
+- [ ] **Disposable Sparkle installation stalled under Documents.** Installer
+  blocked in a macOS rename operation after the old app quit. The same route
+  passed in /private/tmp; root cause and actual /Applications acceptance remain
+  unresolved. No permission reset or verification bypass. NATIVE-QA-2.0.95.md.
 
 - [x] **Local builds could abort before embedding Sparkle.** macOS Bash 3.2
   rejects empty optional arrays under `set -u`, leaving a compiled app that
@@ -84,8 +95,8 @@ These fixes are included in the installed 2.0.94 app:
 standard text-editing shortcuts and input handoff/ordering failures described in
 RELEASE-2.0.md. They are included in the installed app; hardware acceptance remains open.
 
-The prior 2.0.94 checkpoint passed 23/23 isolated regression suites; the pending
-setup-fix fixture has only been compiled. Actual hardware and broader native QA
+The latest corrected-source checkpoint passed 23/23 isolated regression suites;
+bounded real native journeys are recorded in NATIVE-QA-2.0.95.md. Actual hardware and broader native QA
 remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
@@ -200,6 +211,8 @@ remain open; this is not a claim that untested behavior is defect-free.
    production-route/dynamic-list journeys and coordinated OS
    permission/authorization handoffs. See ACCESSIBILITY-REVIEW-81.md and
    SETTINGS-SIDEBAR-82.md. Metadata and harmless-lab input are not full acceptance.
+   September 12: real sidebar arrow navigation, Tab focus and Space activation
+   passed in the isolated Settings fixture; spoken VoiceOver remains open.
 9. [ ] **Performance and memory.** A read-only 30-second installed 1.2.87 baseline
    passed (30/30 healthy, combined app/helpers excluding observer about 1.23% CPU);
    this does not measure the new input adapter. Idle, open menu, input activity, process bursts
@@ -209,6 +222,9 @@ remain open; this is not a claim that untested behavior is defect-free.
     bad signatures, interruption, cancellation, retry, replacement, permission
     continuity, active lid handoff, helper compatibility and external Homebrew
     replacement. See DISTRIBUTION.md for install-on-quit and identity requirements.
+    September 12: native cancellation, bad ZIP signature rejection, failed
+    simulated handoff and successful retry/replacement/relaunch passed. Physical
+    lid transfer, public update permissions and the Documents-folder stall remain.
 11. [ ] **Desk monitor-only acceptance — next.** Join the two real Macs; verify
     cross-Mac edits, restart/reconnect and conflict recovery, identify/match screens,
     map actual ports, and use all presets in both directions. Test one/two screens,

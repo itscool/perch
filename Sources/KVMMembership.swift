@@ -74,7 +74,9 @@ struct KVMDeskArchive: Codable {
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         guard directory.standardizedFileURL == directory.resolvingSymlinksInPath().standardizedFileURL else { throw KVMError("Desk storage must not be a symbolic link.") }
-        try bytes.write(to: url, options: [.atomic, .completeFileProtectionUnlessOpen])
+        // Reopen after app/session restarts using macOS after-login protection,
+        // retaining the owner-only directory/file modes below.
+        try bytes.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }

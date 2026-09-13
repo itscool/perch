@@ -57,7 +57,7 @@ final class LidHelperUpdate {
             LidGuardClient.shared.change(true) { outcome in
                 self.busy = false
                 switch outcome {
-                case .success: self.result = "Lid helper updated. Your active lid choice was restored with the lid open; continued sleep prevention remains unverified."
+                case .success: self.result = "Lid helper updated and the session resumed with the lid open. macOS can still force sleep; check Lid activity if the Mac sleeps unexpectedly."
                 case .failure(let error): self.result = "Lid helper updated, but protection could not resume. " + error.localizedDescription
                 }
             }

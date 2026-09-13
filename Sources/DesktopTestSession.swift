@@ -13,7 +13,15 @@ enum DesktopTestSession {
         let task = Process(); task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         task.arguments = ["python3", checker, "check", "--session", session]
         task.standardInput = FileHandle.nullDevice
-        try task.run(); task.waitUntilExit()
+        try task.run()
+        let deadline = ProcessInfo.processInfo.systemUptime + 5
+        while task.isRunning && ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        guard !task.isRunning else {
+            task.terminate()
+            throw AppError(message: "AGENT MODE check timed out. Stop desktop tests; do not bypass the session check.")
+        }
         guard task.terminationStatus == 0 else {
             throw AppError(message: "AGENT MODE is not active or control was requested. Stop desktop tests and hand control back.")
         }

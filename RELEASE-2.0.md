@@ -29,6 +29,17 @@ isolated QA and hardware acceptance.
 
 ## Pending setup corrections
 
+September 12 native QA: the corrected-source fixture now passes 23/23 isolated
+suites. Real picker cancellation/return, custom app exception creation/persistence,
+sidebar keyboard navigation and setup return passed. A disposable Sparkle
+failure/retry replaced and relaunched the app, claiming its exact saved identity.
+That test exposed unreadable update-handoff/Desk files; both stores now use
+after-login file protection while retaining owner-only modes. Pending lid-helper
+updates now use attention colors, and active-session wording distinguishes the
+helper's report from a guarantee that macOS will stay awake. These changes are
+not installed. See NATIVE-QA-2.0.95.md for evidence and the unresolved
+Documents-folder installer stall; physical lid transfer remains untested.
+
 Local build packaging also fixes macOS Bash 3.2 aborting before Sparkle embedding
 and final signing. Complete staged bundles must pass runtime-path, architecture,
 framework-layout and nested-signature verification before replacing the output.
@@ -50,7 +61,7 @@ and explicit lid setup/resume. First use revisits missing required prerequisites
 Settings uses sidebar navigation without Close buttons; prerequisite pages opened
 from the setup checklist offer Back to setup and retain that context on failure.
 See SETUP-REVIEW-2.0.94.md for the per-finding changes and verification boundary.
-The fix fixture is compile-only under the user's no-control instruction; no
+The fix fixture has now been exercised under AGENT MODE; no
 updated live app or public release is being claimed. 2.0.94's app and installer
 are notarized and public, with verified anonymous downloads and update feed.
 
@@ -65,7 +76,7 @@ exceptions, direct Desk/input sidebar pages, contextual Appearance controls, and
 Ready/optional-review keyboard permission state. The main menu design is retained.
 
 Pure draft/conflict value tests and the source ownership gate passed. Native
-regressions are compiled only, with execution and real-route acceptance pending.
+regressions passed; bounded real-route acceptance is recorded in NATIVE-QA-2.0.95.md.
 These corrections are not included in installed/public 2.0.94. See
 SETTINGS-UX-REVIEW-2.0.94.md for the complete disposition and evidence boundary.
 

@@ -116,6 +116,7 @@ extension AppDelegate {
             let helper = readHelper()
             repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
             repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
+            repair.contentTintColor = helper.helper.pending && !helper.busy ? StatusColors.warning : nil
             let guarded = LidGuardClient.shared.active
             lid.state = presentation.lid
             lid.isEnabled = presentation.lidEnabled
@@ -141,7 +142,10 @@ extension AppDelegate {
             }
             if let result = helper.result { page?.status.stringValue += "\n" + result }
             else if helper.helper.pending { page?.status.stringValue += "\n" + helper.helper.notice }
-            page?.status.textColor = self.observedLidDisabled == true ? StatusColors.warning : .labelColor
+            let needsAttention = self.observedLidDisabled == true || helper.helper.pending ||
+                LidGuardClient.shared.status?.error != nil ||
+                (remembered && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing)
+            page?.status.textColor = needsAttention ? StatusColors.warning : .labelColor
         }
         page.show(delegate: self)
     }

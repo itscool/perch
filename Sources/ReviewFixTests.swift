@@ -36,7 +36,7 @@ func runReviewFixTests() throws {
 
     try PropertyListSerialization.data(fromPropertyList: expected, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
     try check(!GuardianInstall.buildMatches(executable: executable, appInfo: expected, verifyPublisher: { _ in false }), "Same build from another publisher passed startup readiness")
-    try check(GuardianInstall.inputPermissionApp(arguments: [SafetyFiles.binary.path, "--input-helper"]) == SafetyFiles.helperApp, "User helper permission target ignored the active job")
+    try check(GuardianInstall.inputPermissionApp(arguments: [SafetyFiles.binary.path, "--input-helper"])?.standardizedFileURL.path == SafetyFiles.helperApp.standardizedFileURL.path, "User helper permission target ignored the active job")
     try check(GuardianInstall.inputPermissionApp(arguments: [GuardianInstall.protectedBinary.path, "--input-helper"])?.path == "/Library/Application Support/Perch/Perch Helper.app", "Protected helper job did not select its own permission target")
     try check(GuardianInstall.inputPermissionApp(arguments: ["/tmp/unrelated", "--input-helper"]) == nil, "Unknown executable became a permission target")
 
@@ -92,7 +92,7 @@ func runReviewFixTests() throws {
     try check(readable && keys, "Approval text clipped or Return/Escape lost")
     host.modalTestDriver = nil
     let agentPage = app.editSafetyForm(save: { _ in throw AppError(message: "Unexpected save") })
-    try check(host.pages.last?.view === agentPage.view && !host.modal && host.back.title == "Back", "Agent editor did not use a regular settings page")
+    try check(host.pages.last?.view === agentPage.view && !host.modal && !host.back.isHidden && host.back.title == "Back to setup", "Agent editor did not use a regular settings page with contextual return")
     host.goBack()
     try runAgentSettingsPageTests()
     app.buildMenu(); app.refreshMonitorInputItem()

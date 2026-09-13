@@ -85,7 +85,7 @@ struct SetupSnapshot {
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
                 lidHelperUpdatePending ? "Finish the queued lid helper update in Keep awake before relying on lid protection." : "Lid protection needs its own helper setup. Choose Keep awake to set it up before using the Mac with its lid closed.",
-                "Set up lid protection…", .awake)
+                lidHelperUpdatePending ? "Finish helper update…" : "Set up lid protection…", .awake)
         }
 
         if lidDisabled == true {
@@ -95,7 +95,7 @@ struct SetupSnapshot {
         } else if lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Review sleep…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
-            add("awake", "Keep awake", .unverified, "Lid mode is requested. macOS can override it; continued sleep prevention cannot be verified.", "Review sleep…", .awake)
+            add("awake", "Keep awake", .unverified, lidGuard!.displayDetail, "Review sleep…", .awake)
         } else if !config.keepAwake {
             add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
         } else if !guardianReady && config.keepAwake {

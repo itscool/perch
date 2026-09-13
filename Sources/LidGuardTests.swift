@@ -119,7 +119,8 @@ func runLidGuardTests() throws {
     let afterWake = interrupted.step(closedAC, now: 31.7, authorized: true)
     try check(!afterWake.preventLidSleep && !afterWake.requestSleep && interrupted.sleepInterruption != nil, "Wake cleared the sleep interruption or revived the session")
     try check(interruptedHardware.calls == ["prevent lid", "release lid"], "Sleep notification sent another sleep command or retained prevention")
-    try check(LidGuardStatus(updatedAt: LidGuardClock.now, armed: true, detail: "Lid closed on power.").displayDetail.contains("unverified"), "Command acceptance still claims verified sleep prevention")
+    let activeDetail = LidGuardStatus(updatedAt: LidGuardClock.now, armed: true, detail: "Lid closed on power.").displayDetail
+    try check(activeDetail.contains("reports an active session") && activeDetail.contains("cannot guarantee") && activeDetail.contains("Lid closed on power."), "Active-session status hides either the observation or its limit")
     let session = UUID().uuidString
     var watcher = LidGuardWatchdogState()
     try check(watcher.receive(.init(token: session, expires: 3, deadline: 60), now: 0), "Valid watchdog lease rejected")

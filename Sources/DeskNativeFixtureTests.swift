@@ -51,6 +51,11 @@ func runDeskNativeFixture() throws {
     let app = AppDelegate(); app.installApplicationMenu(); app.buildMenu(); app.installSettingsNavigation()
     DeskNativeFixtureState.retained = [a, b, runtime, other, app]
     try DesktopTestSession.check()
+    // Explicit opt-in for real picker/confirmation routing; the fixture still
+    // uses disposable storage, loopback peers and injected monitor operations.
+    if CommandLine.arguments.contains("--interactive-settings-fixture") {
+        SettingsWindow.shared.testing = false
+    }
     NSApp.setActivationPolicy(.regular)
     app.deskSettings()
     SettingsWindow.shared.window.center()

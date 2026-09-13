@@ -108,7 +108,7 @@ func runNavigationProbeUITests() throws {
     let source = MockNavigationProbeSource()
     page.setupIdentity = learnedIdentity
     page.session.start(deviceID: 42, source: source, guided: true)
-    try check(page.timer != nil && host.back.title == "Back", "Active test lacks timeout or shared Back")
+    try check(page.timer != nil && !host.back.isHidden && host.back.title == "Back to setup", "Active test lacks timeout or contextual setup return")
     try check(visibleButtons().filter { $0.isEnabled }.map { $0.title } == ["I don’t have Home"], "Active learning has ambiguous acceptance/cancellation controls")
     source.pressAndRelease(.home)
     try check(page.rows[0].stringValue.hasPrefix("✓") && saves == 0 && profiles == [previous], "Partial learning changed the saved layout")
@@ -121,7 +121,7 @@ func runNavigationProbeUITests() throws {
     try check(saves == 0, "Final press saved before its release")
     source.value?(42, 7, NavigationKey.pageDown.rawValue, 0)
     try check(page.timer == nil && source.stops == 1 && saves == 1 && profiles[0].keys == [74,77,75,78], "Completed layout did not save automatically once and stop input")
-    try check(page.status.stringValue.contains("saved automatically") && visibleButtons().isEmpty && host.back.title == "Back", "Completed setup has an extra accept/cancel button or unclear save status")
+    try check(page.status.stringValue.contains("saved automatically") && visibleButtons().map { $0.title } == ["Choose another keyboard"] && !host.back.isHidden && host.back.title == "Back to setup", "Completed setup lacks optional next-keyboard/setup return or adds acceptance")
     try check(host.detail.stringValue.contains("Mock keyboard") && host.detail.stringValue.contains("is saved") && !host.detail.stringValue.contains("Press and release"), "Completed setup retains instructions to keep learning")
     for (appearance, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
         host.window.appearance = NSAppearance(named: appearance)
@@ -162,7 +162,7 @@ func runNavigationProbeUITests() throws {
     try check(saves == 2, "Failed autosave retried on every refresh")
     failSave = false
     visibleButtons().first!.performClick(nil)
-    try check(saves == 3 && profiles[0].keys == [0x68,0x69,0x6A,0x6B] && visibleButtons().isEmpty && page.status.stringValue.contains("saved automatically"), "Retry did not recover the completed layout")
+    try check(saves == 3 && profiles[0].keys == [0x68,0x69,0x6A,0x6B] && visibleButtons().map { $0.title } == ["Choose another keyboard"] && page.status.stringValue.contains("saved automatically"), "Retry did not recover the completed layout")
     host.goBack()
 
     page.show()
@@ -200,12 +200,12 @@ func runNavigationProbeUITests() throws {
     let checkbox = exceptionScroll.documentView!.subviews.compactMap { $0 as? NSButton }.first { $0.title == "test.app" }!
     checkbox.performClick(nil)
     try check(exceptionSaves == 1 && !preferences.excludedApps.contains("test.app") && preferences.excludedApps.contains("preserved.app") && preferences.homeEnd, "Exception checkbox did not save its own choice immediately")
-    try check(exceptionsView.subviews.compactMap { $0 as? NSButton }.isEmpty && host.back.title == "Back", "Exception page retains a separate Save/Cancel action")
+    try check(exceptionsView.subviews.compactMap { $0 as? NSButton }.isEmpty && !host.back.isHidden && host.back.title == "Back to setup", "Exception page retains separate Save/Cancel or loses contextual setup return")
     rejectException = true; checkbox.performClick(nil)
     try check(exceptionSaves == 2 && checkbox.state == .off && !preferences.excludedApps.contains("test.app"), "Failed exception save left an unsaved checkmark")
     try check(exceptionsView.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Not saved") }, "Failed exception save lacks inline recovery")
     host.goBack()
     try check(exceptionSaves == 2, "Back tried to save app exceptions again")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
-    print("PASS: navigation setup autosaves exactly once after the final release/absence; Back-only completion; previous layout survives partial setup, timeout, focus loss and close; save failure/retry and reopen; light/dark fixture renders")
+    print("PASS: navigation setup autosaves exactly once after final release/absence; optional next keyboard and contextual setup return; previous layout survives partial setup, timeout, focus loss and close; save failure/retry and reopen; light/dark fixture renders")
 }

@@ -42,21 +42,21 @@ struct DeskView: View {
                                 }
                                 if let problem = model.problem { throw KVMError(problem) }
                             }.id(preset.id).font(.system(size: 14, weight: .semibold))
-                            Button { model.presetIndex = index; model.problem = nil } label: {
-                                HStack(spacing: 6) {
-                                    Text(model.presetIndex == index ? "Editing preset \(index + 1)" : "Preset \(index + 1) · \(preset.assignments.count) screens").font(.system(size: 11)).foregroundStyle(.secondary)
-                                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                            }.buttonStyle(.plain).accessibilityLabel("Edit \(preset.name)").help("Edit this preset without switching screens.")
-                            if model.active?.id == preset.id {
-                                Label(model.changedSinceUse ? "In use · changes not applied" : "In use", systemImage: "display.2.fill")
-                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.green)
-                                    .padding(.horizontal, 7).padding(.vertical, 3)
-                                    .background(Color.green.opacity(0.12), in: Capsule())
-                                    .help("The displays confirmed this preset. Selecting another card only changes what you edit; Play switches the displays.")
-                            }
-                            if let issue = model.readinessIssue(for: index) {
-                                DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
-                            }
+                            HStack(spacing: 6) {
+                                if let issue = model.readinessIssue(for: index) {
+                                    DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
+                                } else {
+                                    Text(model.presetIndex == index ? "Editing preset \(index + 1)" : "Preset \(index + 1) · \(preset.assignments.count) screens")
+                                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                if model.active?.id == preset.id {
+                                    Text(model.changedSinceUse ? "In use · edited" : "In use")
+                                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.12), in: Capsule()).fixedSize()
+                                        .help(model.changedSinceUse ? "The last switch is still in use. Play applies your saved changes." : "The displays confirmed this preset. Selecting another card only changes what you edit.")
+                                }
+                            }.frame(height: 20, alignment: .leading)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 6) {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
@@ -120,6 +120,18 @@ struct DeskView: View {
                         }
                     }
                     if let result = model.monitorResults[monitor.id] { Text(result).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    if model.monitorProblems.contains(monitor.id), let live = model.live {
+                        if let refresh = live.refreshMonitorStatus {
+                            Button("Check current input again", action: refresh)
+                                .help("Ask connected computers to read the monitor’s input again. Does not switch the display.")
+                        }
+                        if let port = live.retryMonitorConnection?(monitor.id), let change = live.switchConnection {
+                            let issue = live.connectionReadiness?(port)
+                            Button("Retry this screen’s input switch") { change(port) }.disabled(issue != nil)
+                            if let issue { Text(issue).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+                        } else { Text("Desk setup changed. Review this screen’s ports, then use Play on the preset you want.").font(.caption).fixedSize(horizontal: false, vertical: true) }
+                        Text("If the picture is wrong or reads keep failing, open Monitor setup above to check its control path and input profile.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 } else {
                     VStack(alignment: .leading, spacing: 12) { Image(systemName: "display.2").font(.largeTitle).foregroundStyle(.teal); Text("Your desk starts here").font(.headline); Text("Add the computers and screens you want to use together. You can return and change anything later.").foregroundStyle(.secondary) }.frame(maxHeight: .infinity, alignment: .top)
                 }
@@ -322,7 +334,7 @@ private struct DeskPresetAttention: View {
         Button { showing.toggle() } label: {
             Label(title, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11))
                 .foregroundStyle(.orange)
-        }.buttonStyle(.plain).help(detail)
+        }.buttonStyle(DeskCanvasButtonStyle(padding: 0)).help(detail)
             .accessibilityLabel(title + ". " + detail)
             .popover(isPresented: $showing) { Text(detail).font(.callout).frame(width: 250, alignment: .leading).padding(14) }
     }
@@ -401,6 +413,13 @@ struct DeskCanvas: View {
             }.frame(minHeight: 230)
             if let issue = model.problem {
                 Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                if !model.monitorProblems.isEmpty {
+                    ScrollView(.horizontal) { HStack {
+                        ForEach(model.group.monitors.filter { model.monitorProblems.contains($0.id) }) { monitor in
+                            Button("Review " + monitor.name) { model.selected = monitor.id }.buttonStyle(DeskCanvasButtonStyle())
+                        }
+                    } }.frame(height: 30)
+                }
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack {

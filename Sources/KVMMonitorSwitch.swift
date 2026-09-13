@@ -52,6 +52,7 @@ struct KVMMonitorOutcome: Codable, Equatable {
     let detail: String
 }
 enum KVMMonitorMessage: Codable {
+    case refresh
     case prepare(KVMMonitorRequest)
     case prepared(UUID)
     case refused(UUID, String)
@@ -86,10 +87,11 @@ final class KVMMonitorSwitch: ObservableObject {
     private var required: Set<UUID> = []
     private var verification: [UUID: Set<UUID>] = [:]
     private var verifyingMonitors: Set<UUID> = []
-    private struct Observation { let input: UInt16; let peer: UUID; let time: TimeInterval }
+    private struct Observation { let input: UInt16; let peer: UUID; let time: TimeInterval; let revision: String }
     private var observations: [UUID: Observation] = [:]
     private var reading: Set<UUID> = []
     private var nextRead: TimeInterval = 0
+    private var lastRefresh: TimeInterval = -.infinity
     private var lastConfirmed: TimeInterval?
     private var timer: Timer?
     private var started: TimeInterval = 0
@@ -182,9 +184,11 @@ final class KVMMonitorSwitch: ObservableObject {
                   let route = lease.request.routes.first(where: { $0.monitor == outcome.monitor && $0.input == outcome.input }) else { return }
             send(.release(outcome.request), peer: peer)
             complete(route, lease: lease, state: outcome.state, detail: outcome.detail)
+        case .refresh:
+            if now - lastRefresh >= 1 { lastRefresh = now; nextRead = 0; tick() }
         case .observed(let monitor, let input, let revision):
             guard revision == node.revision, node.group.monitors.contains(where: { $0.id == monitor && ($0.control?.computer == peer || node.group.connections.contains(where: { $0.monitor == monitor && $0.computer == peer })) }) else { return }
-            if let input, input > 0 { observations[monitor] = Observation(input: input, peer: peer, time: now) }
+            if let input, input > 0 { observations[monitor] = Observation(input: input, peer: peer, time: now, revision: revision) }
             else if observations[monitor]?.peer == peer { observations[monitor] = nil }
             if !busy { deriveActive() }
         case .prepare(let request):
@@ -265,9 +269,16 @@ final class KVMMonitorSwitch: ObservableObject {
         for peer in required { send(.release(request.id), peer: peer) }
         if results.values.allSatisfy({ $0.state == .confirmed }) {
             activePreset = request.preset; activeGroup = request.preset == nil ? nil : node.group; lastConfirmed = now; problem = nil
-            for route in request.routes { observations[route.monitor] = Observation(input: route.input, peer: route.control.computer, time: now) }
+            for route in request.routes { observations[route.monitor] = Observation(input: route.input, peer: route.control.computer, time: now, revision: request.revision) }
             if request.connection != nil { deriveActive() }
-        } else { problem = "The requested input could not be confirmed on every screen. Review the screen results and retry." }
+        } else {
+            let names = request.routes.filter { results[$0.monitor]?.state != .confirmed }.map { route in
+                let name = node.group.monitors.first { $0.id == route.monitor }?.name ?? "Screen"
+                let input = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.inputName ?? "input \(route.input)"
+                return name + " (" + input + ")"
+            }
+            problem = "Input not confirmed: " + names.joined(separator: ", ") + ". Select a screen below for its result and recovery actions."
+        }
     }
     private func finishFailure(_ reason: String) {
         guard let request else { return }
@@ -276,16 +287,38 @@ final class KVMMonitorSwitch: ObservableObject {
         for peer in required { send(.release(request.id), peer: peer) }
     }
     private func deriveActive() {
-        observations = observations.filter { now - $0.value.time <= 45 && node.online.contains($0.value.peer) }
+        observations = observations.filter { $0.value.revision == node.revision && now - $0.value.time <= 45 && node.online.contains($0.value.peer) }
         let matches = node.group.presets.filter { preset in
             !preset.assignments.isEmpty && preset.assignments.allSatisfy { assignment in
                 guard let expected = node.group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { return false }
                 return observations[assignment.monitor]?.input == expected
             }
         }
+        if let request, request.revision == node.revision, request.epoch == node.graph.roster.epoch {
+            for route in request.routes where results[route.monitor]?.state != .confirmed {
+                if let observation = observations[route.monitor], observation.input == route.input, observation.time > started {
+                    results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .confirmed,
+                                                  detail: "A fresh monitor read now confirms this input.")
+                }
+            }
+            if !results.isEmpty && results.values.allSatisfy({ $0.state == .confirmed }) && problem != nil { problem = nil }
+        }
         if let activePreset, matches.contains(where: { $0.id == activePreset }) { return }
         activePreset = matches.count == 1 ? matches.first?.id : nil
         activeGroup = activePreset == nil ? nil : node.group
+    }
+    /// Read-only recovery; does not repeat a monitor write.
+    func refreshObservations() {
+        guard now - lastRefresh >= 1 else { return }
+        lastRefresh = now; nextRead = 0; tick()
+        for peer in node.online where peer != node.localID { send(.refresh, peer: peer) }
+    }
+    func retryConnection(for monitor: UUID) -> UUID? {
+        guard !busy, let request, request.revision == node.revision,
+              let route = request.routes.first(where: { $0.monitor == monitor }) else { return nil }
+        let connection = request.connection ?? node.group.presets.first { $0.id == request.preset }?.assignments.first { $0.monitor == monitor }?.connection
+        guard let connection, node.group.connections.contains(where: { $0.id == connection && $0.monitor == monitor && $0.inputCode == route.input }) else { return nil }
+        return connection
     }
     func poll() { tick() }
     private func tick() {

@@ -20,7 +20,7 @@ func runSleepPresentationTests() throws {
     let unknown = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: true, masterWanted: true, changing: false, remaining: nil)
     try check(unknown.lid == .on && !unknown.lidEnabled && unknown.lidHint.contains("unknown"), "Unknown session lost intent or allowed unsafe write")
     let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: 42)
-    try check(active.awake == .on && active.awakeHint == "Lid mode requested" && active.lidHint.contains("42"), "Final snapshot lost lid state/countdown")
+    try check(active.awake == .on && active.awakeHint == "Lid protection active" && active.lidHint.contains("42"), "Final snapshot lost lid state/countdown")
     let app = AppDelegate(); app.buildMenu(); app.observedSleep = off; app.observedLidDisabled = false
     app.applyLidSleepPresentation()
     let before = (app.awakeItem.view as! MenuRowView).text

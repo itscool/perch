@@ -12,6 +12,8 @@ struct KVMComputer: Codable, Equatable, Identifiable {
     var platform = "macOS"
 }
 
+enum KVMSharedInputKind: String, Codable, CaseIterable { case keyboard, mouse }
+
 struct KVMSharedKeyboard: Codable, Equatable, Identifiable {
     var id = UUID()
     var name: String
@@ -19,6 +21,8 @@ struct KVMSharedKeyboard: Codable, Equatable, Identifiable {
     // itself a cross-host physical identity. Ambiguous attachments are blocked.
     var bindings: [UUID: String] = [:]
     var follow = false
+    var kind: KVMSharedInputKind? = nil
+    var deviceKind: KVMSharedInputKind { kind ?? .keyboard }
 }
 
 struct KVMPoint: Codable, Equatable {
@@ -131,15 +135,15 @@ struct KVMGroup: Codable, Equatable, Identifiable {
         try require(monitors.count <= 16, "A desk can contain up to 16 physical screens.")
         try require(connections.count <= 256, "This desk has too many screen connections.")
         let keyboards = sharedKeyboards ?? []
-        try require(keyboards.count <= 16 && Set(keyboards.map(\.id)).count == keyboards.count, "A desk can follow up to 16 named keyboards.")
+        try require(keyboards.count <= 16 && Set(keyboards.map(\.id)).count == keyboards.count, "A desk can follow up to 16 named keyboards and mice.")
         for keyboard in keyboards {
             try require(nameOK(keyboard.name) && keyboard.bindings.count <= 16 && keyboard.bindings.allSatisfy { computer, key in
                 computers.contains { $0.id == computer } && !key.isEmpty && key.utf8.count <= 1024
-            }, "Give the shared keyboard a name and choose its attachment on each computer.")
+            }, "Give the shared device a name and choose its attachment on each computer.")
         }
         for computer in computers {
             let bindings = keyboards.compactMap { $0.bindings[computer.id] }
-            try require(Set(bindings).count == bindings.count, "This keyboard attachment is already assigned to another shared keyboard.")
+            try require(Set(bindings).count == bindings.count, "This device attachment is already assigned to another shared device.")
         }
         try require(presets.count == 3 && Set(presets.map(\.slot)) == Set(1...3), "A desk has three preset slots.")
         try require(Set(computers.map(\.id)).count == computers.count && Set(monitors.map(\.id)).count == monitors.count &&

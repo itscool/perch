@@ -15,7 +15,7 @@ func runSetupOverviewTests() throws {
     try check(snapshot.checks.first { $0.id == "keyboards" }?.state == .attention && snapshot.checks.first { $0.id == "keyboards" }?.route == .keyboardAccess, "First-use keyboard access was hidden as optional")
     snapshot.keyboardCount = 0; snapshot.keyboardAccessNeeded = false
     snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
-    try check(snapshot.checks.first { $0.id == "awake" }?.state == .unverified && snapshot.summary.contains("1 unverified"), "An accepted lid command was counted as ready or as a repairable missing setup step")
+    try check(snapshot.checks.first { $0.id == "awake" }?.state == .ready && snapshot.checks.first { $0.id == "awake" }!.detail.contains("cannot guarantee"), "A fresh active helper session was reported as unfinished setup or lost its macOS limitation")
     snapshot.lidGuard = nil
     snapshot.config.shortcut.enabled = true
     try check(snapshot.checks.first { $0.id == "agents" }?.state == .checking, "An enabled shortcut was ignored when no agents were selected")
@@ -40,7 +40,7 @@ func runSetupOverviewTests() throws {
     try check(overviewRoute == snapshot.checks.last?.id, "Last setup row navigates to the wrong feature")
     let recovery = snapshot
     snapshot.deskInputEnabled = true
-    try check(item("desk-input").state == .unverified, "Enabled input sharing was counted as an active session")
+    try check(item("desk-input").state == .ready && item("desk-input").detail.contains("select a confirmed screen"), "Idle sharing was reported as broken setup or as an active session")
     snapshot.deskInputActive = true
     try check(item("desk-input").state == .ready, "Active desk input was not reported")
     snapshot.deskInputProblem = "Secure entry is active"

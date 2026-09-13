@@ -134,6 +134,8 @@ struct DeskLiveActions {
     var inputControls: ((UUID, UUID?) -> AnyView)? = nil
     var switchConnection: ((UUID) -> Void)? = nil
     var connectionReadiness: ((UUID) -> String?)? = nil
+    var refreshMonitorStatus: (() -> Void)? = nil
+    var retryMonitorConnection: ((UUID) -> UUID?)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.
@@ -152,6 +154,7 @@ final class DeskModel: ObservableObject {
     @Published var activeGroup: KVMGroup?
     @Published var activeFocus: String?
     @Published var monitorResults: [UUID: String] = [:]
+    @Published var monitorProblems: Set<UUID> = []
     @Published var identifying: UUID?
     @Published var conflict: KVMGroup?
     let store: URL

@@ -9,10 +9,13 @@ final class DeskInputAdapter: ObservableObject {
     var presetShortcut: ((UUID) -> Void)?
     @Published private(set) var accessProblem: String?
     @Published private(set) var keyboards: [NativeKeyboard] = []
+    @Published private(set) var mice: [NativePointingDevice] = []
     @Published var pointerSpeed: Double = {
         let saved = UserDefaults.standard.double(forKey: "desk.inputPointerSpeed")
         return (0.25...4).contains(saved) ? saved : 1
     }() { didSet { UserDefaults.standard.set(pointerSpeed, forKey: "desk.inputPointerSpeed") } }
+    private let attachmentObserver = DeskAttachmentObserver()
+    private var attachmentChanged = true
     private var keyboardScanAt: Double = 0
     private var scanningKeyboards = false
     private var keyboardGeneration = 0
@@ -40,10 +43,17 @@ final class DeskInputAdapter: ObservableObject {
         session.release = { [weak self] in self?.releasePosted() }
         session.attachedKeyboards = { [weak self] in
             guard let self else { return [] }
-            let counts = Dictionary(grouping: self.keyboards, by: \.preferenceKey).mapValues(\.count)
-            return Set((self.session.node.group.sharedKeyboards ?? []).filter { keyboard in
-                keyboard.bindings[self.session.node.localID].map { counts[$0] == 1 } == true
+            let keyboardCounts = Dictionary(grouping: self.keyboards, by: \.preferenceKey).mapValues(\.count)
+            let mouseCounts = Dictionary(grouping: self.mice, by: \.preferenceKey).mapValues(\.count)
+            return Set((self.session.node.group.sharedKeyboards ?? []).filter { device in
+                let counts = device.deviceKind == .mouse ? mouseCounts : keyboardCounts
+                return device.bindings[self.session.node.localID].map { counts[$0] == 1 } == true
             }.map(\.id))
+        }
+        attachmentObserver.changed = { [weak self] in
+            guard let self else { return }
+            self.attachmentChanged = true; self.keyboardScanAt = 0
+            self.refreshKeyboards()
         }
         subscription = session.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateCursor() } }
     }
@@ -51,6 +61,7 @@ final class DeskInputAdapter: ObservableObject {
     func enable(_ enabled: Bool) {
         guard !SettingsWindow.shared.testing else { return }
         if !enabled { stop(); return }
+        attachmentObserver.start()
         tapStartFailed = false
         session.setEnabled(true)
         if healthTimer == nil {
@@ -88,6 +99,7 @@ final class DeskInputAdapter: ObservableObject {
     }
     func stop() {
         session.setEnabled(false)
+        attachmentObserver.stop()
         healthy = false; healthTimer?.invalidate(); healthTimer = nil
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
@@ -120,11 +132,15 @@ final class DeskInputAdapter: ObservableObject {
         let generation = keyboardGeneration
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let keyboards = NativeModifierKeys.keyboards().filter { !$0.builtIn && !$0.preferenceKey.isEmpty }
+            let mice = NativeModifierKeys.mice()
             DispatchQueue.main.async {
                 guard let self else { return }; self.scanningKeyboards = false
-                if self.keyboardGeneration == generation { self.updateKeyboards(keyboards) }
+                if self.keyboardGeneration == generation { self.updateKeyboards(keyboards); self.updateMice(mice); self.attachmentChanged = false }
             }
         }
+    }
+    private func updateMice(_ values: [NativePointingDevice]) {
+        if values.map({ $0.preferenceKey + "\0" + $0.name }).sorted() != mice.map({ $0.preferenceKey + "\0" + $0.name }).sorted() { mice = values }
     }
     private func updateKeyboards(_ values: [NativeKeyboard]) {
         if values.map({ $0.preferenceKey + "\0" + $0.name }).sorted() != keyboards.map({ $0.preferenceKey + "\0" + $0.name }).sorted() { keyboards = values }
@@ -145,13 +161,18 @@ final class DeskInputAdapter: ObservableObject {
            }) { if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { presetShortcut?(preset.id) }; return true }
         if IsSecureEventInputEnabled() { healthy = false; session.stop(); return false }
         guard session.capturing else { return false }
-        if type == .keyDown, session.focus?.computer != session.node.localID,
+        if [.keyDown, .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel].contains(type),
+           session.focus?.computer != session.node.localID,
            session.node.group.sharedKeyboards?.contains(where: { $0.follow && $0.bindings[session.node.localID] != nil }) == true {
-            // Before the first key on an arriving physical keyboard can go to
-            // the old computer, reconcile its passive attachment properties.
+            // Attachment notifications invalidate the cache before forwarding
+            // motion; keys and clicks also recheck an arriving device directly.
             // No permission requests, event-device opening or settings writes.
+            if attachmentChanged || type == .keyDown || type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
+            attachmentChanged = false
             keyboardGeneration += 1; keyboardScanAt = ProcessInfo.processInfo.systemUptime + 1
             updateKeyboards(NativeModifierKeys.keyboards().filter { !$0.builtIn && !$0.preferenceKey.isEmpty })
+            updateMice(NativeModifierKeys.mice())
+            }
             session.publishKeyboardAttachments()
         }
         let flags = event.flags.rawValue & KVMInputEvent.flagMask

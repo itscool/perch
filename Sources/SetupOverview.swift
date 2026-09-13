@@ -85,7 +85,7 @@ struct SetupSnapshot {
         add("displays", "Desk monitor presets", monitorState,
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Displays…" : "Set up display…", .displays)
-        add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
+        add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : .ready,
             !deskInputEnabled ? "Optional: turn on Share on this Mac in Desk on each participating Mac. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk and select a confirmed screen to start control."), deskInputAccessNeeded ? "Shared input access…" : "Open Desk…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
         if !lidHelperInstalled || lidHelperUpdatePending {
@@ -98,10 +98,10 @@ struct SetupSnapshot {
             add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Keep awake…", .awake)
         } else if lidHelperUpdatePending {
             add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Lid protection setup…", .lidSetup)
-        } else if lidGuard?.error != nil {
+        } else if lidGuard?.fresh == true && lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Keep awake…", .awake)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
-            add("awake", "Keep awake", .unverified, lidGuard!.displayDetail, "Keep awake…", .awake)
+            add("awake", "Keep awake", .ready, lidGuard!.displayDetail, "Keep awake…", .awake)
         } else if !config.keepAwake {
             add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
         } else if !guardianReady && config.keepAwake {

@@ -215,7 +215,7 @@ final class AppUpdate {
                 switch result {
                 case .success:
                     success = true
-                    message = "Perch restarted." + (record.ticket == nil ? " Your saved choices were kept." : " The lid session resumed with its existing battery deadline. Continued sleep prevention remains unverified.")
+                    message = "Perch restarted." + (record.ticket == nil ? " Your saved choices were kept." : " The lid session resumed with its existing battery deadline. macOS can still force sleep.")
                 case .failure(let error): success = false; message = "Perch opened, but the lid session was not resumed. " + error.localizedDescription
                 }
                 var visibleMessage = message

@@ -63,6 +63,10 @@ declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Curr
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.contains("--recovery-offscreen") {
+    do { try runRecoveryPresentationTests(); precondition(NSApp.windows.isEmpty); exit(0) }
+    catch { fputs("OFFSCREEN RECOVERY FAILED: \\(error)\\n", stderr); exit(1) }
+}
 if CommandLine.arguments.contains("--task-layout-offscreen") {
     do { try runSettingsTaskLayoutTests(); precondition(NSApp.windows.isEmpty); exit(0) }
     catch { fputs("OFFSCREEN TASK LAYOUT FAILED: \\(error)\\n", stderr); exit(1) }

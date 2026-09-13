@@ -412,6 +412,11 @@ final class KVMDeskNode: ObservableObject {
         if link.queuedBytes < 512 * 1024 { send(.revision(queue[offset]), to: link); historyOffsets[link.id] = offset + 1 }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.005) { [weak self, weak link] in if let link { self?.pumpHistory(link) } }
     }
+    /// Retry only missing trusted links; healthy connections and membership stay intact.
+    func retryConnections() {
+        for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil { connecting[peer.id] = nil }
+        reconnect()
+    }
     private func reconnect() {
         for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil && Date().timeIntervalSince(connecting[peer.id] ?? .distantPast) > 12 {
             if let nearby = nearby.first(where: { $0.id == peer.id.uuidString }) { connect(nearby.endpoint, expected: peer.id) }

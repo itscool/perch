@@ -169,6 +169,30 @@ import Darwin
         try wait("competing requests settle") { !switchesA.busy && !switchesB.busy }
         guard writes <= 2 else { throw KVMError("Competing requests overlapped monitor writes") }
         print("PASS: paired monitor-only two-phase preparation, two-screen confirmed outcomes, source-path delegation, expired/stale work refusal and competing requests; all hardware calls injected")
+        // A failed readback is not a failed write. Recover using fresh reads,
+        // without reissuing the command or accepting pre-attempt observations.
+        var confirmedReadback = false
+        let expectedInputs = Dictionary(uniqueKeysWithValues: desk.presets[0].assignments.map { assignment in
+            (assignment.monitor, desk.connections.first { $0.id == assignment.connection }!.inputCode!)
+        })
+        for service in [switchesA, switchesB] {
+            service.execute = { _, valid, complete in
+                guard valid() else { complete(.failed, "Expired"); return }
+                writes += 1; complete(.unverified, "The monitor did not return its current input. Check current input again; if it remains unknown, review Monitor setup.")
+            }
+            service.readForVerification = { monitor, complete in complete(confirmedReadback ? expectedInputs[monitor] : nil) }
+        }
+        fakeTime += 1; writes = 0
+        switchesA.activate(desk.presets[0].id)
+        try wait("unconfirmed inputs have named recovery") { !switchesA.busy && switchesA.problem?.contains(desk.monitors[0].name) == true }
+        guard switchesA.results.values.allSatisfy({ $0.state == .unverified }), writes == 2 else { throw KVMError("Old observation falsely cleared new readback failure") }
+        guard switchesA.retryConnection(for: desk.monitors[0].id) != nil else { throw KVMError("Unchanged failed input has no retry target") }
+        confirmedReadback = true; fakeTime += 1
+        switchesA.refreshObservations()
+        try wait("fresh passive read clears old switch failure") { switchesA.problem == nil && switchesA.results.values.allSatisfy { $0.state == .confirmed } }
+        guard writes == 2 else { throw KVMError("Checking inputs repeated hardware writes") }
+        print("PASS: named per-screen failures, stale-read refusal and read-only reconciliation after recovery")
+
         // Production input coordinator over the same authenticated links. Native
         // capture/posting are never constructed: every event sink is injected.
         let inputA = KVMInputSession(node: a), inputB = KVMInputSession(node: b)
@@ -187,6 +211,12 @@ import Darwin
         arranged.sharedKeyboards = [keyboard]
         var keyboardA: Set<UUID> = [keyboard.id], keyboardB: Set<UUID> = []
         inputA.attachedKeyboards = { keyboardA }; inputB.attachedKeyboards = { keyboardB }
+        let mouse = KVMSharedKeyboard(name: "Fixture switching mouse", bindings: [a.localID: "mouse-a", b.localID: "mouse-b"], follow: true, kind: .mouse)
+        arranged.sharedKeyboards?.append(mouse)
+        keyboardA.insert(mouse.id)
+        var wrongKind = arranged
+        wrongKind.sharedKeyboards![wrongKind.sharedKeyboards!.count - 1].kind = nil
+        guard KVMInputConfiguration.revision(wrongKind) != KVMInputConfiguration.revision(arranged) else { throw KVMError("Changing device kind did not fence input state") }
         try a.edit(arranged)
         try wait("input arrangement sync") { b.group == arranged }
         var reads = 0, visible = true
@@ -197,6 +227,12 @@ import Darwin
         defer { inputA.setEnabled(false); inputB.setEnabled(false) }
         try wait("fresh input visibility") { reads >= 2 }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        try wait("sharing readiness is current") { inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id) == nil && inputB.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id) == nil }
+        inputA.start(preset: UUID(), monitor: UUID())
+        try wait("coordinator failure reaches peer") { inputB.problem != nil }
+        inputA.refreshReadiness()
+        try wait("fresh healthy coordinator response clears prior failure") { inputA.problem == nil && inputB.problem == nil }
+        guard !inputA.active && !inputB.active else { throw KVMError("Refreshing status started input capture") }
         inputB.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
         try wait("source enters handoff barrier") { inputB.preparing }
         guard inputB.capture(.init(kind: .keyDown, code: 11)), inputB.capture(.init(kind: .keyUp, code: 11)) else { throw KVMError("Preparing input leaked locally") }
@@ -217,18 +253,41 @@ import Darwin
         // to B. This is a device observation, never inferred from idle keys.
         inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
         try wait("return focus to A") { inputA.active && inputB.active && inputA.focus?.computer == a.localID }
-        keyboardA = []; inputA.tick()
+        keyboardA = [mouse.id]; inputA.tick()
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         keyboardB = [keyboard.id]; inputB.publishKeyboardAttachments()
         guard inputB.capture(.init(kind: .keyDown, code: 15)) else { throw KVMError("Arriving keyboard event leaked locally") }
         inputB.tick()
         try wait("confirmed keyboard host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
+        inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
+        try wait("return focus before mouse follow") { inputA.active && inputB.active && inputA.focus?.computer == a.localID }
+        keyboardA = []; inputA.tick()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        keyboardB.insert(mouse.id); inputB.publishKeyboardAttachments(); inputB.tick()
+        try wait("confirmed mouse host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
+        guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
+
         try wait("first arriving-keyboard key reaches B") { deliveries.contains { $0.0 == b.localID && $0.1.code == 15 } }
         guard !deliveries.contains(where: { $0.0 == a.localID && $0.1.code == 15 }) else { throw KVMError("Arriving keyboard typed on the previous computer") }
         visible = false
         try wait("unknown monitor input stops forwarding", seconds: 4) { !inputA.active && !inputB.active }
         guard !inputA.capture(.init(kind: .keyDown, code: 14)) else { throw KVMError("Unverified screen retained control") }
+        inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
+        guard inputA.problem != nil else { throw KVMError("Blocked attempt did not describe missing readback") }
+        visible = true
+        try wait("fresh readiness clears blocked attempt without starting") { inputA.problem == nil && inputB.problem == nil }
+        guard !inputA.active && !inputB.active else { throw KVMError("Readiness recovery silently started capture") }
+
+        for link in Array(b.transport.links.values) { b.transport.close(link) }
+        try wait("named coordinator offline recovery") { inputB.contextIssue?.contains(a.localName) == true }
+        b.retryConnections()
+        try wait("trusted reconnect clears context") { inputB.contextIssue == nil && b.online.contains(a.localID) }
+        inputA.refreshReadiness(); inputB.refreshReadiness()
+        try wait("recovered status clears failures without control") { inputA.problem == nil && inputB.problem == nil }
+        guard !inputA.active && !inputB.active else { throw KVMError("Reconnect started input capture") }
         inputA.setEnabled(false); inputB.setEnabled(false)
+        guard inputA.problem == nil && inputB.problem == nil && inputA.readyComputers.isEmpty && inputB.readyComputers.isEmpty else { throw KVMError("Disabled sharing retained stale readiness") }
+        print("PASS: named disconnection and automatic error clearance, read-only refresh, mouse/keyboard host following, kind-aware signed configuration")
         print("PASS: real TLS input routing in both directions, pointer handoff, release-before-focus, and lost visibility recovery; no native input capture or posting")
         try a.removePeer(b.localID)
         try wait("revocation") { a.online.count == 1 }

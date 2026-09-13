@@ -140,6 +140,8 @@ final class DeskRuntime: ObservableObject {
             return AnyView(DeskSharingControls(input: self.input, adapter: self.inputAdapter,
                                                node: self.node, preset: preset, monitor: monitor))
         }
+        model.live?.refreshMonitorStatus = { [weak self] in self?.switching.refreshObservations() }
+        model.live?.retryMonitorConnection = { [weak self] monitor in self?.switching.retryConnection(for: monitor) }
         model.live?.connectionReadiness = { [weak self] connection in
             guard let self else { return "Desk is unavailable." }
             return self.switching.connectionReadiness(connection)
@@ -210,6 +212,7 @@ final class DeskRuntime: ObservableObject {
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
         model.monitorResults = switching.results.mapValues { $0.state.rawValue.capitalized + ": " + $0.detail }
+        model.monitorProblems = Set(switching.results.values.filter { $0.state != .confirmed }.map(\.monitor))
         if let selected = model.selected, !node.group.monitors.contains(where: { $0.id == selected }) { model.selected = node.group.monitors.first?.id }
         if model.selected == nil { model.selected = node.group.monitors.first?.id }
         objectWillChange.send()

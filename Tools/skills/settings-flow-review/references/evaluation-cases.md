@@ -502,3 +502,11 @@ Expected: visible direct preset choices, distinguishable cable gestures, route/e
 ### Wrapped inspector heading clipped at scroll position zero
 
 A native scroller hosts a declarative inspector with wrapped explanations. Its heading is clipped despite unused space below and a zero scroll offset. Check constrained-width intrinsic measurement and actual first/last child bounds before adding padding. Exercise narrower widths, expanded content and collapse while scrolled; preserve the user's reading position when content is unchanged. A genuinely scrolled-down long document may legitimately hide its heading.
+
+### Recovery reports that outlive their cause
+
+Two cooperating apps are healthy again, but one continues to show “reconnect or review changes.” Trace local and relayed error ownership, nil-success responses and expiry. Name the disconnected computer or actual conflicting edits and expose the corresponding action. A later readback may resolve a monitor failure without another write, but must belong to the current configuration and postdate the attempt. An active verified helper request may be setup-ready without promising that the OS can never interrupt it. Keep evidence limits explicit.
+
+### Optional host-button following
+
+A hardware device has numbered computer buttons. A useful setup illustrates those buttons, gives a real example, tells users what to match on each host and how to recognize success. Matching is not the same as active input control. Apply the same interaction contract to a mouse when supported, but do not claim a receiver that hides detachment has proved a host switch. Reuse card status space instead of inserting rows that move the work area.

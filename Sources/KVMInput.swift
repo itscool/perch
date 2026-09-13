@@ -5,6 +5,7 @@ enum KVMInputConfiguration {
     private struct Keyboard: Encodable {
         let id: UUID
         let follow: Bool
+        let kind: KVMSharedInputKind?
         let bindings: [String: String]
     }
     private struct Snapshot: Encodable {
@@ -26,7 +27,7 @@ enum KVMInputConfiguration {
             value.presets[index].assignments.sort { $0.monitor.uuidString < $1.monitor.uuidString }
         }
         let keyboards = (value.sharedKeyboards ?? []).sorted { $0.id.uuidString < $1.id.uuidString }.map {
-            Keyboard(id: $0.id, follow: $0.follow, bindings: Dictionary(uniqueKeysWithValues: $0.bindings.map { ($0.key.uuidString, $0.value) }))
+            Keyboard(id: $0.id, follow: $0.follow, kind: $0.kind, bindings: Dictionary(uniqueKeysWithValues: $0.bindings.map { ($0.key.uuidString, $0.value) }))
         }
         // UUID-keyed dictionaries encode as unordered arrays. Convert their
         // keys to strings for canonical hashing across separate processes.

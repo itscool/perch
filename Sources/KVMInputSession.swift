@@ -24,7 +24,19 @@ final class KVMInputSession: ObservableObject {
     let node: KVMDeskNode
     @Published private(set) var enabled = false
     @Published private(set) var focus: KVMInputFocus?
-    @Published private(set) var problem: String?
+    @Published private var localProblem: String?
+    @Published private var coordinatorProblem: String?
+    @Published private var blockedTarget: (preset: UUID, monitor: UUID)?
+    private var localStatusProblem: String? {
+        blockedTarget.flatMap { readinessIssue(preset: $0.preset, monitor: $0.monitor) } ?? localProblem
+    }
+    var problem: String? { enabled ? (contextIssue ?? localStatusProblem ?? coordinatorProblem) : nil }
+    var contextIssue: String? {
+        guard node.isMember else { return "This Mac is no longer in this desk. Use Add computer to join it again." }
+        guard node.canEdit else { return "Desk changes need a decision. Use Review conflicting changes above before starting control." }
+        guard node.online.contains(node.ownerID) else { return "Waiting to reconnect to " + node.ownerName + ". Open Perch on that Mac and keep it reachable. Perch retries automatically." }
+        return nil
+    }
     @Published private(set) var availableConnections: Set<UUID> = []
     @Published private(set) var readyComputers: Set<UUID> = []
     var ready: () -> Bool = { false }
@@ -67,6 +79,7 @@ final class KVMInputSession: ObservableObject {
         return fingerprintValue
     }
     private var lastRevision: String?
+    private var lastContextIssue: String?
     private struct Probe { let peer: UUID; let monitor: UUID; let sent: Double; let revision: String }
     private var probes: [UUID: Probe] = [:]
     private struct Visibility { let input: UInt16; let sent: Double; let revision: String }
@@ -92,8 +105,8 @@ final class KVMInputSession: ObservableObject {
         guard value != enabled else { return }
         enabled = value
         keyboardPublished = nil
-        if !value { stop(); timer?.invalidate(); timer = nil; problem = nil; return }
-        lastRevision = configurationRevision
+        if !value { stop(); timer?.invalidate(); timer = nil; localProblem = nil; coordinatorProblem = nil; blockedTarget = nil; readyComputers = []; availableConnections = []; return }
+        lastRevision = configurationRevision; lastContextIssue = contextIssue
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         self.timer = timer; RunLoop.main.add(timer, forMode: .common)
         tick()
@@ -117,11 +130,14 @@ final class KVMInputSession: ObservableObject {
     }
     private func checkContext() {
         guard enabled else { return }
-        if configurationRevision != lastRevision || !node.canEdit || !node.online.contains(node.ownerID) {
-            stop(); lastRevision = configurationRevision
-            visibility = [:]; probes = [:]
+        let revision = configurationRevision, context = contextIssue
+        if revision != lastRevision || context != lastContextIssue {
+            let wasControlling = lease.grant != nil || preparedGrant != nil || pending != nil || pendingStart != nil
+            stop(); lastRevision = revision; lastContextIssue = context
+            visibility = [:]; probes = [:]; availableConnections = []; readyComputers = []; stateExpires = 0
             keyboardFollow = KVMKeyboardFollow(); keyboardAttachments = [:]; keyboardPublished = nil
-            problem = "Input is local. Reconnect the desk or review its changes, then choose a screen to control."
+            coordinatorProblem = nil; blockedTarget = nil
+            localProblem = wasControlling && context == nil ? "The desk layout changed. Control returned to this Mac. Select a screen and choose Control to resume." : nil
         }
         if let grant, !grant.participants.isSubset(of: node.online) { endAuthority() }
         if let pending, !pending.participants.isSubset(of: node.online) { endAuthority() }
@@ -130,8 +146,18 @@ final class KVMInputSession: ObservableObject {
     var preparing: Bool { enabled && ready() && preparedGrant != nil && lease.grant == nil && clock() >= preparedAt && clock() - preparedAt < 2 }
     var capturing: Bool { active || preparing }
     func start(preset: UUID, monitor: UUID) {
-        guard enabled && ready() else { problem = "Enable sharing and resolve this Mac’s access before choosing a screen."; return }
+        localProblem = nil; coordinatorProblem = nil
+        guard readinessIssue(preset: preset, monitor: monitor) == nil else {
+            blockedTarget = (preset, monitor); return
+        }
+        blockedTarget = nil
         send(.focus(preset, monitor), to: node.ownerID)
+    }
+    /// Recheck existing sharing consent and monitor visibility; never start capture.
+    func refreshReadiness() {
+        localProblem = nil; coordinatorProblem = nil; blockedTarget = nil
+        nextInspection = 0
+        if enabled { tick() }
     }
     func resumeAfterPreset(_ preset: UUID, monitor: UUID) {
         guard enabled else { return }
@@ -139,12 +165,17 @@ final class KVMInputSession: ObservableObject {
     }
     func readinessIssue(preset: UUID, monitor: UUID) -> String? {
         guard enabled && ready() else { return "Enable sharing and resolve this Mac’s access first." }
+        if let contextIssue { return contextIssue }
         if let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
            let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
             return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
         }
-        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for the desk coordinator to confirm readiness." }
-        guard let owner = destination(preset: preset, monitor: monitor), readyComputers.contains(owner) else { return "Enable sharing on the screen’s mapped computer and keep it connected." }
+        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac in Desk there, then refresh status here." }
+        guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", open Desk and turn on Share on this Mac. The desk coordinator must allow sharing too." }
+        guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
+        let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
+        guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }
+        guard readyComputers.contains(owner) else { return "On " + name + ", open Desk, turn on Share on this Mac and resolve any access warning shown there. Then refresh status here." }
         guard let connection = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor })?.connection,
               availableConnections.contains(connection) else { return "This screen has not confirmed the selected preset’s input. Use Play in Desk to switch it, or check its connection." }
         return nil
@@ -156,7 +187,7 @@ final class KVMInputSession: ObservableObject {
             attachmentBuffered.append(event); return true
         }
         if preparing, event.valid {
-            guard buffered.count < 64 else { stop(); problem = "Input returned locally because the handoff took too long. Choose a screen to retry."; return true }
+            guard buffered.count < 64 else { stop(); localProblem = "Input returned locally because the handoff took too long. Choose a screen to retry."; return true }
             buffered.append(event); return true
         }
         guard active, event.valid, let grant = lease.grant else { return false }
@@ -200,7 +231,7 @@ final class KVMInputSession: ObservableObject {
                       now >= observed.sent, now - observed.sent < 2 else { return false }
                 return observed.input == connection.inputCode
             }.map(\.id))
-            send(.state(nonce, available ? grant : nil, problem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer), to: peer)
+            send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer), to: peer)
         case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus):
             guard peer == node.ownerID, enabled, let sent = polls.removeValue(forKey: nonce), now >= sent, now - sent < 1,
                   connections.count <= 256, computers.isSubset(of: Set(node.group.computers.map(\.id))) else { return }
@@ -217,7 +248,9 @@ final class KVMInputSession: ObservableObject {
                         node.group.monitors.first(where: { $0.id == location.monitor })?.geometry.contains(location.position) == true ? location : nil
                 } ?? value.focus
                 if focus?.monitor != current.monitor || focus?.computer != current.computer { focus = current }
-                if problem != nil { problem = nil }
+                if localProblem != nil { localProblem = nil }
+                if blockedTarget != nil { blockedTarget = nil }
+                if coordinatorProblem != nil { coordinatorProblem = nil }
                 if first {
                     send(.installed(value.id), to: peer)
                     let waiting = buffered; buffered = []
@@ -231,13 +264,14 @@ final class KVMInputSession: ObservableObject {
                 // A poll response may predate a prepare already received on this
                 // ordered connection. Do not discard that pending preparation.
                 if lease.grant != nil { endLocal() }
-                if let issue { problem = String(issue.prefix(300)) }
+                let remote = issue.map { String($0.prefix(300)) }
+                if coordinatorProblem != remote { coordinatorProblem = remote }
             }
         case .focus(let preset, let monitor):
             guard node.isOwner, enabled, ready(), pending == nil, fresh(peer), let revision = configurationRevision, node.canEdit,
                   let screen = node.group.monitors.first(where: { $0.id == monitor }),
                   let owner = destination(preset: preset, monitor: monitor), fresh(owner), visible(preset: preset, monitor: monitor) else {
-                if node.isOwner { problem = "Input stays local until the chosen screen confirms its input and both Macs enable sharing." }
+                if node.isOwner { localProblem = nil; blockedTarget = (preset, monitor) }
                 return
             }
             let participants = Set(readiness.keys.filter(fresh)).union([node.localID])
@@ -257,7 +291,7 @@ final class KVMInputSession: ObservableObject {
             if prepared == pending.participants {
                 grant = pending; self.pending = nil; pointer = pending.focus; incoming = [:]; outputSequence = 0
                 installed = []; grantedAt = now
-                problem = nil
+                localProblem = nil
             }
         case .installed(let id):
             guard node.isOwner, let grant, grant.id == id, grant.participants.contains(peer) else { return }
@@ -275,7 +309,7 @@ final class KVMInputSession: ObservableObject {
                   sequence > incoming[peer, default: 0], allowEvent(peer, now: now) else { return }
             incoming[peer] = sequence
             guard installed == grant.participants else {
-                guard deliveryBuffer.count < 256 else { endAuthority(); problem = "Input returned locally because a computer did not finish the handoff."; return }
+                guard deliveryBuffer.count < 256 else { endAuthority(); localProblem = "Input returned locally because a computer did not finish the handoff."; return }
                 deliveryBuffer.append((peer, event)); return
             }
             route(event, source: peer, grant: grant)
@@ -304,7 +338,7 @@ final class KVMInputSession: ObservableObject {
         let old = rates[peer] ?? (now, 0)
         let count = now - old.0 >= 1 ? 1 : old.1 + 1
         rates[peer] = (now - old.0 >= 1 ? now : old.0, count)
-        if count > 4000 { endAuthority(); problem = "Input returned locally because a computer sent events too quickly."; return false }
+        if count > 4000 { endAuthority(); localProblem = "Input returned locally because a computer sent events too quickly."; return false }
         return true
     }
     private func fresh(_ peer: UUID) -> Bool {
@@ -331,8 +365,8 @@ final class KVMInputSession: ObservableObject {
     private func validateAuthority() {
         if let grant, (!grant.participants.allSatisfy(fresh) || !visible(preset: grant.preset, monitor: pointer?.monitor ?? grant.focus.monitor) ||
                        grant.revision != configurationRevision || !node.canEdit) { endAuthority() }
-        if let grant, installed != grant.participants, clock() - grantedAt >= 1 { endAuthority(); problem = "A computer did not accept control in time. Input is local." }
-        if pending != nil && clock() - pendingAt >= 2 { endAuthority(); problem = "A computer did not finish releasing input. Control remains local." }
+        if let grant, installed != grant.participants, clock() - grantedAt >= 1 { endAuthority(); localProblem = "A computer did not accept control in time. Input is local." }
+        if pending != nil && clock() - pendingAt >= 2 { endAuthority(); localProblem = "A computer did not finish releasing input. Control remains local." }
     }
     private func route(_ value: KVMInputEvent, source: UUID, grant: KVMInputGrant) {
         guard var location = pointer, let screen = node.group.monitors.first(where: { $0.id == location.monitor }),
@@ -369,20 +403,24 @@ final class KVMInputSession: ObservableObject {
     func tick() {
         guard enabled else { return }
         checkContext()
+        if clock() >= stateExpires {
+            if !readyComputers.isEmpty { readyComputers = [] }
+            if !availableConnections.isEmpty { availableConnections = [] }
+        }
         if let since = attachmentWaitingSince, clock() - since >= 2 {
-            stop(); problem = "The keyboard changed hosts, but the desk could not confirm its destination. Input is local; choose a screen to retry."
+            stop(); localProblem = "The device changed computers, but the desk could not confirm its destination. Input is local; choose a screen to retry."
         }
         if let preparedGrant, lease.grant == nil, clock() - preparedAt >= 2 {
-            endLocal(); send(.stop(preparedGrant.id), to: node.ownerID); problem = "The handoff timed out. Input is local."
+            endLocal(); send(.stop(preparedGrant.id), to: node.ownerID); localProblem = "The handoff timed out. Input is local."
         }
         if let grant = lease.grant, !lease.alive(now: clock()) || !ready() {
-            endLocal(); problem = "Input returned locally. Choose a screen to resume sharing."; send(.stop(grant.id), to: node.ownerID)
+            endLocal(); localProblem = "Input returned locally. Choose a screen to resume sharing."; send(.stop(grant.id), to: node.ownerID)
         }
         let nonce = lease.challenge(now: clock())
         polls = polls.filter { clock() - $0.value < 1 }; polls[nonce] = clock()
         send(.poll(nonce, ready()), to: node.ownerID)
         if let (preset, monitor, until) = pendingStart {
-            if clock() >= until { pendingStart = nil; problem = "The preset switched, but input sharing is still waiting for a ready computer and confirmed screen. Select a screen in Desk and choose Control when ready." }
+            if clock() >= until { pendingStart = nil; localProblem = "The preset switched, but input sharing is still waiting for a ready computer and confirmed screen. Select a screen in Desk and choose Control when ready." }
             else if readinessIssue(preset: preset, monitor: monitor) == nil { pendingStart = nil; start(preset: preset, monitor: monitor) }
         }
         publishKeyboardAttachments()

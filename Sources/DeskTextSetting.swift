@@ -78,16 +78,18 @@ struct DeskInlineName: View {
 }
 
 struct DeskCanvasButtonStyle: ButtonStyle {
+    var padding: CGFloat = 4
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        HoverBody(configuration: configuration, enabled: enabled)
+        HoverBody(configuration: configuration, enabled: enabled, padding: padding)
     }
     private struct HoverBody: View {
         let configuration: Configuration
         let enabled: Bool
+        let padding: CGFloat
         @State private var hovered = false
         var body: some View {
-            configuration.label.padding(4)
+            configuration.label.padding(padding)
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(enabled && (hovered || configuration.isPressed) ? 0.18 : 0)))
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.teal.opacity(enabled && hovered ? 0.55 : 0)))
                 .contentShape(Rectangle()).onHover { hovered = $0 }

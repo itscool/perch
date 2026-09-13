@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.118 is installed on disk
+2.0 development, September 13, 2026. Developer ID 2.0.119 is installed on disk
 in /Applications. The user's existing process was left running; Scott can
-restart to load 2.0.118. The previous bundle is
-retained at /Applications/.perch-previous-99rwj_ho/Perch.app.
-Public/notarized remains 2.0.94; 2.0.118 is not notarized or published. The matching
+restart to load 2.0.119. The previous bundle is
+retained at /Applications/.perch-previous-kqezxl6w/Perch.app.
+Public/notarized remains 2.0.94; 2.0.119 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -17,6 +17,19 @@ Sidebar readiness indicators and the clipped Desk inspector heading are fixed in
 installed candidate 2.0.118. Desk preset membership/use and card/name affordances are
 reconciled. See DESK-CLARITY-AND-INSPECTOR-2.0.md for offscreen evidence and live
 acceptance limits.
+
+- [x] **Misleading readiness and stale recovery warnings.** Fresh armed lid
+  protection and idle enabled sharing now distinguish ready from actively
+  controlling a screen, without promising macOS cannot force sleep. Current
+  failures retain attention; stale helper and remote failures clear when their
+  evidence changes. Input recovery names the coordinator or conflicting changes,
+  with targeted connection/status refresh. Monitor failures identify screens and
+  offer read-only verification separately from retrying a switch. Installed in
+  2.0.119; real two-Mac acceptance remains below. See RECOVERY-AND-DEVICE-FOLLOW-2.0.md.
+
+- [x] **Preset cards grew when attention appeared.** Warning and In use indicators
+  share the existing count/status line; offscreen production rendering verifies
+  equal card heights. Included in 2.0.119.
 
 - [ ] **Windows remain on a screen handed to another computer.** Scott reports
   the losing Mac still keeps windows on the switched monitor. Perch changes
@@ -34,7 +47,10 @@ acceptance limits.
   on September 13 confirm 96 ready transitions in four minutes, peer resets,
   nearby-path timeouts and some TLS session closures. These logs establish real
   churn, not its root cause. Scott later reports the connection suddenly working
-  better; no targeted network fix or cause has been established. Continue with
+  better. Pairing lifecycle and redundant-route/error recovery improved between
+  builds 106 and 110, and build 96 fixed synchronization stalls. These may explain
+  improvement after upgrading, but no root cause for the reported resets has been
+  established. Build 119 adds targeted retry and current-state error recovery. Continue with
   the affected Mac's exact error/recovery behavior;
   investigate lifecycle/reconnect/trust behavior without resetting membership,
   permissions or interrupting the user's testing. Loopback stability does not
@@ -200,6 +216,12 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Follow mouse computer buttons as well as keyboard buttons.** Shared
+  illustrated setup, three numbered steps, per-Mac device matching and visible
+  destination. Passive attachment monitoring and kind-aware signed configuration
+  use the existing host-following protocol. Ambiguous devices remain unmatched;
+  actual Bluetooth/USB receiver behavior is not yet accepted. Installed in 2.0.119.
+
 - [x] **Switch a single monitor from its port menu.** Switch to this input uses
   the paired leased protocol and fresh read-before-write check, permits an
   unassigned port, preserves all presets and returns shared input locally. Remote
@@ -337,6 +359,16 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **2.0.119 recovery and device following, on both updated Macs.** Verify
+  fresh armed lid status, real stopped/error/update states, named disconnected
+  coordinator and conflicting edits, refreshed readiness without automatic
+  capture, per-screen input checks/retries and recovery after fresh observations.
+  Follow the illustrated keyboard and mouse setup using actual host buttons;
+  cover Bluetooth and USB receivers, first input after a switch and safe local
+  recovery. Check stable preset-card heights, In use versus editing, full card
+  click areas and separate pencil/Play/port hover. Automated TLS/state and
+  offscreen rendering checks pass; this does not close physical-network defects.
 
 - [ ] **2.0.116 Desk sharing, port menu and lid rows:** on both updated Macs,
   enable sharing from Desk, confirm readiness, choose a screen and start control;
@@ -502,7 +534,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.106 candidate is prepared and installed locally with a source snapshot and draft notes.
+   signed 2.0.119 candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

@@ -138,14 +138,19 @@ remain open; this is not a claim that untested behavior is defect-free.
 - [ ] **Configurable closed-lid battery grace and one-time meeting shortcut.**
   Proposed: normal delay 1–20 minutes (default 1), clear enclosed-bag caution above
   5 minutes (a UX threshold, not a safety guarantee), one-time duration default 10
-  capped at 20. Pending choice: start the countdown at the keypress (simpler revised proposal)
-  or at closed-lid battery entry. For the latter, expire unused arming after 10
-  minutes. Deliberate presses may restart the chosen countdown with visible
+  capped at 20. Latest proposal: one countdown starting at the keypress, visible
+  in the menu, unaffected by opening/closing or connecting/disconnecting power.
+  At expiry, return to normal settings; closed on battery requests sleep.
+  User is still considering that model. Deliberate presses may restart the chosen countdown with visible
   feedback; ignore held-key repeats and require release between activations.
-  The proposed 20-minute cap applies per deliberate activation. Opening the
-  lid/stable power clears a consumed override. Carry agreed policy through the helper,
+  The proposed 20-minute cap applies per deliberate activation. Carry agreed policy through the helper,
   watchdog, restart handoff, settings, shortcut and logs; expected expiry remains
   log-only. Do not implement unresolved timer semantics as an assumed decision.
+  Required acceptance: virtual-clock matrices for durations 1–20, keypress/release
+  and repeat filtering, deliberate renewal, cancel, expiry, every lid/power state,
+  ordinary-grace restoration, restart/watchdog deadlines, delayed callbacks and
+  failures. Verify countdown and notice/log decisions from the same state. No
+  wall-clock sleeps or physical lid/power actions for policy unit tests.
 
 - [x] **One home for setup and recovery.** Permissions, background-helper repair,
   lid-helper maintenance and collector setup are grouped beneath Setup. Keyboard,
@@ -252,11 +257,14 @@ remain open; this is not a claim that untested behavior is defect-free.
    transfer, expired/unclaimed cleanup, unchanged grace deadlines and visible
    queued update/open-lid completion. Inactive restart passed; installation of
    build 77 did not exercise active-session handoff.
-6. [ ] **Lid safety edges and failures.** Just-before/after expiry opening/replugging,
-   repeated power changes, unknown power and uncovered battery-open → close →
-   plug → open ordering. Coordinate supervisor/watchdog failures, both absent
-   with independent recovery, and reboot recovery. Confirm actual OS sleep and
-   restoration. Powered close/open, short grace/replug, full 60-second expiry,
+6. [ ] **Lid integration edges and recovery.** Pure decision coverage now has
+   a headless virtual-clock suite: generated lid/power/authorization sequences,
+   exact expiry/stability boundaries, repeated power changes, unknown sensors,
+   watchdog, restart and command failures. See LID-POLICY-TESTS.md. Do not repeat
+   the unit matrix physically or wait through real durations to test policy.
+   Remaining integration checks concern real event delivery/order, independent
+   recovery when both supervisors disappear, reboot recovery, actual OS sleep
+   and restoration. Powered close/open, short grace/replug, full 60-second expiry,
    menu-process-loss cleanup and explicit disable already have recorded passes.
 7. [ ] **Native event-collector acceptance.** Install the current
    launcher through coordinated maintenance; test Full Disk Access attribution,

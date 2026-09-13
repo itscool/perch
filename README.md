@@ -143,6 +143,19 @@ optional background services. Collector-specific removal is described in
 
 ## Verification
 
+Fast, headless lid-policy checks:
+
+```sh
+python3 Tools/check-lid-policy.py
+```
+
+The first run compiles a small Swift binary; unchanged reruns reuse it. Virtual
+time advances instantly, including hour-long gaps. The suite compiles the actual
+policy, watchdog, restart and enforcement sources without AppKit, the macOS power
+adapter, Sparkle or signing credentials. It checks 378,504 generated transitions
+plus boundary/failure matrices in about one second on the development Mac.
+See [LID-POLICY-TESTS.md](LID-POLICY-TESTS.md) for the coverage boundary.
+
 ```sh
 build/Perch.app/Contents/MacOS/Perch --self-test
 build/Perch.app/Contents/MacOS/Perch --settings-self-test

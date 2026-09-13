@@ -97,7 +97,39 @@ enum SettingsReset {
     }
 }
 
+enum SettingsResetScope: CaseIterable, Hashable {
+    case settings, keyboardLayouts, appearance, perchPrivacy, sleep, allAppsPrivacy
+    var title: String {
+        switch self {
+        case .settings: return "Reset settings"
+        case .keyboardLayouts: return "Reset keyboard layouts"
+        case .appearance: return "Reset menu appearance"
+        case .perchPrivacy: return "Reset Perch’s privacy permissions?"
+        case .sleep: return "Reset sleep overrides"
+        case .allAppsPrivacy: return "Reset all apps’ privacy permissions?"
+        }
+    }
+}
+
 extension AppDelegate {
+    func openReset(_ scope: SettingsResetScope, returningToCurrentPage: Bool = true) {
+        if menuOpen { withMenuClosed { [weak self] in self?.openReset(scope, returningToCurrentPage: returningToCurrentPage) }; return }
+        let host = SettingsWindow.shared
+        guard !host.interactionBusy else { host.afterInteraction { [weak self] in self?.openReset(scope, returningToCurrentPage: returningToCurrentPage) }; return }
+        if !host.hasSidebar { installSettingsNavigation() }
+        host.navigateToReset(scope, returningToCurrentPage: returningToCurrentPage)
+    }
+    func presentResetScope(_ scope: SettingsResetScope) {
+        if SettingsWindow.shared.pages.isEmpty { resetHub() }
+        switch scope {
+        case .settings: resetSettingsPage()
+        case .keyboardLayouts: presentKeyboardLayoutReset()
+        case .appearance: presentAppearanceReset()
+        case .perchPrivacy: privacyOnlyReset(global: false)
+        case .sleep: systemResetPage(includeAudio: false)
+        case .allAppsPrivacy: privacyOnlyReset(global: true)
+        }
+    }
     @objc func openResets() {
         if menuOpen { withMenuClosed { [weak self] in self?.openResets() }; return }
         let host = SettingsWindow.shared

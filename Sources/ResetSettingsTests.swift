@@ -60,13 +60,57 @@ func runResetNavigationTests() throws {
     defer { host.modalTestDriver = nil; host.windowWillClose(Notification(name: NSWindow.willCloseNotification)); host.pages = [] }
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: "Resets: " + message) } }
     func buttons() -> [NSButton] { host.pages.last!.view.subviews.compactMap { $0 as? NSButton } }
-    for enter in [app.lidProtectionSetup, app.advancedSafetySettings, app.appSettings] {
+    for (enter, label, scope, parentName) in [
+        (app.lidProtectionSetup, "Sleep reset options…", SettingsResetScope.sleep, "Lid protection"),
+        (app.advancedSafetySettings, "Perch privacy reset…", SettingsResetScope.perchPrivacy, "Background helpers")
+    ] {
         enter()
-        guard let link = buttons().first(where: { $0.title == "Resets…" }) else { throw AppError(message: "Recovery page has no named Resets route") }
+        let parent = host.pages.last!.view, overview = host.pages.first!.view
+        guard let link = buttons().first(where: { $0.title == label }) else { throw AppError(message: "Missing scoped repair reset link") }
         link.performClick(nil)
-        try check(host.pages.count == 1 && host.pages.last?.title == "Resets" && host.back.isHidden &&
-                  host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset", "contextual reset failed to choose its canonical sidebar home")
+        let resetView = host.pages.last!.view
+        try check(host.pages.count == 3 && host.pages.last?.title == scope.title && host.back.title == "Back to " + parentName &&
+                  host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset", "repair did not open exact scope with Resets ownership and contextual Back")
+        try check(!buttons().contains { $0.title == "Setup & status…" }, "contextual reset has competing Setup navigation")
+        if scope == .sleep { try check(buttons().filter { !$0.isHidden }.allSatisfy { $0.state == .off && $0.title != "Unmute system audio" }, "sleep repair preselected changes or exposed unrelated audio") }
+        app.openReset(scope)
+        try check(host.pages.last?.view === resetView && host.pages.count == 3, "repeated scope entry duplicated reset")
+        host.goBack()
+        try check(host.pages.count == 2 && host.pages.last?.view === parent && host.pages.first?.view === overview && host.back.title == "Back to setup", "reset return rebuilt or lost setup context")
+        host.goBack()
+        try check(host.pages.last?.view === overview, "returning from reset lost original checklist")
     }
+    // A reset's operation outlives navigation; failure/success do not erase Back.
+    var completed: ((Result<String, Error>) -> Void)?
+    var scopes: [Bool] = []
+    let operation = PrivacyResetOperation { scope, finish in scopes.append(scope); completed = finish }
+    host.configureResetNavigation([.perchPrivacy: SettingsDestination(id: "reset", title: SettingsResetScope.perchPrivacy.title, pageTitles: [SettingsResetScope.perchPrivacy.title], open: { app.privacyOnlyReset(global: false, operation: operation) })])
+    app.advancedSafetySettings()
+    let stage = host.pages.last!.view
+    app.openReset(.perchPrivacy)
+    buttons().first { $0.identifier?.rawValue == "privacy.reset" }!.performClick(nil)
+    try check(scopes == [false], "contextual privacy reset changed scope")
+    host.goBack()
+    completed?(.failure(AppError(message: "Injected reset failure")))
+    app.openReset(.perchPrivacy)
+    try check(host.back.title == "Back to Background helpers" && buttons().contains { $0.title == "Retry privacy reset" }, "failed operation lost recovery or return context")
+    buttons().first { $0.title == "Retry privacy reset" }!.performClick(nil)
+    completed?(.success("Fixture reset completed")); host.pages.last?.refresh?()
+    try check(scopes == [false, false] && host.back.title == "Back to Background helpers", "successful retry lost scope/return")
+    host.goBack()
+    try check(host.pages.last?.view === stage, "completed reset failed to restore original stage")
+    app.installSettingsNavigation()
+    app.openReset(.sleep)
+    host.navigate(to: host.sidebar.destinations.first { $0.id == "appearance" }!)
+    try check(host.pages.count == 1 && host.back.isHidden, "leaving recovery kept a stale return path")
+    host.navigateToReset(.appearance)
+    try check(host.back.title == "Back to Menu Appearance" && host.pages.last?.title == "Reset menu appearance", "appearance reset missed its scope/return")
+    host.goBack()
+    app.openReset(.allAppsPrivacy, returningToCurrentPage: false)
+    try check(host.pages.map(\.title) == ["Resets", SettingsResetScope.allAppsPrivacy.title], "system-wide command inherited unrelated feature recovery")
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+    app.openResets()
+    try check(host.pages.count == 1 && host.pages.last?.title == "Resets" && host.back.isHidden, "reopened Resets retained a stale repair return")
     let root = host.pages.last!.view
     for title in ["Saved Perch settings…", "Keyboard layouts…", "Menu appearance…", "Perch privacy permissions…", "Sleep & audio…", "All apps’ privacy permissions…"] {
         buttons().first { $0.title == title }!.performClick(nil)

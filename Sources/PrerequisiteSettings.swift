@@ -20,7 +20,7 @@ extension AppDelegate {
             self?.settingsRefresh?()
         }
         page.add("Background helpers in Setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
-        page.add("Resets…", detail: "Choose Sleep & audio in Resets to end Perch’s sleep protection. Opening Resets makes no changes.") { [weak self] in self?.openResets() }
+        page.add("Sleep reset options…", detail: "If you need to end Perch’s sleep protection, open its reset options. Nothing changes until you choose and confirm an action; return here afterward.") { [weak self] in self?.openReset(.sleep) }
         page.update = { [weak page] in
             let helper = readHelper()
             repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"

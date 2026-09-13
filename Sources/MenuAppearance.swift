@@ -133,7 +133,7 @@ struct MenuAppearancePage: View {
                     Button("Outlined sections") { var s = MenuSectionAppearance(); s.borderScope = .full; s.sides = Set(MenuSectionAppearance.Side.allCases); s.backgroundScope = .full; s.radius = 6; s.thickness = 1; replace(s) }
                 }
                 Spacer()
-                Button("Resets…") { SettingsWindow.shared.navigateToResets() }.help("Choose Menu appearance in Resets to restore both rainbow sections and System.")
+                Button("Reset appearance…") { SettingsWindow.shared.navigateToReset(.appearance) }.help("Open appearance reset options for rainbow sections and System, then return here.")
             }
         }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

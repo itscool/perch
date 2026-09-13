@@ -52,7 +52,7 @@ final class PrivacyResetOperation {
 }
 
 extension AppDelegate {
-    @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.openResets() } }
+    @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.openReset(.allAppsPrivacy, returningToCurrentPage: false) } }
     func privacyOnlyReset(global: Bool, operation: PrivacyResetOperation = PrivacyOnlyReset.operation) {
         let page = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 320))
         let scope = global
@@ -103,7 +103,8 @@ extension AppDelegate {
         confirm.frame = NSRect(x: 0, y: 54, width: 572, height: 32)
         let recovery = SettingsActionButton(title: "Setup & status…") { [weak self] in self?.setupOverview() }
         recovery.frame = NSRect(x: 0, y: 10, width: 572, height: 32)
-        [explanation, status, confirm, recovery].forEach { page.addSubview($0) }
+        [explanation, status, confirm].forEach { page.addSubview($0) }
+        if !SettingsWindow.shared.hasContextualReturn { page.addSubview(recovery) }
         let timer = Timer(timeInterval: 0.25, repeats: true) { _ in update() }
         RunLoop.main.add(timer, forMode: .common)
         SettingsWindow.shared.show(.init(title: global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?", detail: "Resetting permissions also forgets previous denials; it is not a permanent block. Leaving before starting makes no changes. Once started, the reset cannot be cancelled here.", view: page, leave: { timer.invalidate() }, refresh: update))
@@ -121,7 +122,7 @@ extension AppDelegate {
         sleep.frame = NSRect(x:0,y:includeAudio ? 210 : 170,width:572,height:28)
         audio.frame = NSRect(x:0,y:170,width:572,height:28)
         audio.isHidden = !includeAudio
-        let result = NSTextField(wrappingLabelWithString:"Sleep reset ends Perch’s owned lid protection and keep-awake request. Unowned system overrides and other apps’ sleep assertions remain. Audio reset unmutes the system. Keyboard system/firmware settings are not reset: Perch has no recorded original values to restore.")
+        let result = NSTextField(wrappingLabelWithString:"Sleep reset ends Perch’s owned lid protection and keep-awake request. Unowned system overrides and other apps’ sleep assertions remain." + (includeAudio ? " Audio reset unmutes the system. Keyboard system/firmware settings are not reset: Perch has no recorded original values to restore." : " Your saved lid choice and keep-awake request are cleared only when you explicitly reset them."))
         result.frame = NSRect(x:0,y:55,width:572,height:110); result.textColor = .secondaryLabelColor
         let apply = SettingsActionButton(title:"Reset selected system settings") { [weak self] in
             guard !SettingsWindow.shared.testing, sleep.state == .on || audio.state == .on else { return }

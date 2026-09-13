@@ -54,8 +54,8 @@ final class NavigationProbePage: NSObject {
             SettingsWindow.shared.navigateToSetupStage("keyboard-access")
         }
         launchRecovery.frame = NSRect(x: 8, y: 333, width: 556, height: 30); view.addSubview(launchRecovery)
-        reset = SettingsActionButton(title: "Resets…") { SettingsWindow.shared.navigateToResets() }
-        reset.toolTip = "Choose Keyboard layouts in Resets to forget one or all learned layouts, including disconnected keyboards."
+        reset = SettingsActionButton(title: "Reset saved layouts…") { SettingsWindow.shared.navigateToReset(.keyboardLayouts) }
+        reset.toolTip = "Open reset options for one or all learned layouts, including disconnected keyboards, then return here."
         reset.frame = NSRect(x: 8, y: 333, width: 230, height: 30); view.addSubview(reset)
         instruction.announcesChanges = true
         instruction.font = .systemFont(ofSize: 16, weight: .semibold); instruction.textColor = .labelColor
@@ -96,7 +96,7 @@ final class NavigationProbePage: NSObject {
     }
     func show() {
         let host = SettingsWindow.shared
-        host.show(.init(title: "Set up navigation keys", detail: pageDetail, view: view, leave: { [self] in close() }))
+        host.show(.init(title: "Set up navigation keys", detail: pageDetail, view: view, leave: { [self] in close() }, refresh: { [weak self] in self?.reload() }))
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: host.window, queue: .main) { [weak self] _ in
             self?.session.stop("Setup stopped because you left this window. Your saved layout was kept.")
         })

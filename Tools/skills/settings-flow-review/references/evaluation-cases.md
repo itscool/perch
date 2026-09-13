@@ -365,7 +365,10 @@ appearance and saved-device resets are hidden in unrelated feature pages.
 Expected: identify unclear destination/disclosure wording and incomplete reset
 ownership as one journey defect. Name destinations and Show/Hide instructions
 accurately; inventory all reset entry points and make their scopes discoverable
-from the reset center. Contextual links must select that same owner. Preserve
+from the reset center. Contextual repair links must open the exact option under
+that owner and return to the same setup step/checklist after Cancel, failure,
+success and retry. A generic index link is insufficient. Choosing another sidebar
+page or closing the window must not retain a stale return. Preserve
 real review of proposed changes, ordinary editing, destructive confirmation,
 Cancel, disconnected devices, and failed-write retry. Do not perform live resets
 to prove navigation. Verify navigation separately from injected scoped writes.

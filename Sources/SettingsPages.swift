@@ -194,5 +194,5 @@ extension AppDelegate {
         }
         page.show(delegate: self)
     }
-    @objc func perchPrivacyResetFromSettings() { openResets() }
+    @objc func perchPrivacyResetFromSettings() { openReset(.perchPrivacy) }
 }

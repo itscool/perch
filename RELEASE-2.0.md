@@ -243,3 +243,18 @@ and Back plus setup/appearance entry links. Only injected/disposable writes were
 performed; no live reset, permission, helper or sleep operation was exercised.
 See RESET-DISCOVERABILITY-2.0.md. Candidate 2.0.99 supersedes prepared 2.0.98;
 installed/public 2.0.94 remains unchanged. No notarization/publication is included.
+
+## Contextual reset recovery — candidate 2.0.101
+
+Repair links open the exact scope inside Resets, with a labeled Back that retains
+the original setup/feature page and checklist. Lid repair excludes unrelated
+audio changes; background repair uses Perch-only permissions. Keyboard layouts
+and appearance use the same scoped return, while the System privacy command
+opens all-app privacy beneath the Resets index. No reset is executed on entry.
+
+Background-helper status refresh updates its existing page; keyboard layouts
+reload saved profiles on return. Privacy failure/retry/results retain the return
+route. Explicit sidebar navigation or closing ends the temporary context.
+Developer ID signed 2.0.101 supersedes prepared 2.0.99/100; installed/public
+2.0.94 remains unchanged. Final test/native evidence is recorded in
+RESET-DISCOVERABILITY-2.0.md. No notarization or publication was performed.

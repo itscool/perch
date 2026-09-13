@@ -103,13 +103,15 @@ func runReviewFixTests() throws {
     try check(app.externalFnItem.isEnabled && app.externalFnItem.action == #selector(AppDelegate.keyboardDetails), "Unavailable Fn mode did not route to its detailed recovery")
     try check(app.validateMenuItem(app.externalFnItem), "Menu validation blocks the keyboard setup route")
     let keyboard = NavigationKeyboardIdentity(vendor: 1234, product: 123, version: 1, name: "Saved keyboard", transport: "USB", usages: NavigationLearning.usages.sorted())
-    let profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68,0x69,nil,nil])]
+    var profiles = [NavigationKeyboardProfile(identity: keyboard, keys: [0x68,0x69,nil,nil])]
     let offline = NavigationProbePage(enumerate: { [] }, hasAccess: { false }, saveProfile: { _ in }, readProfiles: { profiles })
     offline.show()
     try check(offline.picker.titleOfSelectedItem?.contains("disconnected") == true && offline.picker.isEnabled, "Saved disconnected keyboard cannot be selected")
     host.modalTestDriver = { _ in .alertFirstButtonReturn }
-    offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Resets…" }!.performClick(nil)
-    try check(host.pages.last?.title == "Resets" && profiles.count == 1, "Offline keyboard reset did not open Resets without changing saved layouts")
+    offline.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Reset saved layouts…" }!.performClick(nil)
+    try check(host.pages.last?.title == "Reset keyboard layouts" && host.back.title == "Back to Keyboard layouts" && profiles.count == 1, "Offline keyboard reset did not open Resets without changing saved layouts")
+    profiles.removeAll() // Simulate the separate reset page completing its scoped write.
     host.goBack()
+    try check(host.pages.last?.view === offline.view && offline.picker.titleOfSelectedItem == "No connected or saved external keyboard", "Returning from layout reset retained the erased keyboard or rebuilt its origin")
     print("PASS: runtime argument identity; helper build verification; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
 }

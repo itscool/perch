@@ -1,7 +1,7 @@
 # Perch work checklist
 
-2.0 development, September 12, 2026. Developer ID 2.0.94 is notarized and installed
-in /Applications. 2.0.94 is published; signed 2.0.99 corrections have bounded
+2.0 development, September 13, 2026. Developer ID 2.0.94 is notarized and installed
+in /Applications. 2.0.94 is published; signed 2.0.101 corrections have bounded
 native/automated acceptance and await installation and physical QA. Categories
 are distinct: known defects,
 features, QA, release and backlog. Order within each category is planned work
@@ -9,6 +9,13 @@ order. Dependencies take precedence: public signing precedes public Sparkle rele
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [x] **Repair reset links lost their setup context.** Links now open the exact
+  reset scope under Resets and provide a labeled Back to the original setup or
+  feature page. Background-helper refresh preserves the page; keyboard layouts
+  reload after returning from a reset. Changing sidebar destinations or closing
+  ends that temporary return. Prepared in 2.0.101; not installed. See
+  RESET-DISCOVERABILITY-2.0.md for the final acceptance boundary.
 
 - [x] **Reset discovery and vague navigation labels.** Resets now owns preferences,
   saved keyboard layouts, menu appearance, scoped privacy and sleep/audio recovery.
@@ -300,7 +307,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.99 candidate is prepared with a source snapshot and draft notes.
+   signed 2.0.101 candidate is prepared with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

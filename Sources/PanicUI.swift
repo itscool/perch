@@ -146,14 +146,19 @@ extension AppDelegate {
     }
     @objc func advancedSafetySettings() { openSetupStage("maintenance") }
     @objc func presentBackgroundSetup() {
-        setupOverview()
         let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
         let problem = issue.flatMap { $0.route == "repair" ? $0.detail + "\n\n" : nil } ?? ""
-        chooseSafetyAction(title: "Background helpers", detail: problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes.", options: [
+        let detail = problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes."
+        if SettingsWindow.shared.pages.last?.title == "Background helpers" {
+            SettingsWindow.shared.updateCurrentPageDetail(detail)
+            return
+        }
+        setupOverview()
+        chooseSafetyAction(title: "Background helpers", detail: detail, options: [
             ("Repair background helpers…", "Install the current Perch build and restart its helpers. Existing feature choices are retained.", #selector(repairWatcher)),
             ("Open macOS Login Items…", "If Start at login needs approval, allow Perch in macOS. Your startup choice remains in App settings.", #selector(reviewLoginApproval)),
             ("Protect background helper files…", "Require administrator authorization to replace helper files. This does not prevent disabling protection.", #selector(protectWatcher)),
-            ("Resets…", "For a permission reset, choose Perch privacy permissions in Resets. Saved feature choices are kept.", #selector(perchPrivacyResetFromSettings))])
+            ("Perch privacy reset…", "If Perch’s existing grants still fail after repair, open the Perch-only reset. Saved choices are kept; return here afterward to finish setup.", #selector(perchPrivacyResetFromSettings))])
     }
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }

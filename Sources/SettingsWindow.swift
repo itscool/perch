@@ -13,14 +13,18 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     let contentScroll = NSScrollView(frame: NSRect(x: 14, y: 24, width: 592, height: 490))
     let sidebar = SettingsSidebar(frame: .zero)
     var hasSidebar: Bool { !sidebar.destinations.isEmpty }
+    private var resetDestinations: [SettingsResetScope: SettingsDestination] = [:]
+    private var openingReturn: (destination: String, title: String)?
+    var hasContextualReturn: Bool { openingReturn != nil }
     private var sidebarWidth: CGFloat { hasSidebar ? 228 : 0 }
     struct Page {
         let title: String
-        let detail: String
+        var detail: String
         let view: NSView
         var leave: (() -> Void)?
         var refresh: (() -> Void)?
         var backTitle: String? = nil
+        var navigationDestinationID: String? = nil
         var preferredBodyHeight: CGFloat = 490
         var preferredBodyWidth: CGFloat = 572
         var beforeBack: (() -> Bool)? = nil
@@ -104,9 +108,16 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
     func updateSidebar() {
         let selected = pages.reversed().compactMap { page in
-            sidebar.destinations.first(where: { $0.pageTitles.contains(page.title) })?.id
+            page.navigationDestinationID ?? sidebar.destinations.first(where: { $0.pageTitles.contains(page.title) })?.id
         }.first
         sidebar.update(selected: selected, busy: interactionBusy)
+    }
+    func configureResetNavigation(_ destinations: [SettingsResetScope: SettingsDestination]) {
+        resetDestinations = destinations
+    }
+    func navigateToReset(_ scope: SettingsResetScope, returningToCurrentPage: Bool = true) {
+        guard let destination = resetDestinations[scope] else { return }
+        navigate(to: destination, preservingReturn: returningToCurrentPage && !pages.isEmpty)
     }
     func navigateToResets() {
         guard let destination = sidebar.destinations.first(where: { $0.id == "reset" }) else { return }
@@ -116,10 +127,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         guard let destination = sidebar.destinations.first(where: { $0.id == id && $0.setupStage }) else { return }
         navigate(to: destination)
     }
-    func navigate(to destination: SettingsDestination) {
+    func navigate(to destination: SettingsDestination, preservingReturn: Bool = false) {
         returnedToApp() // An explicit navigation request is also a return from Finder/Settings.
         guard !interactionBusy else { updateSidebar(); return }
-        if (pages.count == 1 || (destination.setupStage && pages.count == 2 && pages.first?.title == "Setup & status")), let last = pages.last, destination.pageTitles.contains(last.title) {
+        if (preservingReturn || pages.count == 1 || (destination.setupStage && pages.count == 2 && pages.first?.title == "Setup & status")), let last = pages.last, destination.pageTitles.contains(last.title) {
             updateSidebar()
             if !testing { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
             return
@@ -140,16 +151,20 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             }
             return
         }
-        openDestination(destination)
+        openDestination(destination, preservingReturn: preservingReturn)
     }
-    private func openDestination(_ destination: SettingsDestination) {
+    private func openDestination(_ destination: SettingsDestination, preservingReturn: Bool = false) {
         // Setup stages share the existing checklist, preserving its selected
         // issue and scroll position. Draft validation ran before this point.
-        if destination.setupStage, pages.first?.title == "Setup & status" {
+        if preservingReturn, let parent = pages.last {
+            let name = sidebar.destinations.first(where: { $0.pageTitles.contains(parent.title) })?.title ?? parent.title
+            openingReturn = (destination.id, "Back to " + name)
+        } else if destination.setupStage, pages.first?.title == "Setup & status" {
             while pages.count > 1 { pages.removeLast().leave?() }
         } else {
             pages.reversed().forEach { $0.leave?() }; pages.removeAll()
         }
+        defer { openingReturn = nil }
         feedback = nil
         destination.open()
         updateSidebar()
@@ -322,9 +337,19 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         }
         pages[pages.count-1].scrollFromTop = max(0, container.frame.height-contentScroll.contentSize.height-contentScroll.contentView.bounds.minY)
     }
+    func updateCurrentPageDetail(_ detail: String) {
+        guard !interactionBusy, let page = pages.last, page.detail != detail else { return }
+        rememberScroll()
+        pages[pages.count - 1].detail = detail
+        display(pages[pages.count - 1])
+    }
     func show(_ proposed: Page) {
         var page = proposed
         guard !interactionBusy else { afterInteraction { [weak self] in self?.show(page) }; return }
+        if let context = openingReturn {
+            page.navigationDestinationID = context.destination
+            page.backTitle = context.title
+        }
         rememberScroll()
         if let previous = pages.last, previous.title == page.title { page.scrollFromTop = previous.scrollFromTop; page.focusIdentifier = previous.focusIdentifier; page.focusView = previous.focusView; page.selection = previous.selection }
         feedback = nil

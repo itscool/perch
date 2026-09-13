@@ -44,5 +44,8 @@ extension AppDelegate {
             item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
             item("reset", "Resets", ["Resets"], #selector(resetHub))
         ])
+        SettingsWindow.shared.configureResetNavigation(Dictionary(uniqueKeysWithValues: SettingsResetScope.allCases.map { scope in
+            (scope, SettingsDestination(id: "reset", title: scope.title, pageTitles: [scope.title], open: { [weak self] in self?.presentResetScope(scope) }))
+        }))
     }
 }

@@ -43,3 +43,22 @@ check launch provenance, signing identity and scoped TCC attribution, then verif
 normal app launch. Headless tools and deliberately isolated test subprocesses are
 separate; the in-app verified restart worker has a live test preserving Perch’s
 own attribution. Keep this distinction when changing launch/restart mechanisms.
+
+# Keep the installed candidate current
+
+After a completed, verified build, replace the entire app bundle at the path
+of the running Perch (normally /Applications/Perch.app), retaining its signing
+identity and updater configuration. Stage and verify the bundle first; keep a
+recoverable previous bundle. Do not overwrite a running executable in place.
+Do not quit or restart the user's app merely to update the files: the next user
+restart should pick up the new version. Report running and on-disk versions
+separately. This does not authorize helper changes, notarization or publication.
+
+# Appearance options and built-in presets
+
+Whenever appearance options are added, removed or changed, review every built-in
+preset in both Light and Dark. Update, add or retire treatments as appropriate
+so the preset set uses the available design choices deliberately. Record which
+presets changed and which were intentionally kept. Keep palette choices separate
+from composition names, and preserve Scott's exact Perch original unless he
+changes that specification.

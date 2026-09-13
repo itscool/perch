@@ -73,6 +73,61 @@ import Foundation
         let broken = DeskModel(store: corrupt); broken.edit { $0.name = "Overwrite" }
         let preserved = try Data(contentsOf: corrupt)
         try check(preserved == bad && !broken.canUse, "failed load does not overwrite original")
+        // Cable and profile edits never manufacture/move physical screen identities.
+        var cables = DeskModel.sample()
+        let screenID = cables.monitors[0].id, computerID = cables.computers[0].id
+        let source = cables.connections.first { $0.monitor == screenID && $0.computer == computerID }!
+        let target = cables.connections.first { $0.monitor == screenID && $0.computer == nil }!
+        let geometry = cables.monitors.map(\.geometry), assignments = cables.presets.map(\.assignments)
+        try DeskCableBinding.apply(connection: target.id, computer: computerID, display: source.localDisplay, to: &cables)
+        try check(cables.connections.first { $0.id == source.id }?.computer == nil && cables.connections.first { $0.id == target.id }?.computer == computerID, "moving cable clears prior port atomically")
+        try check(cables.monitors.map(\.geometry) == geometry && cables.presets.map(\.assignments) == assignments, "cable edits preserve physical geometry and preset input choices")
+        let otherPort = cables.connections.first { $0.monitor != screenID }!
+        let cableSnapshot = cables
+        do { try DeskCableBinding.apply(connection: otherPort.id, computer: computerID, display: source.localDisplay, to: &cables); throw KVMError("accepted duplicate physical display") } catch {
+            try check(cables == cableSnapshot, "rejected duplicate display preserves the entire desk")
+        }
+        cables.monitors[0].control = .init(computer: computerID, localDisplay: source.localDisplay!)
+        let savedPorts = cables.connections.filter { $0.monitor == screenID }
+        try DeskMonitorConfiguration.apply(monitor: screenID, profile: "Fixture LG", ports: [.init(name: "USB-C", code: 209), .init(name: "DisplayPort", code: 208), .init(name: "HDMI 1", code: 144), .init(name: "HDMI 2", code: 145)], mode: "lg", to: &cables)
+        try check(cables.monitors[0].inputProfile == "Fixture LG" && cables.monitors[0].control?.mode == "lg", "profile saves alongside monitor control")
+        try check(savedPorts.allSatisfy { old in cables.connections.contains { $0.id == old.id && $0.computer == old.computer && $0.localDisplay == old.localDisplay } } && cables.presets.map(\.assignments) == assignments, "profile changes preserve cable/port identity and all presets")
+        let configured = cables
+        do { try DeskMonitorConfiguration.apply(monitor: screenID, profile: "Bad", ports: [.init(name: "Wrong port", code: 209)], mode: "lg", to: &cables); throw KVMError("accepted duplicate input code") } catch {
+            try check(cables == configured, "invalid profile does not partially change working configuration")
+        }
+        try DeskCableBinding.apply(connection: target.id, computer: nil, display: nil, to: &cables)
+        try check(cables.connections.first { $0.id == target.id }?.computer == nil && cables.presets.map(\.assignments) == assignments, "disconnect preserves physical input and preset choice")
+        var identification = DeskIdentificationState()
+        let first = identification.toggle("screen")
+        try check(first.showing, "Identify starts")
+        let cancelled = identification.toggle("screen")
+        try check(!cancelled.showing && cancelled.token == first.token && identification.active.isEmpty, "same Identify cancels")
+        let restarted = identification.toggle("screen")
+        try check(restarted.showing && restarted.token != first.token, "Identify starts afresh after cancellation")
+        try check(!identification.expire("screen", token: first.token) && identification.active["screen"] == restarted.token, "old timer cannot cancel a restarted identification")
+        _ = identification.toggle("other")
+        try check(identification.expire("screen", token: restarted.token) && identification.active["other"] != nil, "timeout affects only its own identification")
+        try check(identification.toggle("screen").showing, "Identify restarts after timeout")
+        let fixed = CGRect(x: 0, y: 0, width: 600, height: 340)
+        let leftDrop = CGRect(x: -561, y: 10, width: 550, height: 310)
+        let snapped = DeskScreenPlacement.place(leftDrop, among: [fixed], scale: 1)
+        try check(snapped.maxX == fixed.minX && snapped.minY == leftDrop.minY, "right monitor moves to left and docks without arbitrary vertical jump")
+        let free = CGRect(x: -750, y: 0, width: 550, height: 310)
+        try check(DeskScreenPlacement.place(free, among: [fixed], scale: 1) == free, "intentional large gaps remain available")
+        let overlapping = CGRect(x: 100, y: 0, width: 550, height: 310)
+        let rescued = DeskScreenPlacement.place(overlapping, among: [fixed], scale: 1)
+        try check(rescued.maxX <= fixed.minX || rescued.minX >= fixed.maxX || rescued.maxY <= fixed.minY || rescued.minY >= fixed.maxY, "overlapping drop docks instead of jumping to old location")
+        for scale in [0.05, 0.1, 0.5, 1.0, 2.0] {
+            for step in 1...40 {
+                let gap = Double(step) / 4
+                let proposed = CGRect(x: fixed.maxX + gap / scale, y: 13, width: 310, height: 550)
+                let placed = DeskScreenPlacement.place(proposed, among: [fixed], scale: scale)
+                try check(placed.minX == fixed.maxX && placed.minY == 13 && placed.size == proposed.size, "snap uses screen-point tolerance with rotated physical dimensions")
+            }
+        }
+        let fit = DeskCanvasLayout(rectangles: [fixed, snapped], viewport: CGSize(width: 400, height: 250))
+        try check(abs((600 * fit.scale) / (550 * fit.scale) - 600 / 550.0) < 0.0001, "auto-fit preserves physical proportions")
         print("PASS: \(count) desk-model journey checks — immediate save, reopen, readiness, picture-only inputs, failure/retry, removal and correction. No windows shown.")
     }
 }

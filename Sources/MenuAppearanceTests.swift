@@ -7,7 +7,7 @@ func runMenuAppearanceTests() throws {
         guard pair.0.frame.minY >= pair.1.frame.maxY else { throw AppError(message: "Appearance preview rows overlap") }
     }
     preview.setFrameSize(NSSize(width: 400, height: 168)); preview.layout()
-    guard preview.rows.allSatisfy({ $0.frame.width == 400 }) else { throw AppError(message: "Appearance preview did not resize") }
+    guard preview.rows.allSatisfy({ $0.frame.width == preview.menuRect.width }) else { throw AppError(message: "Appearance preview did not resize") }
     let suite = "local.perch.appearance-test." + UUID().uuidString
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }

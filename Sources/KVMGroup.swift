@@ -71,6 +71,7 @@ struct KVMMonitor: Codable, Equatable, Identifiable {
     var name: String
     var geometry: KVMGeometry
     var control: KVMMonitorControl? = nil
+    var inputProfile: String? = nil
 }
 
 struct KVMConnection: Codable, Equatable, Identifiable {
@@ -151,6 +152,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
                         (1...10_000).contains(g.width) && (1...10_000).contains(g.height), "Screen positions and physical sizes must be valid.")
             try require(!monitors.contains { $0.id != monitor.id && $0.geometry.overlaps(g) }, "Screens overlap. Place them side by side or leave a gap.")
         }
+        try require(monitors.allSatisfy { $0.inputProfile.map { !$0.isEmpty && $0.utf8.count <= 200 } ?? true }, "Monitor profile names must be valid.")
         for connection in connections {
             try require(monitors.contains { $0.id == connection.monitor } && (connection.computer == nil || computers.contains { $0.id == connection.computer }), "A screen connection refers to a removed device.")
             try require(nameOK(connection.inputName) && connection.inputCode != 0, "A screen connection needs a valid input.")

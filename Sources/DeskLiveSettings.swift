@@ -32,7 +32,7 @@ struct DeskLiveSheet: View {
             contents
             // Temporary sheets already present model.problem; stable sidebar pages own their error display.
             if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["desk", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
-        }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "control" { loadControl() } }
+        }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "removeComputer" { removing = true }; if ["control", "monitorSetup"].contains(kind) { loadControl() }; if kind == "monitorSetup", let computer, !display.isEmpty { runtime.inspect(display, computer: computer) } }
             .onChange(of: node.completedPairing) { _, value in if kind == "computer", value != nil { close() } }
             .onDisappear { if kind == "computer" { node.closePairing() } }
     }
@@ -43,7 +43,7 @@ struct DeskLiveSheet: View {
         case "screen": addScreen
         case "desk": deskSettings
         case "input": DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
-        case "computerDetails": computerDetails
+        case "computerDetails", "removeComputer": computerDetails
         case "conflict": conflict
         case "connections":
             Text("Add an input").font(.title2.bold())
@@ -56,12 +56,8 @@ struct DeskLiveSheet: View {
             Text("Remove this input?").font(.title2.bold())
             Text("Its selections in all three presets will be cleared. Other inputs and the screen stay in your desk.")
             Button("Remove input", role: .destructive) { runtime.model.removeConnection(selection!); if runtime.model.problem == nil { close() } }
-        case "correctConnection":
-            Text("Correct the physical screen").font(.title2.bold())
-            Text("Move this cable mapping to the physical screen it belongs to. Its preset selections are cleared so you can choose them again.")
-            Picker("Physical screen", selection: $screen) { Text("Choose screen").tag(nil as UUID?); ForEach(node.group.monitors) { Text($0.name).tag(Optional($0.id)) } }
-            Button("Correct screen match") { guard let screen, let selection else { return }; runtime.model.correctConnection(selection, physicalScreen: screen); if runtime.model.problem == nil { close() } }.disabled(screen == nil)
         case "control": control
+        case "monitorSetup": monitorSetup
         default: EmptyView()
         }
     }
@@ -130,36 +126,40 @@ struct DeskLiveSheet: View {
     }
     var addScreen: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Add or identify a screen").font(.title2.bold())
-            Text("Choose a detected display, then tell Perch whether it is a new physical screen or one already shared in this desk. Identical models are kept separate until you confirm a match.").font(.callout).foregroundStyle(.secondary)
+            Text("Add a monitor").font(.title2.bold())
+            Text("Add each physical monitor once. After that, connect other computers to its ports on the desk.").font(.callout).foregroundStyle(.secondary)
             Picker("Connected computer", selection: $computer) { ForEach(node.group.computers) { Text($0.name + (node.online.contains($0.id) ? "" : " · Offline")).tag(Optional($0.id)) } }.onChange(of: computer) { _, _ in display = ""; input = 0 }
             Picker("Detected display", selection: $display) {
                 Text("Choose display").tag("")
-                ForEach(runtime.displays[computer ?? node.localID] ?? []) { Text($0.name + " · " + String($0.id.prefix(8))).tag($0.id) }
+                ForEach(Array((runtime.displays[computer ?? node.localID] ?? []).enumerated()), id: \.element.id) { index, value in Text("Display \(index + 1): \(value.name)").tag(value.id) }
             }.onChange(of: display) { _, value in input = 0; profileName = ""; if let computer { runtime.inspect(value, computer: computer) } }
             if let detected = selectedDisplay {
+                if let existing = node.group.connections.first(where: { $0.computer == computer && $0.localDisplay == display }), let monitor = node.group.monitors.first(where: { $0.id == existing.monitor }) {
+                    Text("This monitor is already on your desk as \(monitor.name).").font(.headline)
+                    Button("Show \(monitor.name)") { runtime.model.selected = monitor.id; close() }
+                } else {
                 if detected.serial != 0 { Text("Serial \(detected.serial)").font(.caption).foregroundStyle(.secondary) }
                 if !detected.canControl { Text("DDC/CI is unavailable through this cable. After adding the screen, choose its USB, network or serial control connection in Monitor control.").font(.callout).foregroundStyle(.orange) }
                 if let computer, let suggestion = runtime.suggestedScreens(computer: computer, display: detected).first {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("May be your \(suggestion.name) screen").font(.headline)
-                        Text("Its model and serial match a display on another computer. Confirm with Identify before saving; a serial can still be duplicated.").font(.caption)
+                        Text("Its model and serial match a monitor already on the desk. Use Identify to check. If it is the same monitor, show it on the desk and connect this computer to its port.").font(.caption)
                         HStack {
-                            Button("Identify this display") { runtime.identifyDetected(display, computer: computer, name: detected.name) }
-                            Button("Use \(suggestion.name)") { screen = suggestion.id }
+                            Button(runtime.identifications.active[computer.uuidString + "|" + display] != nil ? "Stop identifying" : "Identify this display") { runtime.identifyDetected(display, computer: computer, name: detected.name) }
+                            Button("Show \(suggestion.name) on the desk") { runtime.model.selected = suggestion.id; close() }
                         }
                     }.padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                 }
-                Picker("Physical screen", selection: $screen) {
-                    Text("A new screen").tag(nil as UUID?)
-                    ForEach(node.group.monitors) { Text($0.name).tag(Optional($0.id)) }
-                }
-                if screen == nil { TextField("Screen name", text: $name).textFieldStyle(.roundedBorder) }
+                TextField("Screen name", text: $name).textFieldStyle(.roundedBorder)
                 Picker("Monitor profile", selection: $profileName) {
-                    Text(detected.profile(choice: "").map { "Suggested: " + $0.name } ?? "Detected inputs").tag("")
-                    if detected.profile(choice: "") != nil || profileName == DeskDetectedDisplay.reportedInputsChoice { Text("Use detected inputs instead").tag(DeskDetectedDisplay.reportedInputsChoice) }
+                    Text(detected.profile(choice: "").map { "Suggested controls: " + $0.name } ?? "Ports reported by the monitor").tag("")
+                    if detected.profile(choice: "") != nil || profileName == DeskDetectedDisplay.reportedInputsChoice { Text("Use reported ports instead").tag(DeskDetectedDisplay.reportedInputsChoice) }
                     ForEach(MonitorProfiles.entries.filter { $0.vendor == detected.vendor }, id: \.name) { Text($0.name).tag($0.name) }
                 }.onChange(of: selectedProfile?.name) { _, _ in input = 0 }
+                if let issue = detected.inspectionProblem { Text("Could not read monitor details: " + issue).font(.callout).foregroundStyle(.orange) }
+                if detected.profile(choice: "") == nil {
+                    Text(detected.inspected == true ? "The exact model was not identified. A generic name from macOS does not identify a retail model. Choose a profile only when its documented controls match your monitor." : "Reading monitor details…").font(.caption).foregroundStyle(.secondary)
+                }
                 if let family = detected.firmwareFamily {
                     Text("LG firmware family: \(family). This can suggest input settings; it does not confirm the retail model or a shared physical screen.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -171,13 +171,14 @@ struct DeskLiveSheet: View {
                 } else {
                 Picker("This cable is plugged into", selection: $input) {
                     Text("Choose monitor input").tag(UInt16(0))
-                    ForEach(selectedProfile?.inputs ?? detected.inputs, id: \.code) { Text($0.name + " (\($0.code))").tag($0.code) }
+                    ForEach(detected.portOptions(choice: profileName), id: \.code) { Text($0.name).tag($0.code) }
                 }
                 }
                 Text("Use the input name printed on the monitor or shown in its on-screen menu. Detection alone cannot tell which picture is visible.").font(.caption).foregroundStyle(.secondary)
-                Button(screen == nil ? "Add screen" : "Confirm shared screen") {
-                    perform { try runtime.addScreen(name: name, existing: screen, computer: computer!, display: display, input: customInput ? (UInt16(code) ?? 0) : input, profile: selectedProfile, custom: customInput ? MonitorInput(code: UInt16(code) ?? 0, name: inputName) : nil); close() }
-                }.buttonStyle(.borderedProminent).disabled(customInput ? (UInt16(code) ?? 0) == 0 || inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : !(selectedProfile?.inputs ?? detected.inputs).contains(where: { $0.code == input }))
+                Button("Add monitor") {
+                    perform { try runtime.addScreen(name: name, existing: nil, computer: computer!, display: display, input: customInput ? (UInt16(code) ?? 0) : input, profile: selectedProfile, custom: customInput ? MonitorInput(code: UInt16(code) ?? 0, name: inputName) : nil); close() }
+                }.buttonStyle(.borderedProminent).disabled(customInput ? (UInt16(code) ?? 0) == 0 || inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : !(detected.portOptions(choice: profileName)).contains(where: { $0.code == input }))
+                }
             }
             Button("Refresh connected screens") { runtime.refreshAllDisplays() }.disabled(runtime.discovering)
         }
@@ -261,9 +262,40 @@ struct DeskLiveSheet: View {
             else { let connection = MonitorConnection(kind: controlKind, endpoint: endpoint, address: unit); guard connection.valid else { throw KVMError("Choose or enter a complete control connection. The previous working connection is kept.") }; mode = connection.argument }
             var group = node.group
             guard let i = group.monitors.firstIndex(where: { $0.id == selection }) else { return }
+            if group.monitors[i].control?.mode != mode { group.monitors[i].inputProfile = nil }
             group.monitors[i].control = .init(computer: computer, localDisplay: display, mode: mode)
             try node.edit(group)
         }
+    }
+    @ViewBuilder var monitorSetup: some View {
+        if let selection, let monitor = node.group.monitors.first(where: { $0.id == selection }) {
+            Text("\(monitor.name) setup").font(.title2.bold())
+            Text("The input profile defines this monitor’s port codes and control protocol. Cable connections and the three Desk presets are configured on the desk.").font(.callout).foregroundStyle(.secondary)
+            let detected = monitor.control.flatMap { control in runtime.displays[control.computer]?.first { $0.id == control.localDisplay } }
+            Picker("Input profile", selection: Binding(get: { monitor.inputProfile ?? "" }, set: { value in
+                guard let profile = MonitorProfiles.entries.first(where: { $0.name == value }) else { return }
+                perform { try runtime.configureMonitor(selection, profile: profile); loadControl() }
+            })) {
+                if monitor.inputProfile == nil { Text("Current custom controls").tag("") }
+                ForEach(MonitorProfiles.entries.filter { $0.vendor == detected?.vendor || $0.name == monitor.inputProfile }, id: \.name) { Text($0.name).tag($0.name) }
+            }
+            Text("Matching ports keep their cables and preset choices. A profile adds its known ports; it does not remove extra ports you configured.").font(.caption).foregroundStyle(.secondary)
+            if let detected {
+                if detected.profile(choice: "") == nil { Text("No verified automatic profile match. The model name printed on the monitor may be more specific than the name macOS reports.").font(.callout).foregroundStyle(.secondary) }
+                else if let suggested = detected.profile(choice: ""), monitor.inputProfile != suggested.name {
+                    Button("Use suggested controls: \(suggested.name)") { perform { try runtime.configureMonitor(selection, profile: suggested); loadControl() } }
+                }
+                DisclosureGroup("Detection details") {
+                    Text("macOS name: \(detected.name)")
+                    Text("Vendor \(detected.vendor) · Product \(detected.model)")
+                    if let family = detected.firmwareFamily { Text("Firmware family: " + family) }
+                    if let issue = detected.inspectionProblem { Text(issue).foregroundStyle(.orange) }
+                    Text("A firmware family suggests input controls; it does not prove the retail suffix or identify a unique physical screen.").font(.caption).foregroundStyle(.secondary)
+                    Button("Read monitor details again") { if let control = monitor.control { runtime.inspect(control.localDisplay, computer: control.computer) } }
+                }
+            } else { Text("Reconnect the control computer to read this monitor’s details.").foregroundStyle(.secondary) }
+            DisclosureGroup("Advanced control connection") { control }
+        } else { Text("This screen was removed from the desk.") }
     }
     var control: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -271,7 +303,7 @@ struct DeskLiveSheet: View {
             Text("This connection sends input commands and reads the monitor’s current input. It can differ from the computer shown on the screen. Valid changes save immediately; editing does not switch inputs.").font(.callout).foregroundStyle(.secondary)
             Picker("Control through", selection: Binding(get: { computer.map { $0.uuidString + "|" + display } ?? "" }, set: { choice in let parts = choice.split(separator: "|"); if parts.count == 2 { computer = UUID(uuidString: String(parts[0])); display = String(parts[1]); saveControl() } })) {
                 Text("Choose connection").tag("")
-                ForEach(runtime.mappingOptions) { Text($0.label).tag($0.id) }
+                ForEach(runtime.mappingOptions) { option in Text((node.group.computers.first { $0.id == option.computer }?.name ?? "Computer") + " · " + option.label).tag(option.id) }
             }
             Picker("Protocol", selection: $controlKind) {
                 Text("Standard DDC/CI").tag("standard"); Text("LG alternate inputs").tag("lg")

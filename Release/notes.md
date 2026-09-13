@@ -1,8 +1,16 @@
+Menu previews focus on the section being edited: full System readings or their final row above the colored sections. A contrasting backdrop, rounded menu edge and shadow make margins visible in either theme.
+
+Built-in appearance presets are reviewed whenever styling options change. Ribbon now uses fading full-width title bands; Horizon adds greyscale section fills with overlines and a fading right edge. Perch original remains unchanged.
+
+Desk now shows computers wired to ports inside the monitor cards. Drag a computer to a port, or choose it from the port menu. Monitor setup revisits input profiles independently from cables and Desk presets. Screen dragging uses a stable coordinate space and nearest-edge snapping, with physical sizes in millimetres. Identify can be stopped with the same button. Unknown monitor ports are no longer presented as detected, and inspection failures are visible.
+
+Appearance controls are grouped more compactly. Edge-to-edge decorations support independent left/right fades; title text remains crisp. Side borders and corner rounding resume when edge-to-edge is turned off.
+
 Desk joining now shows Mac names and explicit Invite/Join actions, labels the comparison code, and explains the step on each Mac. Recovered connection warnings clear independently; a failed redundant route no longer marks a working peer as broken.
 
 Perch countdown adds five minutes per shortcut press, subtracts five with the paired shortcut, and caps the time remaining at 20 minutes. Cancel finishes at 0:00. Opening the lid finishes the manual countdown and leaves a frozen result; power changes preserve its deadline. Shortcuts are configurable in Keep awake. This feature requires the updated lid helper.
 
-Menu Appearance now has independent light/dark styles, named saved presets, six distinct built-in treatments and eight independently selectable palettes, clickable Light/Dark previews, Edit both with mixed values, and an optional System title. Desk arrangements scale to fit smaller windows.
+Menu Appearance now has independent light/dark styles, named saved presets, seven distinct built-in treatments and eight independently selectable palettes, clickable Light/Dark previews, Edit both with mixed values, and an optional System title. Desk arrangements scale to fit smaller windows.
 
 Normal closed-lid battery timeout now stays in Lid activity without a wake dialog. Unexpected sleep during expected protection uses a standalone notice; Settings keeps its current page unless you choose View lid activity.
 

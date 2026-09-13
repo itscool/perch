@@ -27,6 +27,8 @@ import AppKit
 
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+struct AppError: Error { let message: String }
+try runMenuAppearanceTests()
 let output = URL(fileURLWithPath: CommandLine.arguments[1])
 func label(_ text: String, x: CGFloat, y: CGFloat, size: CGFloat = 13, bold: Bool = false) {
     (text as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: bold ? .semibold : .regular), .foregroundColor: NSColor(white: 0.16, alpha: 1)])
@@ -40,14 +42,13 @@ func export(_ name: String, width: CGFloat, height: CGFloat, draw: () -> Void) t
     let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
     try rep.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent(name))
 }
-func menu(_ value: MenuAppearance, dark: Bool, x: CGFloat, y: CGFloat) {
+func menu(_ value: MenuAppearance, dark: Bool, x: CGFloat, y: CGFloat, system: Bool = false) {
     let view = MenuAppearancePreviewHost(frame: NSRect(x: 0, y: 0, width: 245, height: 214))
-    view.value = value; view.dark = dark; view.layout()
+    view.value = value; view.dark = dark; view.system = system; view.layout()
     NSGraphicsContext.saveGraphicsState()
     let offset = NSAffineTransform(); offset.translateX(by: x, yBy: y); offset.concat()
-    (dark ? NSColor(white: 0.13, alpha: 1) : NSColor(white: 0.98, alpha: 1)).setFill()
-    NSBezierPath(roundedRect: view.bounds, xRadius: 10, yRadius: 10).fill()
-    view.bounds.clip()
+    NSBezierPath(roundedRect: view.bounds, xRadius: 8, yRadius: 8).addClip()
+    view.draw(view.bounds)
     for row in view.rows where !row.isHidden {
         NSGraphicsContext.saveGraphicsState()
         let position = NSAffineTransform(); position.translateX(by: row.frame.minX, yBy: row.frame.minY); position.concat()
@@ -56,8 +57,37 @@ func menu(_ value: MenuAppearance, dark: Bool, x: CGFloat, y: CGFloat) {
     }
     NSGraphicsContext.restoreGraphicsState()
 }
+// Selection changes the content focus without changing the saved appearance.
+for preset in MenuAppearancePreset.builtIns {
+    for dark in [false, true] {
+        let view = MenuAppearancePreviewHost(frame: NSRect(x: 0, y: 0, width: 245, height: 210))
+        view.value = preset.appearance; view.dark = dark
+        view.system = true; view.layout()
+        let readings = view.rows.filter { $0.panelSection == "System" && $0.kind == .information }
+        precondition(readings.count == 5 && readings.allSatisfy { !$0.isHidden }, "System focus omitted a reading")
+        precondition(view.rows.contains { !$0.isHidden && $0.panelSection == "Agent Kill Switch" }, "Missing neighboring color transition")
+        view.system = false; view.layout()
+        let visible = view.rows.filter { !$0.isHidden }
+        precondition(visible.filter { $0.panelSection == "System" }.count == 1)
+        precondition(visible.first?.panelSection == "System" && visible.first?.panelPart == .bottom)
+        precondition(visible.contains { $0.panelSection == "Audio" }, "Colored preview lost real section order")
+        precondition(visible.allSatisfy { view.menuRect.contains($0.frame) }, "Preview row escapes menu surface")
+        precondition(view.value == preset.appearance, "Preview focus altered appearance")
+    }
+}
+var edge = MenuSectionAppearance()
+let originalSides = edge.sides
+edge.edgeToEdge = true
+precondition(edge.decorationMargin == 0 && edge.drawnSides == [.top, .bottom] && edge.decorationRadius == 0)
+let edgeDecoded = try JSONDecoder().decode(MenuSectionAppearance.self, from: JSONEncoder().encode(edge))
+precondition(edgeDecoded.isEdgeToEdge && edgeDecoded.sides == originalSides)
+edge.edgeToEdge = false
+precondition(edge.drawnSides == originalSides && edge.decorationMargin == 4 && edge.decorationRadius == 2.5)
+var edgePair = MenuAppearance()
+edgePair.editSection(dark: false, both: true, system: false) { $0.edgeToEdge = true }
+precondition(edgePair.theme(dark: false).sections.isEdgeToEdge && edgePair.theme(dark: true).sections.isEdgeToEdge && !edgePair.system.isEdgeToEdge)
 let presets = MenuAppearancePreset.builtIns
-precondition(presets.count == 6 && presets.allSatisfy { $0.appearance.valid })
+precondition(presets.count == 7 && presets.allSatisfy { $0.appearance.valid })
 precondition(presets.first!.appearance == MenuAppearance(), "Perch original changed")
 precondition(Set(presets.map(\.id)).count == presets.count)
 precondition(MenuAppearancePreset.builtIns.map(\.id) == presets.map(\.id), "Preset identities change on reread")
@@ -104,17 +134,40 @@ for preset in presets {
     }
 }
 print(String(format: "Measured title contrast %.2f:1 minimum across Light/Dark and all sections", minimum))
-let descriptions = ["Original title frames", "Type only · no decorations", "Strong vertical accents", "Rounded, filled sections", "Clear interiors · full frames", "Flat title bands · paired rules"]
-try export("perch-preset-studies.png", width: 1080, height: 920) {
-    label("Perch · Appearance presets", x: 28, y: 877, size: 23, bold: true)
-    label("The same first four menu sections · Light and Dark · Production renderer", x: 28, y: 851)
+let descriptions = ["Original title frames", "Type only · no decorations", "Strong vertical accents", "Rounded, filled sections", "Clear interiors · full frames", "Fading title bands · paired rules", "Greyscale fills · overlines · fading right edge"]
+try export("perch-preset-studies.png", width: 1080, height: 1198) {
+    label("Perch · Appearance presets", x: 28, y: 1155, size: 23, bold: true)
+    label("System transition + first three colored sections · Light and Dark", x: 28, y: 1129)
     for (index, preset) in presets.enumerated() {
         let x = CGFloat(index % 2) * 532 + 24
-        let y = 565 - CGFloat(index / 2) * 278
+        let y = 843 - CGFloat(index / 2) * 278
         label(preset.name, x: x, y: y + 243, size: 17, bold: true)
         label(descriptions[index], x: x, y: y + 223, size: 12)
         menu(preset.appearance, dark: false, x: x, y: y)
         menu(preset.appearance, dark: true, x: x + 253, y: y)
+    }
+}
+try export("perch-edge-fades.png", width: 1080, height: 635) {
+    label("Perch · Edge-to-edge treatments", x: 28, y: 592, size: 23, bold: true)
+    label("Independent left/right fades · Production menu renderer · Light and Dark", x: 28, y: 566)
+    for (index, flags) in [(false, false), (true, false), (false, true), (true, true)].enumerated() {
+        var value = presets.first { $0.name == "Ribbon" }!.appearance
+        value.editSection(dark: false, both: true, system: false) {
+            $0.edgeToEdge = true; $0.fadeLeft = flags.0; $0.fadeRight = flags.1
+            $0.backgroundIntensity = 0.20; $0.borderIntensity = 0.8
+        }
+        let x = CGFloat(index % 2) * 532 + 24, y = 292 - CGFloat(index / 2) * 270
+        label(["No fade", "Fade left", "Fade right", "Fade both"][index], x: x, y: y + 228, size: 17, bold: true)
+        menu(value, dark: false, x: x, y: y); menu(value, dark: true, x: x + 253, y: y)
+    }
+}
+try export("perch-preview-focus.png", width: 560, height: 574) {
+    label("Menu previews · Focus and dropdown edges", x: 24, y: 539, size: 20, bold: true)
+    for (index, system) in [false, true].enumerated() {
+        let y = 280 - CGFloat(index) * 250
+        label(system ? "Editing System" : "Editing colored sections", x: 24, y: y + 224, size: 15, bold: true)
+        menu(presets.first!.appearance, dark: false, x: 24, y: y, system: system)
+        menu(presets.first!.appearance, dark: true, x: 287, y: y, system: system)
     }
 }
 try export("perch-palette-studies.png", width: 1080, height: 590) {
@@ -130,7 +183,7 @@ try export("perch-palette-studies.png", width: 1080, height: 590) {
     }
 }
 precondition(NSApp.windows.isEmpty, "Offscreen render created a window")
-print("PASS: six valid/stable presets, unchanged Perch original, eight round-trip palettes; images rendered without windows or live state")
+print("PASS: seven valid/stable presets, unchanged Perch original, eight round-trip palettes; images rendered without windows or live state")
 ''')
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(repo/'Sources/StatusColors.swift'), str(repo/'Sources/PerchVersion.swift'), str(root/'main.swift'), '-o', str(root/'render')], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(repo/'Sources/StatusColors.swift'), str(repo/'Sources/PerchVersion.swift'), str(repo/'Sources/DeskCanvasLayout.swift'), str(repo/'Sources/MenuAppearanceTests.swift'), str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(output)], check=True)

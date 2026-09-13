@@ -1,8 +1,9 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.106 is installed in
-/Applications and running through LaunchServices. Public/notarized remains
-2.0.94. The 2.0.106 app has not been notarized or published. Latest source and
+2.0 development, September 13, 2026. Developer ID 2.0.110 is installed on disk
+in /Applications; the existing 2.0.106 process remains running through
+LaunchServices until Scott restarts it. The previous bundle is retained.
+Public/notarized remains 2.0.94; 2.0.110 is not notarized or published. Latest source and
 builds have bounded native/automated acceptance; physical QA and coordinated
 helper/protocol 3 maintenance remain. Dated installation statements below are
 historical checkpoints. Categories are distinct: known defects, features, QA,
@@ -11,13 +12,28 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
+- [ ] **Scott’s LG 27UP850-W / 27UP850K-W automatic identification.** The exact
+  27UP850-W match now survives discovery into setup; guessed ports and swallowed
+  inspection errors are fixed. The actual monitor's failed recognition still
+  needs its reported identity/firmware/read result. No verified K-W-specific
+  profile exists in the catalog; do not silently substitute the W variant.
+
+- [x] **Desk cables, monitor setup and dragging were confusing or unstable.**
+  Ports now live on monitor cards and computers connect by drag or port menu.
+  Monitor setup owns the editable input profile; cable edits preserve physical
+  screen identity and preset input choices. Stable drag coordinates and nearest
+  valid-edge docking replace moving-view gesture feedback and repeated snaps.
+  Identify toggles off and has generation-safe expiry. Source/isolated checks
+  are recorded in DESK-CABLE-EDITOR-2.0.md; native acceptance remains pending.
+
 - [x] **Desk joining showed unexplained device identifiers and stale network failures.**
   Discovery now requests name/role metadata; Invite/Join actions identify the Mac,
   explain both sides, and label the comparison code. Connection attempts prevent
   repeated local clicks. Discovery, listener, peer and pairing errors have separate
   recovery lifetimes; failed redundant routes do not obscure a working peer.
   Source and isolated TLS tests pass; native two-Mac acceptance remains pending.
-  Not installed. See DESK-JOINING-AND-APPEARANCE-2.0.md.
+  Included in the on-disk 2.0.110 candidate; restart pending.
+  See DESK-JOINING-AND-APPEARANCE-2.0.md.
 
 - [x] **Normal lid timeout raised an unexpected-sleep dialog.** Normal helper or
   watchdog grace expiry stays in Lid activity and clears only the pending notice.
@@ -145,7 +161,7 @@ remain open; this is not a claim that untested behavior is defect-free.
 ## Features
 
 - [x] **Distinct appearance compositions and broader palettes.** Perch original,
-  Quiet, Signal, Soft tiles, Outline and Ribbon differ in geometry, fill, borders,
+  Quiet, Signal, Soft tiles, Outline, Ribbon and Horizon differ in geometry, fill, borders,
   spacing and typography. Palettes are independently selectable: Rainbow, Graphite,
   Coast, Dusk, Woodland, Mineral, Jewel and Sorbet. Only Coast deliberately repeats
   three hues; new color ranges assign nine section colors. Source after 2.0.106,

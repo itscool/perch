@@ -9,9 +9,12 @@ func runDeskInspectionTests() throws {
             width: 600, height: 340, canControl: true, inputs: [.init(code: 17, name: "HDMI 1"), .init(code: 210, name: "USB-C")], mode: "lg")
     }
     let generic = fixture()
+    try check(generic.portOptions(choice: "").isEmpty, "Unverified seed ports were presented as monitor-reported ports")
     var detected = generic
     detected.applyInspection(.init(current: nil, capabilities: nil, lgIdentity: 0x5124))
     let suggested = detected.profile(choice: "")
+    try check(detected.portOptions(choice: "").contains { $0.code == 209 }, "Firmware-suggested controls disappeared from port choices")
+    try check(detected.portOptions(choice: DeskDetectedDisplay.reportedInputsChoice).isEmpty, "Use reported ports silently reused guessed or profile ports")
     try check(suggested?.inputs.contains(where: { $0.code == 209 }) == true && suggested?.inputs.contains(where: { $0.code == 210 }) == false,
               "Desk lost the owner-evidenced USB-C 209 profile behind generic LG identity")
     let manual = MonitorProfiles.entries.first { $0.vendor == 7789 && $0.name != suggested?.name }!
@@ -22,6 +25,8 @@ func runDeskInspectionTests() throws {
     try check(refreshed.profile(choice: "")?.name == suggested?.name, "Routine refresh erased the firmware suggestion")
     var replaced = fixture(id: generic.id, serial: 22); replaced.retainIdentity(from: detected)
     try check(replaced.firmwareFamily == nil && !replaced.sameDevice(as: detected), "A replacement device inherited another display's identity")
+    var exact = generic; exact.matchedProfileName = "LG 27UP850-W"
+    try check(exact.profile(choice: "")?.name == "LG 27UP850-W", "Exact model match was lost between discovery and Desk setup")
     let bytes = try JSONEncoder().encode(DeskDeviceMessage.displays([detected]))
     guard case .displays(let remote) = try JSONDecoder().decode(DeskDeviceMessage.self, from: bytes) else { throw KVMError("Missing peer display metadata") }
     try check(remote.first?.profile(choice: "")?.name == suggested?.name, "Remote setup lost firmware profile evidence")

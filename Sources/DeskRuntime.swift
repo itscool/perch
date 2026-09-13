@@ -18,6 +18,10 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     var pointHeight: Double? = nil
     var lgIdentity: UInt16? = nil
     var lgExtendedIdentity: UInt16? = nil
+    var matchedProfileName: String? = nil
+    var inspected: Bool? = nil
+    var inspectionProblem: String? = nil
+    var reportedPorts: [MonitorInput]? = nil
     static let reportedInputsChoice = "__reported_inputs__"
     var firmwareFamily: String? {
         vendor == 7789 ? LGFirmwareProfiles.family(identity: lgIdentity, extended: lgExtendedIdentity)?.name : nil
@@ -25,21 +29,27 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     func profile(choice: String) -> MonitorProfile? {
         if choice == Self.reportedInputsChoice { return nil }
         if !choice.isEmpty { return MonitorProfiles.entries.first { $0.vendor == vendor && $0.name == choice } }
+        if let matchedProfileName, let profile = MonitorProfiles.entries.first(where: { $0.name == matchedProfileName && $0.vendor == vendor }) { return profile }
         return vendor == 7789 ? LGFirmwareProfiles.inputs(identity: lgIdentity, extended: lgExtendedIdentity) : nil
     }
+    func portOptions(choice: String) -> [MonitorInput] { profile(choice: choice)?.inputs ?? reportedPorts ?? [] }
     func sameDevice(as other: Self) -> Bool {
         id == other.id && vendor == other.vendor && model == other.model && serial == other.serial && name == other.name
     }
     mutating func retainIdentity(from old: Self?) {
         guard let old, sameDevice(as: old) else { return }
         lgIdentity = old.lgIdentity; lgExtendedIdentity = old.lgExtendedIdentity
+        inspected = old.inspected; inspectionProblem = old.inspectionProblem; reportedPorts = old.reportedPorts
+        if let reportedPorts { inputs = MonitorCapabilities.merge(inputs, reported: reportedPorts) }
     }
     mutating func applyInspection(_ result: MonitorInspection) {
+        inspected = true; inspectionProblem = nil
         lgIdentity = vendor == 7789 ? result.lgIdentity : nil
         lgExtendedIdentity = vendor == 7789 ? result.lgExtendedIdentity : nil
         let reported = result.transportInputs ?? MonitorCapabilities.inputs(result.capabilities ?? "").map {
             MonitorInput(code: $0, name: MonitorInput.name($0, alternate: mode == "lg"))
         }
+        reportedPorts = reported
         inputs = MonitorCapabilities.merge(inputs, reported: reported)
     }
 }
@@ -48,6 +58,7 @@ enum DeskDeviceMessage: Codable {
     case refresh
     case inspect(String)
     case identify(String, String)
+    case identification(String, String, UUID, Bool)
 }
 enum DeskShortcutKey {
     // Carbon virtual key codes are not consecutive. Keep this independent of
@@ -76,7 +87,8 @@ final class DeskRuntime: ObservableObject {
     private var hotKeys: [PanicHotKey] = []
     private var registeredShortcuts: [KVMShortcut] = []
     private var registeredPanic: PanicShortcut?
-    private var identifyWindows: [NSWindow] = []
+    private var identifyWindows: [String: (UUID, NSWindow)] = [:]
+    private(set) var identifications = DeskIdentificationState()
     private var inputAfterSwitch: (UUID, UUID)?
     init(node: KVMDeskNode) {
         self.node = node; switching = KVMMonitorSwitch(node: node)
@@ -87,7 +99,16 @@ final class DeskRuntime: ObservableObject {
             mappingOptions: { [weak self] in self?.mappingOptions ?? [] }, map: { [weak self] in self?.map($0, choice: $1) },
             identify: { [weak self] in self?.identify($0) }, sheet: { [weak self] kind, selection, close in
                 guard let self else { return AnyView(EmptyView()) }; return AnyView(DeskLiveSheet(runtime: self, kind: kind, selection: selection, close: close))
-            }, openSettings: { (NSApp.delegate as? AppDelegate)?.deskPreferences() })
+            }, openSettings: { (NSApp.delegate as? AppDelegate)?.deskPreferences() },
+            identifyDisplay: { [weak self] computer, display in self?.identifyDetected(display, computer: computer, name: "Is this the screen?") },
+            identifyingDisplay: { [weak self] computer, display in self?.identifications.active[computer.uuidString + "|" + display] != nil },
+            identifyingMonitor: { [weak self] monitor in self?.identifications.active["monitor:" + monitor.uuidString] != nil },
+            refreshScreens: { [weak self] in self?.refreshAllDisplays() },
+            removalIssue: { [weak node] id in
+                guard let node else { return "Desk is unavailable." }
+                if id == node.localID { return "This is the Mac you are using." }
+                return node.isOwner ? nil : "Remove computers from \(node.ownerName), which owns this desk."
+            })
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
@@ -111,6 +132,7 @@ final class DeskRuntime: ObservableObject {
     }
     deinit { refreshTimer?.invalidate() }
     func stop() {
+        for (_, window) in identifyWindows.values { window.orderOut(nil) }; identifyWindows = [:]
         inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
         hotKeys.forEach { $0.unregister() }; hotKeys = []; registeredShortcuts = []
@@ -149,10 +171,14 @@ final class DeskRuntime: ObservableObject {
     }
     var mappingOptions: [DeskMappingOption] {
         node.group.computers.flatMap { computer in
-            var options = (displays[computer.id] ?? []).map { DeskMappingOption(id: computer.id.uuidString + "|" + $0.id, label: computer.name + " · " + $0.name) }
+            var options = (displays[computer.id] ?? []).enumerated().map { index, display in
+                let serial = display.serial == 0 ? "" : " · Serial \(display.serial)"
+                return DeskMappingOption(id: computer.id.uuidString + "|" + display.id,
+                    label: "Display \(index + 1): \(display.name)" + serial)
+            }
             for c in node.group.connections where c.computer == computer.id {
                 if let id = c.localDisplay, !options.contains(where: { $0.id == computer.id.uuidString + "|" + id }) {
-                    options.append(.init(id: computer.id.uuidString + "|" + id, label: computer.name + " · saved display (not detected)"))
+                    options.append(.init(id: computer.id.uuidString + "|" + id, label: (node.group.monitors.first { $0.id == c.monitor }?.name ?? "Screen") + " · " + c.inputName + " (not currently detected)"))
                 }
             }
             return options
@@ -175,11 +201,11 @@ final class DeskRuntime: ObservableObject {
     }
     func map(_ connection: UUID, choice: String) {
         model.edit { group in
-            guard let i = group.connections.firstIndex(where: { $0.id == connection }) else { return }
-            if choice.isEmpty { group.connections[i].computer = nil; group.connections[i].localDisplay = nil; return }
+            guard group.connections.contains(where: { $0.id == connection }) else { throw KVMError("This port was removed.") }
+            if choice.isEmpty { try DeskCableBinding.apply(connection: connection, computer: nil, display: nil, to: &group); return }
             let parts = choice.split(separator: "|")
             guard parts.count == 2, let computer = UUID(uuidString: String(parts[0])), self.mappingOptions.contains(where: { $0.id == choice }) else { throw KVMError("Choose a detected display on a grouped computer.") }
-            group.connections[i].computer = computer; group.connections[i].localDisplay = String(parts[1])
+            try DeskCableBinding.apply(connection: connection, computer: computer, display: String(parts[1]), to: &group)
         }
     }
     private func queue(_ id: String) -> DispatchQueue {
@@ -200,8 +226,9 @@ final class DeskRuntime: ObservableObject {
                         let size = CGDisplayScreenSize(display.displayID)
                         var detected = DeskDetectedDisplay(id: display.id, name: display.name, vendor: display.vendor, model: display.model,
                             serial: CGDisplaySerialNumber(display.displayID), width: max(1, size.width), height: max(1, size.height), canControl: display.ddcAvailable,
-                            inputs: profile?.inputs ?? [15, 16, 17, 18].map { MonitorInput(code: $0, name: MonitorInput.name($0)) }, mode: profile?.alternate == true ? "lg" : "standard",
+                            inputs: profile?.inputs ?? [], mode: profile?.alternate == true ? "lg" : "standard",
                             pointWidth: CGDisplayBounds(display.displayID).width, pointHeight: CGDisplayBounds(display.displayID).height)
+                        detected.matchedProfileName = profile?.name
                         detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
                         return detected
                     }
@@ -219,12 +246,15 @@ final class DeskRuntime: ObservableObject {
         }
         guard let d = displays[computer]?.first(where: { $0.id == display }) else { return }
         queue(display).async { [weak self] in
-            let result = try? JSONDecoder().decode(MonitorInspection.self, from: MonitorDisplayBackend().run(["inspect", display, d.mode]))
+            let result = Result { try JSONDecoder().decode(MonitorInspection.self, from: MonitorDisplayBackend().run(["inspect", display, d.mode])) }
             DispatchQueue.main.async {
-                guard let self, let result, let i = self.displays[computer]?.firstIndex(where: { $0.id == display }),
+                guard let self, let i = self.displays[computer]?.firstIndex(where: { $0.id == display }),
                       self.displays[computer]?[i].sameDevice(as: d) == true else { return }
-                self.displays[computer]?[i].applyInspection(result)
-                self.publishDisplays()
+                switch result {
+                case .success(let inspection): self.displays[computer]?[i].applyInspection(inspection)
+                case .failure(let error): self.displays[computer]?[i].inspectionProblem = error.localizedDescription; self.displays[computer]?[i].inspected = true
+                }
+                self.publishDisplays(); self.updateModel()
             }
         }
     }
@@ -252,12 +282,14 @@ final class DeskRuntime: ObservableObject {
             displays[peer] = values; updateModel()
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
-        case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)))
+        case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)), token: UUID(), showing: true)
+        case .identification(let display, let name, let token, let showing): showIdentification(display, name: String(name.prefix(100)), token: token, showing: showing)
         }
     }
     func addScreen(name: String, existing: UUID?, computer: UUID, display: String, input: UInt16, profile: MonitorProfile? = nil, custom: MonitorInput? = nil) throws {
         guard var detected = displays[computer]?.first(where: { $0.id == display }) else { throw KVMError("Choose a detected screen.") }
-        if let profile { detected.inputs = profile.inputs; detected.mode = profile.alternate ? "lg" : "standard" }
+        detected.inputs = profile?.inputs ?? detected.reportedPorts ?? []
+        if let profile { detected.mode = profile.alternate ? "lg" : "standard" }
         if let custom, custom.valid { detected.inputs.removeAll { $0.code == custom.code }; detected.inputs.append(custom) }
         guard detected.inputs.contains(where: { $0.code == input }) else { throw KVMError("Choose this cable’s connected input.") }
         var group = node.group
@@ -266,6 +298,7 @@ final class DeskRuntime: ObservableObject {
         else {
             let screen = KVMMonitor(name: name, geometry: .init(x: group.monitors.map { $0.geometry.right }.max() ?? 0, y: 0, width: detected.width > 1 ? detected.width : 550, height: detected.height > 1 ? detected.height : 310), control: .init(computer: computer, localDisplay: display, mode: detected.mode))
             monitor = screen.id; group.monitors.append(screen)
+            group.monitors[group.monitors.count - 1].inputProfile = profile?.name ?? detected.matchedProfileName
         }
         for port in detected.inputs where !group.connections.contains(where: { $0.monitor == monitor && $0.inputCode == port.code }) {
             group.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
@@ -303,7 +336,8 @@ final class DeskRuntime: ObservableObject {
         if control.computer == node.localID { id = control.localDisplay; mode = control.mode }
         else {
             guard let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
-                  let local = connection.localDisplay, let display = displays[node.localID]?.first(where: { $0.id == local }), display.mode == control.mode else { completion(nil); return }
+                  let local = connection.localDisplay, let display = displays[node.localID]?.first(where: { $0.id == local }),
+                  control.mode == "standard" || control.mode == "lg" && display.vendor == 7789 else { completion(nil); return }
             id = local; mode = display.mode
         }
         queue(id).async {
@@ -314,28 +348,57 @@ final class DeskRuntime: ObservableObject {
 
     func identify(_ monitor: UUID?) {
         guard let monitor, let screen = node.group.monitors.first(where: { $0.id == monitor }) else { return }
-        for c in node.group.connections where c.monitor == monitor {
-            guard let peer = c.computer, let display = c.localDisplay else { continue }
-            if peer == node.localID { showIdentification(display, name: screen.name) }
-            else if let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identify(display, screen.name)) { node.sendApplication(bytes, peer: peer) }
+        let targets = node.group.connections.filter { $0.monitor == monitor }.compactMap { c -> (UUID, String)? in
+            guard let peer = c.computer, let display = c.localDisplay else { return nil }; return (peer, display)
         }
+        toggleIdentification(key: "monitor:" + monitor.uuidString, targets: targets, name: screen.name)
     }
     func identifyDetected(_ display: String, computer: UUID, name: String) {
         guard displays[computer]?.contains(where: { $0.id == display }) == true else { return }
-        if computer == node.localID { showIdentification(display, name: name) }
-        else if let data = try? JSONEncoder().encode(DeskDeviceMessage.identify(display, name)) { node.sendApplication(data, peer: computer) }
+        toggleIdentification(key: computer.uuidString + "|" + display, targets: [(computer, display)], name: name)
     }
-    private func showIdentification(_ display: String, name: String) {
+    private func toggleIdentification(key: String, targets: [(UUID, String)], name: String) {
+        let change = identifications.toggle(key)
+        for (peer, display) in targets { sendIdentification(display, peer: peer, name: name, token: change.token, showing: change.showing) }
+        model.objectWillChange.send(); objectWillChange.send()
+        if change.showing {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self, self.identifications.expire(key, token: change.token) else { return }
+                for (peer, display) in targets { self.sendIdentification(display, peer: peer, name: name, token: change.token, showing: false) }
+                self.model.objectWillChange.send(); self.objectWillChange.send()
+            }
+        }
+    }
+    private func sendIdentification(_ display: String, peer: UUID, name: String, token: UUID, showing: Bool) {
+        if peer == node.localID { showIdentification(display, name: name, token: token, showing: showing) }
+        else if let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identification(display, name, token, showing)) { node.sendApplication(bytes, peer: peer) }
+    }
+    private func showIdentification(_ display: String, name: String, token: UUID, showing: Bool) {
+        if !showing {
+            if let (current, window) = identifyWindows[display], current == token { window.orderOut(nil); identifyWindows[display] = nil }
+            return
+        }
         guard !SettingsWindow.shared.testing, let screen = NSScreen.screens.first(where: {
             guard let number = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
                   let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return false }
             return CFUUIDCreateString(nil, uuid) as String == display
         }) else { return }
+        identifyWindows[display]?.1.orderOut(nil)
         let window = NSWindow(contentRect: NSRect(x: screen.frame.midX-160, y: screen.frame.midY-60, width: 320, height: 120), styleMask: [.borderless], backing: .buffered, defer: false)
         window.level = .floating; window.isOpaque = false; window.backgroundColor = .clear; window.ignoresMouseEvents = true; window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: Text(name).font(.largeTitle.bold()).padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)))
-        identifyWindows.append(window); window.orderFront(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self, weak window] in window?.orderOut(nil); self?.identifyWindows.removeAll { $0 === window } }
+        identifyWindows[display] = (token, window); window.orderFront(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self, self.identifyWindows[display]?.0 == token else { return }
+            self.identifyWindows[display]?.1.orderOut(nil); self.identifyWindows[display] = nil
+        }
+    }
+    func configureMonitor(_ monitor: UUID, profile: MonitorProfile) throws {
+        guard let screen = node.group.monitors.first(where: { $0.id == monitor }), let control = screen.control,
+              let detected = displays[control.computer]?.first(where: { $0.id == control.localDisplay }), detected.vendor == profile.vendor else { throw KVMError("Reconnect this monitor’s control computer so Perch can check its manufacturer before changing the profile.") }
+        var group = node.group
+        try DeskMonitorConfiguration.apply(monitor: monitor, profile: profile.name, ports: profile.inputs.map { .init(name: $0.name, code: $0.code) }, mode: profile.alternate ? "lg" : "standard", to: &group)
+        try node.edit(group)
     }
     func registerShortcuts() {
         guard !SettingsWindow.shared.testing else { return }

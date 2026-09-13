@@ -1,6 +1,58 @@
 import SwiftUI
 
-struct DeskMappingOption: Identifiable { let id: String; let label: String }
+struct DeskMappingOption: Identifiable {
+    let id: String
+    let label: String
+    var computer: UUID? { id.split(separator: "|").first.flatMap { UUID(uuidString: String($0)) } }
+    var display: String? { let parts = id.split(separator: "|"); return parts.count == 2 ? String(parts[1]) : nil }
+}
+
+/// A cable changes its computer/port association, never the identity or geometry of a screen.
+enum DeskCableBinding {
+    static func apply(connection: UUID, computer: UUID?, display: String?, to group: inout KVMGroup) throws {
+        guard let target = group.connections.firstIndex(where: { $0.id == connection }) else { throw KVMError("This port was removed. Select another port.") }
+        var draft = group
+        if let computer, let display {
+            for i in draft.connections.indices where draft.connections[i].computer == computer && draft.connections[i].localDisplay == display && i != target {
+                guard draft.connections[i].monitor == draft.connections[target].monitor else {
+                    let name = draft.monitors.first { $0.id == draft.connections[i].monitor }?.name ?? "another screen"
+                    throw KVMError("That display is already connected to \(name). Disconnect that cable before connecting it to this screen.")
+                }
+                draft.connections[i].computer = nil; draft.connections[i].localDisplay = nil
+            }
+        }
+        draft.connections[target].computer = computer; draft.connections[target].localDisplay = display
+        _ = try draft.validated(); group = draft
+    }
+}
+struct DeskPortDefinition { let name: String; let code: UInt16 }
+enum DeskMonitorConfiguration {
+    static func apply(monitor: UUID, profile: String, ports: [DeskPortDefinition], mode: String, to group: inout KVMGroup) throws {
+        guard let index = group.monitors.firstIndex(where: { $0.id == monitor }), group.monitors[index].control != nil else { throw KVMError("Choose a monitor control path first.") }
+        func key(_ name: String) -> String { name.lowercased().filter { !$0.isWhitespace && $0 != "-" } }
+        var draft = group
+        guard ports.count <= 16, Set(ports.map { key($0.name) }).count == ports.count else { throw KVMError("The profile has duplicate or too many ports.") }
+        for port in ports {
+            if let i = draft.connections.firstIndex(where: { $0.monitor == monitor && key($0.inputName) == key(port.name) }) {
+                draft.connections[i].inputCode = port.code
+            } else {
+                draft.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
+            }
+        }
+        draft.monitors[index].control?.mode = mode; draft.monitors[index].inputProfile = profile
+        _ = try draft.validated(); group = draft
+    }
+}
+struct DeskIdentificationState {
+    private(set) var active: [String: UUID] = [:]
+    mutating func toggle(_ key: String) -> (token: UUID, showing: Bool) {
+        if let token = active.removeValue(forKey: key) { return (token, false) }
+        let token = UUID(); active[key] = token; return (token, true)
+    }
+    @discardableResult mutating func expire(_ key: String, token: UUID) -> Bool {
+        guard active[key] == token else { return false }; active[key] = nil; return true
+    }
+}
 struct DeskLiveActions {
     let edit: (KVMGroup) throws -> Void
     let activate: (UUID) -> Void
@@ -10,6 +62,11 @@ struct DeskLiveActions {
     let identify: (UUID?) -> Void
     let sheet: (String, UUID?, @escaping () -> Void) -> AnyView
     var openSettings: (() -> Void)? = nil
+    var identifyDisplay: ((UUID, String) -> Void)? = nil
+    var identifyingDisplay: ((UUID, String) -> Bool)? = nil
+    var identifyingMonitor: ((UUID) -> Bool)? = nil
+    var refreshScreens: (() -> Void)? = nil
+    var removalIssue: ((UUID) -> String?)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.
@@ -114,6 +171,17 @@ final class DeskModel: ObservableObject {
         let inputs = preset.assignments.compactMap { a in group.connections.first { $0.id == a.connection && $0.computer == nil }?.inputName }
         return inputs.isEmpty ? nil : "\(inputs.joined(separator: ", ")) has no computer mapped. The picture can switch there; mouse and keyboard stay local for that screen."
     }
+    func cableOptions(for computer: UUID) -> [DeskMappingOption] {
+        live?.mappingOptions().filter { $0.computer == computer } ?? []
+    }
+    func cableConflict(_ option: DeskMappingOption, port: UUID) -> String? {
+        guard let target = group.connections.first(where: { $0.id == port }),
+              let existing = group.connections.first(where: { $0.computer == option.computer && $0.localDisplay == option.display && $0.monitor != target.monitor }) else { return nil }
+        return "Already connected to " + (group.monitors.first { $0.id == existing.monitor }?.name ?? "another screen")
+    }
+    func disconnectCable(_ port: UUID) {
+        edit { try DeskCableBinding.apply(connection: port, computer: nil, display: nil, to: &$0) }
+    }
     func connectionLabel(_ connection: KVMConnection) -> String {
         let computer = group.computers.first { $0.id == connection.computer }
         return connection.inputName + " — " + (computer?.name ?? "Unassigned")
@@ -139,7 +207,7 @@ final class DeskModel: ObservableObject {
     }
     func renameMonitor(_ name: String) { guard let id = selected else { return }; edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].name = name } } }
     func move(_ id: UUID, x: Double, y: Double) {
-        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].geometry.x = x.rounded(); g.monitors[i].geometry.y = y.rounded() } }
+        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].geometry.x = x; g.monitors[i].geometry.y = y } }
     }
     func rotate(_ rotation: KVMRotation) {
         guard let id = selected else { return }
@@ -161,6 +229,7 @@ final class DeskModel: ObservableObject {
     }
     func identify() {
         if let live { live.identify(selected); return }
+        if identifying == selected, identifying != nil { identifyGeneration = UUID(); identifying = nil; return }
         let token = UUID(); identifyGeneration = token; identifying = selected
         notice = "The numbered screen is highlighted in the demo only."
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in

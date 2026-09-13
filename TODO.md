@@ -1,10 +1,9 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.110 is installed on disk
-in /Applications. After the bundle swap, Perch’s own restart handoff launched
-2.0.110 (PID 74095); the agent did not quit or relaunch it. The previous bundle
-is retained.
-Public/notarized remains 2.0.94; 2.0.110 is not notarized or published. Latest source and
+2.0 development, September 13, 2026. Developer ID 2.0.112 is installed on disk
+in /Applications. The agent left the 2.0.110 process (PID 74095) running;
+Scott can restart to load the changes. The previous bundle is retained.
+Public/notarized remains 2.0.94; 2.0.112 is not notarized or published. Latest source and
 builds have bounded native/automated acceptance; physical QA and coordinated
 helper/protocol 3 maintenance remain. Dated installation statements below are
 historical checkpoints. Categories are distinct: known defects, features, QA,
@@ -409,6 +408,43 @@ PKG wizard additionally needs Developer ID Installer. Verify fresh install, firs
 launch, existing-install replacement and uninstall/recovery as one journey.
 
 ## Backlog — optional future work, outside current release gates
+
+- [ ] **Shared KVM clipboard and file transfer.** Copy/paste plain and rich text,
+  images and files between explicitly trusted Desk members. All payload types
+  use bounded chunked transfers, compression before encryption when beneficial,
+  and authenticated encryption. Derive a separate per-chunk key from fresh
+  authenticated transfer/session secrets using a reviewed KDF (e.g. HKDF,
+  https://www.rfc-editor.org/rfc/rfc5869); bind transfer ID, direction, chunk
+  index, lengths and format into authenticated context, with safe unique nonces.
+  Use an established cipher/library, not a different homemade algorithm per
+  chunk. Peers negotiate the same versioned format, authenticate the complete
+  manifest and reassembled content, and reject corruption, replay, missing or
+  reordered chunks. Include cancellation/resume, size/decompression limits,
+  bounded memory, cleanup and explicit trust/sharing controls. Keep contents
+  and filenames out of logs and expose unobtrusive progress for larger transfers.
+  Encrypt clipboard type, filename and other application metadata inside a
+  uniform transfer envelope so packet contents do not identify text/image/file.
+  Assess bounded padding/batching for size/timing leakage, without promising
+  invisible traffic. Nearby discovery (Bluetooth/peer-to-peer Wi-Fi where
+  supported) may bootstrap an authenticated out-of-band pairing/fingerprint
+  check for the main network channel. Do not broadcast encryption secrets in
+  discovery advertisements. Use authenticated ephemeral key agreement and
+  forward secrecy; a network transcript alone must not reveal content keys.
+  Explore genuinely independent transports (LAN/routed network plus nearby
+  Bluetooth/peer-to-peer Wi-Fi), including an optional split-key/secret-sharing
+  or encrypted-fragment scheme whose reconstruction needs both channels. Define
+  the single-channel observer threat model, fallback when one transport vanishes,
+  fail-closed behavior for a mode requiring both, and limits if both channels or
+  an endpoint are compromised. Evaluate established constructions rather than
+  inventing byte-omission cryptography; multiple ports on one network do not count
+  as independent paths. This is research, not a promised security guarantee.
+  Let users choose manual verification or automatic pairing. Define what supplies
+  identity assurance in automatic mode (existing trust/account credentials or
+  explicitly unverified first contact), show verified/unverified state honestly,
+  and never label unauthenticated nearby discovery as verified. Existing trusted
+  peers should reconnect without repeated manual codes.
+  Nearby proximity alone is not authentication. Review compression
+  side channels and whether padding is warranted before implementing the protocol.
 
 - [ ] **Multiple saved Desk groups for traveling computers.** A Mac may belong to
   different groups at Home, Work or other places and return without re-pairing.

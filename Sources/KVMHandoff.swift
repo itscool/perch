@@ -36,7 +36,7 @@ struct KVMHandoff {
         let destinations = Set(preset.assignments.compactMap { connectionMap[$0.connection]?.computer })
         let members = Set(group.computers.map(\.id))
         guard !inputSources.isEmpty, inputSources.isSubset(of: members) else { throw KVMError("Choose the computers receiving your mouse and keyboard.") }
-        let focusOwner = connectionMap[focus.connection]?.computer
+        let focusOwner = connectionMap[focus.connection].flatMap { $0.localDisplay == nil ? nil : $0.computer }
         var observers: [UUID: UUID] = [:]
         for assignment in preset.assignments {
             guard let observer = monitorObservers[assignment.monitor] ?? connectionMap[assignment.connection]?.computer,

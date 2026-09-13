@@ -16,7 +16,52 @@ struct DeskCanvasLayout {
 /// Pure drop calculation in physical millimetres. Snap tolerance is in screen
 /// points so it feels the same at every zoom level. Free gaps remain valid.
 enum DeskScreenPlacement {
+    struct Guide: Equatable {
+        let horizontal: Bool
+        let position: CGFloat
+        let start: CGFloat
+        let end: CGFloat
+        let label: String
+    }
+    struct Preview { let rectangle: CGRect; let guides: [Guide] }
     static func place(_ proposed: CGRect, among others: [CGRect], scale: Double, tolerance: Double = 18) -> CGRect {
+        preview(proposed, among: others, scale: scale, tolerance: tolerance).rectangle
+    }
+    static func preview(_ proposed: CGRect, among others: [CGRect], scale: Double, tolerance: Double = 18, bypass: Bool = false) -> Preview {
+        guard !bypass else { return Preview(rectangle: proposed, guides: []) }
+        let threshold = tolerance / max(0.000001, scale)
+        let docked = dock(proposed, among: others, scale: scale, tolerance: tolerance)
+        var result = docked
+        func valid(_ r: CGRect) -> Bool { !others.contains { let i = r.intersection($0); return !i.isNull && i.width > 0 && i.height > 0 } }
+        // Docking owns its perpendicular axis; align along the edge independently.
+        for horizontal in [false, true] {
+            if horizontal ? docked.minY != proposed.minY : docked.minX != proposed.minX { continue }
+            let own = horizontal ? [result.minY, result.midY, result.maxY] : [result.minX, result.midX, result.maxX]
+            let candidates = others.flatMap { r -> [CGFloat] in
+                let values = horizontal ? [r.minY, r.midY, r.maxY] : [r.minX, r.midX, r.maxX]
+                return zip(own, values).map { $1 - $0 }
+            }.filter { abs($0) <= threshold }.sorted { abs($0) < abs($1) }
+            if let delta = candidates.first(where: { valid(result.offsetBy(dx: horizontal ? 0 : $0, dy: horizontal ? $0 : 0)) }) {
+                result = result.offsetBy(dx: horizontal ? 0 : delta, dy: horizontal ? delta : 0)
+            }
+        }
+        var guides: [Guide] = []
+        for other in others {
+            for horizontal in [false, true] {
+                let own = horizontal ? [result.minY, result.midY, result.maxY] : [result.minX, result.midX, result.maxX]
+                let theirs = horizontal ? [other.minY, other.midY, other.maxY] : [other.minX, other.midX, other.maxX]
+                let labels = horizontal ? ["Top", "Center", "Bottom"] : ["Left", "Center", "Right"]
+                for i in own.indices { for j in theirs.indices where abs(own[i] - theirs[j]) < 0.00001 && (i == j || (i != 1 && j != 1)) {
+                    let start = horizontal ? min(result.minX, other.minX) : min(result.minY, other.minY)
+                    let end = horizontal ? max(result.maxX, other.maxX) : max(result.maxY, other.maxY)
+                    let guide = Guide(horizontal: horizontal, position: own[i], start: start, end: end, label: i == j ? labels[i] : labels[i] + " / " + labels[j])
+                    if !guides.contains(guide) { guides.append(guide) }
+                } }
+            }
+        }
+        return Preview(rectangle: result, guides: guides)
+    }
+    private static func dock(_ proposed: CGRect, among others: [CGRect], scale: Double, tolerance: Double) -> CGRect {
         let threshold = tolerance / max(0.000001, scale)
         func overlaps(_ a: CGRect, _ b: CGRect) -> Bool {
             let intersection = a.intersection(b)
@@ -46,5 +91,30 @@ enum DeskScreenPlacement {
         }
         if let best = viable.min(by: { $0.1 < $1.1 }) { return best.0 }
         return proposed
+    }
+}
+
+/// A click stays a click only while it never leaves the drag deadzone.
+struct DeskWireGesture {
+    static let threshold: CGFloat = 3
+    enum Result: Equatable { case cancel, click, connect(String, String) }
+    private(set) var source: String?
+    private(set) var start = CGPoint.zero
+    private(set) var point = CGPoint.zero
+    private(set) var dragging = false
+    mutating func begin(_ source: String, at point: CGPoint) { self = Self(); self.source = source; start = point; self.point = point }
+    mutating func move(to point: CGPoint) {
+        guard source != nil else { return }; self.point = point
+        dragging = dragging || hypot(point.x - start.x, point.y - start.y) >= Self.threshold
+    }
+    static func compatible(_ a: String, _ b: String) -> Bool {
+        (a.hasPrefix("port:") && b.hasPrefix("computer:")) || (a.hasPrefix("computer:") && b.hasPrefix("port:"))
+    }
+    mutating func finish(insideSource: Bool, target: String?) -> Result {
+        defer { self = Self() }
+        guard let source else { return .cancel }
+        if !dragging { return insideSource ? .click : .cancel }
+        guard let target, Self.compatible(source, target) else { return .cancel }
+        return .connect(source, target)
     }
 }

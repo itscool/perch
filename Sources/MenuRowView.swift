@@ -203,8 +203,8 @@ final class MenuRowView: NSView {
             if appearanceStyle.showIcon, let sectionSymbol {
                 let tinted = sectionSymbol.copy() as! NSImage
                 tinted.isTemplate = false
+                let tint = appearanceStyle.iconTinted ? (NSColor.labelColor.blended(withFraction: appearanceStyle.iconTintStrength, of: sectionTint) ?? .labelColor) : NSColor.labelColor
                 tinted.lockFocus()
-                let tint = sectionTint
                 tint.setFill()
                 NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
                 tinted.unlockFocus()

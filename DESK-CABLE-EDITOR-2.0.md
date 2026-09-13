@@ -53,3 +53,35 @@ https://www.lg.com/uk/monitors/uhd-4k-5k/27up850k-w/
 
 Physical two-Mac identification cancellation, actual Bonjour roles, cable
 selection, small-window drag/scroll and monitor-control readback remain QA.
+
+## Port label refinement
+
+Port menu arrows are hidden; vertical names sit above each clickable socket.
+Cable anchors remain on the socket rather than the label. Monitor titles move
+to the upper left, and unassigned presets no longer repeat an instruction inside
+every screen. Port menus, drag targets and accessible names remain available.
+The production canvas was rendered offscreen to verify label/socket alignment.
+
+## Direct wires, alignment and cooperative display reporting
+
+- Connector mouse-down does not open a menu. A 3-point threshold starts a draft
+  wire; release over an opposite connector commits, empty release/Esc cancels,
+  and a click menu opens only on release before any drag. Both directions work.
+  Native socket callbacks were exercised on unattached views, including Esc,
+  source removal and invalid release, without windows or posted events.
+- Screen drag has a dashed placement preview plus named top/center/bottom and
+  left/center/right guides. Simultaneous matches are shown. Shift bypasses both
+  docking and alignment. Preview and drop use the same pure placement function.
+- Cable intent can save while the other computer's display identity is pending.
+  Peer arrival and cable setup request remote refresh; remote discovery errors
+  reach the setup page. Unique serial-based cross-peer observations complete the
+  user's already chosen cable. Ambiguous/unknown identities stay pending with a
+  Match display entry on this Mac. Input forwarding is gated on a matched display.
+- Some monitors disappear from a Mac's display list when its input is inactive.
+  Refresh alone cannot manufacture that identity. Use the explicit preset Play
+  to show that input, then refresh from the configuring Mac. No automatic input
+  probe/switch-and-restore operation has been added or tested in this revision.
+
+262 model checks and 102 portable KVM checks pass; native connector dispatch and
+real TLS fixture checks are separate from live two-Mac/hardware acceptance.
+Both Macs need the new build to exchange pending cable configurations.

@@ -16,6 +16,10 @@ struct MenuSectionAppearance: Codable, Equatable {
     var tintTitle = true
     var titleIntensity = 0.45
     var showIcon = true
+    var tintIcon: Bool? = true
+    var iconIntensity: Double? = 1
+    var iconTinted: Bool { get { tintIcon != false } set { tintIcon = newValue } }
+    var iconTintStrength: Double { get { iconIntensity ?? 1 } set { iconIntensity = newValue } }
     var gap = 3.0
     var showTitle: Bool? = true
     var edgeToEdge: Bool? = false
@@ -29,7 +33,7 @@ struct MenuSectionAppearance: Codable, Equatable {
     static var system: Self { var s = Self(); s.borderScope = .none; s.backgroundScope = .none; s.gap = 0; s.showIcon = false; s.tintTitle = false; return s }
     var valid: Bool {
         [(thickness, 0...6), (borderIntensity, 0...1), (backgroundIntensity, 0...1),
-         (greyLevel, 0...1), (radius, 0...12), (titleIntensity, 0...1), (gap, 0...8)].allSatisfy { $0.0.isFinite && $0.1.contains($0.0) }
+         (greyLevel, 0...1), (iconTintStrength, 0...1), (radius, 0...12), (titleIntensity, 0...1), (gap, 0...8)].allSatisfy { $0.0.isFinite && $0.1.contains($0.0) }
     }
 }
 enum MenuPalette: String, Codable, CaseIterable {
@@ -121,7 +125,7 @@ struct MenuAppearancePreset: Codable, Equatable, Identifiable {
         tiles.palette = .woodland
         tiles.sections.borderScope = .none; tiles.sections.backgroundScope = .full
         tiles.sections.backgroundIntensity = 0.10; tiles.sections.radius = 9
-        tiles.sections.titleIntensity = 0.55; tiles.sections.gap = 6
+        tiles.sections.titleIntensity = 0.55; tiles.sections.gap = 6; tiles.sections.iconTintStrength = 0.55
         tiles.system.backgroundScope = .full; tiles.system.greyBackground = true
         tiles.system.backgroundIntensity = 0.05; tiles.system.radius = 9
 
@@ -130,7 +134,7 @@ struct MenuAppearancePreset: Codable, Equatable, Identifiable {
         outline.sections.borderScope = .full; outline.sections.sides = Set(MenuSectionAppearance.Side.allCases)
         outline.sections.thickness = 1; outline.sections.borderIntensity = 0.45
         outline.sections.backgroundScope = .none; outline.sections.radius = 6
-        outline.sections.titleIntensity = 0.5; outline.sections.gap = 5
+        outline.sections.titleIntensity = 0.5; outline.sections.gap = 5; outline.sections.iconTintStrength = 0.65
         outline.system.borderScope = .full; outline.system.thickness = 0.5
         outline.system.borderIntensity = 0.2; outline.system.radius = 6
 
@@ -157,8 +161,8 @@ struct MenuAppearancePreset: Codable, Equatable, Identifiable {
             .init(name: "Perch original", appearance: .init()),
             .init(name: "Quiet", appearance: pair(quiet)),
             .init(name: "Signal", appearance: pair(signal) { $0.sections.borderIntensity = 0.85; $0.sections.titleIntensity = 0.7 }),
-            .init(name: "Soft tiles", appearance: pair(tiles) { $0.sections.backgroundIntensity = 0.16; $0.system.backgroundIntensity = 0.10; $0.sections.titleIntensity = 0.7 }),
-            .init(name: "Outline", appearance: pair(outline) { $0.sections.borderIntensity = 0.6; $0.system.borderIntensity = 0.35 }),
+            .init(name: "Soft tiles", appearance: pair(tiles) { $0.sections.backgroundIntensity = 0.16; $0.system.backgroundIntensity = 0.10; $0.sections.titleIntensity = 0.7; $0.sections.iconTintStrength = 0.45 }),
+            .init(name: "Outline", appearance: pair(outline) { $0.sections.borderIntensity = 0.6; $0.system.borderIntensity = 0.35; $0.sections.iconTintStrength = 0.45 }),
             .init(name: "Ribbon", appearance: pair(ribbon) { $0.sections.backgroundIntensity = 0.16; $0.sections.titleIntensity = 0.65 }),
             .init(name: "Horizon", appearance: pair(horizon) { $0.sections.backgroundIntensity = 0.14; $0.sections.borderIntensity = 0.45 })
         ]
@@ -293,7 +297,7 @@ struct MenuAppearancePage: View {
     var otherStyle: MenuSectionAppearance { store.value.theme(dark: !dark).style(system ? "System" : nil) }
     func neither(_ predicate: (MenuSectionAppearance) -> Bool) -> Bool { !predicate(style) && (!both || !predicate(otherStyle)) }
     func toggle(_ label: String, path: WritableKeyPath<MenuSectionAppearance, Bool>) -> some View {
-        AppearanceMixedToggle(title: label, value: mixed(path) ? nil : style[keyPath: path]) { next in edit { $0[keyPath: path] = next } }.frame(height: 22)
+        AppearanceMixedToggle(title: label, value: mixed(path) ? nil : style[keyPath: path]) { next in edit { $0[keyPath: path] = next } }.frame(height: 22).fixedSize(horizontal: true, vertical: false)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -330,7 +334,11 @@ struct MenuAppearancePage: View {
             }
             if let error = store.presetProblem { Text(error).foregroundStyle(.orange) }
             if both { Text("Editing both · Mixed means the values differ. Changes affect only the setting you touch.").font(.caption).foregroundStyle(.secondary) }
-            Picker("Section to customize", selection: $system) { Text("Colored sections").tag(false); Text("System").tag(true) }.pickerStyle(.segmented)
+            HStack(spacing: 0) {
+                sectionButton("Colored sections", system: false)
+                sectionButton("System", system: true)
+            }.background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.secondary.opacity(0.3)))
             Picker("Palette", selection: Binding<MenuPalette?>(get: { both && theme.palette != store.value.theme(dark: !dark).palette ? nil : theme.palette }, set: { palette in
                 guard let palette else { return }; var value = store.value
                 value.edit(dark: dark, both: both) { $0.palette = palette }; store.save(value)
@@ -340,12 +348,14 @@ struct MenuAppearancePage: View {
             }
             if let problem = store.problem { Text(problem).foregroundStyle(.orange) }
             Group {
-                HStack {
+                HStack(spacing: 12) {
                     AppearanceMixedToggle(title: "Edge to edge", value: both && style.isEdgeToEdge != otherStyle.isEdgeToEdge ? nil : style.isEdgeToEdge) { next in edit { $0.edgeToEdge = next } }
-                        .frame(height: 22).help("Remove the decoration margin. Full-width bands have square corners and no left/right borders. Turning this off restores your saved sides and radius.")
-                    AppearanceMixedToggle(title: "Fade left", value: both && (style.fadeLeft == true) != (otherStyle.fadeLeft == true) ? nil : style.fadeLeft == true) { next in edit { $0.fadeLeft = next } }.frame(height: 22).disabled(neither { $0.isEdgeToEdge })
-                    AppearanceMixedToggle(title: "Fade right", value: both && (style.fadeRight == true) != (otherStyle.fadeRight == true) ? nil : style.fadeRight == true) { next in edit { $0.fadeRight = next } }.frame(height: 22).disabled(neither { $0.isEdgeToEdge })
+                        .frame(height: 22).fixedSize(horizontal: true, vertical: false).help("Remove the decoration margin. Full-width bands have square corners and no left/right borders. Turning this off restores your saved sides and radius.")
+                    AppearanceMixedToggle(title: "Fade left", value: both && (style.fadeLeft == true) != (otherStyle.fadeLeft == true) ? nil : style.fadeLeft == true) { next in edit { $0.fadeLeft = next } }.frame(height: 22).fixedSize(horizontal: true, vertical: false).disabled(neither { $0.isEdgeToEdge })
+                    AppearanceMixedToggle(title: "Fade right", value: both && (style.fadeRight == true) != (otherStyle.fadeRight == true) ? nil : style.fadeRight == true) { next in edit { $0.fadeRight = next } }.frame(height: 22).fixedSize(horizontal: true, vertical: false).disabled(neither { $0.isEdgeToEdge })
+                    Spacer(minLength: 0)
                 }
+                Text("Border").font(.headline).padding(.top, 4)
                 HStack(spacing: 10) {
                     scopePicker("Border area", path: \.borderScope).frame(width: 215)
                     ForEach(MenuSectionAppearance.Side.allCases, id: \.self) { side in
@@ -354,20 +364,23 @@ struct MenuAppearancePage: View {
                                 if style.isEdgeToEdge && (side == .left || side == .right) { return }
                                 if enabled { style.sides.insert(side) } else { style.sides.remove(side) }
                             }
-                        }.frame(height: 22).disabled(neither { $0.borderScope != .none && (!($0.isEdgeToEdge) || (side != .left && side != .right)) })
+                        }.frame(height: 22).fixedSize(horizontal: true, vertical: false).disabled(neither { $0.borderScope != .none && (!($0.isEdgeToEdge) || (side != .left && side != .right)) })
                     }
+                    Spacer(minLength: 0)
                 }
                 slider("Thickness", path: \.thickness, range: 0...6, suffix: "pt").disabled(neither { $0.borderScope != .none && !$0.drawnSides.isEmpty })
                 slider("Line intensity", path: \.borderIntensity, range: 0...1).disabled(neither { $0.borderScope != .none && !$0.drawnSides.isEmpty })
+                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(neither { !$0.isEdgeToEdge && ($0.backgroundScope != .none || ($0.borderScope != .none && !$0.drawnSides.isEmpty)) })
+                Text("Fill").font(.headline).padding(.top, 4)
                 HStack(spacing: 12) {
                     scopePicker("Highlight area", path: \.backgroundScope).frame(width: 215)
                     toggle("Use grey highlights", path: \.greyBackground).disabled(neither { $0.backgroundScope != .none })
                 }
                 slider("Grey shade", path: \.greyLevel, range: 0...1).disabled(neither { $0.greyBackground && $0.backgroundScope != .none })
                 slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1).disabled(neither { $0.backgroundScope != .none })
-                Text("Titles & shape").font(.headline).padding(.top, 4)
+                Text("Titles").font(.headline).padding(.top, 4)
                 HStack(spacing: 12) {
-                    toggle("Tint title text to its section color", path: \.tintTitle)
+                    toggle("Tint title text to its section color", path: \.tintTitle).frame(width: 275, alignment: .leading)
                     valueSlider("Title tint", path: \.titleIntensity, range: 0...1).disabled(neither { $0.tintTitle })
                 }
                 HStack {
@@ -376,7 +389,10 @@ struct MenuAppearancePage: View {
                         AppearanceMixedToggle(title: "Show System title", value: both && (style.showTitle != false) != (otherStyle.showTitle != false) ? nil : style.showTitle != false) { next in edit { $0.showTitle = next } }.frame(height: 22)
                     }
                 }
-                slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(neither { !$0.isEdgeToEdge && ($0.backgroundScope != .none || ($0.borderScope != .none && !$0.drawnSides.isEmpty)) })
+                HStack(spacing: 12) {
+                    toggle("Tint icons to their section color", path: \.iconTinted).frame(width: 275, alignment: .leading)
+                    valueSlider("Icon tint", path: \.iconTintStrength, range: 0...1).disabled(neither { $0.showIcon && $0.iconTinted })
+                }.disabled(neither { $0.showIcon })
                 slider("Space above titles", path: \.gap, range: 0...8, suffix: "pt")
             }.disabled(store.problem != nil)
             HStack {
@@ -384,6 +400,14 @@ struct MenuAppearancePage: View {
                 Button("Reset appearance…") { SettingsWindow.shared.navigateToReset(.appearance) }.help("Open appearance reset options for rainbow sections and System, then return here.")
             }
         }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+    func sectionButton(_ title: String, system target: Bool) -> some View {
+        Button { system = target } label: {
+            Text(title).fontWeight(system == target ? .semibold : .regular)
+                .frame(maxWidth: .infinity).padding(.vertical, 7)
+                .background(system == target ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityValue(system == target ? "Selected" : "Not selected")
     }
     func preview(dark: Bool) -> some View {
         Button { self.dark = dark; both = false } label: {

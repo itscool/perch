@@ -207,6 +207,9 @@ import CryptoKit
         try check(handoff.phase == .active && handoff.controlOwner == nil, "unassigned input switches picture without granting input ownership")
         try check(!handoff.canForward(to: alice.id, now: 402) && !handoff.canForward(to: bob.id, now: 402), "display-only activation never forwards input")
         try check(KVMEdge.crossing(group: pictureOnly, preset: pictureOnly.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .blocked, "pointer cannot cross to an unassigned computer")
+        var pendingDisplay = group; pendingDisplay.connections[1].localDisplay = nil
+        _ = try pendingDisplay.validated()
+        try check(KVMEdge.crossing(group: pendingDisplay, preset: pendingDisplay.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .blocked, "pending display identity never grants pointer handoff")
         var incomplete = group; incomplete.presets[0].assignments.removeLast()
         handoff.recoverLocally()
         try rejects("no implicit None or leave-unchanged operation") {

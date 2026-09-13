@@ -1,3 +1,9 @@
+Appearance now groups controls under Border, Fill and Titles, with radius beside border controls, independently adjustable icon tint, and equal-width Colored sections/System choices. All built-ins were reviewed; Soft tiles and Outline use the new icon tint, while Perch original stays unchanged.
+
+Desk wires draw directly between connectors in either direction. Port menus open on release without dragging; invalid drops and Esc cancel. Screen dragging previews edge and center alignment with guides; Shift bypasses snapping. Cables can save before the other Mac reports a display, and paired identity reports resolve unambiguous matches. Appearance checkbox groups and the title-tint slider keep stable horizontal positions when resizing.
+
+Desk monitor cards place vertical port labels above arrow-free sockets, with the monitor title at the top. Empty preset assignments no longer repeat “Choose connection” inside every screen.
+
 Menu previews focus on the section being edited: full System readings or their final row above the colored sections. A contrasting backdrop, rounded menu edge and shadow make margins visible in either theme.
 
 Built-in appearance presets are reviewed whenever styling options change. Ribbon now uses fading full-width title bands; Horizon adds greyscale section fills with overlines and a fading right edge. Perch original remains unchanged.

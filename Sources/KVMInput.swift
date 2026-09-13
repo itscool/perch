@@ -83,7 +83,7 @@ struct KVMInputGrant: Codable, Equatable {
               let screen = group.monitors.first(where: { $0.id == focus.monitor }), screen.geometry.contains(focus.position),
               let preset = group.presets.first(where: { $0.id == preset }),
               let assignment = preset.assignments.first(where: { $0.monitor == focus.monitor }),
-              let connection = group.connections.first(where: { $0.id == assignment.connection }), connection.computer == focus.computer else { return false }
+              let connection = group.connections.first(where: { $0.id == assignment.connection }), connection.computer == focus.computer, connection.localDisplay != nil else { return false }
         return true
     }
 }

@@ -139,6 +139,10 @@ final class KVMInputSession: ObservableObject {
     }
     func readinessIssue(preset: UUID, monitor: UUID) -> String? {
         guard enabled && ready() else { return "Enable sharing and resolve this Mac’s access first." }
+        if let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
+           let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
+            return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
+        }
         guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for the desk coordinator to confirm readiness." }
         guard let owner = destination(preset: preset, monitor: monitor), readyComputers.contains(owner) else { return "Enable sharing on the screen’s mapped computer and keep it connected." }
         guard let connection = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor })?.connection,
@@ -310,7 +314,8 @@ final class KVMInputSession: ObservableObject {
     }
     private func destination(preset: UUID, monitor: UUID) -> UUID? {
         guard let route = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }) else { return nil }
-        return node.group.connections.first(where: { $0.id == route.connection })?.computer
+        guard let connection = node.group.connections.first(where: { $0.id == route.connection }), connection.localDisplay != nil else { return nil }
+        return connection.computer
     }
     private func visible(preset: UUID, monitor: UUID) -> Bool {
         guard let observation = visibility[monitor], observation.revision == configurationRevision,

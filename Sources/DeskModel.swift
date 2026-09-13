@@ -25,6 +25,27 @@ enum DeskCableBinding {
         _ = try draft.validated(); group = draft
     }
 }
+/// A user-drawn cable may precede display discovery. Resolve only an evidenced,
+/// unique cross-computer match for that already chosen physical monitor.
+enum DeskPendingCableResolver {
+    static func resolve(_ group: KVMGroup, observations: [KVMDisplayObservation]) -> KVMGroup {
+        var draft = group
+        for index in draft.connections.indices {
+            let cable = draft.connections[index]
+            guard let computer = cable.computer, cable.localDisplay == nil,
+                  draft.connections.filter({ $0.monitor == cable.monitor && $0.computer == computer && $0.localDisplay == nil }).count == 1 else { continue }
+            let candidates = observations.filter { observation in
+                guard observation.computer == computer,
+                      !draft.connections.contains(where: { $0.computer == computer && $0.localDisplay == observation.localDisplay }) else { return false }
+                let matches = observation.suggestedMatches(in: observations)
+                let physicalScreens = Set(draft.connections.filter { connection in matches.contains { $0.computer == connection.computer && $0.localDisplay == connection.localDisplay } }.map(\.monitor))
+                return physicalScreens == [cable.monitor]
+            }
+            if candidates.count == 1 { draft.connections[index].localDisplay = candidates[0].localDisplay }
+        }
+        return (try? draft.validated()) == nil ? group : draft
+    }
+}
 struct DeskPortDefinition { let name: String; let code: UInt16 }
 enum DeskMonitorConfiguration {
     static func apply(monitor: UUID, profile: String, ports: [DeskPortDefinition], mode: String, to group: inout KVMGroup) throws {
@@ -67,6 +88,8 @@ struct DeskLiveActions {
     var identifyingMonitor: ((UUID) -> Bool)? = nil
     var refreshScreens: (() -> Void)? = nil
     var removalIssue: ((UUID) -> String?)? = nil
+    var mapComputer: ((UUID, UUID) -> Void)? = nil
+    var displayStatus: ((UUID) -> String?)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.
@@ -184,11 +207,11 @@ final class DeskModel: ObservableObject {
     }
     func connectionLabel(_ connection: KVMConnection) -> String {
         let computer = group.computers.first { $0.id == connection.computer }
-        return connection.inputName + " — " + (computer?.name ?? "Unassigned")
+        return connection.inputName + " — " + (computer?.name ?? "Unassigned") + (computer != nil && connection.localDisplay == nil ? " · Display matching pending" : "")
     }
     func owner(_ monitor: UUID, in preset: KVMPreset? = nil) -> String {
         guard let a = (preset ?? self.preset).assignments.first(where: { $0.monitor == monitor }),
-              let route = group.connections.first(where: { $0.id == a.connection }) else { return "Choose connection" }
+              let route = group.connections.first(where: { $0.id == a.connection }) else { return "" }
         guard let computer = group.computers.first(where: { $0.id == route.computer }) else { return route.inputName + " · Unassigned" }
         return computer.name + (online.contains(computer.id) ? "" : " · Offline")
     }

@@ -30,3 +30,13 @@ both scopes in Light/Dark. This changes the inspection surface, not the saved
 style options. Full System readings and neighboring colored rows remain in real
 menu order; the fixed mid-tone backdrop reveals each menu edge independently
 of the Settings window theme.
+
+Control-width refinement keeps border/fade checkbox groups and the tint slider
+start anchored while resizing. No styling option or preset value changed; all
+seven built-ins remain intentional as reviewed above.
+
+Icon tint option review: Perch original retains fully section-colored icons.
+Soft tiles uses 55% tint in Light and 45% in Dark; Outline uses 65%/45%.
+Quiet, Signal, Ribbon and Horizon intentionally keep icons hidden. Border, Fill
+and Titles now group the controls; radius sits with border weight/intensity.
+The two edit-scope buttons split the available width equally.

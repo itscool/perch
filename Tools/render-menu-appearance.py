@@ -21,15 +21,49 @@ with tempfile.TemporaryDirectory(prefix='perch-appearance-render-') as temp:
     row = (repo/'Sources/MenuRowView.swift').read_text().split('\nextension AppDelegate {')[0]
     model = appearance.split('\nstruct MenuAppearancePage: View {')[0]
     preview = appearance.split('final class MenuAppearancePreviewHost: NSView {')[1].split('\nstruct MenuAppearancePreview: NSViewRepresentable {')[0]
-    (root/'Drawing.swift').write_text(model + '\n' + row + '\nfinal class MenuAppearancePreviewHost: NSView {' + preview)
+    page = 'struct MenuAppearancePage: View {' + appearance.split('struct MenuAppearancePage: View {')[1].split('final class MenuAppearancePreviewHost: NSView {')[0]
+    representable = 'struct MenuAppearancePreview: NSViewRepresentable {' + appearance.split('struct MenuAppearancePreview: NSViewRepresentable {')[1].split('\nextension AppDelegate {')[0]
+    toggle = 'struct AppearanceMixedToggle: NSViewRepresentable {' + appearance.split('struct AppearanceMixedToggle: NSViewRepresentable {')[1]
+    stub = '\nfinal class SettingsWindow { enum Reset { case appearance }; static let shared = SettingsWindow(); func navigateToReset(_ reset: Reset) {} }\n'
+    (root/'Drawing.swift').write_text(model + '\n' + row + '\nfinal class MenuAppearancePreviewHost: NSView {' + preview + '\n' + page + '\n' + representable + '\n' + toggle + stub)
     (root/'main.swift').write_text(r'''
 import AppKit
+import SwiftUI
 
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
 struct AppError: Error { let message: String }
 try runMenuAppearanceTests()
 let output = URL(fileURLWithPath: CommandLine.arguments[1])
+let suite = "perch.appearance.layout." + UUID().uuidString
+let fixtureDefaults = UserDefaults(suiteName: suite)!
+defer { fixtureDefaults.removePersistentDomain(forName: suite) }
+let fixture = MenuAppearanceStore(defaults: fixtureDefaults)
+func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+var starts: [[String: CGFloat]] = []
+for width in [640.0, 900.0] {
+    let host = NSHostingView(rootView: MenuAppearancePage(store: fixture))
+    host.frame = CGRect(x: 0, y: 0, width: width, height: 1100); host.layoutSubtreeIfNeeded()
+    // Resolve lazily created native controls using offscreen drawing only.
+    if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        if width == 640, let data = bitmap.representation(using: .png, properties: [:]) { try data.write(to: output.appendingPathComponent("perch-appearance-controls.png")) }
+    }
+    var positions: [String: CGFloat] = [:]
+    for button in descendants(host).compactMap({ $0 as? NSButton }) where ["Left", "Right", "Top", "Bottom", "Fade left", "Fade right"].contains(button.title) {
+        positions[button.title] = button.convert(button.bounds, to: host).minX
+    }
+    let sliders = descendants(host).compactMap { $0 as? NSSlider }
+    precondition(sliders.count == 8, "Expected the eight appearance sliders, found \(sliders.count)")
+    if let slider = sliders.dropFirst(5).first {
+        positions["Title tint"] = slider.convert(slider.bounds, to: host).minX
+    }
+    precondition(positions.count == 7, "Appearance layout fixture missed a target control: \(positions)")
+    starts.append(positions)
+}
+for key in starts[0].keys { precondition(abs(starts[0][key]! - starts[1][key]!) < 1, "Control drifts while resizing: " + key) }
+print("PASS: border/fade checkbox and title-tint slider starts stay anchored at 640 and 900 points")
+
 func label(_ text: String, x: CGFloat, y: CGFloat, size: CGFloat = 13, bold: Bool = false) {
     (text as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: bold ? .semibold : .regular), .foregroundColor: NSColor(white: 0.16, alpha: 1)])
 }

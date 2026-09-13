@@ -17,6 +17,31 @@ import SwiftUI
 try MainActor.assumeIsolated {
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+// Exercise native mouse/key dispatch on unattached views: no windows or posted events.
+let interaction = DeskWireController()
+let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+let port = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 22))
+let computer = DeskWireSocketView(frame: NSRect(x: 110, y: 10, width: 24, height: 22))
+let portID = UUID(), computerID = UUID()
+port.socketID = "port:" + portID.uuidString; computer.socketID = "computer:" + computerID.uuidString
+for socket in [port, computer] { socket.controller = interaction; container.addSubview(socket); interaction.register(socket) }
+var connections = 0
+interaction.connect = { p, c in precondition(p == portID && c == computerID); connections += 1 }
+func mouse(_ type: NSEvent.EventType, _ x: CGFloat) -> NSEvent {
+    NSEvent.mouseEvent(with: type, location: CGPoint(x: x, y: 21), modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
+}
+port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
+precondition(connections == 0 && interaction.target == computer.socketID, "Wire must preview before committing")
+port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 1)
+port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 250)); port.mouseUp(with: mouse(.leftMouseUp, 250))
+precondition(connections == 1 && interaction.gesture.source == nil, "Release over empty canvas must cancel")
+port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
+let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
+port.keyDown(with: escape); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 1)
+computer.mouseDown(with: mouse(.leftMouseDown, 122)); computer.mouseDragged(with: mouse(.leftMouseDragged, 22)); computer.mouseUp(with: mouse(.leftMouseUp, 22)); precondition(connections == 2)
+port.mouseDown(with: mouse(.leftMouseDown, 22)); interaction.remove(port); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 2)
+interaction.cancel()
+print("PASS: native socket dispatch previews and commits both directions, cancels invalid drops/Esc/source removal; no event posting or windows")
 let model = DeskModel(store: URL(fileURLWithPath: CommandLine.arguments[2]))
 let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {

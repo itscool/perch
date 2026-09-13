@@ -112,7 +112,7 @@ import Foundation
         let fixed = CGRect(x: 0, y: 0, width: 600, height: 340)
         let leftDrop = CGRect(x: -561, y: 10, width: 550, height: 310)
         let snapped = DeskScreenPlacement.place(leftDrop, among: [fixed], scale: 1)
-        try check(snapped.maxX == fixed.minX && snapped.minY == leftDrop.minY, "right monitor moves to left and docks without arbitrary vertical jump")
+        try check(snapped.maxX == fixed.minX && snapped.midY == fixed.midY, "right monitor docks left and previews the nearest center alignment")
         let free = CGRect(x: -750, y: 0, width: 550, height: 310)
         try check(DeskScreenPlacement.place(free, among: [fixed], scale: 1) == free, "intentional large gaps remain available")
         let overlapping = CGRect(x: 100, y: 0, width: 550, height: 310)
@@ -123,9 +123,49 @@ import Foundation
                 let gap = Double(step) / 4
                 let proposed = CGRect(x: fixed.maxX + gap / scale, y: 13, width: 310, height: 550)
                 let placed = DeskScreenPlacement.place(proposed, among: [fixed], scale: scale)
-                try check(placed.minX == fixed.maxX && placed.minY == 13 && placed.size == proposed.size, "snap uses screen-point tolerance with rotated physical dimensions")
+                try check(placed.minX == fixed.maxX && placed.minY == (13 * scale <= 18 ? 0 : 13) && placed.size == proposed.size, "snap uses screen-point tolerance with rotated physical dimensions")
             }
         }
+        for (y, expected, label) in [(3.0, 0.0, "Top"), (28.0, 30.0, "Bottom"), (14.0, 15.0, "Center")] {
+            let proposed = CGRect(x: 608, y: y, width: 550, height: 310)
+            let preview = DeskScreenPlacement.preview(proposed, among: [fixed], scale: 1)
+            try check(preview.rectangle.minY == expected && preview.guides.contains { $0.horizontal && $0.label == label }, "snap preview identifies the chosen " + label)
+            let free = DeskScreenPlacement.preview(proposed, among: [fixed], scale: 1, bypass: true)
+            try check(free.rectangle == proposed && free.guides.isEmpty, "Shift bypasses both docking and alignment")
+        }
+        let aligned = DeskScreenPlacement.preview(CGRect(x: 605, y: 2, width: 600, height: 340), among: [fixed], scale: 1)
+        try check(Set(aligned.guides.filter(\.horizontal).map(\.label)) == ["Top", "Center", "Bottom"], "show simultaneous alignment guides")
+        var wire = DeskWireGesture()
+        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 2, y: 0))
+        try check(wire.finish(insideSource: true, target: nil) == .click, "a small movement remains a release-triggered click")
+        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 3, y: 0)); wire.move(to: .zero)
+        try check(wire.finish(insideSource: true, target: nil) == .cancel, "returning to the source after dragging never opens its menu")
+        for (source, target) in [("port:a", "computer:b"), ("computer:b", "port:a")] {
+            wire.begin(source, at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
+            try check(wire.finish(insideSource: false, target: target) == .connect(source, target), "wire connects in either direction")
+        }
+        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
+        try check(wire.finish(insideSource: false, target: "port:b") == .cancel, "same-side targets do not connect")
+        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 20, y: 0)); wire = DeskWireGesture()
+        try check(wire.finish(insideSource: true, target: "computer:b") == .cancel, "Esc cancellation consumes the later mouse-up")
+        wire.begin("port:a", at: .zero)
+        try check(wire.finish(insideSource: false, target: nil) == .cancel, "release outside the source cancels even before the threshold")
+        var pending = DeskModel.sample()
+        let pendingIndex = pending.connections.firstIndex { $0.computer != nil }!
+        let pendingCable = pending.connections[pendingIndex], pendingComputer = pendingCable.computer!
+        let counterpart = pending.connections.first { $0.monitor == pendingCable.monitor && $0.computer != nil && $0.computer != pendingComputer }!
+        pending.connections[pendingIndex].localDisplay = nil
+        try check((try? pending.validated()) != nil, "a known cable can save before its display identity arrives")
+        let originalPending = pending
+        let reports = [KVMDisplayObservation(computer: counterpart.computer!, localDisplay: counterpart.localDisplay!, vendor: 7789, model: 1, numericSerial: 42, textSerial: nil),
+                       KVMDisplayObservation(computer: pendingComputer, localDisplay: "new-display", vendor: 7789, model: 1, numericSerial: 42, textSerial: nil)]
+        let resolved = DeskPendingCableResolver.resolve(pending, observations: reports)
+        try check(resolved.connections[pendingIndex].localDisplay == "new-display" && resolved.presets == pending.presets && resolved.monitors == pending.monitors, "paired observations complete the chosen cable without changing the desk or presets")
+        var duplicate = reports[1]; duplicate.localDisplay = "identical-other-display"
+        try check(DeskPendingCableResolver.resolve(pending, observations: reports + [duplicate]) == originalPending, "identical reports with colliding serials remain pending")
+        var different = reports[1]; different.numericSerial = 99
+        try check(DeskPendingCableResolver.resolve(pending, observations: [reports[0], different]) == originalPending, "unrelated identities cannot complete a cable")
+        try check(DeskPendingCableResolver.resolve(pending, observations: []) == originalPending, "missing remote reports preserve the saved cable")
         let fit = DeskCanvasLayout(rectangles: [fixed, snapped], viewport: CGSize(width: 400, height: 250))
         try check(abs((600 * fit.scale) / (550 * fit.scale) - 600 / 550.0) < 0.0001, "auto-fit preserves physical proportions")
         print("PASS: \(count) desk-model journey checks — immediate save, reopen, readiness, picture-only inputs, failure/retry, removal and correction. No windows shown.")

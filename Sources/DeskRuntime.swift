@@ -56,6 +56,7 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
 enum DeskDeviceMessage: Codable {
     case displays([DeskDetectedDisplay])
     case refresh
+    case displayProblem(String)
     case inspect(String)
     case identify(String, String)
     case identification(String, String, UUID, Bool)
@@ -78,6 +79,7 @@ final class DeskRuntime: ObservableObject {
     let model: DeskModel
     @Published var displays: [UUID: [DeskDetectedDisplay]] = [:]
     @Published var discoveryProblem: String?
+    private var remoteDisplayProblems: [UUID: String] = [:]
     @Published var discovering = false
     @Published var usbDevices: [MonitorUSBDevice] = []
     @Published var shortcutProblem: String?
@@ -108,6 +110,14 @@ final class DeskRuntime: ObservableObject {
                 guard let node else { return "Desk is unavailable." }
                 if id == node.localID { return "This is the Mac you are using." }
                 return node.isOwner ? nil : "Remove computers from \(node.ownerName), which owns this desk."
+            }, mapComputer: { [weak self] port, computer in
+                guard let self else { return }
+                self.model.edit { try DeskCableBinding.apply(connection: port, computer: computer, display: nil, to: &$0) }
+                self.resolvePendingDisplays(); self.refreshAllDisplays()
+            }, displayStatus: { [weak self] computer in
+                guard let self else { return nil }
+                if !self.node.online.contains(computer) { return "This computer is offline. Its saved cable will remain until it reconnects." }
+                return computer == self.node.localID ? self.discoveryProblem : self.remoteDisplayProblems[computer]
             })
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
@@ -126,7 +136,7 @@ final class DeskRuntime: ObservableObject {
             guard let self else { return }
             if !self.input.receive(data, peer: peer) { self.receiveDevices(data, peer: peer) }
         }
-        node.peersChanged = { [weak self] in self?.publishDisplays(); self?.updateModel() }
+        node.peersChanged = { [weak self] in self?.refreshAllDisplays(); self?.updateModel() }
         inputAdapter.presetShortcut = { [weak self] in self?.activatePreset($0) }
         updateModel()
     }
@@ -232,8 +242,12 @@ final class DeskRuntime: ObservableObject {
                         detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
                         return detected
                     }
-                    self.publishDisplays()
-                case .failure(let error): self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
+                    self.resolvePendingDisplays(); self.publishDisplays()
+                case .failure(let error):
+                    self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
+                    if let data = try? JSONEncoder().encode(DeskDeviceMessage.displayProblem(String(self.discoveryProblem!.prefix(800)))) {
+                        for peer in self.node.online where peer != self.node.localID { self.node.sendApplication(data, peer: peer) }
+                    }
                 }
                 self.updateModel()
             }
@@ -264,6 +278,15 @@ final class DeskRuntime: ObservableObject {
             DispatchQueue.main.async { self?.usbDevices = devices }
         }
     }
+    private func resolvePendingDisplays() {
+        guard node.canEdit, !switching.busy else { return }
+        let observations = displays.flatMap { computer, values in values.map {
+            KVMDisplayObservation(computer: computer, localDisplay: $0.id, vendor: $0.vendor, model: $0.model, numericSerial: $0.serial, textSerial: nil)
+        } }
+        let resolved = DeskPendingCableResolver.resolve(node.group, observations: observations)
+        guard resolved != node.group else { return }
+        do { try node.edit(resolved) } catch { model.problem = error.localizedDescription }
+    }
     private func publishDisplays() {
         guard let data = try? JSONEncoder().encode(DeskDeviceMessage.displays(displays[node.localID] ?? [])) else { return }
         for peer in node.online where peer != node.localID { node.sendApplication(data, peer: peer) }
@@ -279,7 +302,9 @@ final class DeskRuntime: ObservableObject {
             guard values.count <= 16, Set(values.map(\.id)).count == values.count,
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
             guard values.allSatisfy({ value in [value.pointWidth, value.pointHeight].allSatisfy { $0.map { $0.isFinite && (1...100_000).contains($0) } ?? true } }) else { return }
-            displays[peer] = values; updateModel()
+            displays[peer] = values; remoteDisplayProblems[peer] = nil; resolvePendingDisplays(); updateModel()
+        case .displayProblem(let problem):
+            remoteDisplayProblems[peer] = String(problem.prefix(800)); updateModel()
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
         case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)), token: UUID(), showing: true)

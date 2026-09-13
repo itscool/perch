@@ -159,7 +159,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
             try require(connections.filter { $0.monitor == connection.monitor && $0.inputName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == connection.inputName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.count == 1,
                         "This screen already has an input with that name. Edit its computer mapping instead.")
             if let code = connection.inputCode { try require(connections.filter { $0.monitor == connection.monitor && $0.inputCode == code }.count == 1, "This monitor input code is already configured.") }
-            try require((connection.computer == nil) == (connection.localDisplay == nil), "Map a connection to both a computer and its local display, or leave it unassigned.")
+            try require(connection.localDisplay == nil || connection.computer != nil, "A display identity needs a connected computer.")
             if let local = connection.localDisplay {
                 try require(!local.isEmpty && local.utf8.count <= 1024, "A mapped connection needs a valid local display.")
                 try require(connections.filter { $0.computer == connection.computer && $0.localDisplay == local }.count == 1, "A local display cannot represent two physical screens.")
@@ -223,7 +223,8 @@ enum KVMEdge {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),
               screen.geometry.contains(from), !screen.geometry.contains(to),
               let assignment = preset.assignments.first(where: { $0.monitor == source }),
-              let owner = group.connections.first(where: { $0.id == assignment.connection })?.computer else { return .blocked }
+              let sourceConnection = group.connections.first(where: { $0.id == assignment.connection }), sourceConnection.localDisplay != nil,
+              let owner = sourceConnection.computer else { return .blocked }
         let g = screen.geometry, dx = to.x - from.x, dy = to.y - from.y
         var exits: [(Double, Int)] = []
         if dx > 0 { exits.append(((g.right - from.x) / dx, 0)) }
@@ -245,7 +246,8 @@ enum KVMEdge {
         }
         guard targets.count == 1, let target = targets.first,
               let a = preset.assignments.first(where: { $0.monitor == target.id }),
-              let computer = group.connections.first(where: { $0.id == a.connection })?.computer else { return .blocked }
+              let targetConnection = group.connections.first(where: { $0.id == a.connection }), targetConnection.localDisplay != nil,
+              let computer = targetConnection.computer else { return .blocked }
         return computer == owner ? .native : .remote(monitor: target.id, computer: computer, entry: p)
     }
 }

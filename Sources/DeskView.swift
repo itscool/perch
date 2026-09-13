@@ -102,6 +102,12 @@ struct DeskView: View {
                     }
                     if model.live != nil { Button("Monitor setup…") { sheet = "monitorSetup" } }
                     Button("Physical size & position…") { sheet = "dimensions" }
+                    ForEach(model.group.connections.filter { $0.monitor == monitor.id && $0.computer != nil && $0.localDisplay == nil }) { pending in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(model.connectionLabel(pending)).font(.callout)
+                            Button("Match display…") { if let computer = pending.computer { beginCable(pending.id, computer) } }
+                        }
+                    }
                     if let result = model.monitorResults[monitor.id] { Text(result).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Preset inputs").font(.system(size: 12, weight: .semibold))
@@ -136,9 +142,13 @@ struct DeskView: View {
     func beginCable(_ port: UUID, _ computer: UUID) {
         guard let connection = model.group.connections.first(where: { $0.id == port }), model.group.computers.contains(where: { $0.id == computer }) else { return }
         model.selected = connection.monitor; draftConnection = port; draftComputer = computer
-        if connection.computer == computer { return }
+        if connection.computer == computer && connection.localDisplay != nil { return }
+        model.live?.refreshScreens?()
         if model.live == nil, connection.computer == nil { model.mapConnection(port, computer: computer); return }
         let options = model.cableOptions(for: computer).filter { model.cableConflict($0, port: port) == nil }
+        if options.isEmpty, connection.computer == nil, let mapComputer = model.live?.mapComputer {
+            mapComputer(port, computer); return
+        }
         let alreadyWired = options.contains { option in model.group.connections.contains { $0.computer == computer && $0.localDisplay == option.display } }
         if let only = options.first, options.count == 1, connection.computer == nil, !alreadyWired {
             model.live?.map(port, only.id)
@@ -151,13 +161,17 @@ struct DeskView: View {
            let computer = model.group.computers.first(where: { $0.id == draftComputer }) {
             Text("Connect \(computer.name)").font(.title2.bold())
             Text("To \(model.group.monitors.first { $0.id == port.monitor }?.name ?? "screen") · \(port.inputName)").font(.headline)
-            if let old = model.group.computers.first(where: { $0.id == port.computer }) {
+            if let old = model.group.computers.first(where: { $0.id == port.computer }), old.id != computer.id {
                 Text("This replaces the saved cable from \(old.name). It does not switch the monitor’s input.").foregroundStyle(.secondary)
             }
             if let live = model.live {
                 let options = model.cableOptions(for: computer.id)
                 if options.isEmpty {
-                    Text("Perch on \(computer.name) hasn’t reported a display for this cable yet. Show that computer’s picture on the monitor, then refresh.").foregroundStyle(.secondary)
+                    Text(port.computer == computer.id ? "Cable saved. Perch is waiting for this computer’s display identity." : "You can save this cable now and match its display when macOS reports it.").foregroundStyle(.secondary)
+                    Text("If the monitor hides inactive inputs, use your preset to show this computer’s picture, then refresh here.").font(.callout).foregroundStyle(.secondary)
+                    if port.computer != computer.id {
+                        Button("Save cable") { live.mapComputer?(port.id, computer.id); if model.problem == nil { sheet = nil } }
+                    }
                 } else {
                     Text("Which display on \(computer.name) is this screen? Use Identify if you’re unsure. Connecting saves the cable without changing the picture.").foregroundStyle(.secondary)
                     ForEach(options) { option in
@@ -176,7 +190,8 @@ struct DeskView: View {
                         }.padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
-                Button("Refresh displays") { live.refreshScreens?() }
+                if let status = live.displayStatus?(computer.id) { Text(status).foregroundStyle(.orange) }
+                Button("Refresh displays on paired Macs") { live.refreshScreens?() }
             } else {
                 Button("Connect cable") { model.mapConnection(port.id, computer: computer.id); if model.problem == nil { sheet = nil } }
             }
@@ -327,6 +342,9 @@ struct DeskCanvas: View {
     let removeComputer: (UUID) -> Void
     let addComputer: () -> Void
     @State private var drag: DeskScreenDrag?
+    @StateObject private var wire = DeskWireController()
+    @State private var snapBypassed = false
+    @State private var modifierMonitor: Any?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -343,6 +361,8 @@ struct DeskCanvas: View {
                     ForEach(Array(model.group.monitors.enumerated()), id: \.element.id) { index, monitor in
                         screen(monitor, index: index, layout: layout)
                     }
+                    if let drag { snapPreview(drag) }
+
                 }.frame(width: area.size.width, height: area.size.height, alignment: .topLeading)
                     .coordinateSpace(name: "deskScreenCanvas")
             }.frame(minHeight: 230)
@@ -356,12 +376,14 @@ struct DeskCanvas: View {
                     HStack(spacing: 12) { ForEach(model.group.computers) { computer in computerCard(computer) } }
                         .padding(.top, 6).padding(.bottom, 2)
                 }.frame(height: 79)
-                Text("Drag a computer to a monitor port to connect its cable. Or click a port and choose the computer.")
+                Text("Draw a wire between a computer and a monitor port. Click a port for its menu. Esc cancels a wire.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }.padding(12)
-            .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { drag = nil } }
-            .onDisappear { drag = nil }
+            .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { finishScreenDrag() } }
+            .onAppear { wire.connect = cable }
+            .onDisappear { finishScreenDrag(); wire.cancel() }
+            .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
             .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in
                 GeometryReader { area in
                     Path { path in
@@ -369,7 +391,7 @@ struct DeskCanvas: View {
                             guard let computer = connection.computer,
                                   let start = anchors["computer:" + computer.uuidString], let end = anchors["port:" + connection.id.uuidString] else { continue }
                             let source = area[start], target = area[end]
-                            let a = CGPoint(x: source.midX, y: source.minY), b = CGPoint(x: target.midX, y: target.maxY)
+                            let a = CGPoint(x: source.midX, y: source.midY), b = CGPoint(x: target.midX, y: target.midY)
                             path.move(to: a)
                             let middle = (a.y + b.y) / 2
                             path.addCurve(to: b, control1: CGPoint(x: a.x, y: middle), control2: CGPoint(x: b.x, y: middle))
@@ -379,25 +401,56 @@ struct DeskCanvas: View {
             }
             .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
     }
+    private func finishScreenDrag() {
+        drag = nil; snapBypassed = false
+        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }; modifierMonitor = nil
+    }
+    private func snapPreview(_ drag: DeskScreenDrag) -> some View {
+        let layout = drag.layout
+        let proposed = rectangle(drag.geometry).offsetBy(dx: drag.translation.width / layout.scale, dy: drag.translation.height / layout.scale)
+        let preview = DeskScreenPlacement.preview(proposed, among: model.group.monitors.filter { $0.id != drag.id }.map { rectangle($0.geometry) }, scale: layout.scale, bypass: snapBypassed)
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: layout.origin.x + (x - layout.bounds.minX) * layout.scale, y: layout.origin.y + (y - layout.bounds.minY) * layout.scale) }
+        return ZStack(alignment: .topLeading) {
+            if !snapBypassed && !preview.guides.isEmpty {
+                Path { path in
+                    let r = preview.rectangle, p = point(r.minX, r.minY)
+                    path.addRoundedRect(in: CGRect(origin: p, size: CGSize(width: r.width * layout.scale, height: r.height * layout.scale)), cornerSize: CGSize(width: 9, height: 9))
+                }.stroke(Color.teal, style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                ForEach(Array(preview.guides.enumerated()), id: \.offset) { _, guide in
+                    let a = guide.horizontal ? point(guide.start, guide.position) : point(guide.position, guide.start)
+                    let b = guide.horizontal ? point(guide.end, guide.position) : point(guide.position, guide.end)
+                    Path { path in path.move(to: a); path.addLine(to: b) }.stroke(Color.pink, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    Text(guide.label).font(.system(size: 9, weight: .medium)).padding(2)
+                        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 3))
+                        .offset(x: a.x + 3, y: a.y - 14)
+                }
+            }
+        }.allowsHitTesting(false)
+    }
     private func rectangle(_ g: KVMGeometry) -> CGRect { CGRect(x: g.x, y: g.y, width: g.displayedWidth, height: g.displayedHeight) }
     private func screen(_ monitor: KVMMonitor, index: Int, layout: DeskCanvasLayout) -> some View {
         let g = monitor.geometry, scale = layout.scale
         let width = max(1, g.displayedWidth * scale), height = max(1, g.displayedHeight * scale)
         let compact = width < 145 || height < 105
+        let portLabelHeight = max(18, min(66, height - (compact ? 48 : 72)))
         let translation = drag?.id == monitor.id ? drag!.translation : .zero
         return ZStack(alignment: .topTrailing) {
             Button { model.selected = monitor.id } label: {
-                VStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(model.identifying == monitor.id || compact ? "\(index + 1)" : monitor.name)
                         .font(.system(size: model.identifying == monitor.id ? 36 : 13, weight: .semibold))
-                    if !compact { Text(model.owner(monitor.id)).font(.system(size: 11)).multilineTextAlignment(.center) }
-                }.padding(.horizontal, 8).padding(.top, compact ? 0 : 20).padding(.bottom, compact ? 20 : 40)
-                    .frame(width: width, height: height).clipped()
+                        .lineLimit(1)
+                    if !compact && !model.owner(monitor.id).isEmpty {
+                        Text(model.owner(monitor.id)).font(.system(size: 11)).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }.padding(.leading, 9).padding(.trailing, compact ? 9 : 52).padding(.top, 9)
+                    .frame(width: width, height: height, alignment: .topLeading).clipped()
                     .background(RoundedRectangle(cornerRadius: 9).fill(model.selected == monitor.id ? Color.teal.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
                     .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selected == monitor.id ? Color.teal : Color.gray.opacity(0.65), lineWidth: model.selected == monitor.id ? 2.5 : 1.5))
             }.buttonStyle(.plain)
                 .accessibilityLabel("Screen \(index + 1), \(monitor.name), \(model.owner(monitor.id)), \(g.rotation.rawValue) degrees")
-                .help("Drag to arrange this physical screen. Nearby edges snap together; gaps are allowed. Right-click for exact size in millimetres.")
+                .help("Drag to arrange this physical screen. Guides preview edge and center alignment. Hold Shift to bypass snapping; gaps are allowed. Right-click for exact size in millimetres.")
                 .contextMenu {
                     Button("Position & physical size…") { dimensions(monitor.id) }
                     Button("Rotate clockwise") { model.rotateScreen(monitor.id) }
@@ -406,17 +459,21 @@ struct DeskCanvas: View {
                 }
                 .simultaneousGesture(DragGesture(minimumDistance: 5, coordinateSpace: .named("deskScreenCanvas"))
                     .onChanged { value in
-                        if drag == nil { drag = DeskScreenDrag(id: monitor.id, geometry: g, layout: layout, translation: .zero); model.selected = monitor.id }
+                        if drag == nil {
+                            drag = DeskScreenDrag(id: monitor.id, geometry: g, layout: layout, translation: .zero); model.selected = monitor.id
+                            modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in snapBypassed = event.modifierFlags.contains(.shift); return event }
+                        }
+                        snapBypassed = NSEvent.modifierFlags.contains(.shift)
                         guard drag?.id == monitor.id else { return }
                         drag?.translation = value.translation
                     }.onEnded { value in
                         guard let started = drag, started.id == monitor.id else { return }
-                        defer { drag = nil }
+                        defer { finishScreenDrag() }
                         guard let current = model.group.monitors.first(where: { $0.id == monitor.id }), current.geometry == started.geometry else {
                             model.problem = "This screen changed on another computer while you were moving it. Try the move again."; return
                         }
                         let proposed = rectangle(started.geometry).offsetBy(dx: value.translation.width / started.layout.scale, dy: value.translation.height / started.layout.scale)
-                        let placed = DeskScreenPlacement.place(proposed, among: model.group.monitors.filter { $0.id != monitor.id }.map { rectangle($0.geometry) }, scale: started.layout.scale)
+                        let placed = DeskScreenPlacement.preview(proposed, among: model.group.monitors.filter { $0.id != monitor.id }.map { rectangle($0.geometry) }, scale: started.layout.scale, bypass: NSEvent.modifierFlags.contains(.shift)).rectangle
                         model.move(monitor.id, x: placed.minX, y: placed.minY)
                     })
             if !compact {
@@ -427,41 +484,49 @@ struct DeskCanvas: View {
             }
             VStack { Spacer(minLength: 0)
                 ScrollView(.horizontal) {
-                    HStack(spacing: compact ? 4 : 8) {
-                        ForEach(model.group.connections.filter { $0.monitor == monitor.id }) { port in portSocket(port, compact: compact) }
+                    HStack(alignment: .bottom, spacing: 6) {
+                        ForEach(model.group.connections.filter { $0.monitor == monitor.id }) { port in portSocket(port, labelHeight: portLabelHeight) }
                         Button { addPort(monitor.id) } label: { Image(systemName: "plus.circle") }.buttonStyle(.borderless).help("Add a monitor port")
                     }.padding(.horizontal, 7)
-                }.frame(height: compact ? 24 : 38)
+                }.frame(height: portLabelHeight + 30)
             }.padding(.bottom, 3).frame(width: width, height: height)
         }.frame(width: width, height: height)
             .offset(x: layout.origin.x + (g.x - layout.bounds.minX) * scale + translation.width,
                     y: layout.origin.y + (g.y - layout.bounds.minY) * scale + translation.height)
     }
-    private func portSocket(_ port: KVMConnection, compact: Bool) -> some View {
-        Menu {
-            Text(port.inputName)
-            ForEach(model.group.computers) { computer in Button("Connect \(computer.name)") { cable(port.id, computer.id) } }
-            if port.computer != nil { Button("Disconnect cable") { model.disconnectCable(port.id) } }
-            Divider()
-            Button("Edit port…") { editPort(port.id) }
-        } label: {
-            VStack(spacing: 3) {
-                if !compact { Text(port.inputName).font(.system(size: 9)).lineLimit(1) }
-                Image(systemName: port.computer == nil ? "circle" : "circle.fill").font(.system(size: 12)).foregroundStyle(.teal)
-            }
-        }.menuStyle(.borderlessButton).fixedSize()
-            .accessibilityLabel("\(port.inputName), \(model.connectionLabel(port))")
-            .help("\(model.connectionLabel(port)). Drop a computer here, or click to connect or edit this port.")
-            .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["port:" + port.id.uuidString: $0] }
-            .dropDestination(for: String.self) { values, _ in
-                guard values.count == 1, values[0].hasPrefix("perch-computer:"), let computer = UUID(uuidString: String(values[0].dropFirst("perch-computer:".count))), model.group.computers.contains(where: { $0.id == computer }) else { return false }
-                cable(port.id, computer); return true
-            }
+    private func portSocket(_ port: KVMConnection, labelHeight: CGFloat) -> some View {
+        VStack(spacing: 3) {
+            Text(port.inputName).font(.system(size: 10)).lineLimit(1)
+                .frame(width: labelHeight, height: 14, alignment: .leading)
+                .rotationEffect(.degrees(-90))
+                .frame(width: 14, height: labelHeight)
+                .accessibilityHidden(true)
+            DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
+                           label: model.connectionLabel(port), controller: wire) {
+                let menu = DeskSocketMenu()
+                for computer in model.group.computers { menu.action("Connect " + computer.name) { cable(port.id, computer.id) } }
+                if port.computer != nil { menu.action("Disconnect cable") { model.disconnectCable(port.id) } }
+                menu.addItem(.separator())
+                menu.action("Edit port…") { editPort(port.id) }
+                return menu
+            }.frame(width: 24, height: 22)
+                .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["port:" + port.id.uuidString: $0] }
+        }
     }
+
     private func computerCard(_ computer: KVMComputer) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
-                Image(systemName: "desktopcomputer").foregroundStyle(.teal)
+                DeskWireSocket(id: "computer:" + computer.id.uuidString, connected: true,
+                               label: computer.name + " cable connector", controller: wire) {
+                    let menu = DeskSocketMenu()
+                    for port in model.group.connections {
+                        let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
+                        menu.action(monitor + " · " + port.inputName) { cable(port.id, computer.id) }
+                    }
+                    return menu
+                }.frame(width: 24, height: 22)
+                    .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["computer:" + computer.id.uuidString: $0] }
                 Button(computer.name) { computerDetails(computer.id) }.buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
                 Button { removeComputer(computer.id) } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(.borderless).accessibilityLabel("Remove \(computer.name)")
@@ -472,8 +537,155 @@ struct DeskCanvas: View {
         }.padding(10)
             .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.5)))
-            .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["computer:" + computer.id.uuidString: $0] }
-            .draggable("perch-computer:" + computer.id.uuidString)
-            .help("Drag \(computer.name) to the monitor port its cable plugs into.")
+            .help("Draw a wire from the connector to the monitor port its cable plugs into.")
+    }
+}
+
+
+/// Local canvas interaction only; no event posting or hardware access.
+@MainActor final class DeskWireController: ObservableObject {
+    private final class WeakSocket { weak var view: DeskWireSocketView?; init(_ view: DeskWireSocketView) { self.view = view } }
+    private var sockets: [String: WeakSocket] = [:]
+    private var escapeMonitor: Any?
+    private var resignObserver: NSObjectProtocol?
+    private(set) var gesture = DeskWireGesture()
+    private(set) var target: String?
+    var connect: ((UUID, UUID) -> Void)?
+    func register(_ view: DeskWireSocketView) { sockets[view.socketID] = WeakSocket(view) }
+    func remove(_ view: DeskWireSocketView) {
+        guard sockets[view.socketID]?.view === view else { return }
+        sockets[view.socketID] = nil
+        if gesture.source == view.socketID { cancel() }
+    }
+    func socket(_ id: String?) -> DeskWireSocketView? { id.flatMap { sockets[$0]?.view } }
+    func center(_ id: String?) -> CGPoint? {
+        guard let view = socket(id), view.window != nil else { return nil }
+        return view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
+    }
+    func begin(_ id: String, at point: CGPoint) {
+        cancel(); gesture.begin(id, at: point)
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            if event.keyCode == 53 { self.cancel(); return nil }; return event
+        }
+        if let window = socket(id)?.window {
+            resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.cancel() }
+            }
+        }
+    }
+    func move(to point: CGPoint) {
+        guard let source = gesture.source, let origin = socket(source) else { return }
+        gesture.move(to: point)
+        target = gesture.dragging ? sockets.keys.sorted().first { key in
+            guard DeskWireGesture.compatible(source, key), let view = socket(key), view.window === origin.window, !view.isHiddenOrHasHiddenAncestor else { return false }
+            return view.bounds.insetBy(dx: -6, dy: -6).contains(view.convert(point, from: nil))
+        } : nil
+        refresh()
+    }
+    /// Return true only for a click; callers may then show their menu on mouse-up.
+    func end(_ id: String, at point: CGPoint) -> Bool {
+        guard gesture.source == id else { return false }
+        move(to: point)
+        let destination = target
+        let inside = socket(id).map { $0.bounds.contains($0.convert(point, from: nil)) } ?? false
+        let result = gesture.finish(insideSource: inside, target: destination)
+        cancel()
+        if case let .connect(source, target) = result {
+            let port = source.hasPrefix("port:") ? source : target
+            let computer = source.hasPrefix("computer:") ? source : target
+            if let p = UUID(uuidString: String(port.dropFirst(5))), let c = UUID(uuidString: String(computer.dropFirst(9))) { connect?(p, c) }
+        }
+        return result == .click
+    }
+    func cancel() {
+        gesture = DeskWireGesture(); target = nil
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }; escapeMonitor = nil
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }; resignObserver = nil
+        refresh()
+    }
+    private func refresh() { objectWillChange.send(); for socket in sockets.values { socket.view?.needsDisplay = true } }
+}
+
+final class DeskSocketMenu: NSMenu {
+    private final class Action: NSObject { let run: () -> Void; init(_ run: @escaping () -> Void) { self.run = run }; @objc func invoke() { run() } }
+    private var actions: [Action] = []
+    func action(_ title: String, _ run: @escaping () -> Void) {
+        let target = Action(run); actions.append(target)
+        let item = NSMenuItem(title: title, action: #selector(Action.invoke), keyEquivalent: "")
+        item.target = target; addItem(item)
+    }
+}
+
+struct DeskWireSocket: NSViewRepresentable {
+    let id: String
+    let connected: Bool
+    let label: String
+    let controller: DeskWireController
+    var menu: (() -> DeskSocketMenu)? = nil
+    func makeNSView(context: Context) -> DeskWireSocketView { DeskWireSocketView(frame: .zero) }
+    func updateNSView(_ view: DeskWireSocketView, context: Context) {
+        if view.socketID != id { view.controller?.remove(view) }
+        view.socketID = id; view.connected = connected; view.controller = controller; view.makeMenu = menu
+        view.setAccessibilityLabel(label); view.toolTip = label + ". Drag to another connector to draw a wire."
+        controller.register(view); view.needsDisplay = true
+    }
+    static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }
+}
+final class DeskWireSocketView: NSView {
+    var socketID = ""
+    var connected = false
+    weak var controller: DeskWireController?
+    var makeMenu: (() -> DeskSocketMenu)?
+    override init(frame: NSRect) {
+        super.init(frame: frame); setAccessibilityElement(true); setAccessibilityRole(.button)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override var acceptsFirstResponder: Bool { true }
+    override func mouseDown(with event: NSEvent) { controller?.begin(socketID, at: event.locationInWindow) }
+    override func mouseDragged(with event: NSEvent) { controller?.move(to: event.locationInWindow) }
+    override func mouseUp(with event: NSEvent) { if controller?.end(socketID, at: event.locationInWindow) == true { showMenu() } }
+    override func rightMouseDown(with event: NSEvent) { mouseDown(with: event) }
+    override func rightMouseDragged(with event: NSEvent) { mouseDragged(with: event) }
+    override func rightMouseUp(with event: NSEvent) { mouseUp(with: event) }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { controller?.cancel() }
+        else if event.keyCode == 36 || event.keyCode == 49 { showMenu() }
+        else { super.keyDown(with: event) }
+    }
+    override func accessibilityPerformPress() -> Bool { showMenu(); return makeMenu != nil }
+    private func showMenu() {
+        guard let menu = makeMenu?() else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.minY), in: self)
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let circle = NSBezierPath(ovalIn: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12))
+        NSColor.systemTeal.setStroke(); NSColor.systemTeal.setFill(); circle.lineWidth = 1.5
+        if connected { circle.fill() } else { circle.stroke() }
+        if controller?.target == socketID {
+            let ring = NSBezierPath(ovalIn: CGRect(x: center.x - 10, y: center.y - 10, width: 20, height: 20))
+            ring.lineWidth = 2.5; ring.stroke()
+        }
+    }
+}
+struct DeskWireOverlay: NSViewRepresentable {
+    @ObservedObject var controller: DeskWireController
+    func makeNSView(context: Context) -> DeskWireOverlayView { DeskWireOverlayView(frame: .zero) }
+    func updateNSView(_ view: DeskWireOverlayView, context: Context) { view.controller = controller; view.needsDisplay = true }
+}
+final class DeskWireOverlayView: NSView {
+    weak var controller: DeskWireController?
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let controller, controller.gesture.dragging, let start = controller.center(controller.gesture.source) else { return }
+        let a = convert(start, from: nil), b = convert(controller.center(controller.target) ?? controller.gesture.point, from: nil)
+        let path = NSBezierPath(); path.move(to: a)
+        let middle = (a.y + b.y) / 2
+        path.curve(to: b, controlPoint1: CGPoint(x: a.x, y: middle), controlPoint2: CGPoint(x: b.x, y: middle))
+        path.lineWidth = 2.5
+        (controller.target == nil ? NSColor.secondaryLabelColor : NSColor.systemTeal).setStroke()
+        if controller.target == nil { path.setLineDash([4, 4], count: 2, phase: 0) }
+        path.stroke()
     }
 }

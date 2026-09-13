@@ -478,7 +478,11 @@ badge. The cell starts at zero width; the image is positioned using table width
 and right anchoring moves it again when AppKit assigns the row width. Expected:
 assert image/label containment and nonoverlap after actual cell sizing and resizing,
 including source-list indentation. State-only and accessibility-only checks do not
-establish visibility.
+establish visibility. A follow-up fixes the cell but icons remain cut off because
+the table column is wider than the clip view. Require transformed child bounds
+inside the viewport too, including source-list insets, narrow widths and both
+scrollbar styles with enough rows to overflow. Checking cell containment alone
+still fails this case.
 
 ## Session start hidden behind advanced input options
 

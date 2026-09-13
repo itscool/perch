@@ -42,3 +42,34 @@ screen that remains active.
 
 No display settings, windows, power state or permissions were changed during this
 investigation. This is a recorded known gap, not part of the installed 2.0.116 fix.
+
+
+## September 13 follow-up: BetterDisplay and the unshipped experiment
+
+BetterDisplay's author addresses this exact use case: read VCP 0x60 and use
+software connect/disconnect according to the selected input. The answer explicitly
+leaves practical reliability to experimentation; the later CLI example exposes
+`connected`, rather than treating a physical power-off command as disconnection.
+https://github.com/waydabber/BetterDisplay/discussions/4364
+https://github.com/waydabber/BetterDisplay/wiki/Integration-features%2C-CLI
+
+The author also documents reconnect-all and its default on normal app quit;
+this is not evidence that force-quit/crash restores every screen.
+https://github.com/waydabber/BetterDisplay/discussions/2604
+On Intel, removing a screen from the layout does not fully power it down.
+https://github.com/waydabber/BetterDisplay/issues/1806
+
+Perch briefly prototyped public application-lifetime mirroring as a way to remove
+separate desktop space while retaining the DDC path. Its 16 two-monitor ownership
+combinations passed policy tests; the native backend was only compiled, never
+invoked. That draft is outside production source and is NOT in the next candidate.
+Do not call this defect fixed. BetterDisplay's internal implementation has not
+been verified, and its existence does not prove private display-disable APIs are
+safe for Perch's independent switching/recovery needs.
+
+Next: develop a recoverable software-disconnect backend with injected topology,
+last-visible-display checks, saved configuration, expiry/crash restoration and
+control-path recovery; then perform explicitly coordinated physical acceptance.
+New reads must invalidate pre-switch observations before driving desktop changes.
+Do not use a previous command, desired preset, lost peer, or unknown input as
+permission to disconnect a display.

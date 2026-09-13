@@ -100,7 +100,7 @@ int main(int argc, const char **argv) { @autoreleasepool {
     if (!t.service) return failure(@"This display connection does not expose DDC input control.");
     if (inspect || read) {
         NSNumber *value = current(t, alternate);
-        NSString *caps = inspect && !alternate ? capabilities(t) : nil;
+        NSString *caps = inspect ? capabilities(t) : nil; // Capabilities use standard DDC even with LG input switching.
         NSMutableDictionary *result = [@{@"current":value ?: (id)[NSNull null], @"capabilities":caps ?: (id)[NSNull null]} mutableCopy];
         if (inspect && selected->vendor == 0x1e6d) {
             NSNumber *identity = lgIdentityValue(t, 0xef);

@@ -24,15 +24,29 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     var inspected: Bool? = nil
     var inspectionProblem: String? = nil
     var reportedPorts: [MonitorInput]? = nil
+    var reportedModel: String? = nil
+    var reportedPortMode: String? = nil
+    var displayLabel: String { reportedModel ?? name }
+    var validInspectionMetadata: Bool {
+        (reportedModel.map { !$0.isEmpty && $0.utf8.count <= 80 } ?? true) &&
+        (reportedPortMode.map { ["standard", "lg"].contains($0) } ?? true) &&
+        (reportedPorts?.count ?? 0) <= 16 && reportedPorts?.allSatisfy(\.valid) != false
+    }
     static let reportedInputsChoice = "__reported_inputs__"
     var firmwareFamily: String? {
         vendor == 7789 ? LGFirmwareProfiles.family(identity: lgIdentity, extended: lgExtendedIdentity)?.name : nil
+    }
+    var identityConflict: Bool {
+        guard let reportedModel, let firmwareFamily,
+              let reported = MonitorCapabilities.modelSeries(reportedModel),
+              let family = MonitorCapabilities.modelSeries(firmwareFamily) else { return false }
+        return reported != family
     }
     func profile(choice: String) -> MonitorProfile? {
         if choice == Self.reportedInputsChoice { return nil }
         if !choice.isEmpty { return MonitorProfiles.entries.first { $0.vendor == vendor && $0.name == choice } }
         if let matchedProfileName, let profile = MonitorProfiles.entries.first(where: { $0.name == matchedProfileName && $0.vendor == vendor }) { return profile }
-        return vendor == 7789 ? LGFirmwareProfiles.inputs(identity: lgIdentity, extended: lgExtendedIdentity) : nil
+        return vendor == 7789 && !identityConflict ? LGFirmwareProfiles.inputs(identity: lgIdentity, extended: lgExtendedIdentity) : nil
     }
     func portOptions(choice: String) -> [MonitorInput] { profile(choice: choice)?.inputs ?? reportedPorts ?? [] }
     enum InputDetection { case profile(MonitorProfile), reported([MonitorInput]), unknown }
@@ -48,14 +62,20 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
         guard let old, sameDevice(as: old) else { return }
         lgIdentity = old.lgIdentity; lgExtendedIdentity = old.lgExtendedIdentity
         inspected = old.inspected; inspectionProblem = old.inspectionProblem; reportedPorts = old.reportedPorts
+        reportedModel = old.reportedModel; reportedPortMode = old.reportedPortMode
+        matchedProfileName = old.matchedProfileName ?? matchedProfileName
         if let reportedPorts { inputs = MonitorCapabilities.merge(inputs, reported: reportedPorts) }
     }
     mutating func applyInspection(_ result: MonitorInspection) {
         inspected = true; inspectionProblem = nil
         lgIdentity = vendor == 7789 ? result.lgIdentity : nil
         lgExtendedIdentity = vendor == 7789 ? result.lgExtendedIdentity : nil
+        reportedModel = result.transportModel ?? MonitorCapabilities.model(result.capabilities ?? "")
+        let descriptor = MonitorDescriptor(id: id, displayID: 0, name: name, vendor: vendor, model: model, ddcAvailable: canControl)
+        matchedProfileName = MonitorProfiles.match(descriptor, reportedModel: reportedModel)?.name
+        reportedPortMode = result.transportInputs == nil ? "standard" : mode
         let reported = result.transportInputs ?? MonitorCapabilities.inputs(result.capabilities ?? "").map {
-            MonitorInput(code: $0, name: MonitorInput.name($0, alternate: mode == "lg"))
+            MonitorInput(code: $0, name: MonitorInput.name($0))
         }
         reportedPorts = reported
         inputs = MonitorCapabilities.merge(inputs, reported: reported)
@@ -395,7 +415,7 @@ final class DeskRuntime: ObservableObject {
         guard let inputs = detected.reportedPorts, !inputs.isEmpty, inputs.count <= 16, inputs.allSatisfy(\.valid) else { throw KVMError("This monitor has not reported a usable input list.") }
         var group = node.group
         try DeskMonitorConfiguration.apply(monitor: monitor, profile: DeskDetectedDisplay.reportedInputsChoice,
-                                           ports: inputs.map { .init(name: $0.name, code: $0.code) }, mode: detected.mode, to: &group)
+                                           ports: inputs.map { .init(name: $0.name, code: $0.code) }, mode: detected.reportedPortMode ?? detected.mode, to: &group)
         try node.edit(group)
     }
     func discoverUSB() {
@@ -425,6 +445,7 @@ final class DeskRuntime: ObservableObject {
         guard data.count <= 64 * 1024, let message = try? JSONDecoder().decode(DeskDeviceMessage.self, from: data) else { return }
         switch message {
         case .displays(let values):
+            guard values.allSatisfy(\.validInspectionMetadata) else { return }
             guard values.count <= 16, Set(values.map(\.id)).count == values.count,
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
             guard values.allSatisfy({ $0.panelAspect.map { $0.isFinite && (0.1...10).contains($0) } ?? true }) else { return }
@@ -450,11 +471,14 @@ final class DeskRuntime: ObservableObject {
             if let error { pending.completion(.failure(KVMError(String(error.prefix(800))))); return }
             guard let value, value.sameDevice(as: pending.before), value.inspectionProblem == nil,
                   let i = displays[peer]?.firstIndex(where: { $0.sameDevice(as: pending.before) }),
-                  (value.reportedPorts?.count ?? 0) <= 16, value.reportedPorts?.allSatisfy(\.valid) != false else {
+                  value.validInspectionMetadata else {
                 pending.completion(.failure(KVMError("The display changed or returned invalid detection details. Try again."))); return
             }
             // Only inspection fields come from the reply; retain validated device metadata.
             displays[peer]?[i].lgIdentity = value.lgIdentity; displays[peer]?[i].lgExtendedIdentity = value.lgExtendedIdentity
+            displays[peer]?[i].reportedModel = value.reportedModel; displays[peer]?[i].reportedPortMode = value.reportedPortMode
+            let descriptor = MonitorDescriptor(id: value.id, displayID: 0, name: value.name, vendor: value.vendor, model: value.model, ddcAvailable: value.canControl)
+            displays[peer]?[i].matchedProfileName = MonitorProfiles.match(descriptor, reportedModel: value.reportedModel)?.name
             displays[peer]?[i].reportedPorts = value.reportedPorts; displays[peer]?[i].inspected = true; displays[peer]?[i].inspectionProblem = nil
             if let updated = displays[peer]?[i] { pending.completion(.success(updated)) }
             updateModel()
@@ -466,6 +490,7 @@ final class DeskRuntime: ObservableObject {
         guard var detected = displays[computer]?.first(where: { $0.id == display }) else { throw KVMError("Choose a detected screen.") }
         detected.inputs = profile?.inputs ?? detected.reportedPorts ?? []
         if let profile { detected.mode = profile.alternate ? "lg" : "standard" }
+        else if let reportedMode = detected.reportedPortMode { detected.mode = reportedMode }
         if let custom, custom.valid { detected.inputs.removeAll { $0.code == custom.code }; detected.inputs.append(custom) }
         guard detected.inputs.contains(where: { $0.code == input }) else { throw KVMError("Choose this cable’s connected input.") }
         var group = node.group

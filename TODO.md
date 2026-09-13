@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.119 is installed on disk
-in /Applications. The user's existing process was left running; Scott can
-restart to load 2.0.119. The previous bundle is
-retained at /Applications/.perch-previous-kqezxl6w/Perch.app.
-Public/notarized remains 2.0.94; 2.0.119 is not notarized or published. The matching
+2.0 development, September 13, 2026. Developer ID 2.0.120 is installed on disk
+in /Applications. Running PID 66808 remains on 2.0.119; Scott can restart to load
+2.0.120. The previous bundle is retained at
+/Applications/.perch-previous-uupq81g3/Perch.app.
+Public/notarized remains 2.0.94; 2.0.120 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -13,8 +13,15 @@ This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
 
-Sidebar readiness indicators and the clipped Desk inspector heading are fixed in
-installed candidate 2.0.118. Desk preset membership/use and card/name affordances are
+Automated update/fault, packaging/dependency and passive performance work is now
+recorded in AUTOMATED-QA-2.0.120.md. Real hardware/access acceptance below is not
+replaced by injected helpers or a clean dependency-cache fixture.
+
+
+The Desk inspector heading is fixed in installed candidate 2.0.118. A follow-up
+screenshot exposed sidebar badges clipped by the scroll viewport despite correct
+cell layout. Candidate 2.0.120 fixes the column width and verifies all clipping
+ancestors with overlay and legacy scrollbars. Desk preset membership/use and card/name affordances are
 reconciled. See DESK-CLARITY-AND-INSPECTOR-2.0.md for offscreen evidence and live
 acceptance limits.
 
@@ -42,19 +49,13 @@ acceptance limits.
   not introduce untested display disabling or bulk window movement. See
   DESKTOP-PARTICIPATION-GAP-2.0.md. This is not fixed in 2.0.116.
 
-- [ ] **Repeated Desk disconnections between the real Macs.** Scott reports one
-  Mac repeatedly failing its Desk connection. Read-only logs from local PID 98528
-  on September 13 confirm 96 ready transitions in four minutes, peer resets,
-  nearby-path timeouts and some TLS session closures. These logs establish real
-  churn, not its root cause. Scott later reports the connection suddenly working
-  better. Pairing lifecycle and redundant-route/error recovery improved between
-  builds 106 and 110, and build 96 fixed synchronization stalls. These may explain
-  improvement after upgrading, but no root cause for the reported resets has been
-  established. Build 119 adds targeted retry and current-state error recovery. Continue with
-  the affected Mac's exact error/recovery behavior;
-  investigate lifecycle/reconnect/trust behavior without resetting membership,
-  permissions or interrupting the user's testing. Loopback stability does not
-  close this real-network defect. 2.0.115 does not claim to fix it.
+- [x] **Record unexpected Desk connection loss.** The earlier real-Mac reset
+  report is removed from current known defects at Scott's request because it no
+  longer reproduces. Its root cause is not established. Candidate 2.0.120 adds
+  per-computer Connection activity, bounded 24-hour/1,024-entry persistence,
+  closure causes and durations. Expected local shutdown, redundant routes and
+  pairing closure are distinct from unexpected loss. New reports can be tied to
+  exact recorded events. See AUTOMATED-QA-2.0.120.md.
 
 - [x] **Pointer sharing was hidden outside the Desk flow.** Scott confirmed
   sharing was off. The new Desk inspector owns session enable, per-computer
@@ -534,7 +535,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.119 candidate is prepared and installed locally with a source snapshot and draft notes.
+   signed 2.0.120 candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

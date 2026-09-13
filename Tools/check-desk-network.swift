@@ -10,6 +10,12 @@ import Darwin
     }
     static func main() { do { try run() } catch { fputs("FAIL: \(error)\n", stderr); exit(1) } }
     static func run() throws {
+        let now = Date()
+        let events = (0..<1030).map { _ in KVMConnectionEvent(id: UUID(), time: now, peer: nil, peerName: "Fixture", detail: "ready", unexpected: false, duration: nil) }
+        guard KVMConnectionEvent.retained(events, now: now).count == 1024,
+              KVMConnectionEvent.retained(events, now: now.addingTimeInterval(86401)).isEmpty,
+              !KVMCloseReason.duplicate.unexpected, !KVMCloseReason.shutdown.unexpected,
+              KVMCloseReason.network.unexpected, KVMCloseReason.heartbeat.unexpected else { throw KVMError("Connection diagnostic retention/classification failed") }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("perch-tls-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let a = try KVMDeskNode(identity: .fresh(), name: "Fixture A", storage: directory.appendingPathComponent("a.json"))
@@ -61,6 +67,9 @@ import Darwin
         guard b.peerProblems[a.localID] != nil, b.networkProblem == nil else { throw KVMError("Online peer was reported offline") }
         b.transport.connectionProblem?(working, nil)
         guard b.peerProblems.isEmpty else { throw KVMError("Connection recovery retained stale errors") }
+        guard a.connectionEvents.contains(where: { $0.peer == b.localID && $0.detail == "Authenticated connection ready" }),
+              b.connectionEvents.contains(where: { $0.peer == a.localID && $0.detail == "Authenticated connection ready" }) else { throw KVMError("Authenticated connection was not recorded") }
+        print("PASS: bounded connection activity and expected/unexpected classifications")
         print("PASS: readable discovery metadata, role selection, duplicate-click guard, scoped failures/recovery, completed pairing close, redundant-route failure isolation")
         var changed = b.group; changed.name = "Shared from B"; try b.edit(changed)
         try wait("durable edit and acknowledgement") { a.group.name == "Shared from B" && b.pendingPeers.isEmpty }
@@ -259,6 +268,9 @@ import Darwin
         guard inputB.capture(.init(kind: .keyDown, code: 15)) else { throw KVMError("Arriving keyboard event leaked locally") }
         inputB.tick()
         try wait("confirmed keyboard host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
+        // Let the queued first key arrive before deliberately replacing that session.
+        try wait("first arriving-keyboard key reaches B") { deliveries.contains { $0.0 == b.localID && $0.1.code == 15 } }
+        guard !deliveries.contains(where: { $0.0 == a.localID && $0.1.code == 15 }) else { throw KVMError("Arriving keyboard typed on the previous computer") }
         inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
         try wait("return focus before mouse follow") { inputA.active && inputB.active && inputA.focus?.computer == a.localID }
         keyboardA = []; inputA.tick()
@@ -267,8 +279,6 @@ import Darwin
         try wait("confirmed mouse host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
-        try wait("first arriving-keyboard key reaches B") { deliveries.contains { $0.0 == b.localID && $0.1.code == 15 } }
-        guard !deliveries.contains(where: { $0.0 == a.localID && $0.1.code == 15 }) else { throw KVMError("Arriving keyboard typed on the previous computer") }
         visible = false
         try wait("unknown monitor input stops forwarding", seconds: 4) { !inputA.active && !inputB.active }
         guard !inputA.capture(.init(kind: .keyDown, code: 14)) else { throw KVMError("Unverified screen retained control") }
@@ -278,7 +288,17 @@ import Darwin
         try wait("fresh readiness clears blocked attempt without starting") { inputA.problem == nil && inputB.problem == nil }
         guard !inputA.active && !inputB.active else { throw KVMError("Readiness recovery silently started capture") }
 
-        for link in Array(b.transport.links.values) { b.transport.close(link) }
+        for link in Array(b.transport.links.values) { b.transport.close(link, reason: .heartbeat) }
+        guard let incident = b.connectionEvents.last(where: { $0.peer == a.localID && $0.unexpected && $0.detail == KVMCloseReason.heartbeat.rawValue }),
+              incident.duration != nil else { throw KVMError("Lost active link omitted its cause, peer or duration") }
+        let logURL = b.storage.deletingPathExtension().appendingPathExtension("connections.json")
+        try wait("durable connection incident") {
+            guard let data = try? Data(contentsOf: logURL), let saved = try? JSONDecoder().decode([KVMConnectionEvent].self, from: data) else { return false }
+            return saved.contains { $0.id == incident.id }
+        }
+        let reopened = try KVMDeskNode(identity: b.identity, name: "Fixture B", storage: b.storage)
+        guard reopened.connectionEvents.contains(where: { $0.id == incident.id }),
+              (try FileManager.default.attributesOfItem(atPath: logURL.path)[.posixPermissions] as? NSNumber)?.intValue == 0o600 else { throw KVMError("Incident missing after reopen or log not private") }
         try wait("named coordinator offline recovery") { inputB.contextIssue?.contains(a.localName) == true }
         b.retryConnections()
         try wait("trusted reconnect clears context") { inputB.contextIssue == nil && b.online.contains(a.localID) }

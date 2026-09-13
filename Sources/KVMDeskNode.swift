@@ -55,6 +55,25 @@ final class KVMDeskNode: ObservableObject {
     @Published private(set) var pairingProblem: String?
     @Published private(set) var peerProblems: [UUID: String] = [:]
     @Published private(set) var pairingConnection: UUID?
+    @Published private(set) var connectionEvents: [KVMConnectionEvent] = []
+    @Published private(set) var connectionLogProblem: String?
+    private var connectionLogURL: URL { storage.deletingPathExtension().appendingPathExtension("connections.json") }
+    private let connectionLogQueue = DispatchQueue(label: "Perch.desk.connection-log", qos: .utility)
+    private func recordConnection(_ event: KVMConnectionEvent) {
+        connectionEvents = KVMConnectionEvent.retained(connectionEvents + [event])
+        let events = connectionEvents, url = connectionLogURL
+        // Serial snapshots preserve event order without disk I/O on the network/UI executor.
+        connectionLogQueue.async { [weak self] in
+            let problem: String?
+            do {
+                let data = try JSONEncoder().encode(events)
+                try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                problem = nil
+            } catch { problem = "Connection activity could not be saved. " + error.localizedDescription }
+            DispatchQueue.main.async { [weak self] in self?.connectionLogProblem = problem }
+        }
+    }
     var networkProblem: String? {
         listenerProblem ?? membership.peers.filter { !online.contains($0.id) }.compactMap { peer in
             peerProblems[peer.id].map { "\(peer.name): \($0)" }
@@ -105,6 +124,12 @@ final class KVMDeskNode: ObservableObject {
     var hasOtherMembers: Bool { membership.peers.count > 1 }
     init(identity: KVMPeerIdentity, name: String, storage: URL) throws {
         self.identity = identity; self.storage = storage; transport = KVMPeerTransport(identity: identity)
+        let activity = storage.deletingPathExtension().appendingPathExtension("connections.json")
+        if let size = try? activity.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 1024 * 1024,
+           let data = try? Data(contentsOf: activity), let saved = try? JSONDecoder().decode([KVMConnectionEvent].self, from: data),
+           saved.count <= 1024, saved.allSatisfy({ $0.peerName.utf8.count <= 400 && $0.detail.utf8.count <= 1000 }) {
+            connectionEvents = KVMConnectionEvent.retained(saved)
+        }
         if FileManager.default.fileExists(atPath: storage.path) {
             archive = try KVMDeskArchive.read(storage)
         } else {
@@ -160,8 +185,8 @@ final class KVMDeskNode: ObservableObject {
         pairingUntil = nil
         transport.advertisePairing(hosting: nil, desk: group.name)
         let pending = pairingConnection; pairingConnection = nil; pairingProblem = nil
-        if let pending, let link = transport.links[pending] { transport.close(link) }
-        for pairing in pairings { if let link = transport.links[pairing.id] { transport.close(link) } }
+        if let pending, let link = transport.links[pending] { transport.close(link, reason: .pairingClosed) }
+        for pairing in pairings { if let link = transport.links[pairing.id] { transport.close(link, reason: .pairingClosed) } }
         pairings = []
     }
     func connect(_ endpoint: NWEndpoint, expected: UUID? = nil) {
@@ -193,7 +218,7 @@ final class KVMDeskNode: ObservableObject {
         send(.approve(pairings[i].comparison), to: link)
         finishPairing(id)
     }
-    func reject(_ id: UUID) { if let link = transport.links[id] { transport.close(link) } }
+    func reject(_ id: UUID) { if let link = transport.links[id] { transport.close(link, reason: .pairingClosed) } }
     private func linkReady(_ link: KVMPeerTransport.Link) {
         do {
             let nonce = UUID(); localNonces[link.id] = nonce
@@ -201,9 +226,9 @@ final class KVMDeskNode: ObservableObject {
             let hello = KVMHello(card: card, nonce: nonce, signature: try identity.signing.signature(for: KVMHello.bytes(card, nonce, hostingPairing)), hosting: hostingPairing)
             send(.hello(hello), to: link)
             DispatchQueue.main.asyncAfter(deadline: .now() + 125) { [weak self, weak link] in
-                guard let self, let link, self.peerLinks.values.contains(link.id) == false else { return }; self.transport.close(link)
+                guard let self, let link, self.peerLinks.values.contains(link.id) == false else { return }; self.transport.close(link, reason: .pairingExpired)
             }
-        } catch { transport.close(link) }
+        } catch { transport.close(link, reason: .protocolFailure) }
     }
     private func receive(_ bytes: Data, link: KVMPeerTransport.Link) {
         do {
@@ -273,7 +298,7 @@ final class KVMDeskNode: ObservableObject {
         } catch {
             if peerLinks.values.contains(link.id) { problem = error.localizedDescription }
             else { connectionStatus(link, message: error.localizedDescription) }
-            transport.close(link)
+            transport.close(link, reason: .protocolFailure)
         }
     }
     private func finishPairing(_ id: UUID) {
@@ -294,8 +319,11 @@ final class KVMDeskNode: ObservableObject {
         guard let hello = hellos[link.id] else { return }
         if let oldID = peerLinks[hello.card.id], oldID != link.id, let old = transport.links[oldID] {
             func order(_ id: UUID) -> String { [localNonces[id]?.uuidString ?? "", hellos[id]?.nonce.uuidString ?? ""].sorted().joined() }
-            if order(oldID) < order(link.id) { transport.close(link); return }
-            transport.close(old)
+            if order(oldID) < order(link.id) { transport.close(link, reason: .duplicate); return }
+            transport.close(old, reason: .duplicate)
+        }
+        if peerLinks[hello.card.id] != link.id {
+            recordConnection(.init(id: UUID(), time: Date(), peer: hello.card.id, peerName: String(hello.card.name.prefix(100)), detail: "Authenticated connection ready", unexpected: false, duration: nil))
         }
         peerLinks[hello.card.id] = link.id; connecting[hello.card.id] = nil
         if pairings.contains(where: { $0.id == link.id }) {
@@ -322,6 +350,13 @@ final class KVMDeskNode: ObservableObject {
         }
     }
     private func linkLost(_ link: KVMPeerTransport.Link) {
+        let peer = expectedPeers[link.id] ?? hellos[link.id]?.card.id
+        let name = peer.flatMap { id in membership.peers.first { $0.id == id }?.name } ?? "Unpaired computer"
+        let isWorkingRoute = peer.map { peerLinks[$0] == link.id } ?? false
+        let detail = link.closeReason.rawValue + (link.failureCode.map { " · " + String($0.prefix(160)) } ?? "")
+        recordConnection(.init(id: UUID(), time: Date(), peer: peer, peerName: String(name.prefix(100)), detail: detail,
+                               unexpected: link.closeReason.unexpected && (isWorkingRoute || link.readyAt == nil),
+                               duration: max(0, ProcessInfo.processInfo.systemUptime - (link.readyAt ?? link.created))))
         if pairingOpen, pairingConnection == link.id || pairings.contains(where: { $0.id == link.id }) {
             if pairingProblem == nil { pairingProblem = "The other Mac disconnected before setup finished. Select it again to retry." }
         }
@@ -352,7 +387,7 @@ final class KVMDeskNode: ObservableObject {
         archive = next; membership = value; graph = nextGraph; recoveredDraft = draft
         if !value.peers.contains(where: { $0.id == localID }) { problem = "This Mac was removed from the desk. Its saved setup is preserved."; closePairing(); transport.stop() }
         for link in Array(transport.links.values) {
-            if let peer = hellos[link.id]?.card, peerLinks[peer.id] != nil, !value.peers.contains(where: { $0.id == peer.id && $0.certificate == peer.certificate }) { transport.close(link) }
+            if let peer = hellos[link.id]?.card, peerLinks[peer.id] != nil, !value.peers.contains(where: { $0.id == peer.id && $0.certificate == peer.certificate }) { transport.close(link, reason: .revoked) }
         }
         refreshPresentation(); broadcastSync(); peersChanged?()
     }
@@ -427,7 +462,7 @@ final class KVMDeskNode: ObservableObject {
         if pairingUntil != nil && !pairingOpen { closePairing() }
         for (peer, id) in peerLinks {
             guard let link = transport.links[id] else { continue }
-            if Date().timeIntervalSince(lastHeard[peer] ?? .distantPast) > 20 { transport.close(link) }
+            if Date().timeIntervalSince(lastHeard[peer] ?? .distantPast) > 20 { transport.close(link, reason: .heartbeat) }
             else { send(.ping(UUID()), to: link) }
         }
         reconnect()

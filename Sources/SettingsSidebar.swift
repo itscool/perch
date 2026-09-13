@@ -108,7 +108,11 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
         super.layout()
         scroll.frame = NSRect(x: 8, y: 66, width: bounds.width-16, height: max(0, bounds.height-80))
         hint.frame = NSRect(x: 14, y: 12, width: bounds.width-28, height: 46)
-        table.tableColumns.first?.width = scroll.contentSize.width
+        // Source-list style adds horizontal row insets around the column.
+        // Fit the document first, then let AppKit budget the column inside it.
+        // Assigning viewport width directly to the column overflows the clip view.
+        table.setFrameSize(NSSize(width: scroll.contentSize.width, height: table.frame.height))
+        table.sizeLastColumnToFit()
     }
     func configure(_ destinations: [SettingsDestination]) {
         self.destinations = destinations

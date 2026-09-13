@@ -9,10 +9,12 @@ import argparse
 import importlib.util
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 
 p = argparse.ArgumentParser()
 p.add_argument('--output', required=True, type=Path)
+p.add_argument('--headless', action='store_true', help='Build a windowless scripted user driver; no launch')
 p.add_argument('--port', default=18783, type=int)
 a = p.parse_args()
 repo = Path(__file__).resolve().parents[1]
@@ -34,8 +36,19 @@ print(key.publicKey.rawRepresentation.base64EncodedString())
 public = subprocess.check_output(['xcrun','swift',str(generator),str(root/'fixture-private.txt')], text=True).strip()
 source = (repo / 'Sources/PerchUpdater.swift').read_text()
 source = source.replace('url.scheme == "https"', '(url.scheme == "https" || (url.scheme == "http" && url.host == "127.0.0.1"))')
+if a.headless: source = source.replace('SPUStandardUpdaterController', 'FixtureUpdaterController')
 (root / 'PerchUpdater.swift').write_text(source)
-(root / 'main.swift').write_text((repo/'Tools/sparkle-fixture.swift').read_text() + '\n_ = NSApplication.shared\nNSApp.setActivationPolicy(.regular)\nlet delegate = AppDelegate()\nNSApp.delegate = delegate\nNSApp.run()\n')
+fixture = (repo/'Tools/sparkle-fixture.swift').read_text()
+if a.headless:
+    start = fixture.index('        let window = NSWindow', fixture.index('    func showRecovery()'))
+    end = fixture.index('\n    }\n    @objc func retryUpdate', start)
+    fixture = fixture[:start] + '''        if fixtureScenario == "retry" {
+            try? FileManager.default.removeItem(at: fixtureRoot.appendingPathComponent("fail-prepare"))
+            Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in PerchUpdater.shared.retryInstallation() }
+        } else { finishFixture("handoff-failed") }''' + fixture[end:]
+    fixture += '\n' + (repo/'Tools/sparkle-headless-driver.swift').read_text()
+policy = 'prohibited' if a.headless else 'regular'
+(root / 'main.swift').write_text(fixture + f'\n_ = NSApplication.shared\nNSApp.setActivationPolicy(.{policy})\nlet delegate = AppDelegate()\nNSApp.delegate = delegate\nNSApp.run()\n')
 binary = root / 'Fixture'
 run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',repo/'Sources/UpdateIdentity.swift',repo/'Sources/LidRestartHandoff.swift',
     '-F',sparkle,'-framework','Sparkle','-framework','AppKit','-framework','Security', '-Xlinker','-rpath','-Xlinker','@executable_path/../Frameworks','-o',binary)
@@ -44,7 +57,8 @@ for build, directory in [('1','installed'),('2','candidate')]:
     run('cp',binary,app/'Contents/MacOS/Perch')
     info = {'CFBundleIdentifier':'local.perch.sparkle-fixture.'+root.name, 'CFBundleExecutable':'Perch','CFBundleName':'Perch Update Fixture',
             'CFBundlePackageType':'APPL','CFBundleVersion':build,'CFBundleShortVersionString':'1.2.'+build,'LSMinimumSystemVersion':'26.0',
-            'PerchLidProtocolVersion':2,'SUFeedURL':f'http://127.0.0.1:{a.port}/appcast.xml','SUPublicEDKey':public,
+            'PerchLidProtocolVersion':int(re.search(r'static let protocolVersion = (\d+)', (repo/'Sources/LidRestartHandoff.swift').read_text())[1]),
+            'LSUIElement': a.headless,'SUFeedURL':f'http://127.0.0.1:{a.port}/appcast.xml','SUPublicEDKey':public,
             'SUEnableAutomaticChecks':False,'SUAllowsAutomaticUpdates':False,'SUAutomaticallyUpdate':False,
             'SURequireSignedFeed':True,'SUVerifyUpdateBeforeExtraction':True,'FixtureRoot':str(root)}
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))

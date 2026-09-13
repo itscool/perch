@@ -1,3 +1,9 @@
+Setup sidebar readiness badges stay inside the visible sidebar at narrow widths and with either scrollbar style. Labels leave room for the status icon.
+
+Desk computer details now include Connection activity with recent authenticated connections, closure causes and durations. Unexpected losses remain available for diagnosis after reconnecting; expected local shutdowns and redundant routes are identified separately.
+
+Monitor detection recognizes the UP850K model token reported by LG capabilities, accepts usable ports beside a reserved zero entry, and preserves the correct protocol for those port codes. A model report that contradicts a firmware-family lookup prevents automatic use of the conflicting profile. Exact reported 27UP850-W names now reach the existing profile matcher. Unreadable monitors and unverified K-W input codes still need investigation.
+
 Active lid protection now reports setup readiness instead of an impossible-to-resolve Unverified status. Current helper failures and queued updates still need attention; stale helper errors do not masquerade as current observations. The macOS forced-sleep limitation remains explicit. Idle sharing similarly distinguishes readiness from active control.
 
 Desk input recovery names the disconnected coordinator or the actual conflicting setup. Healthy replies clear old remote failures, expired readiness is discarded, and Retry desk connection touches only missing trusted links. Refresh sharing status does not start control or change permissions. Monitor failures name the affected screens and offer per-screen review, read-only input checks through paired computers, and a separate retry of the requested input. Fresh reads can resolve prior failures; old-configuration or pre-attempt reads cannot.

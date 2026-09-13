@@ -92,6 +92,21 @@ func runDeskProfilePolicyTests() throws {
     group.monitors[0].control?.mode = "standard"
     let restored = try JSONDecoder().decode(KVMGroup.self, from: JSONEncoder().encode(group))
     try check(restored.monitors[0].defaultControlMode == "lg" && restored.monitors[0].inputProfile == profile.name, "Override lost the monitor's original protocol/profile")
+    let realCaps = "(prot(monitor)type(lcd)UP850Kcmds(01 02 03)vcp(60(11 12 0F 00)))"
+    record.applyInspection(.init(current: nil, capabilities: realCaps, lgIdentity: 0xc024, lgExtendedIdentity: 116))
+    try check(record.reportedModel == "UP850K" && record.identityConflict, "Observed UP850K model or conflicting firmware identity lost")
+    try check(record.reportedPorts?.map(\.code) == [15, 17, 18] && record.reportedPortMode == "standard", "Reserved zero discarded usable inputs or mixed standard codes with LG protocol")
+    var refreshed = DeskDetectedDisplay(id: record.id, name: record.name, vendor: record.vendor, model: record.model, serial: record.serial, width: record.width, height: record.height, canControl: true, inputs: [], mode: "standard")
+    refreshed.retainIdentity(from: record)
+    try check(refreshed.reportedModel == "UP850K" && refreshed.identityConflict, "Periodic refresh lost detected identity")
+    try check(refreshed.displayLabel == "UP850K" && refreshed.validInspectionMetadata, "The actual model must be visible and valid")
+    var malformed = refreshed; malformed.reportedModel = String(repeating: "x", count: 81)
+    try check(!malformed.validInspectionMetadata, "Oversized remote model accepted")
+    malformed = refreshed; malformed.reportedPortMode = "untrusted-protocol"
+    try check(!malformed.validInspectionMetadata, "Invalid remote port protocol accepted")
+    record.applyInspection(.init(current: nil, capabilities: "(model(27UP850-W)vcp(60(11 12)))"))
+    try check(record.profile(choice: "")?.name == "LG 27UP850-W", "Capability model was ignored when choosing a profile")
+    try check(MonitorCapabilities.model("(type(lcd)cmds(01)vcp(60(11)))") == nil, "Invented missing model")
     let token = UUID(), message = DeskDeviceMessage.inspectionReply(token, record, nil)
     guard case .inspectionReply(let roundTripToken, let roundTripRecord, _) = try JSONDecoder().decode(DeskDeviceMessage.self, from: JSONEncoder().encode(message)) else { throw KVMError("Detection reply lost its identity") }
     try check(roundTripToken == token && roundTripRecord == record, "Detection replies must retain the specific request and display")

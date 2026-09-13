@@ -133,7 +133,7 @@ struct DeskLiveSheet: View {
             Picker("Connected computer", selection: $computer) { ForEach(node.group.computers) { Text($0.name + (node.online.contains($0.id) ? "" : " · Offline")).tag(Optional($0.id)) } }.onChange(of: computer) { _, _ in display = ""; input = 0 }
             Picker("Detected display", selection: $display) {
                 Text("Choose display").tag("")
-                ForEach(Array((runtime.displays[computer ?? node.localID] ?? []).enumerated()), id: \.element.id) { index, value in Text("Display \(index + 1): \(value.name)").tag(value.id) }
+                ForEach(Array((runtime.displays[computer ?? node.localID] ?? []).enumerated()), id: \.element.id) { index, value in Text("Display \(index + 1): \(value.displayLabel)").tag(value.id) }
             }.onChange(of: display) { _, value in input = 0; profileName = ""; if let computer { runtime.inspect(value, computer: computer) } }
             if let detected = selectedDisplay {
                 if let existing = node.group.connections.first(where: { $0.computer == computer && $0.localDisplay == display }), let monitor = node.group.monitors.first(where: { $0.id == existing.monitor }) {
@@ -210,6 +210,23 @@ struct DeskLiveSheet: View {
             let peer = node.group.computers.first { $0.id == selection }
             Text(peer?.name ?? "Computer").font(.title2.bold())
             Text(node.online.contains(selection ?? UUID()) ? "Connected securely" : "Offline · saved setup is kept").foregroundStyle(.secondary)
+            DisclosureGroup("Connection activity") {
+                let events = KVMConnectionEvent.retained(node.connectionEvents).filter { selection == node.localID || $0.peer == selection }
+                Text("Last 24 hours · up to 1,024 events on this Mac").font(.caption).foregroundStyle(.secondary)
+                if events.isEmpty { Text("No connection events recorded yet.").font(.callout) }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(events.reversed()) { event in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.time, style: .time).font(.caption).foregroundStyle(.secondary)
+                                Text(event.peerName + " · " + event.detail).foregroundStyle(event.unexpected ? Color.orange : Color.primary)
+                                if let duration = event.duration { Text(String(format: "Connection lasted %.1f seconds", duration)).font(.caption).foregroundStyle(.secondary) }
+                            }.textSelection(.enabled)
+                        }
+                    }
+                }.frame(maxHeight: 220)
+                if let problem = node.connectionLogProblem { Text(problem).foregroundStyle(.orange) }
+            }
             if selection == node.ownerID { Text("Approves computers joining or leaving this desk. Every member can edit the desk and use its presets.").font(.callout) }
             if selection != node.localID {
                 if removing {
@@ -300,12 +317,15 @@ struct DeskLiveSheet: View {
             if let detectionResult { Text(detectionResult).font(.callout).fixedSize(horizontal: false, vertical: true) }
             Text("Matching ports keep their cables and preset choices. A profile adds its known ports; it does not remove extra ports you configured.").font(.caption).foregroundStyle(.secondary)
             if let detected {
+                if let reportedModel = detected.reportedModel { Text("Detected model: " + reportedModel).font(.callout) }
                 if detected.profile(choice: "") == nil { Text("No verified automatic profile match. The model name printed on the monitor may be more specific than the name macOS reports.").font(.callout).foregroundStyle(.secondary) }
                 else if let suggested = detected.profile(choice: ""), monitor.inputProfile != suggested.name {
                     Button("Use suggested controls: \(suggested.name)") { perform { try runtime.configureMonitor(selection, profile: suggested); loadControl() } }
                 }
                 DisclosureGroup("Detection details") {
                     Text("macOS name: \(detected.name)")
+                    if let model = detected.reportedModel { Text("Monitor reports: " + model) }
+                    if detected.identityConflict { Text("The firmware lookup disagrees with the monitor’s model report. Perch will not apply that family’s controls automatically.").foregroundStyle(.orange) }
                     Text("Vendor \(detected.vendor) · Product \(detected.model)")
                     if detected.serial != 0 { Text("Serial \(detected.serial)") }
                     if let family = detected.firmwareFamily { Text("Firmware family: " + family) }

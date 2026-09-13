@@ -3,6 +3,28 @@ import Network
 import Security
 import CryptoKit
 
+enum KVMCloseReason: String, Codable {
+    case local = "Local close", shutdown = "Perch stopped", duplicate = "Redundant connection replaced"
+    case pairingClosed = "Pairing closed", pairingExpired = "Pairing expired", revoked = "Membership changed"
+    case timeout = "Connection timed out", heartbeat = "Peer stopped replying"
+    case network = "Network failure", remote = "Other computer closed connection"
+    case cancelled = "Connection cancelled externally", identity = "Identity rejected"
+    case protocolFailure = "Invalid message", backpressure = "Send queue exceeded limit"
+    var unexpected: Bool { [.timeout, .heartbeat, .network, .remote, .cancelled, .identity, .protocolFailure, .backpressure].contains(self) }
+}
+struct KVMConnectionEvent: Codable, Identifiable {
+    let id: UUID
+    let time: Date
+    let peer: UUID?
+    let peerName: String
+    let detail: String
+    let unexpected: Bool
+    let duration: Double?
+    static func retained(_ values: [Self], now: Date = Date()) -> [Self] {
+        Array(values.filter { $0.time <= now && now.timeIntervalSince($0.time) <= 86400 }.suffix(1024))
+    }
+}
+
 /// All callbacks and trust changes run on main. Transport authentication is
 /// certificate pinning; unpaired TLS connections carry only the approval flow.
 final class KVMPeerTransport {
@@ -25,6 +47,10 @@ final class KVMPeerTransport {
         var framer = KVMMessageFramer()
         var queuedBytes = 0
         var ready = false
+        let created = ProcessInfo.processInfo.systemUptime
+        var readyAt: Double?
+        var closeReason = KVMCloseReason.local
+        var failureCode: String?
         init(_ connection: NWConnection) { self.connection = connection }
     }
     let identity: KVMPeerIdentity
@@ -130,45 +156,47 @@ final class KVMPeerTransport {
             guard let self, let link, self.links[link.id] != nil else { return }
             switch state {
             case .ready:
-                guard let metadata = connection.metadata(definition: NWProtocolTLS.definition) as? NWProtocolTLS.Metadata else { self.close(link); return }
+                guard let metadata = connection.metadata(definition: NWProtocolTLS.definition) as? NWProtocolTLS.Metadata else { self.close(link, reason: .identity); return }
                 var certificates: [Data] = []
                 sec_protocol_metadata_access_peer_certificate_chain(metadata.securityProtocolMetadata) { certificate in
                     certificates.append(SecCertificateCopyData(sec_certificate_copy_ref(certificate).takeRetainedValue()) as Data)
                 }
-                guard let certificate = certificates.first, self.permitted(certificate) else { self.connectionProblem?(link, "The computer’s identity is unavailable or no longer approved."); self.close(link); return }
-                link.certificate = certificate; link.ready = true; self.connectionProblem?(link, nil); self.connected?(link); self.read(link)
+                guard let certificate = certificates.first, self.permitted(certificate) else { self.connectionProblem?(link, "The computer’s identity is unavailable or no longer approved."); self.close(link, reason: .identity); return }
+                link.certificate = certificate; link.ready = true; link.readyAt = ProcessInfo.processInfo.systemUptime; self.connectionProblem?(link, nil); self.connected?(link); self.read(link)
             case .waiting(let error): self.connectionProblem?(link, "Waiting to connect: " + error.localizedDescription)
-            case .failed(let error): self.connectionProblem?(link, "Could not connect: " + error.localizedDescription); self.close(link)
-            case .cancelled: self.close(link)
+            case .failed(let error): link.failureCode = String(describing: error); self.connectionProblem?(link, "Could not connect: " + error.localizedDescription); self.close(link, reason: .network)
+            case .cancelled: self.close(link, reason: .cancelled)
             default: break
             }
         }
         connection.start(queue: .main)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self, weak link] in if let self, let link, self.links[link.id] != nil, !link.ready { self.connectionProblem?(link, "The connection timed out. Check that Add a computer is open on both Macs, then try again."); self.close(link) } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self, weak link] in if let self, let link, self.links[link.id] != nil, !link.ready { self.connectionProblem?(link, "The connection timed out. Check that Add a computer is open on both Macs, then try again."); self.close(link, reason: .timeout) } }
         return link
     }
     func send(_ data: Data, to link: Link) {
         do {
             let frame = try KVMMessageFramer.encode(data)
-            guard links[link.id] != nil, link.queuedBytes + frame.count <= 2 * 1024 * 1024 else { close(link); return }
+            guard links[link.id] != nil, link.queuedBytes + frame.count <= 2 * 1024 * 1024 else { close(link, reason: .backpressure); return }
             link.queuedBytes += frame.count
             link.connection.send(content: frame, completion: .contentProcessed { [weak self, weak link] error in
                 guard let link else { return }; link.queuedBytes -= frame.count
-                if error != nil { self?.close(link) }
+                if let error { link.failureCode = String(describing: error); self?.close(link, reason: .network) }
             })
-        } catch { close(link) }
+        } catch { close(link, reason: .protocolFailure) }
     }
     private func read(_ link: Link) {
         link.connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self, weak link] data, _, done, error in
             guard let self, let link, self.links[link.id] != nil else { return }
             do { if let data { for frame in try link.framer.append(data) { self.received?(link, frame) } } }
-            catch { self.close(link); return }
-            if done || error != nil { self.close(link) } else { self.read(link) }
+            catch { self.close(link, reason: .protocolFailure); return }
+            if let error { link.failureCode = String(describing: error); self.close(link, reason: .network) }
+            else if done { self.close(link, reason: .remote) } else { self.read(link) }
         }
     }
-    func close(_ link: Link) {
+    func close(_ link: Link, reason: KVMCloseReason = .local) {
         guard links.removeValue(forKey: link.id) != nil else { return }
+        link.closeReason = reason
         link.connection.stateUpdateHandler = nil; link.connection.cancel(); disconnected?(link)
     }
-    func stop() { browser?.stateUpdateHandler = nil; browser?.cancel(); browser = nil; listener?.stateUpdateHandler = nil; listener?.cancel(); listener = nil; advertising = false; Array(links.values).forEach(close); listenerProblem?(nil); discoveryProblem?(nil) }
+    func stop() { browser?.stateUpdateHandler = nil; browser?.cancel(); browser = nil; listener?.stateUpdateHandler = nil; listener?.cancel(); listener = nil; advertising = false; Array(links.values).forEach { close($0, reason: .shutdown) }; listenerProblem?(nil); discoveryProblem?(nil) }
 }

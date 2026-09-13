@@ -52,14 +52,29 @@ struct MonitorInputPlan: Codable, Equatable {
 /// capability list does not mean that a second computer is connected to it.
 enum MonitorCapabilities {
     static func model(_ text: String) -> String? {
-        guard text.utf8.count <= 4096,
-              let start = text.range(of: "model(", options: .caseInsensitive),
-              let end = text[start.upperBound...].firstIndex(of: ")") else { return nil }
-        let value = text[start.upperBound..<end].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty, value.utf8.count <= 80, !value.contains("("),
-              !value.unicodeScalars.contains(where: { $0.value < 32 }) else { return nil }
+        guard text.utf8.count <= 4096 else { return nil }
+        if let start = text.range(of: "model(", options: .caseInsensitive),
+           let end = text[start.upperBound...].firstIndex(of: ")") {
+            let value = text[start.upperBound..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, value.utf8.count <= 80, !value.contains("("),
+                  !value.unicodeScalars.contains(where: { $0.value < 32 }) else { return nil }
+            return value
+        }
+        // Some LGs put a bare model token between type(lcd) and cmds(...).
+        // Parse only that bounded slot, never search arbitrary capability values.
+        guard let start = text.range(of: "type(lcd)", options: .caseInsensitive),
+              let end = text.range(of: "cmds(", options: .caseInsensitive, range: start.upperBound..<text.endIndex) else { return nil }
+        let value = text[start.upperBound..<end.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.utf8.count <= 80, value.contains(where: \.isNumber),
+              value.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) || "-_. ".unicodeScalars.contains($0) }) else { return nil }
         return value
     }
+    static func modelSeries(_ value: String) -> String? {
+        let upper = value.uppercased()
+        guard let range = upper.range(of: "[A-Z]{1,3}[0-9]{3,4}", options: .regularExpression) else { return nil }
+        return String(upper[range])
+    }
+
     /// Discovery only adds unselected ports. Existing names, codes and order win.
     static func merge(_ existing: [MonitorInput], reported: [MonitorInput]) -> [MonitorInput] {
         let known = Set(existing.map { $0.code })
@@ -90,7 +105,8 @@ enum MonitorCapabilities {
                 if bytes[i] == 41 { return values.count <= 32 ? Array(Set(values)).sorted() : [] }
                 let start = i
                 while i < bytes.count && bytes[i] != 32 && bytes[i] != 41 { i += 1 }
-                guard let token = String(bytes: bytes[start..<i], encoding: .ascii), token.count <= 4, let value = UInt16(token, radix: 16), value > 0 else { return [] }
+                guard let token = String(bytes: bytes[start..<i], encoding: .ascii), token.count <= 4, let value = UInt16(token, radix: 16) else { return [] }
+                if value == 0 { continue } // Reserved/unspecified placeholder, not a selectable input.
                 values.append(value); if values.count > 32 { return [] }
             }
             return []

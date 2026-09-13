@@ -1,29 +1,37 @@
 ---
 name: settings-flow-review
-description: "Review and improve settings, preferences, setup, permissions, and recovery dialogs as complete user journeys. Use for confusing flows, inconsistent saving/navigation, completion states, first-use or repair experiences, and audits across a dialog set. Captures new confirmed lessons in the skill. Not a substitute for a general code or security review."
+description: "Design, build, review, and improve settings, preferences, setup, permissions, and recovery as complete user journeys. Use when creating settings from scratch, adding a settings flow, or fixing confusing navigation, saving, first-use and repair experiences. Captures confirmed lessons. Not a substitute for general code or security review."
 ---
 
-# Settings Flow Review
+# Settings Flow Design & Review
 
-Review what a person understands and accomplishes across the settings set. A page can look tidy, have no Done button, and pass its tests while the journey still fails. The agent owns finding and following through on these problems; do not make the user supply the missing pages or repeatedly request the next pass.
+Design what a person understands and accomplishes across the settings set before implementing its pages. Use these principles for the first implementation, additions and later reviews. A page can look tidy and pass its tests while the journey still fails. The agent owns anticipating and resolving those failures; do not wait for the user to find the missing flows.
 
-Default to a focused settings/setup review. Apply the same principles to related menus and system handoffs when they participate in the journey. Preserve the product's established design and the user's accepted decisions. This skill does not turn every task into a whole-app redesign or authorize operations outside the user's scope.
+Keep the task focused on the requested settings/setup experience. Apply the same principles to related menus and system handoffs when they participate in the journey. Preserve the product's established design and the user's accepted decisions. This skill does not turn every task into a whole-app redesign or authorize operations outside the user's scope.
 
 ## Establish scope and evidence
 
 - For an existing product, read its current release notes and relevant review/decision records when available before judging the implementation. Identify the source revision, prepared build, installed/running build, and relevant helper/service versions when they differ. A source fix does not mean the user has it. A supplied prototype or fixture may be the entire evidence boundary; do not invent missing release history or search beyond the stated scope to fill it.
 - Carry forward previous authorization, rejected alternatives, and protected design choices. Record product-specific preferences with the project; do not convert them into universal rules in this skill.
-- Distinguish review-only from an authorized review-and-fix task. Report prioritized findings before fixes when requested. Reporting those findings is a checkpoint within an already authorized task, not a reason to ask again before every page or repair.
+- Distinguish design-only, authorized implementation, review-only and review-and-fix tasks. A new settings request does not require an existing defect report; establish the intended experience and build it within the authorized scope. Report prioritized findings before fixes when requested. Reporting those findings is a checkpoint within an already authorized task, not a reason to ask again before every page or repair.
 - Inspect source, product copy, persistence and asynchronous callbacks as well as the rendered interface. Use the relevant UI/browser skill when interacting with an app. Where live operations are restricted, use isolated fixtures or render states with external mutations stubbed. Label source traces, simulated interactions and live observations accurately.
 - When the user and agent share a live desktop, make interaction ownership visible before testing. Use the project's session indicator when available, announce the scope, and check for user handoff requests between short action batches. The indicator must survive app switches/restarts without stealing focus, distinguish active/paused/requested-control states, and end when handing back. Do not imply it locks input or cancels an issued command unless that is actually implemented. Source-only work and truly nonpresenting tests need no takeover notice. Do not infer invisibility from isolated storage, injected hardware, a prohibited activation policy, or a test-runner label: native tests can still order windows front and restore floating panels. Audit window/panel presentation in the test harness and enforce the same session check before running it and before visible action batches. Compile separately before starting a short desktop session.
 
-## Map the complete journey before declaring coverage
+## Design the first implementation
 
-For a full dialog-set review, read [journey-checks.md](references/journey-checks.md). For a narrow task, apply its relevant checks to the affected journey and shared components without expanding into unrelated work.
+For new settings or a substantial new flow, establish the following before building individual pages. For an existing set, compare its structure against the same decisions before polishing it. Scale the work to scope: adding one ordinary preference should inherit the existing contract without a whole-app redesign.
 
-Before polishing individual pages in a full flow review, propose the simplest complete structure for the in-scope experience. Start with first setup, changing behavior, fixing a problem and resetting an area; assign each task one obvious home and trace contextual entry/return. Show the proposed navigation and representative setup/change/reset journeys together using a compact outline or inexpensive mockup. Justify every extra page, navigation step and acceptance button by the work it enables. Preserve accepted product decisions and keep a narrow repair narrow. This early proposal is reviewable work, not an automatic approval checkpoint or a reason to stop authorized implementation.
+1. **Task structure.** Map first setup, ordinary use, adjustment, repair and reset where applicable. Give each task one predictable home and trace contextual entry/return. Show proposed navigation and representative journeys together in a compact outline or inexpensive mockup. Justify each extra page and step. This is reviewable work, not a mandatory approval pause.
+2. **Interaction contract.** Apply the defaults below up front: saving and validation, navigation and cancellation, prerequisites and durable completion, scoped resets and recovery. Define what is saved, available, pending and confirmed, and what leaving/reopening does. Resolve legitimate exceptions by the operation's semantics.
+3. **Shared implementation.** Encode agreed behavior in suitable shared components and state ownership: page routing, preference writes/error presentation, scoped confirmations, prerequisite status and operation lifetime. Reuse the product's framework; do not create a large generic settings engine for a small task. New pages should inherit these behaviors instead of independently inventing save/exit logic.
+4. **Complete first flow.** Implement a representative journey through entry, change, success, failure/retry and return before repeating the pattern across pages. Include applicable empty, unavailable and external-change states from the start. Do not postpone keyboard access, clear wording or responsive layout as cosmetic cleanup.
+5. **Verify as built.** Use the checks below as acceptance criteria during implementation. Replay the real entry routes and affected sibling flows; a shared component's passing test does not establish every page's behavior. Capture confirmed new lessons in this skill.
 
-Inventory every in-scope page, nested dialog, shared alert, popup, result, permission handoff and entry route. Enumerate actual call sites and runtime pages; searching for Done, Save or Cancel is only a way to locate controls. Include hidden/error/empty states, advanced and maintenance pages, and dialogs reached from both a menu and Settings. In mixed UI frameworks, a native-constructor inventory may miss declarative sheets and popovers; expand each state-selected child into its actual journeys. Distinguish reachable production pages from retained demos or retired fixture routes before claiming full coverage.
+## Map and verify the complete journey
+
+For a complete settings implementation or dialog-set review, read [journey-checks.md](references/journey-checks.md). For a narrow task, apply its relevant checks to the affected journey and shared components without expanding into unrelated work.
+
+Inventory every in-scope page, nested dialog, shared alert, popup, result, permission handoff and entry route. Start with planned routes for new work, then reconcile them with actual call sites and runtime pages; searching for Done, Save or Cancel is only a way to locate controls. Include hidden/error/empty states, advanced and maintenance pages, and dialogs reached from both a menu and Settings. In mixed UI frameworks, a native-constructor inventory may miss declarative sheets and popovers; expand each state-selected child into its actual journeys. Distinguish reachable production pages from retained demos or retired fixture routes before claiming full coverage.
 
 Keep one coverage ledger in the task's existing review record or a suitable artifact. Use a compact structure such as:
 
@@ -68,7 +76,7 @@ If those answers require knowing implementation details or reading the whole pag
 - A feature invoked before its prerequisites are ready should open the actionable setup/recovery page, preserving the user's request and a navigable way out. An informational Close-only error must not disable a visible settings sidebar. Visiting first-run setup is not proof of completing it: surface unfinished prerequisites for chosen features on return, without forcing unrelated optional setup or claiming readiness while checks are pending.
 - Provide a reusable Setup & status overview when first use or recovery spans several categories. It should show what needs attention and the relevant next action, be skippable for optional features, and remain useful after permissions or devices change. It must agree with the feature pages and menus. Where a product has a shared Setup area, give each prerequisite and repeated repair stage one authoritative home there. Feature pages should explain the affected capability and link directly to that stage, not embed competing permission/installation instructions. Keep ordinary behavior choices, device arrangements, learning and session recovery with the feature when they are not prerequisite work.
 
-## Review grouping, language and visual hierarchy
+## Design grouping, language and visual hierarchy
 
 Organize around what people want to do and what the setting affects. Keep a feature's ordinary choices, status and direct links to relevant repair discoverable together; reveal protocol/implementation details only when useful. Explain app-owned versus system-wide effects. Do not relocate a carefully tuned menu or redesign established controls merely to satisfy a preferred layout.
 
@@ -88,15 +96,15 @@ Use direct dropdowns for ordinary choices when the available options already des
 
 ## Iterate within the same task
 
-1. Report concrete findings with priority, affected journey, trigger, expected/actual behavior, evidence and recommended correction. Functional harm, misleading state, lost work and broken recovery take priority over styling. Separate an observed defect from a design preference or untested hypothesis.
-2. For authorized fixes, complete the correction and replay the journey from its real entry point through success, leaving and reopening. Exercise failure/retry or interruption when affected. A screenshot of the replacement page is not a replay.
+1. For existing-flow reviews, report concrete findings with priority, affected journey, trigger, expected/actual behavior, evidence and recommended correction. Functional harm, misleading state, lost work and broken recovery take priority over styling. Separate an observed defect from a design preference or untested hypothesis.
+2. For authorized implementation or fixes, complete the work and replay the journey from its real entry point through success, leaving and reopening. Exercise failure/retry or interruption when affected. A screenshot of the replacement page is not a replay.
 3. Sweep sibling pages and shared components for the same pattern. A duplicate exit in one alert, incorrect ready state in one setup page, or draft loss in one editor is a reason to inspect the rest of the set immediately.
 4. Check for the opposite regression: removing redundant acceptance must not erase meaningful confirmation; caching readiness must not hide disconnection; hiding setup instructions must not conceal a later missing permission; autosave must not commit an incomplete destructive edit.
 5. Update findings and evidence, then continue until the authorized scope is handled. Do not leave known implementable work as a new suggestion merely because one batch of tests passed. Keep genuinely blocked hardware/OS acceptance explicit and continue independent safe work.
 
 Use meaningful state-transition and behavior tests for material fixes, not tests that just match a button label or mirror the implementation. Run applicable checks once; broaden or repeat when a new change, failure or unresolved risk warrants it. Do not perform a live reset, hardware change, emergency action, installation or publication solely to obtain review evidence without the necessary authorization.
 
-Completion requires accounted-for pages/routes, replayed affected journeys, prioritized findings resolved or explicitly deferred/blocked with reasons, and a final report distinguishing source fixes, simulated verification, installed behavior and remaining acceptance. Report build/install and commit/push status when part of the task. Passing a suite or removing every Done label cannot close the overall review by itself.
+For implementation and repair, completion requires accounted-for pages/routes, replayed affected journeys, known findings resolved or explicitly deferred/blocked with reasons, and a final report distinguishing implemented behavior, simulated verification, installed behavior and remaining acceptance. For design-only work, deliver the proposed structure, interaction contract and representative state journeys, clearly identified as unimplemented. Report build/install and commit/push status when part of the task. Passing a suite or removing every Done label cannot close the overall review by itself.
 
 ## Improve this skill as new lessons emerge
 

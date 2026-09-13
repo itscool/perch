@@ -1,4 +1,4 @@
 interface:
-  display_name: "Settings Flow Review"
-  short_description: "Review complete settings journeys and refine UX"
-  default_prompt: "Use $settings-flow-review to review these settings and setup dialogs as one iterative task, report prioritized findings, complete authorized fixes, verify the journeys, and capture new lessons in the skill."
+  display_name: "Settings Flow Design & Review"
+  short_description: "Design, build and review complete settings journeys"
+  default_prompt: "Use $settings-flow-review to design and build or review these settings as complete user journeys, establish the interaction contract early, verify authorized work, and capture confirmed lessons."

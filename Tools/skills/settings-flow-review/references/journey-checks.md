@@ -1,6 +1,6 @@
 # Settings journey checks
 
-Use these checks to find concrete failures in the actual product, not as a mandatory list of features to add. Inspect applicable states for every in-scope page; keep the task's evidence ledger separate from these reusable principles.
+Use these checks as acceptance criteria while designing and building settings, and to find concrete failures in an existing product. Define applicable states before implementing each flow and verify them as it is built. These are not a mandatory inventory of features to add; keep the task’s design/evidence ledger separate from these reusable principles.
 
 ## First use and returning to check setup
 

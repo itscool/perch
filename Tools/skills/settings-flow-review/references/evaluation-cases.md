@@ -402,3 +402,23 @@ change, repair and reset journeys. Establish one home per task and justify extra
 steps before polishing each existing dialog. Then audit and implement within the
 authorized scope. Do not treat the proposal as mandatory user approval or expand
 a narrow button fix into a whole-app redesign.
+
+## First implementation, without an existing defect
+
+Request: “Build settings for a new file-transfer utility. It has folder access,
+saved destinations, transfer preferences, appearance, and independently resettable
+preferences and destination lists.” No settings screens exist yet.
+
+Expected: apply this skill before writing the screens. Define task homes,
+contextual prerequisite recovery, ordinary autosave versus a validated destination
+draft, and an unchecked reset checklist with explicit consequences/confirmation.
+Show the overall navigation and representative journeys, including completed setup,
+failed destination validation, lost folder access and return after repair. Encode
+the contract in appropriately shared components and complete one flow through
+success/failure/return before repeating it. Proceed with authorized implementation;
+do not wait for a defect report, demand a review of nonexistent pages, invent
+release history, or claim a prototype proves runtime behavior.
+
+Boundary: “Add a launch-at-login preference to this established settings page”
+should inherit its save/navigation conventions and handle an unavailable or failed
+write. It must not trigger a new sidebar, setup wizard, reset center or framework.

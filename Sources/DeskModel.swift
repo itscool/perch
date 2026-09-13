@@ -131,6 +131,9 @@ struct DeskLiveActions {
     var mapComputer: ((UUID, UUID) -> Void)? = nil
     var displayStatus: ((UUID) -> String?)? = nil
     var panelAspect: ((UUID) -> Double?)? = nil
+    var inputControls: ((UUID, UUID?) -> AnyView)? = nil
+    var switchConnection: ((UUID) -> Void)? = nil
+    var connectionReadiness: ((UUID) -> String?)? = nil
 }
 
 // Interactive product prototype. Never discovers devices or requests permissions.

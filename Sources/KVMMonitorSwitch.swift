@@ -10,8 +10,9 @@ struct KVMMonitorRequest: Codable, Equatable {
     let id: UUID
     let epoch: UUID
     let revision: String
-    let preset: UUID
+    let preset: UUID?
     let routes: [KVMMonitorRoute]
+    var connection: UUID? = nil
     static func make(group: KVMGroup, preset: UUID, epoch: UUID, revision: String, id: UUID = UUID()) throws -> Self {
         _ = try group.validated()
         guard let preset = group.presets.first(where: { $0.id == preset }), !group.monitors.isEmpty,
@@ -24,6 +25,22 @@ struct KVMMonitorRequest: Codable, Equatable {
             return .init(monitor: monitor.id, control: control, input: input)
         }
         return Self(id: id, epoch: epoch, revision: revision, preset: preset.id, routes: routes)
+    }
+    static func makeConnection(group: KVMGroup, connection: UUID, epoch: UUID, revision: String, id: UUID = UUID()) throws -> Self {
+        _ = try group.validated()
+        guard let port = group.connections.first(where: { $0.id == connection }),
+              let monitor = group.monitors.first(where: { $0.id == port.monitor }),
+              let control = monitor.control else { throw KVMError("Choose this monitor’s control connection in Monitor setup first.") }
+        guard let input = port.inputCode else { throw KVMError("Set this port’s input code in Monitor setup first.") }
+        return Self(id: id, epoch: epoch, revision: revision, preset: nil,
+                    routes: [.init(monitor: monitor.id, control: control, input: input)], connection: connection)
+    }
+    func validated(in group: KVMGroup) throws -> Self {
+        if let connection, preset == nil {
+            return try Self.makeConnection(group: group, connection: connection, epoch: epoch, revision: revision, id: id)
+        }
+        guard let preset, connection == nil else { throw KVMError("The monitor request has no single valid target.") }
+        return try Self.make(group: group, preset: preset, epoch: epoch, revision: revision, id: id)
     }
 }
 struct KVMMonitorOutcome: Codable, Equatable {
@@ -108,11 +125,31 @@ final class KVMMonitorSwitch: ObservableObject {
         if let problem = readiness(preset) { self.problem = problem; return }
         do {
             let request = try KVMMonitorRequest.make(group: node.group, preset: preset, epoch: node.graph.roster.epoch, revision: node.revision!)
-            self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
-            required = Set(request.routes.map { $0.control.computer }); started = now; committed = false
-            busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
-            for peer in required { send(.prepare(request), peer: peer) }
+            begin(request)
         } catch { problem = error.localizedDescription }
+    }
+    func connectionReadiness(_ connection: UUID) -> String? {
+        guard !busy else { return "A monitor is still switching." }
+        guard node.canEdit, let revision = node.revision else { return "Review the desk changes before switching." }
+        do {
+            let request = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: revision)
+            guard request.routes.allSatisfy({ node.online.contains($0.control.computer) }) else {
+                return "Reconnect this monitor’s control computer before switching."
+            }
+            return nil
+        } catch { return error.localizedDescription }
+    }
+    func activateConnection(_ connection: UUID) {
+        if let problem = connectionReadiness(connection) { self.problem = problem; return }
+        do {
+            begin(try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!))
+        } catch { problem = error.localizedDescription }
+    }
+    private func begin(_ request: KVMMonitorRequest) {
+        self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
+        required = Set(request.routes.map { $0.control.computer }); started = now; committed = false
+        busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
+        for peer in required { send(.prepare(request), peer: peer) }
     }
     private func send(_ message: KVMMonitorMessage, peer: UUID) {
         if peer == node.localID { DispatchQueue.main.async { [weak self] in self?.receive(message, peer: peer) }; return }
@@ -127,7 +164,7 @@ final class KVMMonitorSwitch: ObservableObject {
                   ["standard", "lg"].contains(route.control.mode),
                   let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
                   let display = connection.localDisplay,
-                  (try? KVMMonitorRequest.make(group: node.group, preset: request.preset, epoch: request.epoch, revision: request.revision, id: request.id)) == request,
+                  (try? request.validated(in: node.group)) == request,
                   leases[monitor] == nil, let execute else { return }
             let lease = Lease(peer: peer, request: request, created: now, executing: true)
             leases[monitor] = lease
@@ -154,7 +191,7 @@ final class KVMMonitorSwitch: ObservableObject {
             do {
                 guard node.canEdit, request.epoch == node.graph.roster.epoch, request.revision == node.revision,
                       request.routes.contains(where: { $0.control.computer == node.localID }),
-                      try KVMMonitorRequest.make(group: node.group, preset: request.preset, epoch: request.epoch, revision: request.revision, id: request.id) == request else { throw KVMError("Desk setup changed. Wait for synchronization, then try the preset again.") }
+                      try request.validated(in: node.group) == request else { throw KVMError("Desk setup changed. Wait for synchronization, then try switching again.") }
                 let own = request.routes.filter { $0.control.computer == node.localID }
                 guard own.allSatisfy({ route in leases[route.monitor] == nil || leases[route.monitor]?.request.id == request.id && leases[route.monitor]?.peer == peer }) else { throw KVMError("Another computer is switching one of these screens. Wait for it to finish.") }
                 for route in own where leases[route.monitor] == nil { leases[route.monitor] = Lease(peer: peer, request: request, created: now) }
@@ -179,7 +216,7 @@ final class KVMMonitorSwitch: ObservableObject {
                     // Hardware adapters invoke this on main immediately before a
                     // write; a late work item cannot revive an expired lease.
                     guard let self, let current = self.leases[monitor] else { return false }
-                    return current.request.id == id && current.peer == peer && self.now - current.created < 55 && self.node.online.contains(peer) && self.node.graph.roster.epoch == lease.request.epoch && self.node.group.monitors.first { $0.id == monitor }?.control == route.control
+                    return current.request.id == id && current.peer == peer && self.now - current.created < 55 && self.node.online.contains(peer) && self.node.canEdit && self.node.revision == lease.request.revision && self.node.graph.roster.epoch == lease.request.epoch && self.node.group.monitors.first { $0.id == monitor }?.control == route.control
                 }, { [weak self] state, detail in self?.complete(route, lease: lease, state: state, detail: detail) })
             }
         case .release(let id):
@@ -213,7 +250,8 @@ final class KVMMonitorSwitch: ObservableObject {
     }
     private func complete(_ route: KVMMonitorRoute, lease: Lease, state: KVMMonitorOutcome.State, detail: String) {
         guard leases[route.monitor]?.request.id == lease.request.id else { return }
-        if state == .failed, delegates[route.monitor] == nil, ["standard", "lg"].contains(route.control.mode), now-lease.created < 18 {
+        if state == .failed, delegates[route.monitor] == nil, ["standard", "lg"].contains(route.control.mode), now-lease.created < 18,
+           node.canEdit, node.revision == lease.request.revision, node.graph.roster.epoch == lease.request.epoch {
             let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.computer.map(node.online.contains) == true }
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first
             if let peer = candidate?.computer { delegates[route.monitor] = peer; send(.delegate(lease.request, route.monitor), peer: peer); return }
@@ -226,9 +264,10 @@ final class KVMMonitorSwitch: ObservableObject {
         busy = false
         for peer in required { send(.release(request.id), peer: peer) }
         if results.values.allSatisfy({ $0.state == .confirmed }) {
-            activePreset = request.preset; activeGroup = node.group; lastConfirmed = now; problem = nil
+            activePreset = request.preset; activeGroup = request.preset == nil ? nil : node.group; lastConfirmed = now; problem = nil
             for route in request.routes { observations[route.monitor] = Observation(input: route.input, peer: route.control.computer, time: now) }
-        } else { problem = "Some screens could not confirm the requested input. Review their results and try the preset again." }
+            if request.connection != nil { deriveActive() }
+        } else { problem = "The requested input could not be confirmed on every screen. Review the screen results and retry." }
     }
     private func finishFailure(_ reason: String) {
         guard let request else { return }

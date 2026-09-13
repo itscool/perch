@@ -23,7 +23,7 @@ func runSettingsReviewFixTests() throws {
     granted = false; access.refresh()
     try check(!drag.isHidden, "Lost access did not restore recovery")
     host.navigate(to: host.sidebar.destinations.first { $0.id == "desk-input" }!)
-    try check(host.pages.count == 1 && host.pages.last?.title == "Keyboard & mouse sharing" && host.back.isHidden && !host.interactionBusy, "Input settings is not a stable sidebar destination")
+    try check(host.pages.count == 1 && host.pages.last?.title == "Input options" && host.back.isHidden && !host.interactionBusy, "Input settings is not a stable sidebar destination")
     host.navigate(to: host.sidebar.destinations.first { $0.id == "hotkeys" }!)
     try check(host.pages.count == 1 && host.pages.last?.title == "Hotkeys" && host.back.isHidden, "Desk preferences retained sheet navigation")
 
@@ -66,6 +66,13 @@ func runSettingsReviewFixTests() throws {
     let lidHelper = LidHelperSettingsSnapshot(helper: LidHelperUpdateState(info: [:], lidOpen: false))
     app.presentKeepAwakeSettings(readHelper: { lidHelper })
     let featureButtons = buttons(host.pages.last!.view)
+    for button in featureButtons {
+        let page = host.pages.last!.view
+        try check(page.bounds.contains(button.frame), "Keep awake button is outside clickable page bounds: " + button.title)
+        let point = page.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        let hit = page.hitTest(page.convert(point, to: page.superview))
+        try check(hit === button || hit?.isDescendant(of: button) == true, "Keep awake button cannot receive a native hit: " + button.title)
+    }
     try check(!featureButtons.contains { ["Set up lid protection…", "Repair lid protection…", "Finish lid helper update…"].contains($0.title) },
               "Keep awake still performs prerequisite installation")
     featureButtons.first { $0.title == "Lid protection setup…" }!.performClick(nil)

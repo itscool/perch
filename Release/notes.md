@@ -1,3 +1,9 @@
+Keep awake and other task pages grow to contain all their rows, fixing enabled Lid activity and setup buttons drawn outside their clickable bounds. Resume shows when protection is updating or running; the saved lid choice stays separate from the current session.
+
+Keyboard and mouse sharing starts directly in Desk, with a local session switch, per-computer readiness and a control action for the selected screen and editing preset. Input options holds pointer speed and optional keyboard computer-button following; adding a connected keyboard matches this Mac immediately and shows which other Macs still need matching. Setup links return to Desk.
+
+Monitor port menus offer Switch to this input. It changes only that monitor, keeps presets intact, and returns shared input locally. The same paired switch leases and fresh read-before-write policy apply, including unassigned ports. Changed setup cancels stale commands and cannot leave a lease occupied by an invalid fallback request. Both Macs need this version for the new one-off command.
+
 Monitor setup now offers Detect input profile directly, with fresh local or request-matched remote inspection. It applies a verified named profile or monitor-reported ports; unknown results keep the current setup. Control through lists only this monitor’s mapped video paths, labeled by computer and port. Independent USB/network/serial protocols choose their controller computer and explicit endpoint. Protocol override marks and preserves the default; serial identity stays in Detection details.
 
 Already-selected monitor inputs are confirmed by a fresh read without a switch command or settling delay. Read-before-write behavior now has direct regression coverage and rechecks cancellation after the initial read.

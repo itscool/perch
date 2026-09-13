@@ -400,7 +400,7 @@ struct DeskSettingsRoot: View {
             VStack(alignment: .leading, spacing: 18) {
                 Label("One desk, all your screens", systemImage: "display.2").font(.title.bold())
                 Text("Group your Perch computers, arrange up to 16 physical screens, and switch their monitor inputs with three shared presets.")
-                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: enable it for each Mac in Keyboard & mouse sharing when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
+                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: turn on Share on this Mac in Desk on each computer when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
                 Button("Set up this desk") { coordinator.enable() }.buttonStyle(.borderedProminent)
                 if let problem = coordinator.problem { Text(problem).foregroundStyle(.orange); Button("Try opening Desk again") { coordinator.enable() } }
             }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -411,7 +411,7 @@ extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
         view.frame = NSRect(x: 0, y: 0, width: 720, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange shared screens and edit three presets. Play switches the actual inputs. Keyboard & mouse sharing has its own page in the sidebar.", view: view, preferredBodyWidth: 720))
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange screens and edit presets. Play switches monitor inputs. Enable keyboard and mouse sharing here on each Mac, then select a screen to start control.", view: view, preferredBodyWidth: 720))
     }
 }
 
@@ -463,8 +463,8 @@ extension AppDelegate {
     @objc func deskInputPreferences() {
         let view = NSHostingView(rootView: DeskPreferencesRoot(kind: "input"))
         view.frame = NSRect(x: 0, y: 0, width: 650, height: 610)
-        SettingsWindow.shared.show(.init(title: "Keyboard & mouse sharing",
-            detail: "Enable control on this Mac and manage shared keyboards. Changes save immediately; sharing a session is a separate action.",
+        SettingsWindow.shared.show(.init(title: "Input options",
+            detail: "Adjust pointer speed on this Mac and optionally follow a keyboard’s computer buttons. Start keyboard and mouse sharing from Desk. Changes save immediately.",
             view: view, preferredBodyWidth: 650))
     }
 }

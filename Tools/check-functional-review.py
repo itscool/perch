@@ -63,6 +63,10 @@ declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Curr
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
+if CommandLine.arguments.contains("--task-layout-offscreen") {
+    do { try runSettingsTaskLayoutTests(); precondition(NSApp.windows.isEmpty); exit(0) }
+    catch { fputs("OFFSCREEN TASK LAYOUT FAILED: \\(error)\\n", stderr); exit(1) }
+}
 if CommandLine.arguments.contains("--desk-profile-offscreen") {
     do { try runDeskProfilePolicyTests(); precondition(NSApp.windows.isEmpty); exit(0) }
     catch { fputs("OFFSCREEN DESK PROFILE FAILED: \\(error)\\n", stderr); exit(1) }

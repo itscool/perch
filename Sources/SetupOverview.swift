@@ -86,7 +86,7 @@ struct SetupSnapshot {
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Displays…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : deskInputActive ? .ready : .unverified,
-            !deskInputEnabled ? "Optional: enable input sharing on each Mac in Keyboard & mouse sharing. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Keyboard & mouse sharing to choose a confirmed screen to control."), deskInputAccessNeeded ? "Shared input access…" : "Keyboard & mouse sharing…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
+            !deskInputEnabled ? "Optional: turn on Share on this Mac in Desk on each participating Mac. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk and select a confirmed screen to start control."), deskInputAccessNeeded ? "Shared input access…" : "Open Desk…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
@@ -332,7 +332,7 @@ extension AppDelegate {
         case .lidSetup: lidProtectionSetup()
         case .keyboards: keyboardSettings()
         case .displays: deskSettings()
-        case .deskInput: deskInputPreferences()
+        case .deskInput: deskSettings()
         case .awake: keepAwakeSettings()
         case .agents: configurePanic()
         case .events: processEventSetup()

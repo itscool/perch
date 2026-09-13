@@ -60,7 +60,7 @@ extension AppDelegate {
             review.isEnabled = ready
             drag.isHidden = !disclosure.expanded
             page?.arrangeRows(hiding: disclosure.expanded ? [] : [accessibilityButton, monitoringButton], footerHeight: drag.isHidden ? 0 : 58)
-            page?.status.stringValue = "Accessibility: " + (accessibility ? "ready" : "needs attention") + "\nInput Monitoring: " + (monitoring ? "ready" : "needs attention") + "\n" + (accessibility && monitoring ? "Access is ready. Return to Keyboard & mouse sharing when you want to enable it." : "Complete the missing access below. Perch checks automatically; sharing remains under your control.")
+            page?.status.stringValue = "Accessibility: " + (accessibility ? "ready" : "needs attention") + "\nInput Monitoring: " + (monitoring ? "ready" : "needs attention") + "\n" + (accessibility && monitoring ? "Access is ready. Return to Desk and turn on Share on this Mac." : "Complete the missing access below. Perch checks automatically; sharing remains under your control.")
             page?.status.textColor = accessibility && monitoring ? StatusColors.success : StatusColors.warning
         }
         page.show(delegate: self)

@@ -90,9 +90,13 @@ struct DeskView: View {
     }
 
     @ViewBuilder var inspector: some View {
-        if let monitor = model.selectedMonitor {
-            InspectorScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+        InspectorScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let controls = model.live?.inputControls, model.group.presets.indices.contains(model.presetIndex) {
+                    controls(model.group.presets[model.presetIndex].id, model.selectedMonitor?.id)
+                    Divider()
+                }
+                if let monitor = model.selectedMonitor {
                     HStack {
                         DeskTextSetting("Screen name", saved: monitor.name) { value in
                             model.edit { group in if let i = group.monitors.firstIndex(where: { $0.id == monitor.id }) { group.monitors[i].name = value } }
@@ -109,10 +113,10 @@ struct DeskView: View {
                         }
                     }
                     if let result = model.monitorResults[monitor.id] { Text(result).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 12) { Image(systemName: "display.2").font(.largeTitle).foregroundStyle(.teal); Text("Your desk starts here").font(.headline); Text("Add the computers and screens you want to use together. You can return and change anything later.").foregroundStyle(.secondary) }.frame(maxHeight: .infinity, alignment: .top)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) { Image(systemName: "display.2").font(.largeTitle).foregroundStyle(.teal); Text("Your desk starts here").font(.headline); Text("Add the computers and screens you want to use together. You can return and change anything later.").foregroundStyle(.secondary) }.frame(maxHeight: .infinity, alignment: .top)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -583,6 +587,14 @@ struct DeskCanvas: View {
                            label: model.connectionLabel(port), controller: wire,
                            presetNumber: model.preset.assignments.contains { $0.connection == port.id } ? model.presetIndex + 1 : nil) {
                 let menu = DeskSocketMenu()
+                if let change = model.live?.switchConnection {
+                    let issue = model.live?.connectionReadiness?(port.id)
+                    menu.action("Switch to this input", enabled: issue == nil,
+                                help: issue ?? "Show \(port.inputName) on this monitor now. Presets stay unchanged; shared input returns locally.") {
+                        model.selected = port.monitor; change(port.id)
+                    }
+                    menu.addItem(.separator())
+                }
                 for computer in model.group.computers { menu.action("Connect " + computer.name) { cable(port.id, computer.id) } }
                 if port.computer != nil { menu.action("Disconnect cable") { model.disconnectCable(port.id) } }
                 menu.addItem(.separator())
@@ -769,10 +781,11 @@ struct DeskCanvas: View {
 final class DeskSocketMenu: NSMenu {
     private final class Action: NSObject { let run: () -> Void; init(_ run: @escaping () -> Void) { self.run = run }; @objc func invoke() { run() } }
     private var actions: [Action] = []
-    func action(_ title: String, _ run: @escaping () -> Void) {
+    func action(_ title: String, enabled: Bool = true, help: String? = nil, _ run: @escaping () -> Void) {
         let target = Action(run); actions.append(target)
         let item = NSMenuItem(title: title, action: #selector(Action.invoke), keyEquivalent: "")
-        item.target = target; addItem(item)
+        autoenablesItems = false
+        item.target = target; item.isEnabled = enabled; item.toolTip = help; addItem(item)
     }
 }
 

@@ -22,6 +22,15 @@ final class SettingsTaskPage {
     }
     @discardableResult
     func add(_ title: String, detail: String, checkbox: Bool = false, action: @escaping () -> Void) -> NSButton {
+        // A painted child outside its parent's bounds cannot receive a real
+        // mouse click. Grow the document before adding rows, including on pages
+        // whose original height predates additional actions.
+        if y < 16 {
+            let growth = 16 - y
+            view.frame.size.height += growth
+            for child in view.subviews { child.frame.origin.y += growth }
+            y += growth
+        }
         let button = SettingsActionButton(title: title, action: action)
         button.identifier = .init("settings.task." + title)
         button.toolTip = detail
@@ -100,7 +109,7 @@ extension AppDelegate {
         let lid = page.add("Including with the lid closed", detail: "Temporarily blocks all system sleep, including Apple menu → Sleep. The 60-second deadline, watchdog and independent recovery remove the override. Turn this off to sleep manually.", checkbox: true) { [weak self] in self?.toggleLid() }
         awake.toolTip = ControlHelp.awake; awake.setAccessibilityHelp(ControlHelp.awake)
         lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
-        let resume = page.add("Resume lid protection", detail: "Start a new supervised session using your saved choice. Protection never restarts just because this box stayed checked.") { [weak self] in self?.resumeLidProtection() }
+        let resume = page.add("Resume lid protection", detail: "Restart stopped protection using your saved lid choice. The checkmark keeps that choice; the status above tells you whether protection is running.") { [weak self] in self?.resumeLidProtection() }
         page.add("Start five-minute countdown", detail: "Temporary keep awake, including with the lid closed. Opening the lid finishes it. Power changes keep the same deadline.") { LidCountdownController.shared.adjust(1) }
         page.add("Hotkeys…", detail: "Change countdown, Desk and Agent Kill Switch shortcuts in App settings → Hotkeys.") { [weak self] in self?.countdownSettings() }
         page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
@@ -118,6 +127,7 @@ extension AppDelegate {
             repair.title = helper.helper.pending ? "Lid helper update needed — open Setup…" : "Lid protection setup…"
             repair.contentTintColor = helper.helper.pending ? StatusColors.warning : nil
             let guarded = LidGuardClient.shared.active
+            resume.title = LidGuardClient.shared.changing ? "Updating lid protection…" : guarded ? "Lid protection is running" : "Resume lid protection"
             lid.state = presentation.lid
             lid.isEnabled = presentation.lidEnabled
             resume.isEnabled = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self.observedLidDisabled == false && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.fresh == true && !helper.helper.pending

@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.115 is installed on disk
+2.0 development, September 13, 2026. Developer ID 2.0.116 is installed on disk
 in /Applications. The user's existing process was left running; Scott can
-restart to load 2.0.115. The previous bundle is
-retained at /Applications/.perch-previous-ap6xavla/Perch.app.
-Public/notarized remains 2.0.94; 2.0.115 is not notarized or published. The matching
+restart to load 2.0.116. The previous bundle is
+retained at /Applications/.perch-previous-zrkvzi3s/Perch.app.
+Public/notarized remains 2.0.94; 2.0.116 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -12,6 +12,17 @@ known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [ ] **Windows remain on a screen handed to another computer.** Scott reports
+  the losing Mac still keeps windows on the switched monitor. Perch changes
+  monitor input and tracks readback, but has no desktop-participation handoff.
+  A monitor may remain logically connected after changing input; waiting for a
+  macOS disconnect event cannot solve that case. Investigate reversible software
+  disconnect/reconnect tied to confirmed ownership, saved display configuration,
+  last-visible-screen and closed-lid behavior, failed/partial switches, app crash,
+  restart and network recovery. Preserve a control path for switching back. Do
+  not introduce untested display disabling or bulk window movement. See
+  DESKTOP-PARTICIPATION-GAP-2.0.md. This is not fixed in 2.0.116.
 
 - [ ] **Repeated Desk disconnections between the real Macs.** Scott reports one
   Mac repeatedly failing its Desk connection. Read-only logs from local PID 98528
@@ -22,11 +33,17 @@ This supersedes stale open-item wording in dated review checkpoints.
   permissions or interrupting the user's testing. Loopback stability does not
   close this real-network defect. 2.0.115 does not claim to fix it.
 
-- [ ] **Pointer did not cross to the other computer's screen.** Scott's report
-  remains unresolved. First distinguish sharing disabled for this session on
-  either Mac, missing display/input confirmation, non-adjoining layout and the
-  connection churn above. An async question about sharing on both Macs is pending.
-  Do not mark this resolved from pure routing tests or the monitor command fix.
+- [x] **Pointer sharing was hidden outside the Desk flow.** Scott confirmed
+  sharing was off. The new Desk inspector owns session enable, per-computer
+  readiness and start on the selected screen using the editing preset. Separate
+  Input options contains tuning and optional keyboard host following. This fixes
+  discoverability; real two-Mac pointer crossing after enabling remains QA.
+
+- [x] **Enabled Lid activity and setup buttons ignored clicks.** Keep awake's
+  seventh-row document outgrew its fixed height. The last two buttons painted
+  outside parent bounds and could not receive native hits. SettingsTaskPage now
+  grows before adding rows; 210 offscreen native hit targets pass. Actual events
+  on Scott's other Mac remain acceptance. See DESK-SHARING-AND-LID-ROWS-2.0.md.
 
 - [ ] **Scott’s LG 27UP850-W / 27UP850K-W automatic identification.** The exact
   27UP850-W match now survives discovery into setup; guessed ports and swallowed
@@ -176,6 +193,13 @@ remain open; this is not a claim that untested behavior is defect-free.
 
 ## Features
 
+- [x] **Switch a single monitor from its port menu.** Switch to this input uses
+  the paired leased protocol and fresh read-before-write check, permits an
+  unassigned port, preserves all presets and returns shared input locally. Remote
+  one-off switching requires both Macs on 2.0.116. Injected hardware / real TLS
+  tests cover one target only and stale-edit cancellation, including recovery
+  into the next preset switch.
+
 - [x] **Monitor control paths, defaults and fresh profile detection.** Control
   choices are scoped to the physical monitor and show computer/port labels;
   protocol overrides retain a separately recorded default. Monitor setup can
@@ -306,6 +330,14 @@ remain open; this is not a claim that untested behavior is defect-free.
    installation/restart and failure recovery remain QA below.
 
 ## QA — implementation acceptance, with defects returned to the first section
+
+- [ ] **2.0.116 Desk sharing, port menu and lid rows:** on both updated Macs,
+  enable sharing from Desk, confirm readiness, choose a screen and start control;
+  cross an adjoining edge and recover with Ctrl–Opt–Esc. Check optional keyboard
+  matching from either Mac. Verify one-off port switching leaves saved presets
+  intact. In Keep awake, click Lid activity and Lid protection setup after Resume,
+  including a smaller Settings window and scrolling to the last row. No live
+  clicks or hardware operations were used for these source changes.
 
 - [ ] **2.0.115 monitor setup:** verify computer/port control choices and saved
   protocol default labels; run Detect input profile locally and through another

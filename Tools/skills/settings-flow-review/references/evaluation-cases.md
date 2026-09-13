@@ -462,6 +462,30 @@ focus. Align correctly identified file targets and provide one action per OS
 destination. A missing helper needing installation must not instruct the user to
 grant a nonexistent or unverified file.
 
+## Visible controls outside their hit area
+
+A task page gained two rows without changing its fixed document height. Every
+button paints and is enabled; direct performClick tests pass. The last two rows
+ignore mouse clicks while earlier rows work.
+
+Expected: inspect parent bounds and native hit testing, derive document size from
+the rows, and sweep sibling pages using that helper. Add geometry/hit tests rather
+than another action-only test. Keep physical event routing acceptance explicit;
+do not infer a permission or modal problem solely from the dead buttons.
+
+## Session start hidden behind advanced input options
+
+A paired-device canvas has screens and presets but no sharing control. A separate
+page contains session enable, its own preset selector, and an optional physical
+keyboard host-switch matcher. A user expects pointer crossing to work after pairing
+and thinks the matcher is mandatory.
+
+Expected: put session enable/readiness/start in the primary canvas journey, using
+its existing selected objects. Explain what each device must enable and what a
+restart ends. Keep optional host-follow automation and tuning separate, with
+concrete physical-device matching steps. Do not silently enable capture on peers
+or equate permission readiness with an active sharing session.
+
 ## Spatial editing without hidden primary choices
 
 Scenario: monitor cards have clickable sockets, but a full-height scrolling overlay intercepts body dragging. Clicking a socket secretly chooses its preset input. All cables look identical. The inspector repeats preset dropdowns; an empty-preset warning appears over the canvas. Dragging an occupied input creates another cable or disconnects the original before a valid drop. An Unchanged option appears even though execution requires every monitor.

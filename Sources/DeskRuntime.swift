@@ -135,6 +135,23 @@ final class DeskRuntime: ObservableObject {
                 if !self.node.online.contains(computer) { return "This computer is offline. Its saved cable will remain until it reconnects." }
                 return computer == self.node.localID ? self.discoveryProblem : self.remoteDisplayProblems[computer]
             })
+        model.live?.inputControls = { [weak self] preset, monitor in
+            guard let self else { return AnyView(EmptyView()) }
+            return AnyView(DeskSharingControls(input: self.input, adapter: self.inputAdapter,
+                                               node: self.node, preset: preset, monitor: monitor))
+        }
+        model.live?.connectionReadiness = { [weak self] connection in
+            guard let self else { return "Desk is unavailable." }
+            return self.switching.connectionReadiness(connection)
+        }
+        model.live?.switchConnection = { [weak self] connection in
+            guard let self else { return }
+            if self.switching.connectionReadiness(connection) == nil {
+                self.inputAfterSwitch = nil
+                self.input.stop()
+            }
+            self.switching.activateConnection(connection)
+        }
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }

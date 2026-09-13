@@ -382,7 +382,7 @@ final class KVMInputSession: ObservableObject {
         polls = polls.filter { clock() - $0.value < 1 }; polls[nonce] = clock()
         send(.poll(nonce, ready()), to: node.ownerID)
         if let (preset, monitor, until) = pendingStart {
-            if clock() >= until { pendingStart = nil; problem = "The preset switched, but input sharing is still waiting for a ready computer and confirmed screen. Choose Control here when ready." }
+            if clock() >= until { pendingStart = nil; problem = "The preset switched, but input sharing is still waiting for a ready computer and confirmed screen. Select a screen in Desk and choose Control when ready." }
             else if readinessIssue(preset: preset, monitor: monitor) == nil { pendingStart = nil; start(preset: preset, monitor: monitor) }
         }
         publishKeyboardAttachments()

@@ -119,6 +119,36 @@ import Darwin
         guard emptyRejected else { throw KVMError("Empty preset became a switch request") }
         try a.edit(desk); try wait("restore complete preset configuration") { b.group == desk }
         print("PASS: partial preset switches exactly one monitor; omitted screen needs no control path; empty preset cannot execute")
+        // One-off port selection uses the same leased protocol, without editing
+        // any preset, and accepts a known port with no mapped computer.
+        var directDesk = desk
+        let unusedPort = KVMConnection(monitor: desk.monitors[1].id, computer: nil, localDisplay: nil, inputName: "HDMI 2", inputCode: 18)
+        directDesk.connections.append(unusedPort)
+        try a.edit(directDesk); try wait("direct port configuration sync") { b.group == directDesk }
+        let direct = try KVMMonitorRequest.makeConnection(group: directDesk, connection: unusedPort.id, epoch: a.graph.roster.epoch, revision: a.revision!)
+        guard direct.preset == nil, direct.routes.count == 1, direct.routes[0].input == 18,
+              try direct.validated(in: directDesk) == direct,
+              try JSONDecoder().decode(KVMMonitorRequest.self, from: JSONEncoder().encode(direct)) == direct else { throw KVMError("Direct port request lost its scope") }
+        let forged = KVMMonitorRequest(id: direct.id, epoch: direct.epoch, revision: direct.revision, preset: nil,
+                                      routes: [.init(monitor: desk.monitors[0].id, control: desk.monitors[0].control!, input: 99)], connection: unusedPort.id)
+        guard try forged.validated(in: directDesk) != forged else { throw KVMError("Direct port request accepted an arbitrary target") }
+        writes = 0; switchesA.activateConnection(unusedPort.id)
+        try wait("one-off remote port completes") { !switchesA.busy && switchesA.results.count == 1 }
+        guard writes == 1, switchesA.results[desk.monitors[1].id]?.input == 18,
+              switchesA.results[desk.monitors[0].id] == nil,
+              a.group == directDesk, b.group == directDesk else { throw KVMError("Direct port action changed a preset or another screen") }
+        hold = true; writes = 0; switchesA.activateConnection(unusedPort.id)
+        try wait("hold one-off command") { delayed.count == 1 }
+        var editedPort = directDesk
+        editedPort.connections[editedPort.connections.count - 1].inputCode = 19
+        try a.edit(editedPort); try wait("port changes before command") { b.group == editedPort }
+        delayed.forEach { $0() }; delayed = []; hold = false
+        fakeTime += 70; switchesA.poll(); switchesB.poll()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        guard writes == 0, !switchesA.busy else { throw KVMError("A stale one-off port command reached hardware") }
+        switchesA.poll(); switchesB.poll()
+        try a.edit(desk); try wait("restore after direct port") { b.group == desk }
+        print("PASS: one-off remote port switch, unassigned port, unchanged presets, stale-edit cancellation, canonical target validation and wire round trip")
         fallback = true; writes = 0
         switchesA.activate(desk.presets[1].id)
         try wait("DDC source-path fallback") { !switchesA.busy && switchesA.results.count == 2 }

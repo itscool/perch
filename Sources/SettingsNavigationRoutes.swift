@@ -46,7 +46,7 @@ extension AppDelegate {
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
             item("keyboard-details", "Keyboard details", ["Keyboard details"], #selector(keyboardDetails), depth: 1),
             item("desk", "Desk", ["Desk"], #selector(deskSettings)),
-            item("desk-input", "Keyboard & mouse sharing", ["Keyboard & mouse sharing"], #selector(deskInputPreferences), depth: 1),
+            item("desk-input", "Input options", ["Input options"], #selector(deskInputPreferences), depth: 1),
             item("awake", "Keep awake", ["Keep awake"], #selector(keepAwakeSettings)),
             item("lid-activity", "Lid activity", ["Lid activity"], #selector(lidActivity), depth: 1),
             item("agents", "Agent Kill Switch", ["Agent Kill Switch"], #selector(configurePanic)),

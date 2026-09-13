@@ -17,6 +17,34 @@ enum SettingsSetupStatus: String {
     var color: NSColor { switch self { case .ready: .systemGreen; case .attention: .systemOrange; case .optional, .checking: .secondaryLabelColor } }
 }
 
+/// A source-list cell is narrower than its table and can be resized after
+/// construction. Position children from the cell's current bounds, never from
+/// the table width plus an autoresizing offset from an initially empty cell.
+final class SettingsSidebarCell: NSTableCellView {
+    private let depth: Int
+    init(item: SettingsDestination) {
+        depth = item.depth
+        super.init(frame: .zero)
+        let label = NSTextField(labelWithString: item.title)
+        label.font = .systemFont(ofSize: 13, weight: item.depth == 0 ? .medium : .regular)
+        label.lineBreakMode = .byTruncatingTail
+        textField = label; addSubview(label)
+        setAccessibilityLabel(item.title)
+        if item.setupStage {
+            let icon = NSImageView()
+            imageView = icon; addSubview(icon)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        let start = 8 + CGFloat(depth * 14)
+        textField?.frame = NSRect(x: start, y: (bounds.height - 18) / 2,
+                                 width: max(0, bounds.width - start - 8 - (imageView == nil ? 0 : 22)), height: 18)
+        imageView?.frame = NSRect(x: max(0, bounds.width - 23), y: (bounds.height - 14) / 2, width: 14, height: 14)
+    }
+}
+
 final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let table = NSTableView()
     let scroll = NSScrollView()
@@ -104,19 +132,8 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { available }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let item = destinations[row]
-        let cell = NSTableCellView()
-        let label = NSTextField(labelWithString: item.title)
-        label.font = .systemFont(ofSize: 13, weight: item.depth == 0 ? .medium : .regular)
-        label.frame = NSRect(x: 8 + CGFloat(item.depth*14), y: 5, width: max(0, tableView.bounds.width-22-CGFloat(item.depth*14)), height: 18)
-        label.autoresizingMask = [.width]
-        cell.textField = label; cell.addSubview(label)
-        cell.setAccessibilityLabel(item.title)
-        if item.setupStage {
-            label.frame.size.width = max(0, label.frame.width - 22)
-            let icon = NSImageView(frame: NSRect(x: tableView.bounds.width - 23, y: 7, width: 14, height: 14))
-            icon.autoresizingMask = [.minXMargin]
-            cell.imageView = icon; cell.addSubview(icon); updateStatus(cell, item: item)
-        }
+        let cell = SettingsSidebarCell(item: item)
+        if item.setupStage { updateStatus(cell, item: item) }
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {

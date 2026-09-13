@@ -1,3 +1,9 @@
+Desk inspector content is measured at its actual width, fixing the clipped Keyboard & mouse heading and keeping wrapped explanations and final actions inside the scrolling document. Narrowing, expanding and collapsing preserve usable scrolling.
+
+Desk connectors show every assigned preset number separately from the editing highlight. Redundant selection circles are removed, and monitor summaries combine preset, input and computer on one line. A separate In use badge marks the confirmed preset. Preset cards select across their surface, with hover feedback on cards, Play and rename controls. Monitor names are edited using a pencil on the monitor itself; the inspector keeps a read-only heading.
+
+Setup sidebar status indicators now lay out inside their actual row bounds. AppKit's cell resizing previously pushed correctly populated icons beyond the visible edge. Light/Dark and resize checks cover each readiness state without rebuilding rows or changing selection.
+
 Keep awake and other task pages grow to contain all their rows, fixing enabled Lid activity and setup buttons drawn outside their clickable bounds. Resume shows when protection is updating or running; the saved lid choice stays separate from the current session.
 
 Keyboard and mouse sharing starts directly in Desk, with a local session switch, per-computer readiness and a control action for the selected screen and editing preset. Input options holds pointer speed and optional keyboard computer-button following; adding a connected keyboard matches this Mac immediately and shows which other Macs still need matching. Setup links return to Desk.

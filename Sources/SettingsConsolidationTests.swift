@@ -35,6 +35,9 @@ func runSettingsConsolidationTests() throws {
     sidebar.layoutSubtreeIfNeeded()
     sidebar.update(selected: "access", busy: false)
     let cell = sidebar.table.view(atColumn: 0, row: 0, makeIfNecessary: true) as! NSTableCellView
+    cell.layoutSubtreeIfNeeded()
+    try check(cell.imageView?.image != nil && cell.bounds.contains(cell.imageView!.frame), "Sidebar readiness icon is outside its actual row")
+    try check(cell.bounds.contains(cell.textField!.frame) && !cell.textField!.frame.intersects(cell.imageView!.frame), "Sidebar label clips or covers the indicator")
     for value: SettingsSetupStatus in [.ready, .attention, .optional, .checking] {
         status = value; sidebar.refreshSetupStatus()
         try check(sidebar.table.selectedRow == 0 && navigations == 0, "Status refresh navigated or lost selection")

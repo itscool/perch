@@ -60,11 +60,11 @@ struct DeskInlineName: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                if let select { Button(saved, action: select).buttonStyle(.plain) }
+                if let select { Button(saved, action: select).buttonStyle(DeskCanvasButtonStyle()) }
                 else { Text(saved) }
                 Button { editing.toggle() } label: {
                     Image(systemName: editing ? "chevron.up" : "pencil").font(.system(size: 11))
-                }.buttonStyle(.plain).accessibilityLabel(editing ? "Collapse \(title) editor" : "Rename \(title)")
+                }.buttonStyle(DeskCanvasButtonStyle()).accessibilityLabel(editing ? "Collapse \(title) editor" : "Rename \(title)")
                     .help(editing ? "Collapse the name editor. Valid changes are already saved." : "Rename \(title). Changes save immediately.")
             }
             if editing {
@@ -73,6 +73,25 @@ struct DeskInlineName: View {
                     .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 7))
                     .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
             }
+        }
+    }
+}
+
+struct DeskCanvasButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        HoverBody(configuration: configuration, enabled: enabled)
+    }
+    private struct HoverBody: View {
+        let configuration: Configuration
+        let enabled: Bool
+        @State private var hovered = false
+        var body: some View {
+            configuration.label.padding(4)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(enabled && (hovered || configuration.isPressed) ? 0.18 : 0)))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.teal.opacity(enabled && hovered ? 0.55 : 0)))
+                .contentShape(Rectangle()).onHover { hovered = $0 }
+                .opacity(enabled ? 1 : 0.4)
         }
     }
 }

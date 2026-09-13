@@ -9,6 +9,7 @@ struct DeskView: View {
     @State private var draftScreen: UUID?
     @State private var draftConnection: UUID?
     @State private var showRemove = false
+    @State private var hoveredPreset: UUID?
     @State private var fallbackAspect = 16.0 / 9.0
 
     var body: some View {
@@ -44,25 +45,33 @@ struct DeskView: View {
                             Button { model.presetIndex = index; model.problem = nil } label: {
                                 HStack(spacing: 6) {
                                     Text(model.presetIndex == index ? "Editing preset \(index + 1)" : "Preset \(index + 1) · \(preset.assignments.count) screens").font(.system(size: 11)).foregroundStyle(.secondary)
-                                    if model.active?.id == preset.id {
-                                        Label(model.changedSinceUse ? "Active · edited" : "Active", systemImage: "checkmark.circle.fill").font(.system(size: 10)).foregroundStyle(.teal)
-                                    }
                                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                             }.buttonStyle(.plain).accessibilityLabel("Edit \(preset.name)").help("Edit this preset without switching screens.")
+                            if model.active?.id == preset.id {
+                                Label(model.changedSinceUse ? "In use · changes not applied" : "In use", systemImage: "display.2.fill")
+                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.green)
+                                    .padding(.horizontal, 7).padding(.vertical, 3)
+                                    .background(Color.green.opacity(0.12), in: Capsule())
+                                    .help("The displays confirmed this preset. Selecting another card only changes what you edit; Play switches the displays.")
+                            }
                             if let issue = model.readinessIssue(for: index) {
                                 DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 6) {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
-                                .buttonStyle(.bordered).tint(.teal).disabled(model.readinessIssue(for: index) != nil)
+                                .buttonStyle(DeskCanvasButtonStyle()).foregroundStyle(.teal).disabled(model.readinessIssue(for: index) != nil)
                                 .accessibilityLabel("Switch to \(preset.name)")
                                 .help(model.readinessIssue(for: index) ?? (model.live == nil ? "Switch to this preset now. The Desk Lab simulates the switch." : DeskModel.presetActivationHelp))
                             Text(preset.shortcut.label).font(.system(size: 10)).foregroundStyle(.secondary)
                         }
                     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(model.presetIndex == index ? Color.teal.opacity(0.10) : Color(nsColor: .controlBackgroundColor)))
+                        .background(RoundedRectangle(cornerRadius: 12).fill(model.presetIndex == index ? Color.teal.opacity(hoveredPreset == preset.id ? 0.16 : 0.10) : (hoveredPreset == preset.id ? Color.teal.opacity(0.06) : Color(nsColor: .controlBackgroundColor))))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(model.presetIndex == index ? Color.teal : Color(nsColor: .separatorColor), lineWidth: model.presetIndex == index ? 2 : 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 12))
+                        .onTapGesture { model.presetIndex = index; model.problem = nil }
+                        .onHover { hovering in hoveredPreset = hovering ? preset.id : (hoveredPreset == preset.id ? nil : hoveredPreset) }
+                        .accessibilityAction(named: "Edit preset") { model.presetIndex = index; model.problem = nil }
                 }
             }.padding(.horizontal, 24).padding(.bottom, 20)
             HStack(alignment: .top, spacing: 0) {
@@ -98,10 +107,8 @@ struct DeskView: View {
                 }
                 if let monitor = model.selectedMonitor {
                     HStack {
-                        DeskTextSetting("Screen name", saved: monitor.name) { value in
-                            model.edit { group in if let i = group.monitors.firstIndex(where: { $0.id == monitor.id }) { group.monitors[i].name = value } }
-                            if let problem = model.problem { throw KVMError(problem) }
-                        }.id(monitor.id).font(.headline)
+                        Text(monitor.name).font(.headline)
+                        Spacer(minLength: 4)
                         Button((model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "Stop identifying" : "Identify") { model.identify() }
                     }
                     if model.live != nil { Button("Monitor setup…") { sheet = "monitorSetup" } }
@@ -339,24 +346,6 @@ private extension View {
         })
     }
 }
-private struct DeskCanvasButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var enabled
-    func makeBody(configuration: Configuration) -> some View {
-        HoverBody(configuration: configuration, enabled: enabled)
-    }
-    private struct HoverBody: View {
-        let configuration: Configuration
-        let enabled: Bool
-        @State private var hovered = false
-        var body: some View {
-            configuration.label.padding(4)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(enabled && (hovered || configuration.isPressed) ? 0.18 : 0)))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.teal.opacity(enabled && hovered ? 0.55 : 0)))
-                .contentShape(Rectangle()).onHover { hovered = $0 }
-                .opacity(enabled ? 1 : 0.4)
-        }
-    }
-}
 
 private struct DeskScreenDrag {
     let id: UUID
@@ -376,6 +365,7 @@ struct DeskCanvas: View {
     let removeComputer: (UUID) -> Void
     let addComputer: () -> Void
     var addScreen: () -> Void = {}
+    @State private var renamingMonitor: UUID?
     @State private var drag: DeskScreenDrag?
     @State private var controlFrames: [String: CGRect] = [:]
     @StateObject private var wire = DeskWireController()
@@ -485,7 +475,7 @@ struct DeskCanvas: View {
     }
     private func rectangle(_ g: KVMGeometry) -> CGRect { CGRect(x: g.x, y: g.y, width: g.displayedWidth, height: g.displayedHeight) }
     private func isScreenControl(_ point: CGPoint, monitor: UUID) -> Bool {
-        var ids = ["rotate:", "remove:", "addPort:", "omit:"].map { $0 + monitor.uuidString }
+        var ids = ["rename:", "rotate:", "remove:", "addPort:", "omit:"].map { $0 + monitor.uuidString }
         for port in model.group.connections where port.monitor == monitor {
             ids += ["port:" + port.id.uuidString, "choose:" + port.id.uuidString]
         }
@@ -499,20 +489,36 @@ struct DeskCanvas: View {
         let translation = drag?.id == monitor.id ? drag!.translation : .zero
         return ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 4) {
-                    Text(model.identifying == monitor.id || compact ? "\(index + 1)" : monitor.name)
-                        .font(.system(size: model.identifying == monitor.id ? 36 : 13, weight: .semibold))
-                        .lineLimit(1)
+                    if model.identifying == monitor.id || compact {
+                        Text("\(index + 1)").font(.system(size: model.identifying == monitor.id ? 36 : 13, weight: .semibold)).lineLimit(1)
+                    } else { Color.clear.frame(height: 20) }
                     if !compact {
-                        Text(presetSummary(monitor)).font(.system(size: 10, weight: .medium)).lineLimit(1)
-                        Text(model.owner(monitor.id)).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(presetSummary(monitor)).font(.system(size: 10, weight: .medium)).lineLimit(1).help(presetSummary(monitor))
                     }
                     Spacer(minLength: 0)
-                }.padding(.leading, 9).padding(.trailing, compact ? 9 : 52).padding(.top, 9)
+                }.padding(.horizontal, 9).padding(.top, 9)
                     .frame(width: width, height: height, alignment: .topLeading).clipped()
                     .background(RoundedRectangle(cornerRadius: 9).fill(model.selected == monitor.id ? Color.teal.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
                     .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selected == monitor.id ? Color.teal : Color.gray.opacity(0.65), lineWidth: model.selected == monitor.id ? 2.5 : 1.5))
                 .allowsHitTesting(false)
                 .accessibilityLabel("Screen \(index + 1), \(monitor.name), \(model.owner(monitor.id)), \(g.rotation.rawValue) degrees")
+            if !compact && model.identifying != monitor.id {
+                HStack(spacing: 3) {
+                    Text(monitor.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).allowsHitTesting(false)
+                    Button { renamingMonitor = monitor.id } label: { Image(systemName: "pencil").font(.system(size: 11)) }
+                        .buttonStyle(DeskCanvasButtonStyle()).accessibilityLabel("Rename " + monitor.name)
+                        .help("Rename this screen. Changes save immediately.")
+                        .deskControl("rename:" + monitor.id.uuidString)
+                        .popover(isPresented: Binding(get: { renamingMonitor == monitor.id }, set: { if !$0 { renamingMonitor = nil } })) {
+                            DeskTextSetting("Screen name", saved: monitor.name) { value in
+                                model.edit { group in if let i = group.monitors.firstIndex(where: { $0.id == monitor.id }) { group.monitors[i].name = value } }
+                                if let problem = model.problem { throw KVMError(problem) }
+                            }.padding(12).frame(width: 250)
+                        }
+                    Spacer(minLength: 0)
+                }.padding(.leading, 9).padding(.trailing, 52).padding(.top, 5)
+                    .frame(width: width, height: height, alignment: .topLeading)
+            }
             if !compact {
                 HStack(spacing: 2) {
                     Button { model.rotateScreen(monitor.id) } label: { Image(systemName: "rotate.right") }
@@ -538,7 +544,7 @@ struct DeskCanvas: View {
                             .buttonStyle(DeskCanvasButtonStyle()).help("Add a monitor port")
                             .deskControl("addPort:" + monitor.id.uuidString).padding(.bottom, 3)
                     }.padding(.horizontal, 7)
-                }.scrollIndicators(.hidden).frame(height: portLabelHeight + 53)
+                }.scrollIndicators(.hidden).frame(height: portLabelHeight + 35)
             }.frame(width: width, height: height)
         }.frame(width: width, height: height)
             .contentShape(Rectangle())
@@ -585,7 +591,8 @@ struct DeskCanvas: View {
                 .help("Use \(port.inputName) in preset \(model.presetIndex + 1). Saves without switching the display.")
             DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
                            label: model.connectionLabel(port), controller: wire,
-                           presetNumber: model.preset.assignments.contains { $0.connection == port.id } ? model.presetIndex + 1 : nil) {
+                           presetNumbers: model.group.presets.enumerated().compactMap { index, preset in preset.assignments.contains { $0.connection == port.id } ? index + 1 : nil },
+                           highlighted: model.preset.assignments.contains { $0.connection == port.id }) {
                 let menu = DeskSocketMenu()
                 if let change = model.live?.switchConnection {
                     let issue = model.live?.connectionReadiness?(port.id)
@@ -607,8 +614,10 @@ struct DeskCanvas: View {
     }
 
     private func presetSummary(_ monitor: KVMMonitor) -> String {
-        let input = model.preset.assignments.first { $0.monitor == monitor.id }.flatMap { a in model.group.connections.first { $0.id == a.connection } }?.inputName
-        return "Preset \(model.presetIndex + 1) · " + (input ?? "Leave unchanged")
+        let prefix = "Preset \(model.presetIndex + 1) · "
+        guard let port = model.preset.assignments.first(where: { $0.monitor == monitor.id }).flatMap({ a in model.group.connections.first { $0.id == a.connection } }) else { return prefix + "Leave unchanged" }
+        let computer = model.group.computers.first { $0.id == port.computer }?.name ?? "No computer assigned"
+        return prefix + port.inputName + " · " + computer
     }
     private func presetChoice(_ label: String, selected: Bool, height: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -616,7 +625,6 @@ struct DeskCanvas: View {
                 Text(label).font(.system(size: 10, weight: selected ? .semibold : .regular)).lineLimit(1)
                     .frame(width: height, height: 14, alignment: .leading)
                     .rotationEffect(.degrees(-90)).frame(width: 14, height: height)
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle").font(.system(size: 12))
             }.foregroundStyle(selected ? Color.teal : Color.primary)
                 .padding(.vertical, 2)
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(selected ? 0.12 : 0)))
@@ -642,7 +650,9 @@ struct DeskCanvas: View {
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.teal, lineWidth: focused ? 2.5 : 1))
             .overlay(alignment: .topLeading) {
                 DeskWireSocket(id: "computer:" + computer.id.uuidString, connected: true,
-                               label: computer.name + " cable connector", controller: wire, presetNumber: routes.isEmpty ? nil : model.presetIndex + 1) {
+                               label: computer.name + " cable connector", controller: wire,
+                               presetNumbers: model.group.presets.enumerated().compactMap { index, preset in preset.assignments.contains { a in model.group.connections.contains { $0.id == a.connection && $0.computer == computer.id } } ? index + 1 : nil },
+                               highlighted: !routes.isEmpty) {
                     let menu = DeskSocketMenu()
                     for port in model.group.connections {
                         let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
@@ -794,13 +804,15 @@ struct DeskWireSocket: NSViewRepresentable {
     let connected: Bool
     let label: String
     let controller: DeskWireController
-    var presetNumber: Int? = nil
+    var presetNumbers: [Int] = []
+    var highlighted = false
     var menu: (() -> DeskSocketMenu)? = nil
     func makeNSView(context: Context) -> DeskWireSocketView { DeskWireSocketView(frame: .zero) }
     func updateNSView(_ view: DeskWireSocketView, context: Context) {
         if view.socketID != id { view.controller?.remove(view) }
-        view.socketID = id; view.connected = connected; view.presetNumber = presetNumber; view.controller = controller; view.makeMenu = menu
+        view.socketID = id; view.connected = connected; view.presetNumbers = presetNumbers; view.highlighted = highlighted; view.controller = controller; view.makeMenu = menu
         view.setAccessibilityLabel(label)
+        view.setAccessibilityValue(presetNumbers.isEmpty ? "No presets" : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + (highlighted ? "; selected in editing preset" : ""))
         view.toolTip = label + (connected && id.hasPrefix("port:") ? ". Drag to move this cable to another input; Esc cancels. Click for the port menu." : ". Drag to another connector to draw a wire. Click for connections.")
         controller.register(view); view.needsDisplay = true
     }
@@ -809,7 +821,8 @@ struct DeskWireSocket: NSViewRepresentable {
 final class DeskWireSocketView: NSView {
     var socketID = ""
     var connected = false
-    var presetNumber: Int?
+    var presetNumbers: [Int] = []
+    var highlighted = false
     weak var controller: DeskWireController?
     var makeMenu: (() -> DeskSocketMenu)?
     private(set) var hovered = false
@@ -859,15 +872,16 @@ final class DeskWireSocketView: NSView {
         let socket = halfCircle(8)
         NSColor.controlBackgroundColor.setFill(); socket.fill()
         let detached = controller?.detachedPort.map { socketID == "port:" + $0.uuidString } ?? false
-        let color = presetNumber != nil || active || hovered ? NSColor.systemTeal : NSColor.secondaryLabelColor
+        let color = highlighted || active || hovered ? NSColor.systemTeal : NSColor.secondaryLabelColor
         color.setFill(); color.setStroke()
         socket.lineWidth = active || hovered ? 2.5 : 1.5
         if connected && !detached { socket.fill() } else { socket.stroke() }
-        if let presetNumber {
-            let text = "\(presetNumber)" as NSString
-            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 8, weight: .bold), .foregroundColor: connected && !detached ? NSColor.white : color]
+        if !presetNumbers.isEmpty {
+            let text = presetNumbers.map(String.init).joined(separator: " ") as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 8, weight: .semibold), .foregroundColor: color]
             let size = text.size(withAttributes: attrs)
-            text.draw(at: CGPoint(x: center.x - size.width / 2, y: isComputer ? center.y - size.height : center.y), withAttributes: attrs)
+            // Membership stays visible for every preset, outside the half circle.
+            text.draw(at: CGPoint(x: center.x - size.width / 2, y: isComputer ? center.y - 9 - size.height : center.y + 9), withAttributes: attrs)
         }
         if active { let ring = halfCircle(11); ring.lineWidth = 2; ring.stroke() }
 

@@ -17,7 +17,7 @@ struct InspectorScrollView<Content: View>: NSViewRepresentable {
         scroll.scrollerStyle = .overlay
         scroll.autohidesScrollers = true
         scroll.automaticallyAdjustsContentInsets = false
-        let host = NSHostingView(rootView: paddedContent)
+        let host = InspectorHostingView(content: paddedContent)
         host.sizingOptions = [.intrinsicContentSize]
         host.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = host
@@ -30,12 +30,40 @@ struct InspectorScrollView<Content: View>: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: InspectorNativeScrollView, context: Context) {
-        (scroll.documentView as? NSHostingView<AnyView>)?.rootView = paddedContent
+        (scroll.documentView as? InspectorHostingView)?.update(content: paddedContent)
     }
 
     private var paddedContent: AnyView {
         // The 16-point gutter exists whether the content overflows or not.
-        AnyView(content.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 16))
+        AnyView(content.frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true).padding(.trailing, 16))
+    }
+}
+
+/// Intrinsic measurement must use the viewport width, not SwiftUI's ideal
+/// unconstrained width: wrapped fixed-height children can otherwise extend
+/// above the document's origin even while the scroll position is zero.
+final class InspectorHostingView: NSHostingView<AnyView> {
+    private var content: AnyView
+    private var measuredWidth: CGFloat = -1
+    init(content: AnyView) {
+        self.content = content
+        super.init(rootView: content)
+    }
+    required init(rootView: AnyView) {
+        content = rootView
+        super.init(rootView: rootView)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    func update(content: AnyView) {
+        self.content = content
+        rootView = AnyView(content.frame(width: max(1, measuredWidth), alignment: .topLeading))
+    }
+    override func setFrameSize(_ newSize: NSSize) {
+        if newSize.width > 0 && measuredWidth != newSize.width {
+            measuredWidth = newSize.width
+            rootView = AnyView(content.frame(width: newSize.width, alignment: .topLeading))
+        }
+        super.setFrameSize(newSize)
     }
 }
 

@@ -7,6 +7,7 @@ import tempfile
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--full', action='store_true', help='Render the entire Desk page rather than only the canvas')
+parser.add_argument('--active-preset', type=int, choices=[1, 2, 3], help='Simulate a confirmed preset independently of the editing selection')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +112,7 @@ for presetIndex in 0..<3 {
     }
 }
 model.group = sample; model.presetIndex = 0
+if let active = Int(CommandLine.arguments[4]), (1...3).contains(active) { model.active = sample.presets[active - 1]; model.activeGroup = sample }
 print("PASS: occupied-input rewiring, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
 let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {
@@ -135,4 +137,4 @@ print("PASS: production Desk canvas rendered without windows or live settings")
 ''')
     sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(repo/'Sources'/s) for s in sources], str(root/'main.swift'), '-o', str(root/'render')], check=True)
-    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas'], check=True)
+    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0)], check=True)

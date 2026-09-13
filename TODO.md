@@ -1,10 +1,10 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.116 is installed on disk
+2.0 development, September 13, 2026. Developer ID 2.0.118 is installed on disk
 in /Applications. The user's existing process was left running; Scott can
-restart to load 2.0.116. The previous bundle is
-retained at /Applications/.perch-previous-zrkvzi3s/Perch.app.
-Public/notarized remains 2.0.94; 2.0.116 is not notarized or published. The matching
+restart to load 2.0.118. The previous bundle is
+retained at /Applications/.perch-previous-99rwj_ho/Perch.app.
+Public/notarized remains 2.0.94; 2.0.118 is not notarized or published. The matching
 input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
 maintenance also remains. No helper, permission or hardware changes were made.
 Dated installation statements below are historical checkpoints. Categories are
@@ -12,6 +12,11 @@ known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+Sidebar readiness indicators and the clipped Desk inspector heading are fixed in
+installed candidate 2.0.118. Desk preset membership/use and card/name affordances are
+reconciled. See DESK-CLARITY-AND-INSPECTOR-2.0.md for offscreen evidence and live
+acceptance limits.
 
 - [ ] **Windows remain on a screen handed to another computer.** Scott reports
   the losing Mac still keeps windows on the switched monitor. Perch changes
@@ -28,7 +33,9 @@ This supersedes stale open-item wording in dated review checkpoints.
   Mac repeatedly failing its Desk connection. Read-only logs from local PID 98528
   on September 13 confirm 96 ready transitions in four minutes, peer resets,
   nearby-path timeouts and some TLS session closures. These logs establish real
-  churn, not its root cause. Await the affected Mac's exact error/recovery behavior;
+  churn, not its root cause. Scott later reports the connection suddenly working
+  better; no targeted network fix or cause has been established. Continue with
+  the affected Mac's exact error/recovery behavior;
   investigate lifecycle/reconnect/trust behavior without resetting membership,
   permissions or interrupting the user's testing. Loopback stability does not
   close this real-network defect. 2.0.115 does not claim to fix it.

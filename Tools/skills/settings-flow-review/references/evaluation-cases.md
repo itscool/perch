@@ -473,6 +473,13 @@ the rows, and sweep sibling pages using that helper. Add geometry/hit tests rath
 than another action-only test. Keep physical event routing acceptance explicit;
 do not infer a permission or modal problem solely from the dead buttons.
 
+A related sidebar has correct accessible status and a nonnil image but no visible
+badge. The cell starts at zero width; the image is positioned using table width
+and right anchoring moves it again when AppKit assigns the row width. Expected:
+assert image/label containment and nonoverlap after actual cell sizing and resizing,
+including source-list indentation. State-only and accessibility-only checks do not
+establish visibility.
+
 ## Session start hidden behind advanced input options
 
 A paired-device canvas has screens and presets but no sharing control. A separate
@@ -491,3 +498,7 @@ or equate permission readiness with an active sharing session.
 Scenario: monitor cards have clickable sockets, but a full-height scrolling overlay intercepts body dragging. Clicking a socket secretly chooses its preset input. All cables look identical. The inspector repeats preset dropdowns; an empty-preset warning appears over the canvas. Dragging an occupied input creates another cable or disconnects the original before a valid drop. An Unchanged option appears even though execution requires every monitor.
 
 Expected: visible direct preset choices, distinguishable cable gestures, route/endpoint highlighting tied to the editing preset, actual control-only exclusions, hover/focus feedback, and per-preset attention. Rewire atomically with cancel/concurrency checks; test omitted monitors through execution and input routing. Keep secondary connection actions in a menu when useful; this is not a blanket prohibition on context menus.
+
+### Wrapped inspector heading clipped at scroll position zero
+
+A native scroller hosts a declarative inspector with wrapped explanations. Its heading is clipped despite unused space below and a zero scroll offset. Check constrained-width intrinsic measurement and actual first/last child bounds before adding padding. Exercise narrower widths, expanded content and collapse while scrolled; preserve the user's reading position when content is unchanged. A genuinely scrolled-down long document may legitimately hide its heading.

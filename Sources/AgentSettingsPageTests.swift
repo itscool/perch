@@ -7,7 +7,7 @@ func runAgentSettingsPageTests() throws {
     let initialPages = host.pages
     defer { host.pages = initialPages; if let page = host.pages.last { host.display(page) } }
     var stored = SafetyConfiguration(), writes = 0, failWrite = false, conflict = false
-    try check(stored.shortcut.key == UInt32(kVK_Escape) && stored.shortcut.modifiers == UInt32(controlKey | optionKey | cmdKey), "Fresh configuration has the wrong emergency shortcut")
+    try check(stored.shortcut.key == UInt32(kVK_Escape) && stored.shortcut.modifiers == UInt32(controlKey | optionKey | cmdKey) && stored.shortcut.enabled, "Fresh configuration has the wrong emergency shortcut default")
     stored.shortcut.enabled = false
     let compact = AgentSettingsPage(mode: .shortcut, load: { stored }, save: { _ in }, conflicts: { _ in false })
     let compactHeight = compact.layoutShortcut(width: 640)

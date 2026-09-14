@@ -4,7 +4,10 @@ import Carbon
 struct PanicShortcut: Codable, Equatable {
     var key: UInt32 = UInt32(kVK_Escape)
     var modifiers: UInt32 = UInt32(controlKey | optionKey | cmdKey)
-    var enabled = false
+    /// The emergency kill switch is on for a fresh install. A saved user
+    /// choice (including explicitly turning it off) is preserved by config
+    /// decoding.
+    var enabled = true
     static let keys: [(String, UInt32)] = [("Esc", UInt32(kVK_Escape)), ("F6", UInt32(kVK_F6)), ("F7", UInt32(kVK_F7)), ("F8", UInt32(kVK_F8)), ("F9", UInt32(kVK_F9)), ("F10", UInt32(kVK_F10)), ("F11", UInt32(kVK_F11)), ("F12", UInt32(kVK_F12)), ("P", UInt32(kVK_ANSI_P))]
     var title: String {
         var value = ""

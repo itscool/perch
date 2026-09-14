@@ -62,3 +62,22 @@ so the preset set uses the available design choices deliberately. Record which
 presets changed and which were intentionally kept. Keep palette choices separate
 from composition names, and preserve Scott's exact Perch original unless he
 changes that specification.
+
+
+# Continuation and canonical guidance
+
+Read `Release/notes.md` first, then `TODO.md` and the evidence documents linked
+from the relevant items. Keep current progress, remaining acceptance and actual
+running/on-disk versions in those existing records; distinguish completed
+implementation, automated verification, native acceptance and release status.
+Do not assume an installed bundle is the version of an already-running process.
+
+For Settings, Setup and recovery work, read and apply
+`Tools/skills/settings-flow-review/SKILL.md`. Update that existing skill when a
+confirmed lesson changes the design/review method, as its instructions require.
+Update the UI route ledger when routes change. Preserve established safety,
+installation, release, testing and user-authorization boundaries on continuation.
+
+`CLAUDE.md` is a permanent forwarding entry point. Leave it unchanged. Put future
+repository-wide instruction updates here, and task-specific progress in the
+existing checklist/evidence files rather than duplicating guidance for Claude.

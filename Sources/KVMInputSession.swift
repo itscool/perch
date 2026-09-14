@@ -232,7 +232,10 @@ final class KVMInputSession: ObservableObject {
         flushMotion()
         guard sequence < UInt64.max else { stop(); return false }
         sequence += 1
-        send(.event(grant.id, sequence, event), to: node.ownerID)
+        guard send(.event(grant.id, sequence, event), to: node.ownerID) else {
+            stop(); localProblem = "Input returned locally because the Desk connection was lost. Perch will reconnect automatically."
+            return false
+        }
         return true
     }
     private func scheduleMotionFlush() {
@@ -249,16 +252,20 @@ final class KVMInputSession: ObservableObject {
         pendingMotion = nil
         guard active, event.valid, let grant = lease.grant, sequence < UInt64.max else { return }
         sequence += 1
-        send(.event(grant.id, sequence, event), to: node.ownerID)
+        guard send(.event(grant.id, sequence, event), to: node.ownerID) else {
+            stop(); localProblem = "Input returned locally because the Desk connection was lost. Perch will reconnect automatically."
+            return
+        }
     }
     @discardableResult func receive(_ data: Data, peer: UUID) -> Bool {
         guard data.starts(with: Self.wirePrefix) else { return false }
         guard data.count <= 8192, let message = try? JSONDecoder().decode(KVMInputMessage.self, from: data.dropFirst(Self.wirePrefix.count)) else { return true }
         receive(message, peer: peer); return true
     }
-    private func send(_ message: KVMInputMessage, to peer: UUID) {
-        if peer == node.localID { DispatchQueue.main.async { [weak self] in self?.receive(message, peer: peer) } }
-        else if let data = try? JSONEncoder().encode(message) { node.sendApplication(Self.wirePrefix + data, peer: peer) }
+    @discardableResult private func send(_ message: KVMInputMessage, to peer: UUID) -> Bool {
+        if peer == node.localID { DispatchQueue.main.async { [weak self] in self?.receive(message, peer: peer) }; return true }
+        if let data = try? JSONEncoder().encode(message) { return node.sendApplication(Self.wirePrefix + data, peer: peer) }
+        return false
     }
     private func receive(_ message: KVMInputMessage, peer: UUID) {
         guard node.isMember, node.online.contains(peer) else { return }
@@ -469,7 +476,9 @@ final class KVMInputSession: ObservableObject {
         guard outputSequence < UInt64.max else { endAuthority(); return }
         outputSequence += 1
         if let event = held.apply(value, source: source) {
-            send(.delivery(grant.id, source, outputSequence, event, location), to: location.computer)
+            if !send(.delivery(grant.id, source, outputSequence, event, location), to: location.computer) {
+                endAuthority(); localProblem = "Input returned locally because the destination Mac disconnected. Perch will reconnect automatically."
+            }
         }
     }
     func tick() {

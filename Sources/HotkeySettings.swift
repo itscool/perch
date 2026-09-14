@@ -44,6 +44,13 @@ struct HotkeySettings: View {
             Text("Keep-awake countdown · this Mac").font(.headline)
             CountdownShortcutSettings(model: .shared)
             Divider()
+            Text("Desk sharing · this Mac").font(.headline)
+            if let runtime = coordinator.runtime {
+                DeskSharingShortcutEditor(runtime: runtime)
+            } else {
+                Text("Set up a Desk to configure its Share on this Mac shortcut.").foregroundStyle(.secondary)
+            }
+            Divider()
             Text("Desk presets · shared with this desk").font(.headline)
             if let runtime = coordinator.runtime {
                 DeskLiveSheet(runtime: runtime, kind: "hotkeys", selection: nil, close: {})
@@ -60,6 +67,28 @@ struct HotkeySettings: View {
                 Color.clear.onChange(of: geometry.size.height, initial: true) { _, height in contentHeightChanged(height) }
             })
 
+    }
+}
+
+private struct DeskSharingShortcutEditor: View {
+    @ObservedObject var runtime: DeskRuntime
+    @State private var draft: PanicShortcut
+    init(runtime: DeskRuntime) { self.runtime = runtime; _draft = State(initialValue: runtime.sharingShortcut) }
+    private func edit(_ change: (inout PanicShortcut) -> Void) {
+        var value = draft; change(&value); draft = value; runtime.saveSharingShortcut(value)
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsShortcutEditor(title: "Toggle Share on this Mac",
+                enabled: Binding(get: { draft.enabled }, set: { value in edit { $0.enabled = value } }),
+                key: Binding(get: { draft.key }, set: { value in edit { $0.key = value } }), choices: PanicShortcut.keys,
+                modifiers: Binding(get: { draft.modifiers }, set: { value in edit { $0.modifiers = value } }))
+            Text("Toggles this Mac’s local consent. Default: ⌃⌥⌘S. Changes save immediately.").font(.callout).foregroundStyle(.secondary)
+            SettingsFeedback(text: runtime.sharingShortcutError)
+        }.onReceive(runtime.$sharingShortcutError) { _ in
+            let saved = runtime.sharingShortcut
+            if saved != draft { draft = saved }
+        }
     }
 }
 

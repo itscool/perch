@@ -77,7 +77,7 @@ extension AppDelegate {
         guard SettingsWindow.shared.open(panel) == .OK, let url = panel.url else { return }
         do {
             try AgentCatalog.install(from: url)
-            presentAgentRecognition("Catalog imported. New candidates are checked by default; existing on/off choices are kept. Custom apps and executables are managed separately.")
+            presentAgentRecognition("Catalog imported. New candidates are checked by default; existing on/off choices are kept.")
         } catch { showError(error) }
     }
     @objc func reviewCatalogChanges() {

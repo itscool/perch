@@ -120,6 +120,7 @@ final class DeskRuntime: ObservableObject {
     @Published var discovering = false
     @Published var usbDevices: [MonitorUSBDevice] = []
     @Published var shortcutProblem: String?
+    @Published var sharingShortcutError: String?
     private var subscriptions: Set<AnyCancellable> = []
     private var queues: [String: DispatchQueue] = [:]
     private var refreshTimer: Timer?
@@ -132,6 +133,8 @@ final class DeskRuntime: ObservableObject {
     private var hotKeys: [PanicHotKey] = []
     private var registeredShortcuts: [KVMShortcut] = []
     private var registeredPanic: PanicShortcut?
+    private var registeredSharing: PanicShortcut?
+    private var sharingHotKey: PanicHotKey?
     private var identifyWindows: [String: (UUID, NSWindow)] = [:]
     private(set) var identifications = DeskIdentificationState()
     private var inputAfterSwitch: (UUID, UUID)?
@@ -185,11 +188,9 @@ final class DeskRuntime: ObservableObject {
         }
         model.live?.switchConnection = { [weak self] connection in
             guard let self else { return }
-            if self.switching.connectionReadiness(connection) == nil {
-                self.inputAfterSwitch = nil
-                self.automaticInputStart = nil
-                self.input.stop()
-            }
+            self.inputAfterSwitch = nil
+            self.automaticInputStart = nil
+            self.input.stop()
             self.switching.activateConnection(connection)
         }
         model.live?.forceSwitchConnection = { [weak self] connection in
@@ -247,6 +248,7 @@ final class DeskRuntime: ObservableObject {
         inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
         hotKeys.forEach { $0.unregister() }; hotKeys = []; registeredShortcuts = []
+        sharingHotKey?.unregister(); sharingHotKey = nil; registeredSharing = nil
         node.stop()
     }
     func start() throws {
@@ -293,15 +295,38 @@ final class DeskRuntime: ObservableObject {
     }
     func activatePreset(_ preset: UUID) {
         if switching.busy && switching.request?.preset == preset { return }
-        guard switching.readiness(preset) == nil else { switching.activate(preset); return }
         let included = node.group.presets.first { $0.id == preset }?.assignments.map(\.monitor) ?? []
         let preferred = input.focus?.monitor ?? model.selected
-        let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
+        // Release any current lease even when the new preset is not ready;
+        // otherwise an invalid target leaves the old KVM route capturing input.
         automaticInputStart = nil
         input.allowAutomaticStart()
         input.stop()
+        guard switching.readiness(preset) == nil else { switching.activate(preset); return }
+        let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
         switching.activate(preset)
         if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
+    }
+    func toggleInputSharing() {
+        let enabled = !input.enabled
+        inputAdapter.enable(enabled)
+        if enabled { startInputForActivePreset() }
+        DispatchQueue.main.async { (NSApp.delegate as? AppDelegate)?.refreshDeskSharingMenu() }
+    }
+    var sharingShortcut: PanicShortcut { DeskSharingShortcut.load() }
+    func saveSharingShortcut(_ value: PanicShortcut) {
+        let previous = DeskSharingShortcut.load()
+        do {
+            try DeskSharingShortcut.save(value)
+            registeredSharing = nil
+            registerShortcuts()
+            guard sharingShortcutError == nil else { throw KVMError(sharingShortcutError!) }
+        } catch {
+            try? DeskSharingShortcut.save(previous)
+            registeredSharing = nil
+            registerShortcuts()
+            sharingShortcutError = error.localizedDescription
+        }
     }
     /// The Share on this Mac menu item is the user's consent. Once a preset
     /// with a remote route is active, establish focus automatically instead
@@ -851,10 +876,18 @@ final class DeskRuntime: ObservableObject {
         guard !SettingsWindow.shared.testing else { return }
         let shortcuts = node.group.presets.map(\.shortcut)
         let panic = SafetyConfiguration.load().shortcut
-        guard registeredShortcuts != shortcuts || registeredPanic != panic else { return }
+        let sharing = DeskSharingShortcut.load()
+        guard registeredShortcuts != shortcuts || registeredPanic != panic || registeredSharing != sharing else { return }
         registeredPanic = panic
-        hotKeys.forEach { try? $0.register(PanicShortcut(enabled: false)) }; hotKeys = []; registeredShortcuts = shortcuts
+        registeredSharing = sharing
+        hotKeys.forEach { try? $0.register(PanicShortcut(enabled: false)) }; hotKeys = []
+        sharingHotKey?.unregister(); sharingHotKey = nil
         do {
+            let conflicts = shortcuts.contains { shortcut in
+                let flags = UInt32((shortcut.control ? controlKey : 0) | (shortcut.option ? optionKey : 0) | (shortcut.command ? cmdKey : 0) | (shortcut.shift ? shiftKey : 0))
+                return sharing.enabled && DeskShortcutKey.code(shortcut.key) == sharing.key && flags == sharing.modifiers
+            } || sharing.enabled && ([panic, LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease].contains { $0.enabled && $0.key == sharing.key && $0.modifiers == sharing.modifiers })
+            guard !conflicts else { throw KVMError("\(sharing.title) is already used by another Perch action. Choose another Share shortcut.") }
             for (i, shortcut) in shortcuts.enumerated() {
                 let key = DeskShortcutKey.code(shortcut.key)
                 guard let key else { throw KVMError("This Mac cannot register \(shortcut.label). Change the shortcut in App settings → Hotkeys.") }
@@ -868,11 +901,20 @@ final class DeskRuntime: ObservableObject {
                 hotkey.action = { [weak self] in guard let self else { return }; self.activatePreset(self.node.group.presets[i].id) }
                 hotKeys.append(hotkey)
             }
+            if sharing.enabled {
+                guard sharing.modifiers != 0 else { throw KVMError("Choose at least one modifier for the Share on this Mac shortcut.") }
+                let hotkey = PanicHotKey(signature: 0x50445348)
+                try hotkey.register(sharing)
+                hotkey.action = { [weak self] in self?.toggleInputSharing() }
+                sharingHotKey = hotkey
+            }
             shortcutProblem = nil
+            sharingShortcutError = nil
         } catch {
             // A failed set must not leave only some presets registered.
             hotKeys.forEach { $0.unregister() }; hotKeys = []
-            shortcutProblem = error.localizedDescription
+            sharingHotKey?.unregister(); sharingHotKey = nil
+            if sharing.enabled { sharingShortcutError = error.localizedDescription } else { shortcutProblem = error.localizedDescription }
         }
     }
 }

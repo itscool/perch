@@ -457,6 +457,7 @@ extension AppDelegate {
             item.state = .off
             item.action = #selector(deskSettings)
             label(item, "Share on this Mac", hint: "Set up Desk")
+            (item.view as? MenuRowView)?.shortcutHint = ""
             item.menuHelp = "Set up Desk before enabling keyboard and mouse sharing."
             return
         }
@@ -465,6 +466,7 @@ extension AppDelegate {
         let problem = runtime.inputAdapter.accessProblem ?? runtime.input.problem
         let hint = problem != nil ? "Needs attention" : runtime.input.enabled ? "On" : "Off"
         label(item, "Share on this Mac", hint: hint, hintColor: problem == nil ? .secondaryLabelColor : StatusColors.warning)
+        (item.view as? MenuRowView)?.shortcutHint = runtime.sharingShortcut.enabled ? runtime.sharingShortcut.title : ""
         item.menuHelp = problem ?? "Allow approved Desk computers to send keyboard and mouse input to this Mac. An active preset with a remote screen starts control automatically."
     }
     @objc func toggleDeskSharing() {
@@ -472,10 +474,8 @@ extension AppDelegate {
             withMenuClosed { [weak self] in self?.deskSettings() }
             return
         }
-        let enabled = !runtime.input.enabled
         withMenuClosed { [weak self, weak runtime] in
-            runtime?.inputAdapter.enable(enabled)
-            if enabled { runtime?.startInputForActivePreset() }
+            runtime?.toggleInputSharing()
             self?.refreshDeskSharingMenu()
         }
     }

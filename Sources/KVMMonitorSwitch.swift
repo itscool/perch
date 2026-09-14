@@ -80,7 +80,7 @@ enum KVMMonitorMessage: Codable {
 /// synthesized keyboard/mouse events participate in monitor-only switching.
 final class KVMMonitorSwitch: ObservableObject {
     private static let leaseRecoveryTimeout: TimeInterval = 65
-    struct Lease { let peer: UUID; let request: KVMMonitorRequest; let created: TimeInterval; var executing = false; var completed = false }
+    struct Lease { let peer: UUID; let request: KVMMonitorRequest; let created: TimeInterval; var executing = false; var completed = false; var outcome: KVMMonitorOutcome? }
     @Published private(set) var request: KVMMonitorRequest?
     @Published private(set) var results: [UUID: KVMMonitorOutcome] = [:]
     @Published private(set) var busy = false
@@ -125,6 +125,7 @@ final class KVMMonitorSwitch: ObservableObject {
     private var timer: Timer?
     private var started: TimeInterval = 0
     private var committed = false
+    private var lastControlResend: TimeInterval = -.infinity
     var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     var now: TimeInterval { clock() }
     init(node: KVMDeskNode) {
@@ -261,7 +262,7 @@ final class KVMMonitorSwitch: ObservableObject {
     private func begin(_ request: KVMMonitorRequest) {
         self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
         for route in request.routes { optimisticInputs[route.monitor] = nil }
-        required = Set(request.routes.map { $0.control.computer }); started = now; committed = false
+        required = Set(request.routes.map { $0.control.computer }); started = now; committed = false; lastControlResend = -.infinity
         busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
         invalidateDesktop(request)
         for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, false), peer: peer) }
@@ -349,6 +350,12 @@ final class KVMMonitorSwitch: ObservableObject {
         case .refused(let id, let reason):
             guard busy, request?.id == id, required.contains(peer) else { return }; finishFailure(reason)
         case .execute(let id):
+            // A result can be retransmitted safely after a connection reset.
+            // The lease remembers the completed outcome, so a retry never
+            // repeats a hardware write.
+            for (_, lease) in leases where lease.request.id == id && lease.peer == peer && lease.completed {
+                if let outcome = lease.outcome { send(.result(outcome), peer: peer) }
+            }
             let own = leases.filter { $0.value.request.id == id && $0.value.peer == peer && !$0.value.executing }
             for (monitor, lease) in own {
                 guard now - lease.created < 10, lease.request.epoch == node.graph.roster.epoch,
@@ -416,8 +423,10 @@ final class KVMMonitorSwitch: ObservableObject {
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first
             if let peer = candidate?.computer { delegates[route.monitor] = peer; send(.delegate(lease.request, route.monitor), peer: peer); return }
         }
+        let outcome = KVMMonitorOutcome(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(detail.prefix(500)))
         leases[route.monitor]?.completed = true
-        send(.result(.init(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(detail.prefix(500)))), peer: lease.peer)
+        leases[route.monitor]?.outcome = outcome
+        send(.result(outcome), peer: lease.peer)
     }
     private func finishedDesktopReadBarrier(_ request: KVMMonitorRequest) {
         invalidateDesktop(request, finished: true)
@@ -517,7 +526,19 @@ final class KVMMonitorSwitch: ObservableObject {
             leases[monitor] = nil
             delegates[monitor] = nil
         }
-        if busy && (now - started > 45 || !required.isSubset(of: node.online)) { finishFailure("A computer disconnected or the switch timed out. Actual monitor inputs need to be checked.") }
+        if busy && now - started > 45 { finishFailure("A computer disconnected or the switch timed out. Actual monitor inputs need to be checked.") }
+        // The authenticated link can reset between prepare/execute/result.
+        // Retransmit only control messages at a bounded rate. Peer leases and
+        // cached outcomes make these retries idempotent and prevent duplicate
+        // monitor writes while a connection is recovering.
+        if busy && now - lastControlResend >= 0.75 {
+            lastControlResend = now
+            if committed, let request {
+                for peer in required { send(.execute(request.id), peer: peer) }
+            } else if let request {
+                for peer in required where !prepared.contains(peer) { send(.prepare(request), peer: peer) }
+            }
+        }
         if !busy { deriveActive() }
         if now >= nextRead, let revision = node.revision, let readForVerification {
             nextRead = now + 20

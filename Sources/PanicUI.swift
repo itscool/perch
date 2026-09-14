@@ -135,8 +135,7 @@ extension AppDelegate {
         var options: [(String,String,Selector)] = [
             ("Agents & panic actions…", "Choose which agents panic terminates and which privacy grants it resets.", #selector(editSafetyConfiguration)),
             ("Hotkeys…", "Configure emergency, countdown and Desk shortcuts together.", #selector(hotkeySettings)),
-            ("Add or remove agents…", "Add one custom target: choose an app bundle to follow that app and its children, or choose one specific executable for a command-line agent.", #selector(manageAgents)),
-            ("Agent recognition catalog…", "Import and review Perch’s maintained definitions for built-in agent names. This does not add a custom target.", #selector(agentRecognition)),
+            ("Agent recognition…", "Review the maintained recognition catalog and add or remove custom apps and executables in one place.", #selector(manageAgents)),
             (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Agent tracking setup…" : "⚠ Agent tracking setup…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
             ("Preview panic targets…", "Preview the currently tracked processes and recent actions. This does not terminate anything.", #selector(safetyReport)),
             (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut)),
@@ -179,40 +178,41 @@ extension AppDelegate {
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
     }
-    @objc func agentRecognition() { presentAgentRecognition() }
-    func presentAgentRecognition(_ result: String? = nil) {
+    @objc func agentRecognition() { manageAgents() }
+    func presentAgentRecognition(_ result: String? = nil) { showAgentRecognition(result: result) }
+    @objc func manageAgents() { showAgentRecognition(result: nil) }
+    private func showAgentRecognition(result: String?) {
         let config = SafetyConfiguration.load(), catalog = AgentCatalog.available()
         let changes = catalog?.updates(for: config) ?? []
-        let text = [result, catalog?.updateSummary(for: config) ?? "No recognition catalog is installed. Import a catalog to review its matching rules here."].compactMap { $0 }.joined(separator: "\n\n")
-        let summary = NSTextField(wrappingLabelWithString: text)
-        summary.font = .systemFont(ofSize: 13)
-        let summaryHeight = max(50, ceil(summary.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 556, height: 10000)).height ?? 50))
-        let height = 56 + summaryHeight + (changes.isEmpty ? 16 : 54)
+        let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }
+        let catalogText = [result, catalog?.updateSummary(for: config) ?? "No recognition catalog is installed. Import one to recognize known agent apps and executables."].compactMap { $0 }.joined(separator: "\n\n")
+        let summary = NSTextField(wrappingLabelWithString: catalogText)
+        summary.font = .systemFont(ofSize: 13); summary.textColor = .secondaryLabelColor
+        let summaryHeight = max(42, ceil(summary.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 556, height: 10000)).height ?? 42))
+        let rowsHeight = CGFloat(targets.count * 50)
+        let height = 170 + rowsHeight + summaryHeight
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: height))
+        let title = NSTextField(labelWithString: "Recognition catalog")
+        title.font = .systemFont(ofSize: 12, weight: .semibold); title.frame = NSRect(x: 8, y: height - 28, width: 556, height: 20); view.addSubview(title)
         let importButton = SettingsActionButton(title: "Import recognition catalog…") { [weak self] in self?.importAgentCatalog() }
-        importButton.frame = NSRect(x: 0, y: height-32, width: 300, height: 32)
-        view.addSubview(importButton)
-        summary.frame = NSRect(x: 8, y: height-48-summaryHeight, width: 556, height: summaryHeight)
-        view.addSubview(summary)
+        importButton.frame = NSRect(x: 0, y: height - 64, width: changes.isEmpty ? 556 : 270, height: 30); view.addSubview(importButton)
         if !changes.isEmpty {
             let apply = SettingsActionButton(title: "Apply recognition changes…") { [weak self] in self?.reviewCatalogChanges() }
-            apply.frame = NSRect(x: 0, y: 8, width: 300, height: 32); view.addSubview(apply)
+            apply.frame = NSRect(x: 282, y: height - 64, width: 290, height: 30); view.addSubview(apply)
         }
-        SettingsWindow.shared.show(.init(title: "Agent recognition catalog", detail: "This catalog teaches Perch how to recognize built-in agent names. Import and review matching-rule changes here; custom apps and executables are managed in Add or remove agents.", view: view))
-    }
-    @objc func manageAgents() {
-        let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: max(180, 90 + targets.count * 60)))
+        summary.frame = NSRect(x: 8, y: 90 + rowsHeight, width: 556, height: summaryHeight); view.addSubview(summary)
+        let customTitle = NSTextField(labelWithString: "Custom agents")
+        customTitle.font = .systemFont(ofSize: 12, weight: .semibold); customTitle.frame = NSRect(x: 8, y: 64 + rowsHeight, width: 556, height: 20); view.addSubview(customTitle)
         let addApp = SettingsActionButton(title: "Add app…") { [weak self] in if self?.addTarget(app: true) == true { self?.manageAgents() } }
         let addExecutable = SettingsActionButton(title: "Add executable…") { [weak self] in if self?.addTarget(app: false) == true { self?.manageAgents() } }
         addApp.identifier = .init("agent.addApp"); addExecutable.identifier = .init("agent.addExecutable")
-        addApp.frame = NSRect(x: 0, y: view.frame.height-32, width: 278, height: 32)
-        addExecutable.frame = NSRect(x: 288, y: view.frame.height-32, width: 284, height: 32)
+        addApp.frame = NSRect(x: 0, y: 28 + rowsHeight, width: 278, height: 30)
+        addExecutable.frame = NSRect(x: 288, y: 28 + rowsHeight, width: 284, height: 30)
         view.addSubview(addApp); view.addSubview(addExecutable)
         for (index, target) in targets.enumerated() {
-            let y = view.frame.height - CGFloat(92 + index*60)
+            let y = 4 + CGFloat(max(0, targets.count - index - 1) * 50)
             let label = NSTextField(wrappingLabelWithString: target.name + "\n" + target.match)
-            label.frame = NSRect(x: 0, y: y, width: 410, height: 48); label.font = .systemFont(ofSize: 12)
+            label.frame = NSRect(x: 0, y: y, width: 410, height: 42); label.font = .systemFont(ofSize: 12)
             let remove = SettingsActionButton(title: "Forget entry") { [weak self] in
                 do {
                     var config = SafetyConfiguration.load()
@@ -222,10 +222,10 @@ extension AppDelegate {
             }
             remove.identifier = .init("agent.remove." + target.id)
             remove.setAccessibilityLabel("Forget " + target.name + " entry")
-            remove.frame = NSRect(x: 428, y: y+8, width: 144, height: 30)
+            remove.frame = NSRect(x: 428, y: y+6, width: 144, height: 30)
             view.addSubview(label); view.addSubview(remove)
         }
-        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Choose a custom target below. An app bundle (.app) follows that app and its child processes; an executable follows one specific command-line program. Forget entry removes only Perch’s entry. Built-in recognition is managed in the separate catalog.", view: view))
+        SettingsWindow.shared.show(.init(title: "Agent recognition", detail: "Review known agent definitions and manage custom apps or executables here. App bundles follow that app and its children; executables follow one specific command-line program. Changes save automatically.", view: view))
     }
     @objc func editSafetyConfiguration() {
         editSafetyForm(save: { try $0.save() })
@@ -240,7 +240,7 @@ extension AppDelegate {
         AgentSettingsPage(mode: mode, save: save, conflicts: { [weak self] shortcut in
             guard let self else { return false }
             if !self.legacyMonitorFixture {
-                return DeskCoordinator.shared.runtime?.node.group.presets.contains { $0.shortcut.matches(shortcut) } == true || [LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease].contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
+                return DeskCoordinator.shared.runtime?.node.group.presets.contains { $0.shortcut.matches(shortcut) } == true || [LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease, DeskSharingShortcut.load()].contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
             }
             return [self.monitorInputs.plan.shortcut, self.monitorInputs.groups.active?.shortcut].compactMap { $0 }.contains { $0.enabled && $0.key == shortcut.key && $0.modifiers == shortcut.modifiers }
         }, didSave: { [weak self] in

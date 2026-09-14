@@ -8,7 +8,7 @@ struct PanicShortcut: Codable, Equatable {
     /// choice (including explicitly turning it off) is preserved by config
     /// decoding.
     var enabled = true
-    static let keys: [(String, UInt32)] = [("Esc", UInt32(kVK_Escape)), ("F6", UInt32(kVK_F6)), ("F7", UInt32(kVK_F7)), ("F8", UInt32(kVK_F8)), ("F9", UInt32(kVK_F9)), ("F10", UInt32(kVK_F10)), ("F11", UInt32(kVK_F11)), ("F12", UInt32(kVK_F12)), ("P", UInt32(kVK_ANSI_P))]
+    static let keys: [(String, UInt32)] = [("Esc", UInt32(kVK_Escape)), ("F6", UInt32(kVK_F6)), ("F7", UInt32(kVK_F7)), ("F8", UInt32(kVK_F8)), ("F9", UInt32(kVK_F9)), ("F10", UInt32(kVK_F10)), ("F11", UInt32(kVK_F11)), ("F12", UInt32(kVK_F12)), ("P", UInt32(kVK_ANSI_P)), ("S", UInt32(kVK_ANSI_S))]
     var title: String {
         var value = ""
         for (flag, symbol) in [(controlKey,"⌃"),(optionKey,"⌥"),(shiftKey,"⇧"),(cmdKey,"⌘")] {

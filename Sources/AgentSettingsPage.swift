@@ -104,8 +104,11 @@ final class AgentSettingsPage: NSObject {
         switch mode {
         case .agents:
             shortcutViews.forEach { $0.removeFromSuperview() }
-            agentViews.forEach { $0.frame.origin.y -= 120 }
-            view.frame.size.height -= 120
+            // The agent list already occupies the upper block and the
+            // privacy-reset controls occupy the lower block. Moving the list
+            // down here makes “After stopping agents” overlap its last rows.
+            // Keep both blocks in their original shared coordinate system.
+            view.frame.size.height = max(view.frame.height, 500)
         case .shortcut:
             (agentViews + actionViews).forEach { $0.removeFromSuperview() }
             shortcutCaption = shortcutViews.compactMap { $0 as? NSTextField }.first

@@ -642,6 +642,35 @@ if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--restart-work
         fputs("Update failed: \(error.localizedDescription)\n", stderr); exit(1)
     }
 }
+if CommandLine.arguments.count >= 2, CommandLine.arguments[1].hasPrefix("--lid-maintenance-") {
+    guard geteuid() == 0 else { exit(1) }
+    do {
+        switch CommandLine.arguments[1] {
+        case "--lid-maintenance-check":
+            guard !FileManager.default.fileExists(atPath: LidMaintenance.path) else { throw AppError(message: "Previous helper update recovery is pending. Retry in a few seconds.") }
+        case "--lid-maintenance-snapshot":
+            guard CommandLine.arguments.count == 3, let owner = UInt32(CommandLine.arguments[2]) else { throw AppError(message: "Missing session owner.") }
+            if let snapshot = try LidMaintenance.snapshotAsUser(owner: owner) { print(snapshot.base64EncodedString()) }
+        case "--lid-maintenance-begin":
+            guard CommandLine.arguments.count == 4, let owner = UInt32(CommandLine.arguments[2]) else { throw AppError(message: "Missing helper-update identity.") }
+            try LidMaintenance.begin(owner: owner, token: CommandLine.arguments[3])
+        case "--lid-maintenance-enable": try LidMaintenance.enable()
+        case "--lid-maintenance-finish", "--lid-maintenance-abort":
+            guard CommandLine.arguments.count == 3 else { throw AppError(message: "Missing helper-update identity.") }
+            let resume = try LidMaintenance.finish(success: CommandLine.arguments[1] == "--lid-maintenance-finish", token: CommandLine.arguments[2])
+            if CommandLine.arguments[1] == "--lid-maintenance-finish" { print(resume ? "resume" : "off") }
+        case "--lid-maintenance-recover":
+            repeat {
+                do { try LidMaintenance.recover() }
+                catch { fputs("Lid update recovery will retry: \(error.localizedDescription)\n", stderr) }
+                if !FileManager.default.fileExists(atPath: LidMaintenance.path) { break }
+                usleep(250_000)
+            } while true
+        default: throw AppError(message: "Unknown lid update operation.")
+        }
+        exit(0)
+    } catch { fputs("Lid helper update: \(error.localizedDescription)\n", stderr); exit(1) }
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--check-lid-update"] {
     guard MacLidGuardHardware().observe().closed == false else {
         fputs("Open the lid before finishing the helper update. Nothing has been replaced.\n", stderr); exit(1)
@@ -677,6 +706,7 @@ if CommandLine.arguments == [CommandLine.arguments[0], "--lid-watchdog"] { runLi
 if CommandLine.arguments == [CommandLine.arguments[0], "--lid-cleanup"] {
     guard geteuid() == 0 else { exit(1) }
     do {
+        if let maintenance = LidMaintenance.record { _ = try LidMaintenance.finish(success: false, token: maintenance.token) }
         let hardware = MacLidGuardHardware(), observation = hardware.observe()
         let recovered = try LidSleepOverride.recover(force: true)
         try LidGuardOwnership.release(LidGuardEnforcer(hardware), sleep: observation.closed != false && observation.power != .external, now: LidGuardClock.now)

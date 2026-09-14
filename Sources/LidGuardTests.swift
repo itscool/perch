@@ -151,12 +151,21 @@ func runLidGuardTests() throws {
     older.revision = 1
     try check(!older.fresh, "An incompatible helper protocol was accepted")
     try check(!LidGuardStatus(updatedAt: now - 10, armed: true, detail: "Ready").fresh && !LidGuardStatus(updatedAt: now + 10, armed: true, detail: "Ready").fresh, "Stale or future status appeared ready")
+    try runLidMaintenanceTests()
     let command = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch ' $(literal).app"), requirement: "identifier \"fixture.perch\"", owner: 501)
     let script = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-script-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: script) }
     try command.write(to: script, atomically: true, encoding: .utf8)
     let parser = Process(); parser.executableURL = URL(fileURLWithPath: "/bin/sh"); parser.arguments = ["-n", script.path]
     try parser.run(); parser.waitUntilExit()
-    try check(parser.terminationStatus == 0 && command.contains("'=identifier") && command.contains("/Contents/MacOS/Perch' --lid-cleanup"), "Installer quoting or complete-bundle path is invalid")
+    // Parse, never execute, the nested shell argument added by serialization.
+    let unwrap = Process(), input = Pipe(), output = Pipe()
+    unwrap.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+    unwrap.arguments = ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.stdin.read())[-1]))"]
+    unwrap.standardInput = input; unwrap.standardOutput = output
+    try unwrap.run(); try input.fileHandleForWriting.write(contentsOf: Data(command.utf8)); try input.fileHandleForWriting.close()
+    let parsed = output.fileHandleForReading.readDataToEndOfFile(); unwrap.waitUntilExit()
+    let body = try JSONDecoder().decode(String.self, from: parsed)
+    try check(parser.terminationStatus == 0 && unwrap.terminationStatus == 0 && command.contains("/usr/bin/lockf -k -t 0") && body.contains("'=identifier") && body.contains("/Contents/MacOS/Perch' --lid-cleanup"), "Installer quoting, serialization or complete-bundle path is invalid")
     print("PASS: powered closed-lid startup; rejected closed-battery/unknown startup and power-change revalidation; real read-only power connection; stale cleanup helper upgrade; full 60-second undock/close grace; powered operation; open/power cancellation; flapping; continuous deadlines; late renewals; failed observations/authorization; release-before-sleep and rejected-sleep retry; all power mutations injected")
 }

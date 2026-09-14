@@ -201,6 +201,7 @@ enum LidSleepOverride {
             return (path == Bundle.main.executablePath || path == LidGuardInstall.binary || path == "/usr/bin/pmset") && ProcessCPUReader.birth(pid) == birth
         })
         defer { close(fd) }
+        if mode != "on", LidMaintenance.holding { throw AppError(message: "The helper update currently owns sleep protection.") }
         if mode == "finish" {
             if store.ownsOverride {
                 guard try store.record().token == token else { throw AppError(message: "A newer lid session owns recovery.") }
@@ -208,6 +209,7 @@ enum LidSleepOverride {
             try verify(false); try store.finish(disabled: false); return
         }
         if mode == "on" {
+            if let maintenance = LidMaintenance.record, maintenance.token == token, !maintenance.fresh { throw AppError(message: "The helper update allowance expired before its command could run.") }
             guard LidGuardOwnership.token == token, LidGuardClock.now < deadline else { throw AppError(message: "The lid session ended before its command could run.") }
             try store.reserve(token: token, disabled: systemDisabled())
         } else {
@@ -247,7 +249,8 @@ enum LidSleepOverride {
     }
     static func set(_ enabled: Bool) throws {
         if enabled {
-            try requireRecoveryJob()
+            if LidMaintenance.holding { try LidMaintenance.command(["/bin/launchctl", "print", "system/" + LidMaintenance.name]) }
+            else { try requireRecoveryJob() }
             guard let token = LidGuardOwnership.token else { throw AppError(message: "The lid watchdog ended this session.") }
             try run("on", token: token)
             try waitForReadback(true)
@@ -289,7 +292,7 @@ enum LidSleepOverride {
     /// Separate launchd recovery also runs at boot, when /var/run was cleared.
     /// It never enables protection and does not rely on the menu or supervisor.
     static func recover(force: Bool) throws -> Bool {
-        guard owned else { return false }
+        guard owned, !LidMaintenance.holding else { return false }
         let record = try store.record()
         if !force, LidGuardOwnership.token == record.token,
            let lease = try? store.read(LidOverrideRecoveryLease.self, path: store.leasePath),

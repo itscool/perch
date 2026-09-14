@@ -1,16 +1,19 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.122 is installed on disk
+2.0 development, September 13, 2026. Developer ID 2.0.129 is installed on disk
 in /Applications. Running PID 12800 remains on 2.0.120; Scott's next restart loads
-2.0.122. The previous bundle is retained at
-/Applications/.perch-previous-isu34yrc/Perch.app.
-Public/notarized remains 2.0.94; 2.0.122 is not notarized or published.
+2.0.129. The previous bundle is retained at
+/Applications/.perch-previous-7_6cfko1/Perch.app.
+Public/notarized remains 2.0.94; 2.0.129 is not notarized or published.
 Input helper 120 already supports Num Lock; the current collector launcher is
-installed and healthy. The new desktop-recovery capability requires the matching
-122 guardian. Coordinated lid-helper/protocol 3 maintenance still needs an open
-lid and administrator authorization. No live permissions were reset. Authorized
-native display probes restored the original secondary-screen mode and position;
-LG input switching awaits a confirmed starting port. See SETTINGS-CONSOLIDATION-2.0.121.md.
+installed and healthy. Desktop recovery requires a matching guardian with the
+capability introduced in 122. Coordinated lid-helper maintenance still needs
+administrator authorization. Helper version 4 adds a bounded closed-lid update
+guard; its privileged integration test remains pending. See
+LID-HELPER-MAINTENANCE-2.0.md. No live sleep settings or permissions were changed
+for this update. Earlier authorized native display probes restored the original
+secondary-screen mode and position. LG input switching awaits a confirmed
+starting port. See SETTINGS-CONSOLIDATION-2.0.121.md.
 Dated installation statements below are historical checkpoints. Categories are
 known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
@@ -379,10 +382,12 @@ historical evidence, not additional open release requirements.
    16-peer fixtures pass; they do not simulate physical receiver behavior.
 3. [ ] **Physical helper integration.** External Num Lock; countdown hotkeys and
    helper event delivery; real sleep/wake, independent recovery and reboot.
-   Complete the queued protocol-3 lid-helper update first. Do not repeat the
+   Complete the queued helper-version-4 update first, including its new protected
+   replacement/timeout/reboot recovery path. Do not repeat the
    exhaustive virtual-time policy matrix or previously accepted unrelated fixes.
 4. [ ] **Protected-session update continuity.** Real active lid deadline/identity
-   handoff, permissions, interrupted/expired transfer and helper mismatch.
+   handoff, permissions, interrupted/expired transfer and helper mismatch; include
+   the administrator-authorized closed-lid helper replacement and its independent guard.
    Signed isolated Sparkle cancellation/corruption/retry/relaunch scenarios pass
    with injected lid state. See AUTOMATED-QA-2.0.120.md.
 5. [ ] **Performance and collector lifecycle.** Controlled idle/open-menu/input/
@@ -425,7 +430,7 @@ historical evidence, not additional open release requirements.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.122 candidate is prepared and installed locally with a source snapshot and draft notes.
+   signed 2.0.129 candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

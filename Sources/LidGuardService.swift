@@ -36,6 +36,7 @@ enum LidGuardOwnership {
         guard bytes.withUnsafeBytes({ write(fd, $0.baseAddress, $0.count) }) == bytes.count else { throw AppError(message: "Could not record the lid session.") }
     }
     static func release(_ enforcer: LidGuardEnforcer, sleep: Bool, now: Double, expectedToken: String? = nil) throws {
+        guard !LidMaintenance.holding else { return }
         let recordedToken = token ?? (try? LidSleepOverride.store.record().token)
         guard recorded, expectedToken == nil || recordedToken == expectedToken else { return }
         try enforcer.apply(.init(preventLidSleep: false, requestSleep: sleep, remaining: nil, detail: "Stopped"), now: now, forceRelease: true)
@@ -187,6 +188,9 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
             if let until = startingUntil, !watched, now < until {
                 _ = channel?.send(LidGuardLease(token: token, expires: min(now+3, leaseEnds), deadline: nil)); return
             }
+            if let maintenance = LidMaintenance.adoption(), maintenance.token == token {
+                policy.restoreMaintenance(deadline: maintenance.batteryDeadline, countdown: maintenance.countdown)
+            }
             let manualDecision = policy.countdownControlsDecision
             let expectedCountdownEnd = manualDecision && (policy.countdown.map { !$0.active || now >= $0.deadline || (observation.closed == false && $0.sawClosed) } ?? false)
             if !policy.stopped && !expectedCountdownEnd && (now >= leaseEnds || !watched) {
@@ -209,10 +213,10 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
             do {
                 // Recheck after the watchdog handshake: the power source or lid
                 // may have changed since the initial enable request.
-                if startingUntil != nil && decision.preventLidSleep { try LidGuardStart.validate(observation) }
+                if startingUntil != nil && decision.preventLidSleep && LidMaintenance.adoption() == nil { try LidGuardStart.validate(observation) }
                 try idleAwake.set(decision.preventLidSleep)
                 if decision.preventLidSleep {
-                    if startingUntil != nil { try LidGuardOwnership.claim(token!) }
+                    if startingUntil != nil && LidGuardOwnership.token != token { try LidGuardOwnership.claim(token!) }
                     guard LidGuardOwnership.token == token else { throw AppError(message: "The watchdog ended this lid session. Enable it again with the lid open or external power connected.") }
                     if startingUntil != nil || now - lastRecoveryPulse >= 1 {
                         try LidSleepOverride.pulse(token: token!, until: leaseEnds)
@@ -221,6 +225,11 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                 }
                 startingUntil = nil
                 try enforcer.apply(decision, now: now)
+                if decision.preventLidSleep, let maintenance = LidMaintenance.adoption(), maintenance.token == token {
+                    let latest = try LidMaintenance.completeAdoption(token: maintenance.token)
+                    policy.restoreMaintenance(deadline: latest.batteryDeadline, countdown: latest.countdown)
+                    activity.record("Lid helper update finished. Original lid/countdown deadlines resumed; temporary update allowance ended.")
+                }
                 if decision.preventLidSleep && LidGuardOwnership.token != token {
                     try enforcer.apply(.init(preventLidSleep: false, requestSleep: observation.closed != false && observation.power != .external, remaining: nil, detail: "Watchdog ended this session"), now: LidGuardClock.now)
                     throw AppError(message: "The watchdog ended this session before lid control was confirmed.")
@@ -342,10 +351,15 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
             do {
                 if enabled && self.token == nil {
                     self.activity.record("Enable lid protection requested.")
-                    try LidGuardStart.validate(observation)
+                    let maintenance = LidMaintenance.adoption()
+                    if maintenance == nil { try LidGuardStart.validate(observation) }
                     guard self.child?.isRunning == true, self.channel?.ended == false, let ack = self.ack, now >= ack.time, now - ack.time < 2 else { throw AppError(message: "The lid watchdog is unavailable. Repair the lid helper before relying on this mode.") }
-                    guard !LidSleepOverride.owned, try !LidSleepOverride.systemDisabled() else { throw AppError(message: "A prior system sleep override still needs cleanup. Review sleep reset before enabling a new lid session.") }
-                    self.policy = LidGuardPolicy(); self.activityTracker.endSession(); let token = UUID().uuidString
+                    guard try maintenance != nil || (!LidSleepOverride.owned && LidSleepOverride.systemDisabled() == false) else { throw AppError(message: "A prior system sleep override still needs cleanup. Review sleep reset before enabling a new lid session.") }
+                    self.policy = LidGuardPolicy()
+                    if let maintenance {
+                        self.policy.restoreMaintenance(deadline: maintenance.batteryDeadline, countdown: maintenance.countdown)
+                    }
+                    self.activityTracker.endSession(); let token = maintenance?.token ?? UUID().uuidString
                     self.token = token; self.leaseEnds = now + 5; self.startingUntil = now + 1
                     // Wait for an independent watchdog acknowledgment before
                     // enabling the hardware bit or displaying Ready.
@@ -358,6 +372,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                     return
                 } else if !enabled {
                     self.activity.record("Disable lid protection requested.")
+                    if let maintenance = LidMaintenance.record { _ = try LidMaintenance.finish(success: false, token: maintenance.token) }
                     try? self.policy.adjustCountdown(0, now: now, observation: observation, restoreSession: false)
                     self.token = nil
                     self.restartLock.withLock { self.restart.clear() }

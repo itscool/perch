@@ -24,7 +24,7 @@ extension AppDelegate {
             resume.isEnabled = remembered && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self?.observedLidDisabled == false && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.fresh == true && !helper.helper.pending
             page?.arrangeRows(hiding: remembered && SafetyConfiguration.load().keepAwake && !guarded ? [] : [resume])
             repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
-            repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
+            repair.isEnabled = !helper.busy && !AppUpdate.shared.busy
             repair.contentTintColor = helper.helper.pending && !helper.busy ? StatusColors.warning : nil
             page?.status.stringValue = helper.busy ? "The lid helper is being updated. Your saved sleep choices are retained." : helper.helper.pending ? helper.helper.notice : !helper.helper.installed ? "The lid helper is not ready. Complete setup before relying on closed-lid protection." : "The lid helper is installed. Behavior switches are in the Perch menu; recorded events are in Lid activity."
             if helper.helper.installed && !helper.helper.pending { page?.status.stringValue += "\n" + LidGuardClient.shared.detail }

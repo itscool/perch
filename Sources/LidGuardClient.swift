@@ -31,12 +31,13 @@ enum LidGuardInstall {
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         _ = try script("do shell script \"\(escaped)\" with administrator privileges")
     }
-    static func install(requireOpenLid: Bool = false) throws {
+    @discardableResult static func install(requireOpenLid: Bool = false, protectedUpdate: Bool = false) throws -> Bool {
         guard !SettingsWindow.shared.testing, getuid() >= 501,
               let requirement = HelperStatusIPC.requirement else { throw AppError(message: "Install lid protection from the signed Perch app in your user session.") }
-        let command = try installationCommand(source: Bundle.main.bundleURL, requirement: requirement, owner: getuid(), requireOpenLid: requireOpenLid)
+        let command = try installationCommand(source: Bundle.main.bundleURL, requirement: requirement, owner: getuid(), requireOpenLid: requireOpenLid, protectedUpdate: protectedUpdate)
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
-        _ = try script("do shell script \"\(escaped)\" with administrator privileges")
+        let outcome = try script("do shell script \"\(escaped)\" with administrator privileges")
+        return protectedUpdate && outcome.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) == "resume"
     }
     static func bundleLinkValidationCommand(_ staged: String) -> String {
         let quote = GuardianInstall.shellQuote
@@ -48,7 +49,7 @@ enum LidGuardInstall {
         return "/usr/bin/find " + quote(staged) + " -type l -print | while IFS= read -r link; do\ncase \"$link\" in\n" + cases + "\n" +
             quote(framework + "Versions/Current") + ") expected=B;;\n*) exit 1;;\nesac\ntest \"$(/usr/bin/readlink \"$link\")\" = \"$expected\" || exit 1\ndone"
     }
-    static func installationCommand(source: URL, requirement: String, owner: uid_t, requireOpenLid: Bool = false) throws -> String {
+    static func installationCommand(source: URL, requirement: String, owner: uid_t, requireOpenLid: Bool = false, protectedUpdate: Bool = false) throws -> String {
         guard source.pathExtension == "app", owner >= 501 else { throw AppError(message: "Use the signed Perch app to install lid protection.") }
         let plist = "/Library/LaunchDaemons/\(LidGuardService.name).plist"
         let recoveryPlist = "/Library/LaunchDaemons/\(recoveryName).plist"
@@ -59,18 +60,35 @@ enum LidGuardInstall {
         let staged = "/Library/PrivilegedHelperTools/.perch-lid-" + UUID().uuidString + ".app"
         let backup = "/Library/PrivilegedHelperTools/.perch-lid-backup-" + UUID().uuidString + ".app"
         let quote = GuardianInstall.shellQuote
+        let attempt = UUID().uuidString
+        let guardPlist = "/Library/LaunchDaemons/" + LidMaintenance.name + ".plist"
+        let guardJob: [String: Any] = ["Label": LidMaintenance.name, "ProgramArguments": [LidMaintenance.binary, "--lid-maintenance-recover"], "RunAtLoad": true, "KeepAlive": ["PathState": [LidMaintenance.path: true]], "ThrottleInterval": 1, "ProcessType": "Background"]
+        let guardEncoded = try PropertyListSerialization.data(fromPropertyList: guardJob, format: .xml, options: 0).base64EncodedString()
+        let stagedBinary = staged + "/Contents/MacOS/Perch"
+        let guardStage = "/Library/PrivilegedHelperTools/.perch-lid-guard-" + UUID().uuidString + ".app"
+        let bridge = "\n" + quote(stagedBinary) + " --lid-maintenance-check\n" +
+            "/usr/bin/ditto " + quote(staged) + " " + quote(guardStage) +
+            "\n/usr/bin/codesign --verify --deep --strict --test-requirement " + quote("=" + requirement) + " " + quote(guardStage) +
+            "\n(/bin/launchctl bootout system/" + LidMaintenance.name + " 2>/dev/null || true)\n/bin/rm -rf " + quote(LidMaintenance.bundle) +
+            "\n/bin/mv " + quote(guardStage) + " " + quote(LidMaintenance.bundle) +
+            "\n/usr/bin/printf %s " + quote(guardEncoded) + " | /usr/bin/base64 -D > " + quote(guardPlist + ".new") +
+            "\n/usr/sbin/chown root:wheel " + quote(guardPlist + ".new") + "\n/bin/chmod 644 " + quote(guardPlist + ".new") +
+            "\n/bin/mv -f " + quote(guardPlist + ".new") + " " + quote(guardPlist) +
+            "\n/bin/launchctl bootstrap system " + quote(guardPlist) +
+            "\n" + quote(LidMaintenance.binary) + " --lid-maintenance-begin " + quote(String(owner)) + " " + quote(attempt) +
+            "\n" + quote(LidMaintenance.binary) + " --lid-maintenance-enable\n"
         // Keep the complete signed bundle: copying just its Mach-O loses the
         // sealed Info.plist and fails strict verification. Only verified,
         // root-owned code is executed; allow only Sparkle's sealed framework links.
-        return "set -eu\n" +
+        let body = "set -eu\n" +
             "for d in /Library/PrivilegedHelperTools /Library/LaunchDaemons; do /bin/mkdir -p \"$d\"; test ! -L \"$d\"; test \"$(/usr/bin/stat -f %u \"$d\")\" = 0; test -z \"$(/usr/bin/find \"$d\" -prune -perm +022 -print)\"; done\n" +
-            "trap " + quote("if test -d " + quote(backup) + " && test ! -e " + quote(bundle) + "; then /bin/mv " + quote(backup) + " " + quote(bundle) + "; fi; /bin/rm -rf " + quote(staged)) + " EXIT\n" +
+            "trap " + quote((protectedUpdate ? quote(LidMaintenance.binary) + " --lid-maintenance-abort " + quote(attempt) + " >/dev/null 2>&1 || true; " : "") + "if test -d " + quote(backup) + " && test ! -e " + quote(bundle) + "; then /bin/mv " + quote(backup) + " " + quote(bundle) + "; fi; /bin/rm -rf " + quote(staged)) + " EXIT\n" +
             "/usr/bin/ditto " + quote(source.path) + " " + quote(staged) + "\n" + bundleLinkValidationCommand(staged) + "\n/usr/sbin/chown -R root:wheel " + quote(staged) + "\n/bin/chmod -R go-w " + quote(staged) +
             "\n/usr/bin/codesign --verify --deep --strict --test-requirement " + quote("=" + requirement) + " " + quote(staged) +
             (requireOpenLid ? "\n" + quote(staged + "/Contents/MacOS/Perch") + " --check-lid-update" : "") +
-            "\n/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true\n" +
-            quote(staged + "/Contents/MacOS/Perch") + " --lid-cleanup\n" +
-            "/bin/launchctl bootout system/" + recoveryName + " 2>/dev/null || true\n" +
+            (protectedUpdate ? bridge : "\n/bin/launchctl bootout system/" + LidGuardService.name + " 2>/dev/null || true\n" +
+            quote(stagedBinary) + " --lid-cleanup\n" +
+            "/bin/launchctl bootout system/" + recoveryName + " 2>/dev/null || true\n") +
             "if test -e " + quote(bundle) + "; then /bin/mv " + quote(bundle) + " " + quote(backup) + "; fi\n/bin/mv " + quote(staged) + " " + quote(bundle) +
             "\n/usr/bin/printf %s " + quote(encoded) + " | /usr/bin/base64 -D > " + quote(plist + ".new") +
             "\n/usr/sbin/chown root:wheel " + quote(plist + ".new") + "\n/bin/chmod 644 " + quote(plist + ".new") +
@@ -79,7 +97,12 @@ enum LidGuardInstall {
             "\n/usr/sbin/chown root:wheel " + quote(recoveryPlist + ".new") + "\n/bin/chmod 644 " + quote(recoveryPlist + ".new") +
             "\n/bin/mv -f " + quote(recoveryPlist + ".new") + " " + quote(recoveryPlist) +
             "\n/bin/launchctl bootstrap system " + quote(recoveryPlist) +
-            "\n/bin/launchctl bootstrap system " + quote(plist) + "\n/bin/rm -rf " + quote(backup)
+            "\n/bin/launchctl bootstrap system " + quote(plist) + "\n/bin/rm -rf " + quote(backup) +
+            (protectedUpdate ? "\n" + quote(LidMaintenance.binary) + " --lid-maintenance-finish " + quote(attempt) + "\ntrap - EXIT" : "")
+        // Serialize the whole installer so another app cannot replace an
+        // in-progress update's independent recovery job.
+        let lock = "/var/run/local.scott.perch.lid-install.lock"
+        return "umask 077; test ! -L " + quote(lock) + " && /usr/bin/lockf -k -t 0 " + quote(lock) + " /bin/sh -c " + quote(body)
     }
 }
 

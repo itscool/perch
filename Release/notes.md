@@ -1,3 +1,5 @@
+Lid-helper updates can hold sleep protection through replacement with the lid closed. A separate update guard preserves existing countdown/battery deadlines and ends the temporary allowance after handoff, failure or a fixed 60-second limit. Recovery survives replacement and reboot; unrelated system overrides are not taken over. Administrator authorization is still required.
+
 App settings removes repeated login, About, Setup and Reset controls. Its CPU preference and always-available restart remain; the main-menu restart continues to appear for a changed installed app.
 
 Desk desktop handoff now uses fresh monitor input evidence to remove a screen from the losing Mac’s desktop, with saved configuration and independent guardian recovery. Unknown inputs, offline destinations, mirrored targets and the last usable screen remain connected. Requires the matching background helper. LG monitors that cannot report their selected input remain unconfirmed and connected.

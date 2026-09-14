@@ -6,7 +6,7 @@ struct LidHelperUpdateState: Equatable {
     let lidOpen: Bool
     var notice: String {
         guard pending else { return installed ? "Lid helper is up to date." : "Lid protection is optional. Set it up in Setup → Lid protection when needed." }
-        return lidOpen ? "Lid helper update ready. Finish it below when convenient." : "Lid helper update queued. Open the lid to finish: replacing the helper briefly restores normal lid sleep. The existing helper stays installed until then."
+        return "Lid helper update ready. Sleep protection is held briefly during replacement, then restored to its previous state."
     }
     init(info: [String: Any], lidOpen: Bool, publisherMatches: Bool = true) {
         installed = !info.isEmpty; self.lidOpen = lidOpen
@@ -33,16 +33,13 @@ final class LidHelperUpdate {
     }
     func finish() {
         guard !busy, !AppUpdate.shared.busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing else { return }
-        guard state.pending, state.lidOpen else { result = "Open the lid before finishing the queued helper update."; return }
+        guard state.pending else { return }
         busy = true; result = "Installing the lid helper. macOS will ask for administrator authorization."
-        let resume = LidGuardClient.shared.active
         do {
-            // The root installer repeats this check after authorization and
-            // signature verification, immediately before stopping any helper.
-            try LidGuardInstall.install(requireOpenLid: true)
+            let resume = try LidGuardInstall.install(protectedUpdate: true)
             LidGuardClient.shared.start()
             waitForHelper(until: LidGuardClock.now + 5, resume: resume)
-        } catch { busy = false; result = "Helper update is still queued. " + error.localizedDescription }
+        } catch { busy = false; result = "Helper update did not finish. " + error.localizedDescription }
     }
     private func waitForHelper(until: Double, resume: Bool) {
         LidGuardClient.shared.refresh()
@@ -51,13 +48,10 @@ final class LidHelperUpdate {
             guard resume else {
                 busy = false; result = "Lid helper updated and responding. Enable lid protection in the Perch menu when you want it."; return
             }
-            guard MacLidGuardHardware().observe().closed == false else {
-                busy = false; result = "Lid helper updated. The lid closed during installation, so protection was left off. Review Setup → Lid protection."; return
-            }
             LidGuardClient.shared.change(true) { outcome in
                 self.busy = false
                 switch outcome {
-                case .success: self.result = "Lid helper updated and the session resumed with the lid open. macOS can still force sleep; check Lid activity if the Mac sleeps unexpectedly."
+                case .success: self.result = "Lid helper updated. The temporary update allowance ended and the original session resumed. macOS can still force sleep; check Lid activity if the Mac sleeps unexpectedly."
                 case .failure(let error): self.result = "Lid helper updated, but protection could not resume. " + error.localizedDescription
                 }
             }

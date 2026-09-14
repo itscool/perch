@@ -18,7 +18,7 @@ func runAppUpdateTests() throws {
     try check(!LidHelperUpdateState(info: current, lidOpen: false).pending, "App build changes unnecessarily replace the lid helper")
     try check(LidHelperUpdateState(info: current, lidOpen: false, publisherMatches: false).pending, "Different helper publisher incorrectly appears up to date")
     let pending = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: false)
-    try check(pending.pending && pending.notice.contains("queued"), "Mismatched helper did not queue a visible update")
+    try check(pending.pending && pending.notice.contains("ready"), "Mismatched helper did not queue a visible update")
     try check(LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true).notice.contains("ready"), "Opening the lid did not expose the next helper action")
     try check(!LidHelperUpdateState(info: [:], lidOpen: true).pending, "Optional uninstalled helper became a required update")
     let command = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch.app"), requirement: "identifier \"fixture\"", owner: 501, requireOpenLid: true)
@@ -39,7 +39,7 @@ func runAppUpdateTests() throws {
     let host = SettingsWindow.shared, page = host.pages.last!
     let buttons = page.view.subviews.compactMap { $0 as? NSButton }
     let finish = buttons.first(where: { $0.title == "Finish lid helper update…" })!
-    try check(!finish.isEnabled && !buttons.contains(where: { $0.title == "Updates…" || $0.title == "Done" }), "Closed-lid helper update allowed or retired Updates page retained")
+    try check(finish.isEnabled && !buttons.contains(where: { $0.title == "Updates…" || $0.title == "Done" }), "Protected closed-lid helper update was blocked or retired Updates page retained")
     helper.helper = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true)
     host.pages.last?.refresh?()
     try check(finish.isEnabled, "Opening the lid did not expose helper completion")

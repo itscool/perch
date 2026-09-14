@@ -51,6 +51,13 @@ struct LidGuardPolicy {
             countdown = merged
         } else { countdown = value; countdownEndHandled = false }
     }
+    /// An armed source already handled a finished countdown. Preserve its
+    /// frozen display value without applying its completion a second time.
+    mutating func restoreMaintenance(deadline: Double?, countdown: LidCountdown?) {
+        constrainDeadline(deadline)
+        acceptCountdown(countdown)
+        if countdown?.active == false { countdownEndHandled = true }
+    }
     mutating func constrainDeadline(_ value: Double?) { if let value, value.isFinite { deadline = min(deadline ?? value, value) } }
     mutating func interruptCountdown(now: Double) { countdown?.finish(.interrupted, now: now) }
     mutating func systemSleepBegan(now: Double? = nil) {

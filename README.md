@@ -2,6 +2,8 @@
 
 A native Mac menu bar app for sleep, sound, input controls, and an emergency stop for local AI agents.
 
+Product site: [itscool.github.io/perch](https://itscool.github.io/perch/).
+
 Setup and recovery: [Support guide](SUPPORT.md). Dependencies: [Third-party notices](THIRD-PARTY-NOTICES.md).
 
 Release notes: [2.0.151](Release/notes.md) · [release history](Release/history.md) · [2.0 development](RELEASE-2.0.md) · [1.2](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). Remaining hardware acceptance is tracked in [TODO.md](TODO.md).

@@ -299,12 +299,11 @@ import Darwin
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false
-        try wait("unknown monitor input stops forwarding", seconds: 4) { !inputA.active && !inputB.active }
-        guard !inputA.capture(.init(kind: .keyDown, code: 14)) else { throw KVMError("Unverified screen retained control") }
-        inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
-        guard inputA.problem != nil else { throw KVMError("Blocked attempt did not describe missing readback") }
+        try wait("unknown monitor input keeps control", seconds: 4) { inputA.active && inputB.active }
+        guard inputA.capture(.init(kind: .keyDown, code: 14)) else { throw KVMError("Unknown monitor input interrupted active control") }
+        inputA.stop(); inputB.stop()
         visible = true
-        try wait("fresh readiness clears blocked attempt without starting") { inputA.problem == nil && inputB.problem == nil }
+        try wait("fresh readiness clears the status without starting") { inputA.problem == nil && inputB.problem == nil }
         guard !inputA.active && !inputB.active else { throw KVMError("Readiness recovery silently started capture") }
 
         for link in Array(b.transport.links.values) { b.transport.close(link, reason: .heartbeat) }

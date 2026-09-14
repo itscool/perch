@@ -16,8 +16,7 @@
     header { padding:25px 0 0; }
     nav { display:flex; align-items:center; justify-content:space-between; gap:22px; }
     .brand { display:inline-flex; align-items:center; gap:11px; text-decoration:none; font-weight:720; letter-spacing:-.02em; }
-    .mark { width:30px; height:30px; border-radius:10px 10px 10px 3px; background:linear-gradient(140deg,#70baff,#9878ff 56%,#f07db6); box-shadow:0 7px 24px rgba(112,132,255,.35); position:relative; }
-    .mark::after { content:""; position:absolute; width:8px; height:8px; border-radius:50%; background:#fff; left:11px; top:10px; box-shadow:0 0 0 4px rgba(255,255,255,.15); }
+    .mark { width:30px; height:30px; border-radius:8px; display:block; object-fit:cover; box-shadow:0 7px 24px rgba(0,188,196,.25); }
     .nav-links { display:flex; align-items:center; gap:22px; color:var(--muted); font-size:14px; }
     .nav-links a { text-decoration:none; }
     .nav-links a:hover { color:var(--ink); }
@@ -67,7 +66,7 @@
   </style>
 </head>
 <body>
-  <header class="wrap"><nav aria-label="Primary navigation"><a class="brand" href="./" aria-label="Perch home"><span class="mark" aria-hidden="true"></span><span>Perch</span></a><div class="nav-links"><a href="#features">What it does</a><a href="https://github.com/itscool/perch/discussions">Community</a><a href="https://github.com/itscool/perch/releases" class="nav-download">Releases</a></div></nav></header>
+  <header class="wrap"><nav aria-label="Primary navigation"><a class="brand" href="./" aria-label="Perch home"><img class="mark" src="assets/perch-icon.png" alt=""><span>Perch</span></a><div class="nav-links"><a href="#features">What it does</a><a href="https://github.com/itscool/perch/discussions">Community</a><a href="https://github.com/itscool/perch/releases" class="nav-download">Releases</a></div></nav></header>
   <main>
     <section class="wrap hero">
       <div><div class="eyebrow">Perch for macOS</div><h1>Your Mac, under control.</h1><p class="lede">Keep it awake when you need it. Switch your desk. Make your keyboards and mice behave the way you expect. Stop a runaway agent before it gets away from you.</p><div class="actions"><a class="button primary" href="https://github.com/itscool/perch/releases/download/v2.0.151/Perch-2.0.151.dmg">Download Perch <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/itscool/homebrew-tap">Homebrew tap</a></div><div class="fine">Apple silicon · macOS 26+</div></div>

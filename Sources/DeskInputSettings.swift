@@ -34,7 +34,8 @@ struct DeskSharingControls: View {
                     SettingsFeedback(text: problem)
                     if adapter.needsPermissionSetup {
                         Button("Set up shared input access…") { SettingsWindow.shared.navigateToSetupStage("sharing-access") }
-                    } else { Button("Retry sharing") { adapter.enable(true) } }
+                    } else { Button("Restart input sharing") { adapter.restart(); input.refreshReadiness() }
+                        .help("Rebuild Perch’s local input tap after macOS stopped it. This does not change permissions.") }
                 }
                 if let screen {
                     Button("Control \(screen.name)") { input.start(preset: preset, monitor: screen.id) }
@@ -42,18 +43,31 @@ struct DeskSharingControls: View {
                         .help("Start keyboard and mouse control on this screen using the editing preset. This does not switch the picture; Play applies its monitor inputs.")
                 }
                 if let issue { Text(issue).font(.caption).foregroundStyle(.secondary) }
+                if let screen, let note = input.inputStatusNote(preset: preset, monitor: screen.id) {
+                    Text(note).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
                 if !node.online.contains(node.ownerID) || node.online.count < node.group.computers.count {
                     Button("Retry desk connection") { node.retryConnections(); input.refreshReadiness() }
                         .help("Retry offline approved computers. Existing connections, sharing choices and desk setup stay intact.")
                 } else if !input.active {
-                    Button("Refresh sharing status") { input.refreshReadiness() }
-                        .help("Check sharing readiness again. This does not start control or change permissions.")
+                    Button("Check control readiness") { input.refreshReadiness() }
+                        .help("Recheck which Macs can receive input. This does not switch a monitor or start control.")
                 }
                 if let focus = input.focus, input.active {
                     Text("Controlling " + (node.group.monitors.first { $0.id == focus.monitor }?.name ?? "screen"))
                         .font(.caption).foregroundStyle(.teal)
                 }
                 if let problem = input.problem { SettingsFeedback(text: problem) }
+                if let problem = input.problem {
+                    let lower = problem.lowercased()
+                    if lower.contains("offline") || lower.contains("reconnect") || lower.contains("waiting") || lower.contains("another computer") {
+                        Button("Reconnect desk") { node.retryConnections(); input.refreshReadiness() }
+                            .help("Reconnect approved Perch computers, then check sharing readiness again.")
+                    } else if !input.active {
+                        Button("Check control readiness") { input.refreshReadiness() }
+                            .help("Check the current sharing state without starting control.")
+                    }
+                }
                 if input.focus != nil { Button("Return to local control") { input.stop() } }
                 Text("Move across touching screen edges to change computers. Ctrl–Opt–Esc returns control locally.")
                     .font(.caption).foregroundStyle(.secondary)

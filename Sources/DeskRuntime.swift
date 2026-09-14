@@ -178,6 +178,12 @@ final class DeskRuntime: ObservableObject {
             }
             self.switching.activateConnection(connection)
         }
+        model.live?.forceSwitchConnection = { [weak self] connection in
+            guard let self else { return }
+            self.inputAfterSwitch = nil
+            self.input.stop()
+            self.switching.forceActivateConnection(connection)
+        }
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
@@ -239,6 +245,10 @@ final class DeskRuntime: ObservableObject {
         model.problem = switching.problem ?? desktopHandoff.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
+        if !switching.busy, let active = model.active,
+           let index = node.group.presets.firstIndex(where: { $0.id == active.id }), model.presetIndex != index {
+            model.presetIndex = index
+        }
         model.monitorResults = switching.results.mapValues { $0.state.rawValue.capitalized + ": " + $0.detail }
         model.monitorProblems = Set(switching.results.values.filter { $0.state != .confirmed }.map(\.monitor))
         if let selected = model.selected, !node.group.monitors.contains(where: { $0.id == selected }) { model.selected = node.group.monitors.first?.id }
@@ -563,8 +573,15 @@ final class DeskRuntime: ObservableObject {
 
     func identify(_ monitor: UUID?) {
         guard let monitor, let screen = node.group.monitors.first(where: { $0.id == monitor }) else { return }
-        let targets = node.group.connections.filter { $0.monitor == monitor }.compactMap { c -> (UUID, String)? in
+        var targets = node.group.connections.filter { $0.monitor == monitor }.compactMap { c -> (UUID, String)? in
             guard let peer = c.computer, let display = c.localDisplay else { return nil }; return (peer, display)
+        }
+        // A monitor can have a control computer even while none of its input
+        // ports is mapped to that computer. Identification follows the control
+        // route too, so a screen owned by another Perch can still be identified
+        // from this Desk view.
+        if let control = screen.control, !targets.contains(where: { $0.0 == control.computer && $0.1 == control.localDisplay }) {
+            targets.append((control.computer, control.localDisplay))
         }
         toggleIdentification(key: "monitor:" + monitor.uuidString, targets: targets, name: screen.name)
     }

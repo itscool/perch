@@ -173,15 +173,25 @@ final class KVMInputSession: ObservableObject {
            let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
             return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
         }
-        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there, then refresh status here." }
+        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there, then check control readiness here." }
         guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", turn on Share on this Mac from the Perch menu. The desk coordinator must allow sharing too." }
         guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
         let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
         guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }
-        guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Then refresh status here." }
-        guard let connection = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor })?.connection,
-              availableConnections.contains(connection) else { return "This screen has not confirmed the selected preset’s input. Use Play in Desk to switch it, or check its connection." }
+        guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Then check control readiness here." }
+        // A monitor that cannot report its current input must not block KVM.
+        // The monitor command and the input handoff are separate operations:
+        // an accepted write (including the optimistic readback fallback) is
+        // enough to control the other computer. The UI exposes the uncertainty
+        // as a check-picture note instead of an impossible recovery step.
         return nil
+    }
+    func inputStatusNote(preset: UUID, monitor: UUID) -> String? {
+        guard let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
+              let connection = node.group.connections.first(where: { $0.id == assignment.connection }),
+              let expected = connection.inputCode else { return nil }
+        if availableConnections.contains(connection.id) || optimisticMonitorInput?(monitor) == expected { return nil }
+        return "Monitor input is not confirmed. Control can still start; check the picture after switching."
     }
     /// Returning false means the native adapter must leave the event local.
     func capture(_ event: KVMInputEvent) -> Bool {
@@ -275,7 +285,7 @@ final class KVMInputSession: ObservableObject {
         case .focus(let preset, let monitor):
             guard node.isOwner, enabled, ready(), pending == nil, fresh(peer), let revision = configurationRevision, node.canEdit,
                   let screen = node.group.monitors.first(where: { $0.id == monitor }),
-                  let owner = destination(preset: preset, monitor: monitor), fresh(owner), visible(preset: preset, monitor: monitor) else {
+                  let owner = destination(preset: preset, monitor: monitor), fresh(owner) else {
                 if node.isOwner { localProblem = nil; blockedTarget = (preset, monitor) }
                 return
             }
@@ -370,7 +380,7 @@ final class KVMInputSession: ObservableObject {
         for peer in value.participants { send(.prepare(value), to: peer) }
     }
     private func validateAuthority() {
-        if let grant, (!grant.participants.allSatisfy(fresh) || !visible(preset: grant.preset, monitor: pointer?.monitor ?? grant.focus.monitor) ||
+        if let grant, (!grant.participants.allSatisfy(fresh) ||
                        grant.revision != configurationRevision || !node.canEdit) { endAuthority() }
         if let grant, installed != grant.participants, clock() - grantedAt >= 1 { endAuthority(); localProblem = "A computer did not accept control in time. Input is local." }
         if pending != nil && clock() - pendingAt >= 2 { endAuthority(); localProblem = "A computer did not finish releasing input. Control remains local." }
@@ -388,12 +398,12 @@ final class KVMInputSession: ObservableObject {
                                           y: min(screen.geometry.bottom, max(screen.geometry.y, proposed.y)))
                 switch KVMEdge.crossing(group: node.group, preset: preset, source: screen.id, from: from, to: proposed) {
                 case .remote(let monitor, let computer, let entry):
-                    guard grant.participants.contains(computer), fresh(computer), visible(preset: grant.preset, monitor: monitor) else { break }
+                    guard grant.participants.contains(computer), fresh(computer) else { break }
                     prepare(.init(id: UUID(), epoch: grant.epoch, revision: grant.revision, preset: grant.preset,
                                   participants: grant.participants, focus: .init(monitor: monitor, computer: computer, position: entry)))
                     return
                 case .native:
-                    if let next = node.group.monitors.first(where: { $0.id != screen.id && $0.geometry.contains(proposed) }), visible(preset: grant.preset, monitor: next.id) {
+                    if let next = node.group.monitors.first(where: { $0.id != screen.id && $0.geometry.contains(proposed) }) {
                         location.monitor = next.id; location.position = proposed
                     }
                 case .blocked: break

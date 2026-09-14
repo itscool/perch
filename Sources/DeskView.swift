@@ -11,16 +11,20 @@ struct DeskView: View {
     @State private var showRemove = false
     @State private var hoveredPreset: UUID?
     @State private var fallbackAspect = 16.0 / 9.0
+    @State private var showingDeskAttention = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "bird.fill").font(.system(size: 26)).foregroundStyle(.teal)
                 VStack(alignment: .leading, spacing: 3) {
-                    DeskInlineName(title: "Desk name", saved: model.group.name) { value in
-                        model.edit { $0.name = value }
-                        if let problem = model.problem { throw KVMError(problem) }
-                    }.id(model.group.id).font(.system(size: 27, weight: .semibold))
+                    HStack(spacing: 10) {
+                        DeskInlineName(title: "Desk name", saved: model.group.name) { value in
+                            model.edit { $0.name = value }
+                            if let problem = model.problem { throw KVMError(problem) }
+                        }.id(model.group.id).font(.system(size: 27, weight: .semibold)).lineLimit(1)
+                        DeskAttentionBadge(model: model, showing: $showingDeskAttention)
+                    }
                     Text("\(model.group.computers.count) computers · \(model.group.monitors.count) screens").foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -43,20 +47,26 @@ struct DeskView: View {
                                 if let problem = model.problem { throw KVMError(problem) }
                             }.id(preset.id).font(.system(size: 14, weight: .semibold))
                             HStack(spacing: 6) {
-                                if let issue = model.readinessIssue(for: index) {
-                                    DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
-                                } else {
-                                    Text(model.presetIndex == index ? "Selected · \(preset.assignments.count) screens" : "Preset \(index + 1) · \(preset.assignments.count) screens")
-                                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                                }
+                                Text(model.presetIndex == index ? "Editing" : "Click to edit")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(model.presetIndex == index ? .teal : .secondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background((model.presetIndex == index ? Color.teal : Color.secondary).opacity(0.11), in: Capsule())
+                                    .fixedSize()
+                                    .help(model.presetIndex == index ? "This is the preset whose connections are shown below." : "Select this card to edit its connections.")
+                                Text("\(preset.assignments.count) screens")
+                                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                                 if model.active?.id == preset.id {
-                                    Text(model.changedSinceUse ? "In use · edited" : "In use")
+                                    Text(model.changedSinceUse ? "Active now · edited" : "Active now")
                                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
                                         .padding(.horizontal, 6).padding(.vertical, 2)
                                         .background(Color.green.opacity(0.12), in: Capsule()).fixedSize()
-                                        .help(model.changedSinceUse ? "The last switch is still in use. Play applies your saved changes." : "The displays confirmed this preset. Selecting another card only changes what you edit.")
+                                        .help(model.changedSinceUse ? "This preset is still active on the displays, but its saved connections were edited. Play it again to apply those edits." : "This is the preset currently active on the displays. Selecting another card only changes what you edit.")
                                 }
-                            }.frame(height: 20, alignment: .leading)
+                            }
+                            if let issue = model.readinessIssue(for: index) {
+                                DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
+                            }
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 6) {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
@@ -128,6 +138,11 @@ struct DeskView: View {
                         if let port = live.retryMonitorConnection?(monitor.id), let change = live.switchConnection {
                             let issue = live.connectionReadiness?(port)
                             Button("Retry this screen’s input switch") { change(port) }.disabled(issue != nil)
+                            if let force = live.forceSwitchConnection,
+                               issue?.localizedCaseInsensitiveContains("switch") == true {
+                                Button("Switch this input anyway") { force(port) }
+                                    .help("Take over after the current monitor switch can be safely released. This does not change any preset.")
+                            }
                             if let issue { SettingsFeedback(text: issue) }
                         } else { Text("Desk setup changed. Review this screen’s ports, then use Play on the preset you want.").font(.caption).fixedSize(horizontal: false, vertical: true) }
                         Text("If the picture is wrong or reads keep failing, open Monitor setup above to check its control path and input profile.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -340,6 +355,56 @@ private struct DeskPresetAttention: View {
     }
 }
 
+private struct DeskAttentionBadge: View {
+    @ObservedObject var model: DeskModel
+    @Binding var showing: Bool
+
+    private var detail: String? {
+        if let problem = model.problem { return problem }
+        if !model.monitorProblems.isEmpty { return "One or more screens needs attention. Review the affected screen in the inspector." }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let detail {
+                Button { showing.toggle() } label: {
+                    Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+                .buttonStyle(DeskCanvasButtonStyle(padding: 0))
+                .help(detail)
+                .accessibilityLabel("Desk needs attention. " + detail)
+                .popover(isPresented: $showing) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Desk needs attention", systemImage: "exclamationmark.triangle.fill")
+                            .font(.headline).foregroundStyle(.orange)
+                        Text(detail).font(.callout).fixedSize(horizontal: false, vertical: true)
+                        if !model.monitorProblems.isEmpty {
+                            Divider()
+                            Text("Review affected screens").font(.subheadline.weight(.semibold))
+                            ForEach(model.group.monitors.filter { model.monitorProblems.contains($0.id) }) { monitor in
+                                Button("Review " + monitor.name) {
+                                    model.selected = monitor.id
+                                    showing = false
+                                }
+                                .buttonStyle(.link)
+                            }
+                        }
+                    }
+                    .frame(width: 310, alignment: .leading)
+                    .padding(14)
+                }
+            } else {
+                Color.clear.frame(width: 1, height: 1)
+            }
+        }
+        .frame(maxWidth: 170, alignment: .leading)
+    }
+}
+
 private struct DeskCableAnchors: PreferenceKey {
     static let defaultValue: [String: Anchor<CGRect>] = [:]
     static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) { value.merge(nextValue(), uniquingKeysWith: { _, new in new }) }
@@ -413,26 +478,18 @@ struct DeskCanvas: View {
                 }.frame(width: area.size.width, height: area.size.height, alignment: .topLeading)
                     .coordinateSpace(name: "deskScreenCanvas")
             }.frame(minHeight: 230)
-            if let issue = model.problem {
-                Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                if !model.monitorProblems.isEmpty {
-                    ScrollView(.horizontal) { HStack {
-                        ForEach(model.group.monitors.filter { model.monitorProblems.contains($0.id) }) { monitor in
-                            Button("Review " + monitor.name) { model.selected = monitor.id }.buttonStyle(DeskCanvasButtonStyle())
-                        }
-                    } }.frame(height: 30)
-                }
-            }
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Computers").font(.headline)
                     Spacer()
                     Button(action: addComputer) { Label("Add computer", systemImage: "plus") }.disabled(model.group.computers.count >= 16)
                 }
-                ScrollView(.horizontal) {
-                    HStack(spacing: 12) { ForEach(model.group.computers) { computer in computerCard(computer) } }
-                        .padding(.top, 6).padding(.bottom, 2)
-                }.frame(height: 91)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], alignment: .leading, spacing: 10) {
+                    ForEach(model.group.computers) { computer in
+                        computerCard(computer).frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.top, 6).padding(.bottom, 2)
                 Text("Teal routes are selected for preset \(model.presetIndex + 1); green routes are active now. Drag a numbered computer port to a monitor input to assign that preset. Play switches the displays.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -630,6 +687,13 @@ struct DeskCanvas: View {
                     menu.action("Switch to this input", enabled: issue == nil,
                                 help: issue ?? "Show \(port.inputName) on this monitor now. Presets stay unchanged; shared input returns locally.") {
                         model.selected = port.monitor; change(port.id)
+                    }
+                    if let force = model.live?.forceSwitchConnection,
+                       let issue, issue.localizedCaseInsensitiveContains("switch") {
+                        menu.action("Switch to this input anyway", enabled: true,
+                                    help: "Take over after the current monitor switch can be safely released. This does not change any preset.") {
+                            model.selected = port.monitor; force(port.id)
+                        }
                     }
                     menu.addItem(.separator())
                 }

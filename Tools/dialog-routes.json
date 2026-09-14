@@ -322,5 +322,23 @@
     "kind": "page",
     "review": "Release history is a read-only Settings page reached from Updates; current What’s New remains in Sparkle’s update dialog.",
     "acceptance": "Source and isolated build coverage; page uses the shared Settings Back/navigation contract and bundled release-history resource."
+  },
+  "LogsSettings.swift:logsSettings:task-page:1": {
+    "file": "LogsSettings.swift",
+    "kind": "task-page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "LogsSettings.swift:show:page:1": {
+    "file": "LogsSettings.swift",
+    "kind": "page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "LogsSettings.swift:show:page:2": {
+    "file": "LogsSettings.swift",
+    "kind": "page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
   }
 }

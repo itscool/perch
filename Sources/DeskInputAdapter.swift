@@ -103,6 +103,16 @@ final class DeskInputAdapter: ObservableObject {
             }
         }
     }
+    /// Rebuild the native event tap and the input session after macOS disables
+    /// the tap. Calling enable(true) alone cannot do that because the failed
+    /// tap is still retained and the session is already marked enabled.
+    func restart() {
+        guard !SettingsWindow.shared.testing else { return }
+        let shouldEnable = UserDefaults.standard.object(forKey: Self.sharingEnabledKey) == nil ||
+            UserDefaults.standard.bool(forKey: Self.sharingEnabledKey)
+        stop()
+        if shouldEnable { enable(true) }
+    }
     func stop() {
         session.setEnabled(false)
         attachmentObserver.stop()

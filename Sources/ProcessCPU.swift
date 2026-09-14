@@ -24,6 +24,11 @@ struct ProcessCPUSnapshot {
     let perchComplete: Bool
 }
 
+struct ProcessCPULogEntry {
+    let date: Date
+    let text: String
+}
+
 struct ProcessCPUReading {
     let topPID: Int32?
     let topPercent: Double
@@ -238,6 +243,7 @@ final class ProcessCPUSampler {
     private var generation = 0
     private var nextRead = 0.0
     private(set) var requests = 0
+    private(set) var history: [ProcessCPULogEntry] = []
     var onUpdate: (() -> Void)?
     private(set) var text = "top: -- --% · us: --%"
     func setActive(_ value: Bool) {
@@ -264,7 +270,11 @@ final class ProcessCPUSampler {
                 guard active, generation == token else { return }
                 pending = false
                 if first { nextRead = now + 1 }
-                else { text = line ?? "top: Unavailable · us: Unavailable"; onUpdate?() }
+                else {
+                    text = line ?? "top: Unavailable · us: Unavailable"
+                    if let line { history = Array((history + [.init(date: Date(), text: line)]).filter { Date().timeIntervalSince($0.date) < 24 * 60 * 60 }.suffix(1_024)) }
+                    onUpdate?()
+                }
             }
         }
     }

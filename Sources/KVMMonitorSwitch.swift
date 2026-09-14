@@ -64,6 +64,13 @@ enum KVMMonitorMessage: Codable {
     case verify(KVMMonitorRequest, UUID)
     case verified(UUID, UUID, UInt16?)
     case observed(UUID, UInt16?, String)
+    /// A write was accepted but readback is unavailable. Peers may use this
+    /// optimistic route to derive the active preset; it is cleared by a later
+    /// contradictory observation and never triggers another hardware write.
+    case accepted(KVMMonitorRequest)
+    /// A preset switch completed or was accepted. Peers update their active
+    /// presentation from this message only; they never execute the request.
+    case active(KVMMonitorRequest)
     case delegate(KVMMonitorRequest, UUID)
     case delegated(KVMMonitorOutcome)
 }
@@ -72,6 +79,7 @@ enum KVMMonitorMessage: Codable {
 /// every needed control lease before commands start. No input permissions or
 /// synthesized keyboard/mouse events participate in monitor-only switching.
 final class KVMMonitorSwitch: ObservableObject {
+    private static let leaseRecoveryTimeout: TimeInterval = 65
     struct Lease { let peer: UUID; let request: KVMMonitorRequest; let created: TimeInterval; var executing = false; var completed = false }
     @Published private(set) var request: KVMMonitorRequest?
     @Published private(set) var results: [UUID: KVMMonitorOutcome] = [:]
@@ -168,6 +176,67 @@ final class KVMMonitorSwitch: ObservableObject {
             begin(try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!))
         } catch { problem = error.localizedDescription }
     }
+
+    /// Take over a direct input request when a previous, non-executing lease
+    /// is still holding the monitor. A command that is already being written
+    /// is never interrupted; the user gets a bounded retry message instead.
+    func forceActivateConnection(_ connection: UUID) {
+        guard node.canEdit, let revision = node.revision else { problem = "Review the desk changes before switching."; return }
+        do {
+            let next = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection,
+                                                            epoch: node.graph.roster.epoch, revision: revision)
+            let monitors = Set(next.routes.map(\.monitor))
+            let relevant = leases.filter { monitors.contains($0.key) }
+            let stale = relevant.filter { now - $0.value.created >= Self.leaseRecoveryTimeout }
+            for (monitor, lease) in stale {
+                send(.release(lease.request.id), peer: lease.peer)
+                leases[monitor] = nil
+                delegates[monitor] = nil
+            }
+            let stillExecuting = relevant.filter { leases[$0.key]?.executing == true && leases[$0.key]?.completed != true }
+            if !stillExecuting.isEmpty {
+                problem = "Another computer is actively switching this screen. Wait for that command to finish, then try again."
+                return
+            }
+            if busy, let current = request {
+                let currentExecuting = leases.filter { $0.value.request.id == current.id && $0.value.executing && !$0.value.completed }
+                let staleCurrent = currentExecuting.filter { now - $0.value.created >= Self.leaseRecoveryTimeout }
+                for (monitor, lease) in staleCurrent {
+                    send(.release(lease.request.id), peer: lease.peer)
+                    leases[monitor] = nil
+                    delegates[monitor] = nil
+                }
+                guard !leases.contains(where: { $0.value.request.id == current.id && $0.value.executing && !$0.value.completed }) else {
+                    problem = "This Mac is still writing the previous monitor switch. Wait for it to finish, then try again."
+                    return
+                }
+                release(current)
+            }
+            for (monitor, lease) in relevant {
+                send(.release(lease.request.id), peer: lease.peer)
+                leases[monitor] = nil
+                delegates[monitor] = nil
+            }
+            begin(next)
+        } catch { problem = error.localizedDescription }
+    }
+
+    private func release(_ request: KVMMonitorRequest) {
+        busy = false
+        for route in request.routes { optimisticInputs[route.monitor] = nil }
+        finishedDesktopReadBarrier(request)
+        for peer in required { send(.release(request.id), peer: peer) }
+        for (monitor, lease) in leases where lease.request.id == request.id {
+            leases[monitor] = nil
+            delegates[monitor] = nil
+        }
+        self.request = nil
+        required = []
+        prepared = []
+        verification = [:]
+        verifyingMonitors = []
+    }
+
     private func begin(_ request: KVMMonitorRequest) {
         self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
         for route in request.routes { optimisticInputs[route.monitor] = nil }
@@ -227,6 +296,21 @@ final class KVMMonitorSwitch: ObservableObject {
                 optimisticInputs[monitor] = nil
             }
             if !busy { deriveActive() }
+        case .accepted(let request):
+            guard request.connection != nil,
+                  request.epoch == node.graph.roster.epoch,
+                  request.revision == node.revision,
+                  (try? request.validated(in: node.group)) == request else { return }
+            for route in request.routes { optimisticInputs[route.monitor] = route.input }
+            deriveActive()
+        case .active(let request):
+            guard let preset = request.preset,
+                  request.epoch == node.graph.roster.epoch,
+                  request.revision == node.revision,
+                  (try? request.validated(in: node.group)) == request else { return }
+            activePreset = preset
+            activeGroup = node.group
+            for route in request.routes { optimisticInputs[route.monitor] = route.input }
         case .prepare(let request):
             do {
                 guard node.canEdit, request.epoch == node.graph.roster.epoch, request.revision == node.revision,
@@ -268,9 +352,11 @@ final class KVMMonitorSwitch: ObservableObject {
             if outcome.state == .unverified {
                 let observers = Set(node.group.connections.filter { $0.monitor == outcome.monitor }.compactMap(\.computer)).intersection(node.online)
                 verification[outcome.monitor] = observers
-                verifyingMonitors.insert(outcome.monitor)
+                // Readback is a best-effort contradiction check. It must not
+                // hold the switch open when the monitor has already accepted
+                // the command but cannot report its input; passive reads will
+                // reconcile the state later without replaying hardware.
                 for observer in observers { send(.verify(request, outcome.monitor), peer: observer) }
-                if observers.isEmpty { verifyingMonitors.remove(outcome.monitor) }
             }
             finishIfReady()
         case .verify(let request, let monitor):
@@ -327,11 +413,28 @@ final class KVMMonitorSwitch: ObservableObject {
         busy = false
         finishedDesktopReadBarrier(request)
         for peer in required { send(.release(request.id), peer: peer) }
+        if request.connection != nil {
+            // A direct input command changes the current desk state even when
+            // it did not originate from a preset. Share that accepted route
+            // so peers select the matching preset without replaying hardware.
+            for peer in node.online where peer != node.localID { send(.accepted(request), peer: peer) }
+        }
+        let acceptedPreset = request.preset != nil && results.values.allSatisfy { $0.state == .confirmed || $0.state == .unverified }
+        if acceptedPreset {
+            for peer in node.online where peer != node.localID { send(.active(request), peer: peer) }
+        }
         if results.values.allSatisfy({ $0.state == .confirmed }) {
             activePreset = request.preset; activeGroup = request.preset == nil ? nil : node.group; lastConfirmed = now; problem = nil
             for route in request.routes { observations[route.monitor] = Observation(input: route.input, peer: route.control.computer, time: now, revision: request.revision) }
             if request.connection != nil { deriveActive() }
         } else {
+            if acceptedPreset {
+                // The preset is active even though one or more monitors could
+                // not report their input. Keep that fact visible alongside the
+                // caution instead of silently hiding the only useful recovery
+                // guidance.
+                activePreset = request.preset; activeGroup = node.group
+            }
             let names = request.routes.filter { results[$0.monitor]?.state != .confirmed }.map { route in
                 let name = node.group.monitors.first { $0.id == route.monitor }?.name ?? "Screen"
                 let input = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.inputName ?? "input \(route.input)"
@@ -353,7 +456,7 @@ final class KVMMonitorSwitch: ObservableObject {
         let matches = node.group.presets.filter { preset in
             !preset.assignments.isEmpty && preset.assignments.allSatisfy { assignment in
                 guard let expected = node.group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { return false }
-                return observations[assignment.monitor]?.input == expected
+                return (observations[assignment.monitor]?.input ?? optimisticInputs[assignment.monitor]) == expected
             }
         }
         if let request, request.revision == node.revision, request.epoch == node.graph.roster.epoch {
@@ -386,7 +489,13 @@ final class KVMMonitorSwitch: ObservableObject {
     private func tick() {
         // Keep executing leases until their bounded backend finishes. Expiration
         // denies further writes, but never unlocks a still-running command.
-        for (monitor, lease) in leases where now - lease.created > 65 && (!lease.executing || lease.completed) { leases[monitor] = nil; delegates[monitor] = nil }
+        for (monitor, lease) in leases where now - lease.created > Self.leaseRecoveryTimeout {
+            // The execute validity closure expires after 55 seconds. At this
+            // point an execution callback that never returned cannot still
+            // write hardware, so release the stale lease and unblock recovery.
+            leases[monitor] = nil
+            delegates[monitor] = nil
+        }
         if busy && (now - started > 45 || !required.isSubset(of: node.online)) { finishFailure("A computer disconnected or the switch timed out. Actual monitor inputs need to be checked.") }
         if !busy { deriveActive() }
         if now >= nextRead, let revision = node.revision, let readForVerification {

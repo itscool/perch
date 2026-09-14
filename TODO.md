@@ -1,12 +1,13 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Signed release 2.0.149 is built, installed on disk, pushed and now running.
-Its matching helper was not interrupted. Developer ID 2.0.142 is built, installed on disk and
-loaded by the current process for native acceptance. The
-candidate includes the settings progress/sidebar and shared feedback fixes,
-plus optimistic desktop reconciliation when an accepted monitor command has no
-usable readback.
-Public/notarized remains 2.0.94. No new notarization or publication occurred.
+2.0 development, September 14, 2026. Public signed/notarized release 2.0.151 is built,
+published and installed on disk. The currently running process may still be an earlier
+same-version process until the user restarts Perch. The next source candidate adds Desk
+warning isolation, narrow-window computer stacking, stale monitor-lease recovery, explicit
+input-sharing restart, and cross-Mac optimistic direct-switch/preset state propagation.
+Settings now has a top-level Logs section for Lid activity, CPU readings, Agent safety activity,
+and Desk connection activity. Desk preset cards separately label the preset being edited and
+the preset active on the displays.
 The lid helper updated automatically to 2.0.131/helper version 5 while closed
 on AC; saved protection resumed. Active app restart on 135 also preserved its
 owned session after fixing a client claim/poll race. Background helpers and
@@ -34,6 +35,17 @@ a positive contradictory read cancels that fallback. Native desk acceptance
 still requires a physical two-Mac test. The optimistic handoff and routing
 state visual changes are committed and pushed at 209d2e2 (release metadata at
 126ed52).
+
+The current unreleased Desk candidate keeps actionable switching failures in a compact badge
+beside the Desk title instead of expanding the canvas, stacks computer cards when the available
+width is narrow, and exposes a safe direct-input takeover after stale/non-executing leases. A
+hardware write is never interrupted while its validity window is active; an orphaned lease is
+recoverable after that window. Direct port switches and preset switches broadcast accepted
+runtime state so paired Perch instances can select the matching preset without replaying the
+monitor command. Input sharing now has an explicit Restart input sharing action that rebuilds a
+macOS-disabled event tap, plus Reconnect desk for peer/offline sharing failures. Unknown monitor
+input no longer blocks KVM; it is shown as a check-picture note. Source/build verification is
+complete; physical two-Mac acceptance remains pending.
 
 ## Known defects — fix before shipping; target zero
 

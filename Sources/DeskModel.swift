@@ -133,6 +133,7 @@ struct DeskLiveActions {
     var panelAspect: ((UUID) -> Double?)? = nil
     var inputControls: ((UUID, UUID?) -> AnyView)? = nil
     var switchConnection: ((UUID) -> Void)? = nil
+    var forceSwitchConnection: ((UUID) -> Void)? = nil
     var connectionReadiness: ((UUID) -> String?)? = nil
     var refreshMonitorStatus: (() -> Void)? = nil
     var retryMonitorConnection: ((UUID) -> UUID?)? = nil

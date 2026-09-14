@@ -123,11 +123,14 @@ extension AppDelegate {
         // Do not insert/remove rows or interrupt an open menu while a scan finishes.
         guard !menuOpen, let info = replacementInfoItem, let restart = replacementRestartItem else { return }
         let available = appReplacement.state.available
-        info.isHidden = available == nil; restart.isHidden = available == nil
-        if let available, let running = appReplacement.state.running {
-            label(info, "Running \(running.title)", hint: "On disk \(available.title)", hintColor: StatusColors.information)
-            info.menuHelp = "A newer Perch is installed at this app’s location. Restart to use it."
-            label(restart, "Restart Perch", hint: "Use \(available.title)")
+        // The restart action is the useful state change. Keep the old
+        // informational row hidden so the menu does not repeat a running/on-
+        // disk version comparison beside the action that resolves it.
+        info.isHidden = true
+        restart.isHidden = available == nil
+        if let available {
+            label(restart, "Restart Perch", hint: "Update ready · \(available.title)", hintColor: StatusColors.warning, hintWeight: .semibold)
+            restart.menuHelp = "Perch \(available.title) is ready. Restart now to use it; saved choices and an active lid session are kept."
         }
         restart.isEnabled = available != nil && !RestartSettingsSnapshot.current.busy
         if showNotice { considerAppReplacementNotice() }

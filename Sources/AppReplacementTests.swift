@@ -57,7 +57,11 @@ func runAppReplacementTests() throws {
     try check(app.replacementRestartItem!.isHidden, "Background completion inserted a row in the open menu")
     app.menuOpen = false; app.refreshAppReplacement(showNotice: false)
     try check(!app.replacementRestartItem!.isHidden && app.validateMenuItem(app.replacementRestartItem!), "Cached newer app had no restart action")
-    try check(app.replacementInfoItem!.title.contains("79") && app.replacementInfoItem!.menuHelp != nil, "Running version/help missing")
+    let rendered = app.replacementRestartItem!.attributedTitle?.string ?? ""
+    try check(app.replacementInfoItem!.isHidden && rendered.contains("Update ready") &&
+              !rendered.contains("Running") &&
+              !rendered.contains("On disk") &&
+              app.replacementRestartItem!.menuHelp?.contains("2.0.80") == true, "Update warning was not attached to restart")
     app.considerAppReplacementNotice()
     try check(host.activeAlert?.informativeText.contains("1.2.79") == true && host.activeAlert?.informativeText.contains("1.2.80") == true, "First notice did not explain both versions")
     if let alert = host.activeAlert { host.finish(alert, response: .alertSecondButtonReturn) }

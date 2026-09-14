@@ -173,8 +173,29 @@ final class KVMMonitorSwitch: ObservableObject {
     func activateConnection(_ connection: UUID) {
         if let problem = connectionReadiness(connection) { self.problem = problem; return }
         do {
-            begin(try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!))
+            let request = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!)
+            // A monitor that cannot report its input is still safe to use after
+            // Perch has accepted a prior write: the accepted target is our
+            // explicit software-known state. Do not send the same hardware
+            // command again just because LG readback is unavailable.
+            if request.routes.allSatisfy({ knownInput(for: $0.monitor) == $0.input }) {
+                results = [:]
+                problem = nil
+                deriveActive()
+                return
+            }
+            begin(request)
         } catch { problem = error.localizedDescription }
+    }
+
+    /// Returns only recent, revision-matched evidence. A nil result is an
+    /// honest unknown state; callers must not treat it as a different input.
+    private func knownInput(for monitor: UUID) -> UInt16? {
+        if let observation = observations[monitor], observation.revision == node.revision,
+           now - observation.time <= 45, node.online.contains(observation.peer) {
+            return observation.input
+        }
+        return optimisticInputs[monitor]
     }
 
     /// Take over a direct input request when a previous, non-executing lease

@@ -134,6 +134,9 @@ import Darwin
         let unusedPort = KVMConnection(monitor: desk.monitors[1].id, computer: nil, localDisplay: nil, inputName: "HDMI 2", inputCode: 18)
         directDesk.connections.append(unusedPort)
         try a.edit(directDesk); try wait("direct port configuration sync") { b.group == directDesk }
+        let holdPort = KVMConnection(monitor: desk.monitors[1].id, computer: nil, localDisplay: nil, inputName: "HDMI 3", inputCode: 19)
+        directDesk.connections.append(holdPort)
+        try a.edit(directDesk); try wait("second direct port configuration sync") { b.group == directDesk }
         let direct = try KVMMonitorRequest.makeConnection(group: directDesk, connection: unusedPort.id, epoch: a.graph.roster.epoch, revision: a.revision!)
         guard direct.preset == nil, direct.routes.count == 1, direct.routes[0].input == 18,
               try direct.validated(in: directDesk) == direct,
@@ -146,10 +149,15 @@ import Darwin
         guard writes == 1, switchesA.results[desk.monitors[1].id]?.input == 18,
               switchesA.results[desk.monitors[0].id] == nil,
               a.group == directDesk, b.group == directDesk else { throw KVMError("Direct port action changed a preset or another screen") }
-        hold = true; writes = 0; switchesA.activateConnection(unusedPort.id)
+        writes = 0; switchesA.activateConnection(unusedPort.id)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        guard writes == 0 && !switchesA.busy else { throw KVMError("Repeated accepted direct port sent another hardware switch") }
+        // Repeating the accepted target must be a no-op even when readback is
+        // unavailable. Use a different direct port for the stale-lease path.
+        hold = true; writes = 0; switchesA.activateConnection(holdPort.id)
         try wait("hold one-off command") { delayed.count == 1 }
         var editedPort = directDesk
-        editedPort.connections[editedPort.connections.count - 1].inputCode = 19
+        editedPort.connections[editedPort.connections.count - 1].inputCode = 20
         try a.edit(editedPort); try wait("port changes before command") { b.group == editedPort }
         delayed.forEach { $0() }; delayed = []; hold = false
         fakeTime += 70; switchesA.poll(); switchesB.poll()
@@ -184,12 +192,13 @@ import Darwin
         let expectedInputs = Dictionary(uniqueKeysWithValues: desk.presets[0].assignments.map { assignment in
             (assignment.monitor, desk.connections.first { $0.id == assignment.connection }!.inputCode!)
         })
+        var readbackInputs = expectedInputs
         for service in [switchesA, switchesB] {
             service.execute = { _, valid, complete in
                 guard valid() else { complete(.failed, "Expired"); return }
                 writes += 1; complete(.unverified, "The monitor did not return its current input. Check current input again; if it remains unknown, review Monitor setup.")
             }
-            service.readForVerification = { monitor, complete in complete(confirmedReadback ? expectedInputs[monitor] : nil) }
+            service.readForVerification = { monitor, complete in complete(confirmedReadback ? readbackInputs[monitor] : nil) }
         }
         fakeTime += 1; writes = 0
         switchesA.activate(desk.presets[0].id)
@@ -204,18 +213,28 @@ import Darwin
         guard writes == 2 else { throw KVMError("Checking inputs repeated hardware writes") }
         try wait("generation-matched desktop evidence") { switchesA.desktopInputs.count == expectedInputs.count && switchesB.desktopInputs.count == expectedInputs.count }
         guard switchesA.desktopInputs == expectedInputs else { throw KVMError("Desktop ownership did not use fresh hardware evidence") }
-        let directAssignment = desk.presets[0].assignments[0]
+        // Use a different direct input so this section exercises desktop
+        // invalidation after a real one-off switch; the repeated-target no-op
+        // is covered immediately above.
+        var directVerificationDesk = desk
+        let directVerificationPort = KVMConnection(monitor: desk.monitors[0].id, computer: nil, localDisplay: nil, inputName: "HDMI 2", inputCode: 18)
+        directVerificationDesk.connections.append(directVerificationPort)
+        try a.edit(directVerificationDesk); try wait("direct verification port configuration sync") { b.group == directVerificationDesk }
+        let directAssignment = directVerificationDesk.connections.last!
+        var directExpected = expectedInputs
+        directExpected[directAssignment.monitor] = directAssignment.inputCode!
+        readbackInputs = directExpected
         confirmedReadback = false; fakeTime += 1
-        switchesA.activateConnection(directAssignment.connection)
+        switchesA.activateConnection(directAssignment.id)
         guard switchesA.desktopInputs[directAssignment.monitor] == nil else { throw KVMError("Direct port action retained pre-switch desktop authority") }
         try wait("direct port awaits fresh evidence") { !switchesA.busy }
-        guard switchesA.optimisticInputs[directAssignment.monitor] == desk.connections.first(where: { $0.id == directAssignment.connection })!.inputCode else { throw KVMError("Unconfirmed direct port switch did not retain accepted target") }
+        guard switchesA.optimisticInputs[directAssignment.monitor] == directAssignment.inputCode else { throw KVMError("Unconfirmed direct port switch did not retain accepted target") }
         confirmedReadback = true; fakeTime += 1
         switchesA.refreshObservations()
         try wait("direct port desktop handoff evidence on both peers") {
-            switchesA.desktopInputs == expectedInputs && switchesB.desktopInputs == expectedInputs
+            switchesA.desktopInputs == directExpected && switchesB.desktopInputs == directExpected
         }
-        guard writes == 3 && a.group == desk && b.group == desk else { throw KVMError("Direct port reconciliation wrote again or changed presets") }
+        guard writes == 3 && a.group == directVerificationDesk && b.group == directVerificationDesk else { throw KVMError("Direct port reconciliation wrote again or changed presets") }
         print("PASS: direct port switches share desktop invalidation; accepted unknown inputs reconcile optimistically and fresh reads override them")
         fakeTime += 46
         guard switchesA.desktopInputs.isEmpty else { throw KVMError("Expired observations still authorize desktop disconnection") }

@@ -73,6 +73,18 @@ import Darwin
         guard b.peerProblems.isEmpty else { throw KVMError("Connection recovery retained stale errors") }
         guard a.connectionEvents.contains(where: { $0.peer == b.localID && $0.detail == "Authenticated connection ready" }),
               b.connectionEvents.contains(where: { $0.peer == a.localID && $0.detail == "Authenticated connection ready" }) else { throw KVMError("Authenticated connection was not recorded") }
+        // A real authenticated link loss must be self-healing. Both peers
+        // discover the close and may race to reconnect, but deterministic
+        // duplicate-route selection must leave exactly one usable route and
+        // restore the online state without a manual retry.
+        guard let dropped = b.transport.links.values.first else { throw KVMError("No authenticated route to exercise recovery") }
+        b.transport.close(dropped, reason: .network)
+        try wait("automatic authenticated reconnect") {
+            a.online.contains(b.localID) && b.online.contains(a.localID) &&
+            a.transport.links.values.contains(where: { $0.ready }) && b.transport.links.values.contains(where: { $0.ready })
+        }
+        guard a.transport.links.values.filter({ $0.ready }).count == 1,
+              b.transport.links.values.filter({ $0.ready }).count == 1 else { throw KVMError("Automatic reconnect retained duplicate authenticated routes") }
         print("PASS: bounded connection activity and expected/unexpected classifications")
         print("PASS: readable discovery metadata, role selection, duplicate-click guard, scoped failures/recovery, completed pairing close, redundant-route failure isolation")
         var changed = b.group; changed.name = "Shared from B"; try b.edit(changed)
@@ -295,11 +307,29 @@ import Darwin
         try a.edit(renamedDesk); try wait("cosmetic edit sync") { b.group == renamedDesk }
         RunLoop.main.run(until: Date().addingTimeInterval(0.35))
         guard inputA.active && inputB.active else { throw KVMError("Renaming interrupted remote typing") }
+        // The owner is also an input participant. Its event tap must be
+        // suppressed and its keyboard events must be delivered to the same
+        // focused computer as its mouse events; otherwise both Macs can react
+        // to one physical action while the owner has no local lease.
+        let beforeOwnerLocal = deliveries.count
+        guard inputA.capture(.init(kind: .keyDown, code: 16)) else { throw KVMError("Owner keyboard was left local while focus was local") }
+        try wait("owner keyboard reaches the focused local Mac") { deliveries[beforeOwnerLocal...].contains { $0.0 == a.localID && $0.1.code == 16 } }
+        guard deliveries[beforeOwnerLocal...].allSatisfy({ $0.0 == a.localID }) else {
+            throw KVMError("Owner keyboard and mouse did not share the focused destination")
+        }
+        let beforeBoundary = deliveries.count
         guard inputA.capture(.init(kind: .motion, x: 300, y: 0)) else { throw KVMError("Mouse could not send") }
         try wait("pointer boundary handoff to B") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
         guard releaseCount >= 4 else { throw KVMError("Handoff did not release held input") }
+        guard deliveries[beforeBoundary...].allSatisfy({ $0.0 == b.localID }) else {
+            throw KVMError("A remote pointer move was also emitted on the source Mac")
+        }
+        let beforeRemoteKey = deliveries.count
         guard inputA.capture(.init(kind: .keyDown, code: 13)) else { throw KVMError("Keyboard source did not follow pointer") }
         try wait("A keyboard reaches B") { deliveries.contains { $0.0 == b.localID && $0.1.code == 13 } }
+        guard deliveries[beforeRemoteKey...].allSatisfy({ $0.0 == b.localID }) else {
+            throw KVMError("A remote keyboard event was also emitted on the source Mac")
+        }
         // Re-focus A, then simulate the same confirmed physical keyboard moving
         // to B. This is a device observation, never inferred from idle keys.
         inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
@@ -332,6 +362,8 @@ import Darwin
         for link in Array(b.transport.links.values) { b.transport.close(link, reason: .heartbeat) }
         guard let incident = b.connectionEvents.last(where: { $0.peer == a.localID && $0.unexpected && $0.detail == KVMCloseReason.heartbeat.rawValue }),
               incident.duration != nil else { throw KVMError("Lost active link omitted its cause, peer or duration") }
+        guard b.peerProblems[a.localID]?.contains("Connection lost") == true,
+              b.networkProblem?.contains(a.localName) == true else { throw KVMError("Unexpected peer disconnect was not visible while reconnecting") }
         let logURL = b.storage.deletingPathExtension().appendingPathExtension("connections.json")
         try wait("durable connection incident") {
             guard let data = try? Data(contentsOf: logURL), let saved = try? JSONDecoder().decode([KVMConnectionEvent].self, from: data) else { return false }
@@ -343,6 +375,7 @@ import Darwin
         try wait("named coordinator offline recovery") { inputB.contextIssue?.contains(a.localName) == true }
         b.retryConnections()
         try wait("trusted reconnect clears context") { inputB.contextIssue == nil && b.online.contains(a.localID) }
+        guard b.peerProblems[a.localID] == nil else { throw KVMError("Peer reconnect retained its stale connection failure") }
         inputA.refreshReadiness(); inputB.refreshReadiness()
         try wait("recovered status clears failures without control") { inputA.problem == nil && inputB.problem == nil }
         guard !inputA.active && !inputB.active else { throw KVMError("Reconnect started input capture") }

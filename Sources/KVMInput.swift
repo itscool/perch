@@ -115,6 +115,17 @@ struct KVMInputLease {
         grant = value; expires = max(expires, now + Self.duration)
         return true
     }
+    /// The owner installs its own participant lease at the same instant that
+    /// it grants authority. It cannot wait for a poll round trip: the owner’s
+    /// event tap is also suppressed while a grant is preparing, so leaving
+    /// this lease empty would drop local input and let it leak through as a
+    /// second, unsynchronized local cursor.
+    mutating func acceptLocally(_ value: KVMInputGrant, now: Double) {
+        grant = value
+        expires = now + Self.duration
+        challenges = [:]
+        receivedSequence = [:]
+    }
     func alive(now: Double) -> Bool {
         grant != nil && now.isFinite && now >= expires - Self.duration && now < expires
     }
@@ -167,7 +178,7 @@ struct KVMInputHeld {
     mutating func releaseAll() -> [KVMInputEvent] {
         let releases = keys.keys.sorted().map { KVMInputEvent(kind: .keyUp, code: $0) } +
             buttons.keys.sorted().map { KVMInputEvent(kind: .buttonUp, code: $0) } +
-            (modifiers.values.contains(where: { $0 != 0 }) ? [54,55,56,58,59,60,61,62,63].map { KVMInputEvent(kind: .modifiers, code: UInt16($0)) } : [])
+            (modifiers.values.contains(where: { $0 != 0 }) ? [54,55,56,57,58,59,60,61,62,63].map { KVMInputEvent(kind: .modifiers, code: UInt16($0)) } : [])
         keys = [:]; buttons = [:]; modifiers = [:]
         return releases
     }

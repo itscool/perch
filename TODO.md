@@ -21,8 +21,9 @@ This supersedes stale open-item wording in dated review checkpoints.
 The requested normalized appearance fade and control regrouping are implemented.
 All seven Light/Dark presets were reviewed with offscreen production rendering;
 Ribbon and Horizon use different normalized fade distances, while Perch original
-is unchanged. Candidate 2.0.142 is built, signed and installed on disk and has
-been launched after replacing the prior 2.0.138 process.
+is unchanged. Candidate 2.0.146 is built, Developer ID signed and installed on
+disk. The currently running 2.0.142 process was left in place so its live
+session was not interrupted; restarting Perch will load 2.0.146.
 
 Hotkeys now has a content-sized emergency editor and side-by-side countdown
 shortcuts. Recognition displays pending changes under Import with an explicit
@@ -30,10 +31,9 @@ Apply confirmation. The shared feedback widget uses neutral progress for checks
 and reserves orange for actionable failures. A monitor switch whose current
 input cannot be read now uses the accepted target for desktop reconciliation;
 a positive contradictory read cancels that fallback. Native desk acceptance
-still requires a physical two-Mac test; then commit/push and update this
-checkpoint.
-The earlier maintenance/keyboard/Finder changes are committed and pushed at
-860504a. The settings batch is still uncommitted.
+still requires a physical two-Mac test. The optimistic handoff and routing
+state visual changes are committed and pushed at 209d2e2 (release metadata at
+126ed52).
 
 ## Known defects — fix before shipping; target zero
 

@@ -109,7 +109,8 @@ struct DeskWireGesture {
         dragging = dragging || hypot(point.x - start.x, point.y - start.y) >= Self.threshold
     }
     static func compatible(_ a: String, _ b: String) -> Bool {
-        (a.hasPrefix("port:") && b.hasPrefix("computer:")) || (a.hasPrefix("computer:") && b.hasPrefix("port:"))
+        (a.hasPrefix("port:") && (b.hasPrefix("computer:") || b.hasPrefix("preset:"))) ||
+        (b.hasPrefix("port:") && (a.hasPrefix("computer:") || a.hasPrefix("preset:")))
     }
     mutating func finish(insideSource: Bool, target: String?) -> Result {
         defer { self = Self() }

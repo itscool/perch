@@ -112,4 +112,31 @@ func runDeskProfilePolicyTests() throws {
     guard case .inspectionReply(let roundTripToken, let roundTripRecord, _) = try JSONDecoder().decode(DeskDeviceMessage.self, from: JSONEncoder().encode(message)) else { throw KVMError("Detection reply lost its identity") }
     try check(roundTripToken == token && roundTripRecord == record, "Detection replies must retain the specific request and display")
     print("PASS: scoped control paths, port/offline labels, wrong-monitor exclusion, profile/capability/unknown detection, protocol default persistence and reply correlation payload")
+    try runDeskPresetGraphTests()
+}
+
+/// The Desk graph is the single preset-editing path: numbered computer sockets
+/// assign monitor ports, while physical cable ownership remains independent.
+func runDeskPresetGraphTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-desk-graph-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let model = DeskModel(store: root.appendingPathComponent("desk.json"))
+    let first = model.group.computers[0], second = model.group.computers[1]
+    let unassigned = model.group.connections.first { $0.computer == nil }!
+    model.assignPresetPort(slot: 2, computer: first.id, connection: unassigned.id)
+    try check(model.group.presets[1].assignments.contains { $0.monitor == unassigned.monitor && $0.connection == unassigned.id },
+              "Numbered preset socket did not assign an unassigned monitor input")
+    let before = model.group.presets[0].assignments
+    let foreign = model.group.connections.first { $0.computer == second.id }!
+    model.assignPresetPort(slot: 1, computer: first.id, connection: foreign.id)
+    try check(model.problem?.contains("belongs to another computer") == true && model.group.presets[0].assignments == before,
+              "Preset graph allowed a computer to claim another computer's physical input")
+    var gesture = DeskWireGesture()
+    gesture.begin("preset:\(first.id.uuidString):3", at: .zero)
+    gesture.move(to: CGPoint(x: 8, y: 0))
+    let result = gesture.finish(insideSource: false, target: "port:\(unassigned.id.uuidString)")
+    try check(result == .connect("preset:\(first.id.uuidString):3", "port:\(unassigned.id.uuidString)"),
+              "Preset socket drag did not produce a compatible graph connection")
+    print("PASS: numbered preset graph assignment, ownership guard and preset wire gesture")
 }

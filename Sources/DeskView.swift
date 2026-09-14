@@ -433,7 +433,7 @@ struct DeskCanvas: View {
                     HStack(spacing: 12) { ForEach(model.group.computers) { computer in computerCard(computer) } }
                         .padding(.top, 6).padding(.bottom, 2)
                 }.frame(height: 91)
-                Text("Teal routes are selected for preset \(model.presetIndex + 1); green routes are active now. Choose an input above its connector; drag a half-circle to wire it. Play switches the displays.")
+                Text("Teal routes are selected for preset \(model.presetIndex + 1); green routes are active now. Drag a numbered computer port to a monitor input to assign that preset. Play switches the displays.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }.padding(12)
@@ -444,25 +444,33 @@ struct DeskCanvas: View {
                 wire.connect = cable
                 wire.connection = { id in model.group.connections.first { "port:" + $0.id.uuidString == id } }
                 wire.rewire = { source, target in model.rewireCable(source, to: target) }
+                wire.presetConnect = { slot, computer, port in model.assignPresetPort(slot: slot, computer: computer, connection: port) }
             }
             .onDisappear { finishScreenDrag(); wire.cancel() }
             .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
             .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in
                 GeometryReader { area in
                     ForEach(model.group.connections.filter { wire.detachedPort != $0.id }) { connection in
-                        if let computer = connection.computer,
-                           let start = anchors["computer:" + computer.uuidString], let end = anchors["port:" + connection.id.uuidString] {
-                            let source = area[start], target = area[end]
-                            let chosen = model.preset.assignments.contains { $0.connection == connection.id }
-                            let activeRoute = model.active?.assignments.contains { $0.connection == connection.id } == true
-                            let focused = chosen && model.selected == connection.monitor
-                            Path { path in
-                                let a = CGPoint(x: source.midX, y: source.minY), b = CGPoint(x: target.midX, y: target.maxY)
-                                path.move(to: a)
-                                let middle = (a.y + b.y) / 2
-                                path.addCurve(to: b, control1: CGPoint(x: a.x, y: middle), control2: CGPoint(x: b.x, y: middle))
-                            }.stroke(activeRoute && chosen ? Color.purple : (activeRoute ? Color.green : (chosen ? Color.teal.opacity(focused ? 1 : 0.78) : Color.secondary.opacity(0.48))),
-                                     style: StrokeStyle(lineWidth: activeRoute && chosen ? 3.8 : (activeRoute || focused ? 3 : (chosen ? 2.5 : 1.5)), lineCap: .round))
+                        ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
+                            if preset.assignments.contains(where: { $0.connection == connection.id }),
+                               let computer = connection.computer,
+                               let start = anchors["preset:\(computer.uuidString):\(slot + 1)"], let end = anchors["port:" + connection.id.uuidString] {
+                                let source = area[start], target = area[end]
+                                let chosen = slot == model.presetIndex
+                                let activeRoute = model.active?.id == preset.id
+                                let focused = chosen && model.selected == connection.monitor
+                                let startPoint = CGPoint(x: source.midX, y: source.minY)
+                                let endPoint = CGPoint(x: target.midX, y: target.maxY)
+                                let middleY = (startPoint.y + endPoint.y) / 2
+                                let control1 = CGPoint(x: startPoint.x, y: middleY)
+                                let control2 = CGPoint(x: endPoint.x, y: middleY)
+                                let strokeColor: Color = activeRoute && chosen ? .purple : (activeRoute ? .green : (chosen ? .teal.opacity(focused ? 1 : 0.78) : .secondary.opacity(0.48)))
+                                let lineWidth: CGFloat = activeRoute && chosen ? 3.8 : (activeRoute || focused ? 3 : (chosen ? 2.5 : 1.5))
+                                Path { path in
+                                    path.move(to: startPoint)
+                                    path.addCurve(to: endPoint, control1: control1, control2: control2)
+                                }.stroke(strokeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                            }
                         }
                     }
                 }.allowsHitTesting(false)
@@ -497,11 +505,17 @@ struct DeskCanvas: View {
     }
     private func rectangle(_ g: KVMGeometry) -> CGRect { CGRect(x: g.x, y: g.y, width: g.displayedWidth, height: g.displayedHeight) }
     private func isScreenControl(_ point: CGPoint, monitor: UUID) -> Bool {
-        var ids = ["rename:", "rotate:", "remove:", "addPort:", "omit:"].map { $0 + monitor.uuidString }
+        var ids = ["rename:", "rotate:", "remove:", "addPort:"].map { $0 + monitor.uuidString }
         for port in model.group.connections where port.monitor == monitor {
-            ids += ["port:" + port.id.uuidString, "choose:" + port.id.uuidString]
+            ids += ["port:" + port.id.uuidString]
         }
         return ids.contains { controlFrames[$0]?.contains(point) == true }
+    }
+    private func presetSummary(_ monitor: KVMMonitor) -> String {
+        let prefix = "Preset \(model.presetIndex + 1) · "
+        guard let port = model.preset.assignments.first(where: { $0.monitor == monitor.id }).flatMap({ a in model.group.connections.first { $0.id == a.connection } }) else { return prefix + "Unmapped" }
+        let computer = model.group.computers.first { $0.id == port.computer }?.name ?? "Unassigned computer"
+        return prefix + port.inputName + " · " + computer
     }
     private func screen(_ monitor: KVMMonitor, index: Int, layout: DeskCanvasLayout) -> some View {
         let g = monitor.geometry, scale = layout.scale
@@ -555,13 +569,6 @@ struct DeskCanvas: View {
                 ScrollView(.horizontal) {
                     HStack(alignment: .bottom, spacing: 6) {
                         ForEach(model.group.connections.filter { $0.monitor == monitor.id }) { port in portSocket(port, labelHeight: portLabelHeight) }
-                        VStack(spacing: 3) {
-                            presetChoice("Unchanged", selected: !model.preset.assignments.contains { $0.monitor == monitor.id }, height: portLabelHeight) {
-                                model.selected = monitor.id; model.assign(nil, monitor: monitor.id)
-                            }.deskControl("omit:" + monitor.id.uuidString)
-                                .help("Preset \(model.presetIndex + 1) will leave this monitor’s input as it is; it will not turn the screen off.")
-                            Color.clear.frame(width: 24, height: 20).allowsHitTesting(false)
-                        }
                         Button { addPort(monitor.id) } label: { Text("+ Port").font(.system(size: 10, weight: .medium)) }
                             .buttonStyle(DeskCanvasButtonStyle()).help("Add a monitor port")
                             .deskControl("addPort:" + monitor.id.uuidString).padding(.bottom, 3)
@@ -608,10 +615,10 @@ struct DeskCanvas: View {
     }
     private func portSocket(_ port: KVMConnection, labelHeight: CGFloat) -> some View {
         VStack(spacing: 3) {
-            presetChoice(port.inputName, selected: model.preset.assignments.contains { $0.connection == port.id }, height: labelHeight) {
-                model.selected = port.monitor; model.assign(port.id, monitor: port.monitor)
-            }.deskControl("choose:" + port.id.uuidString)
-                .help("Use \(port.inputName) in preset \(model.presetIndex + 1). Saves without switching the display.")
+            Text(port.inputName).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                .frame(width: 14, height: labelHeight, alignment: .leading)
+                .rotationEffect(.degrees(-90)).frame(width: 14, height: labelHeight)
+                .foregroundStyle(.secondary)
             DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
                            label: model.connectionLabel(port), controller: wire,
                            presetNumbers: model.group.presets.enumerated().compactMap { index, preset in preset.assignments.contains { $0.connection == port.id } ? index + 1 : nil },
@@ -637,26 +644,6 @@ struct DeskCanvas: View {
         }
     }
 
-    private func presetSummary(_ monitor: KVMMonitor) -> String {
-        let prefix = "Preset \(model.presetIndex + 1) · "
-        guard let port = model.preset.assignments.first(where: { $0.monitor == monitor.id }).flatMap({ a in model.group.connections.first { $0.id == a.connection } }) else { return prefix + "Leave unchanged" }
-        let computer = model.group.computers.first { $0.id == port.computer }?.name ?? "No computer assigned"
-        return prefix + port.inputName + " · " + computer
-    }
-    private func presetChoice(_ label: String, selected: Bool, height: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Text(label).font(.system(size: 10, weight: selected ? .semibold : .regular)).lineLimit(1)
-                    .frame(width: height, height: 14, alignment: .leading)
-                    .rotationEffect(.degrees(-90)).frame(width: 14, height: height)
-            }.foregroundStyle(selected ? Color.teal : Color.primary)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.teal.opacity(selected ? 0.12 : 0)))
-        }.buttonStyle(DeskCanvasButtonStyle())
-            .accessibilityLabel(label + " for preset \(model.presetIndex + 1)")
-            .accessibilityValue(selected ? "Selected" : "Not selected")
-    }
-
     private func computerCard(_ computer: KVMComputer) -> some View {
         let routes = model.preset.assignments.filter { a in model.group.connections.contains { $0.id == a.connection && $0.computer == computer.id } }
         let focused = routes.contains { $0.monitor == model.selected }
@@ -675,20 +662,25 @@ struct DeskCanvas: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.blue.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.blue.opacity(0.75), lineWidth: focused ? 2.5 : 1))
             .overlay(alignment: .topLeading) {
-                DeskWireSocket(id: "computer:" + computer.id.uuidString, connected: true,
-                               label: computer.name + " cable connector", controller: wire,
-                               presetNumbers: model.group.presets.enumerated().compactMap { index, preset in preset.assignments.contains { a in model.group.connections.contains { $0.id == a.connection && $0.computer == computer.id } } ? index + 1 : nil },
-                               highlighted: !routes.isEmpty,
-                               activeRouting: model.active?.assignments.contains { a in model.group.connections.contains { $0.id == a.connection && $0.computer == computer.id } } == true) {
-                    let menu = DeskSocketMenu()
-                    for port in model.group.connections {
-                        let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
-                        menu.action(monitor + " · " + port.inputName) { cable(port.id, computer.id) }
+                HStack(spacing: 5) {
+                    ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
+                        let assigned = preset.assignments.contains { assignment in
+                            model.group.connections.contains { $0.id == assignment.connection && $0.computer == computer.id }
+                        }
+                        DeskWireSocket(id: "preset:\(computer.id.uuidString):\(slot + 1)", connected: assigned,
+                                       label: "Preset \(slot + 1) from \(computer.name)", controller: wire,
+                                       presetNumbers: [slot + 1], highlighted: model.presetIndex == slot && assigned,
+                                       activeRouting: model.active?.id == preset.id) {
+                            let menu = DeskSocketMenu()
+                            for port in model.group.connections where port.computer == computer.id || port.computer == nil {
+                                let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
+                                menu.action(monitor + " · " + port.inputName) { model.assignPresetPort(slot: slot + 1, computer: computer.id, connection: port.id) }
+                            }
+                            return menu
+                        }.frame(width: 24, height: 20)
+                            .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["preset:\(computer.id.uuidString):\(slot + 1)": $0] }
                     }
-                    return menu
-                }.frame(width: 24, height: 20)
-                    .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["computer:" + computer.id.uuidString: $0] }
-                    .padding(.leading, 10)
+                }.padding(.leading, 10)
             }
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .onTapGesture { computerDetails(computer.id) }
@@ -724,6 +716,7 @@ struct DeskCanvas: View {
     private(set) var gesture = DeskWireGesture()
     private(set) var target: String?
     var connect: ((UUID, UUID) -> Void)?
+    var presetConnect: ((Int, UUID, UUID) -> Void)?
     var connection: ((String) -> KVMConnection?)?
     var rewire: ((KVMConnection, KVMConnection) -> Void)?
     private var pickedUp: KVMConnection?
@@ -802,8 +795,15 @@ struct DeskCanvas: View {
         cancel()
         if case let .connect(source, target) = result {
             let port = source.hasPrefix("port:") ? source : target
-            let computer = source.hasPrefix("computer:") ? source : target
-            if let p = UUID(uuidString: String(port.dropFirst(5))), let c = UUID(uuidString: String(computer.dropFirst(9))) { connect?(p, c) }
+            if let p = UUID(uuidString: String(port.dropFirst(5))) {
+                let computer = source.hasPrefix("computer:") ? source : target
+                if computer.hasPrefix("computer:"), let c = UUID(uuidString: String(computer.dropFirst(9))) { connect?(p, c) }
+                let preset = source.hasPrefix("preset:") ? source : target
+                if preset.hasPrefix("preset:") {
+                    let parts = preset.split(separator: ":")
+                    if parts.count == 3, let c = UUID(uuidString: String(parts[1])), let slot = Int(parts[2]) { presetConnect?(slot, c, p) }
+                }
+            }
         }
         return result == .click
     }
@@ -845,7 +845,7 @@ struct DeskWireSocket: NSViewRepresentable {
         view.setAccessibilityLabel(label)
         let routeState = (highlighted ? "; selected in editing preset" : "") + (activeRouting ? "; active now" : "")
         view.setAccessibilityValue(presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState)
-        view.toolTip = label + (connected && id.hasPrefix("port:") ? ". Drag to move this cable to another input; Esc cancels. Click for the port menu." : ". Drag to another connector to draw a wire. Click for connections.")
+        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to assign this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to move this cable to another input; Esc cancels. Click for the port menu." : ". Drag to another connector to draw a wire. Click for connections."))
         controller.register(view); view.needsDisplay = true
     }
     static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }
@@ -859,7 +859,10 @@ final class DeskWireSocketView: NSView {
     weak var controller: DeskWireController?
     var makeMenu: (() -> DeskSocketMenu)?
     private(set) var hovered = false
-    var attachmentPoint: CGPoint { CGPoint(x: bounds.midX, y: socketID.hasPrefix("computer:") ? bounds.maxY : bounds.minY) }
+    var attachmentPoint: CGPoint {
+        let isComputer = socketID.hasPrefix("computer:") || socketID.hasPrefix("preset:")
+        return CGPoint(x: bounds.midX, y: isComputer ? bounds.maxY : bounds.minY)
+    }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
@@ -891,7 +894,7 @@ final class DeskWireSocketView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         let center = attachmentPoint
-        let isComputer = socketID.hasPrefix("computer:")
+        let isComputer = socketID.hasPrefix("computer:") || socketID.hasPrefix("preset:")
         let active = controller?.target == socketID
         func halfCircle(_ radius: CGFloat) -> NSBezierPath {
             let path = NSBezierPath()

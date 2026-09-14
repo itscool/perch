@@ -300,6 +300,14 @@ final class DeskModel: ObservableObject {
         let index = index ?? presetIndex
         edit { g in g.presets[index].assignments.removeAll { $0.monitor == monitor }; if let connection { g.presets[index].assignments.append(.init(monitor: monitor, connection: connection)) } }
     }
+    func assignPresetPort(slot: Int, computer: UUID, connection: UUID) {
+        guard (1...3).contains(slot), let port = group.connections.first(where: { $0.id == connection }) else { return }
+        guard port.computer == nil || port.computer == computer else {
+            problem = "This monitor input belongs to another computer. Choose that computer’s preset port or change the cable first."
+            return
+        }
+        assign(connection, preset: slot - 1, monitor: port.monitor)
+    }
     func identify() {
         if let live { live.identify(selected); return }
         if identifying == selected, identifying != nil { identifyGeneration = UUID(); identifying = nil; return }

@@ -288,7 +288,7 @@
     "kind": "page"
   },
   "PanicUI.swift:presentBackgroundSetup:task-page:1": {
-    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
+    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status is Setup-owned; no optional administrator-protection page, routine repair or duplicate reset/login controls.",
     "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
   },
   "PanicUI.swift:showAgentRecognition:page:1": {

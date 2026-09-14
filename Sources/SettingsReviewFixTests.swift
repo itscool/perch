@@ -73,6 +73,7 @@ func runSettingsReviewFixTests() throws {
     try check(!buttons(host.pages.last!.view).contains { ["Keep awake", "Including with the lid closed", "Start five-minute countdown", "Hotkeys…"].contains($0.title) }, "Lid activity duplicates menu or hotkey controls")
     app.lidProtectionSetup()
     try check(host.pages.last?.title == "Lid protection setup", "Lid repair missed Setup")
+    try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Background helpers in Setup…" }, "Lid setup duplicated the Background helpers Setup item")
     var sharingGrant = false
     app.presentSharingAccess(readAccessibility: { sharingGrant }, readMonitoring: { sharingGrant })
     let sharingView = host.pages.last!.view

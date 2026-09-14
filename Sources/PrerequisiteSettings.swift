@@ -14,7 +14,6 @@ extension AppDelegate {
             do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() }
             catch { self.showError(error) }
         }
-        page.add("Background helpers in Setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
         page.add("Sleep reset options…", detail: "If you need to end Perch’s sleep protection, open its reset options. Nothing changes until you choose and confirm an action; return here afterward.") { [weak self] in self?.openReset(.sleep) }
         page.update = { [weak page] in
             let helper = readHelper()

@@ -1,7 +1,7 @@
 # Perch setup and recovery
 
-For the first Developer ID release candidate: Apple silicon, macOS 26 or later.
-Use the published release's notes to confirm its version and acceptance status.
+For the current Developer ID release: Apple silicon, macOS 26 or later.
+Use the published release's notes to confirm its version and capabilities.
 A development build is not evidence that Apple notarization is complete.
 
 ## Install and find your way around
@@ -45,7 +45,9 @@ choose another combination in Desk settings if macOS reports a conflict.
 Editing presets saves configuration; it does not switch physical inputs. Each
 screen's selected connection needs to match its real monitor port. A connection
 without a mapped computer may still switch the picture; Perch cannot infer where
-keyboard/mouse input should go. Input sharing is not implemented in this milestone.
+keyboard/mouse input should go. Input sharing requires both Perches to be
+running, connected and ready. Choose the target screen in Desk after monitor
+routing is confirmed.
 
 Check that both Perches are running and online. For discovery problems, use
 Add computer's Connect by address option when the Macs have a reachable route.
@@ -133,7 +135,7 @@ A diagnostic Terminal command, which only reads system state, is `pmset -g`.
 SleepDisabled 0 is the expected restored value, but review Perch's cleanup status
 too. Do not run a blanket power reset or delete recovery records to force that
 value. Detailed helper/collector removal needs coordinated administrator actions;
-there is no tested one-click full uninstaller in this release candidate.
+there is no tested one-click full uninstaller in this release.
 
 ## Report a problem
 

@@ -93,8 +93,5 @@ final class PermissionSetup: NSObject {
     @objc func openSettings() {
         SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     }
-    @objc func revealHelper() {
-        guard let helper = helperApp() else { SettingsWindow.shared.navigateToSetupStage("maintenance"); return }
-        SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([helper]); return true }
-    }
+
 }

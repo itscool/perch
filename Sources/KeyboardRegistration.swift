@@ -9,6 +9,11 @@ struct NavigationKeyboardIdentity: Codable, Hashable {
     let name: String
     let transport: String
     let usages: [UInt32]
+    /// The editable Bluetooth/product label is presentation, not layout identity.
+    func sameLayout(as other: Self) -> Bool {
+        vendor == other.vendor && product == other.product && version == other.version &&
+        transport == other.transport && usages == other.usages
+    }
     var canRemember: Bool {
         (1...65535).contains(vendor) && (1...65535).contains(product) && !name.isEmpty && name.utf8.count <= 256 &&
         NavigationDeviceScope.isExternal(builtIn: false, transport: transport) && usages.count <= NavigationLearning.usages.count &&
@@ -43,14 +48,14 @@ enum KeyboardNavigationProfiles {
         guard let object = defaults.object(forKey: key) else { return [] }
         guard let data = object as? Data, data.count <= 131_072, let records = try? JSONDecoder().decode([NavigationKeyboardProfile].self, from: data),
               records.count <= 64, Set(records.map { $0.identity }).count == records.count, records.allSatisfy({ $0.valid }) else {
-            throw AppError(message: "Saved keyboard profiles could not be read. Open Resets → Keyboard layouts to reset saved profiles.")
+            throw AppError(message: "Saved keyboard profiles could not be read. Open Reset Settings → Learned keyboard layouts to reset saved profiles.")
         }
         return records
     }
     static func save(_ record: NavigationKeyboardProfile, defaults: UserDefaults = .standard) throws {
         guard record.valid else { throw AppError(message: "This keyboard’s key layout could not be saved. Recheck the keyboard and try again.") }
         var records = try read(defaults: defaults)
-        records.removeAll { $0.identity == record.identity }
+        records.removeAll { $0.identity.sameLayout(as: record.identity) }
         guard records.count < 64 else { throw AppError(message: "Saved keyboard profiles are full. Reset an unused profile before adding another.") }
         records.append(record)
         let data = try JSONEncoder().encode(records)
@@ -60,7 +65,7 @@ enum KeyboardNavigationProfiles {
     }
     static func reset(_ identity: NavigationKeyboardIdentity?, defaults: UserDefaults = .standard) throws {
         if let identity {
-            let records = try read(defaults: defaults).filter { $0.identity != identity }
+            let records = try read(defaults: defaults).filter { !$0.identity.sameLayout(as: identity) }
             defaults.set(try JSONEncoder().encode(records), forKey: key)
         } else { defaults.removeObject(forKey: key) }
         NotificationCenter.default.post(name: changed, object: nil)
@@ -79,7 +84,7 @@ struct BundledNavigationProfile: Codable {
     let evidence: [String]
     func matches(_ identity: NavigationKeyboardIdentity) -> Bool {
         vendor == identity.vendor && product == identity.product && transports.contains(identity.transport) &&
-        deviceNames.contains(identity.name) && ["key-delivery", "documented-hid-layout"].contains(verification) && !evidence.isEmpty &&
+        ["key-delivery", "documented-hid-layout"].contains(verification) && !evidence.isEmpty &&
         NavigationKeyboardProfile(identity: identity, keys: keys).valid
     }
 }
@@ -103,11 +108,12 @@ struct KeyboardRegistrationStatus: Equatable {
     let detail: String
     var needsSetup: Bool { profile == nil }
     static func assess(_ identity: NavigationKeyboardIdentity, saved: [NavigationKeyboardProfile], bundled: [BundledNavigationProfile] = BundledNavigationProfiles.entries) -> Self {
-        if let profile = saved.last(where: { $0.identity == identity && $0.valid }) {
+        if let profile = saved.last(where: { $0.identity.sameLayout(as: identity) && $0.valid }) {
             let detail = profile.keys.allSatisfy { $0 == nil } ? "✓ Recognized · no navigation keys" : "✓ Recognized · saved navigation layout"
-            return .init(name: identity.name, profile: profile, detail: detail)
+            return .init(name: identity.name, profile: .init(identity: identity, keys: profile.keys), detail: detail)
         }
-        if let known = bundled.first(where: { $0.matches(identity) }) {
+        let candidates = bundled.filter { $0.matches(identity) }
+        if let known = candidates.first, candidates.allSatisfy({ $0.keys == known.keys }) {
             return .init(name: identity.name, profile: .init(identity: identity, keys: known.keys), detail: "✓ Recognized · bundled \(known.name) layout" + (known.verification == "key-delivery" ? "" : " · documented, not hardware-tested"))
         }
         return .init(name: identity.name, profile: nil, detail: "⚠ Unrecognized navigation layout · set up this keyboard")

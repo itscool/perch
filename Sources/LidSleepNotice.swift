@@ -72,7 +72,7 @@ struct LidSleepIncident: Codable, Equatable {
         detail += power == .external ? " External power was connected when sleep began." : power == .battery ? " The Mac was on battery when sleep began." : " Power state was not confirmed when sleep began."
         let transitions = recent.filter { $0.message.hasPrefix("Plugged in after ") || $0.message.hasPrefix("Unplugged;") || $0.message.hasPrefix("Lid closed on battery.") }.suffix(3)
         for event in transitions { detail += "\n" + event.message }
-        detail += "\n\nSleep does not clear your saved lid choice. Check Setup → Lid protection for current protection and resume it there if it has stopped. Lid activity shows the recorded sequence."
+        detail += "\n\nSleep does not clear your saved lid choice. Protection resumes automatically when ready; open the lid or connect power after a closed-lid battery timeout. Setup → Lid protection shows any setup failure. Lid activity shows the recorded sequence."
         return detail
     }
 }

@@ -74,3 +74,76 @@ A real disposable-process lock test confirmed exclusion and crash release.
 The build was warning-free and passed bundled Sparkle/signature checks. No live
 helper replacement, sleep-setting write, notarization or publication occurred.
 The recoverable prior app is /Applications/.perch-previous-7_6cfko1/Perch.app.
+
+
+## Live verification and automatic flow, September 13
+
+The first 2.0.129 attempt stopped during launchd unloading. The old helper could
+wait for the ownership lock while the installer waited for its exit; an immediate
+job check falsely treated asynchronous unloading as failure. Cleanup completed,
+the maintenance/ownership records were absent, and SleepDisabled remained No.
+The corrected path launches bootout asynchronously, reaps only root-owned exact
+old-helper processes with PID-birth checks, then verifies both job removal and
+process exit within ten seconds. Virtual tests cover delayed completion, timeout
+and invalid clocks. Helper version is now 5, protocol remains 3.
+
+2.0.131 was installed and started through Perch's restart worker. Startup
+maintenance automatically replaced the 2.0.94 lid helper while the lid stayed
+closed on AC power. The activity journal confirms temporary sleep protection,
+replacement helper/watchdog startup and ending the temporary allowance. The
+guard job then reported not running, with no maintenance record. Perch resumed
+the saved enabled lid choice automatically; the helper confirmed an active
+owned session and SleepDisabled became Yes. No Resume or Finish action was
+needed; the current-helper update action was disabled and Setup showed Ready.
+A passive 200 ms observer recorded closed-lid state throughout; its sampling did
+not resolve the very short maintenance-on interval, which is established by the
+helper's verified-write activity events instead. This checks startup and the
+originally-off override path, not transfer of an already-active countdown.
+
+Automatic resume has virtual tests across 576 initial combinations, repeated
+polls, failed attempts, active countdowns, retained cleanup, and opening/power
+transitions. It does not restart an expired timer while closed on battery.
+Background/input helpers already updated on launch; runtime recovery now waits
+through brief outages and attempts once until a healthy session or next launch.
+Installed collector configuration updates join serialized startup maintenance.
+Optional uninstalled components remain optional; failed/cancelled authorization
+leaves a specific failure instead of repeated prompting.
+
+Settings follow-up: Background helpers becomes a status-only Setup page. Security
+owns administrator protection of helper files. Reset Settings remains its own
+scope-wide destination. Login approval opens from the failed Start at login
+action or its attention-only overview entry. Generic repair, manual lid resume,
+and the duplicate privacy-reset link are removed. UI evidence for these later
+changes is recorded with their final candidate below.
+
+
+## Active app restart verification, 2.0.135
+
+The 131→134 active restart exposed a separate client race: an outstanding status
+request could invalidate the connection carrying the restart claim. The helper
+accepted the claim but the app reported no reply, then missed its five-second
+heartbeat lease. The helper cleared the override as designed. This was a real
+failed acceptance, not a successful handoff.
+
+The client now fences pre-claim callbacks, suspends ordinary polling during the
+claim, uses a separate claim connection, and immediately resumes normal-endpoint
+heartbeats after adopting the reply. Injected tests cover an old status failure,
+late timeout/off reply, successful adoption and failed-claim recovery.
+
+Native verification on September 13: 134→135 with protection initially off
+restored the saved enabled choice. A second restart, 135→135 while active,
+reclaimed the owned session successfully. PID 48371 reported the preserved lid
+session; the root journal recorded claim and resumed normal heartbeats with no
+subsequent expiry. A 200 ms observer collected 801 samples across 180 seconds:
+the lid remained closed, SleepDisabled became Yes after initial auto-resume,
+and stayed Yes through the active restart and observation window. No maintenance
+record was left behind. The compatible lid helper remained 131/helper version 5.
+This is powered closed-lid app restart acceptance, not a battery/countdown helper
+replacement, physical sleep/reboot, or Sparkle download/update acceptance.
+
+Keyboard registration, lid/enforcement and AppKit settings suites passed against
+135; two-/16-peer TLS fixtures also passed. Live settings navigation checked
+Background helpers, Security, Reset Settings, Keyboards and Keyboard access.
+Permission instructions retain the current app drag/copy target and omit Finder
+reveal. No reset or file-protection action was performed. The only later source
+change for 136 corrects a stale sidebar destination in permission-ready copy.

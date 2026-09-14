@@ -18,6 +18,16 @@ final class LidGuardSession {
     private var generation = UUID()
     private var lastStatus: LidGuardStatus?
     var activeToken: String? { token }
+    func beginRestartClaim() {
+        // Fence status callbacks issued before the restart handoff. Their
+        // invalidation must not tear down the claim's new connection.
+        generation = UUID(); pending = false; changing = true
+        token = nil; activity(true); publish(lastStatus, true)
+    }
+    func failRestartClaim() {
+        generation = UUID(); pending = false; changing = false
+        token = nil; lastStatus = nil; activity(false); publish(nil, false)
+    }
     func adoptRestart(_ data: Data) throws {
         guard let reply = decode(data), reply.restartError == nil, reply.status.armed,
               reply.status.error == nil, let token = reply.token, UUID(uuidString: token) != nil else {

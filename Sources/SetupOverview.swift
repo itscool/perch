@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 
 enum SetupRoute: String {
-    case maintenance, inputAccess, keyboardAccess, sharingAccess, lidSetup, keyboards, displays, deskInput, awake, agents, events, settings
+    case login, maintenance, inputAccess, keyboardAccess, sharingAccess, lidSetup, keyboards, displays, deskInput, awake, agents, events, settings
 }
 
 struct SetupCheck: Equatable {
@@ -58,11 +58,11 @@ struct SetupSnapshot {
             items.append(.init(id: id, title: title, state: state, detail: detail, action: action, route: route))
         }
         if loginNeedsApproval {
-            add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Review Login Items in background setup.", "Background helpers in Setup…", .maintenance)
+            add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Open Login Items to allow Perch.", "Open macOS Login Items…", .login)
         }
         let helpersReady = guardianReady && (!inputWanted || inputReady)
         add("helpers", "Background controls", helpersReady ? .ready : helperWanted ? .attention : .optional,
-            helpersReady ? "Perch’s background controls are responding and up to date." : helperWanted ? "A required helper is unavailable or outdated. Repair it to restore the features that depend on it." : "Needed for scrolling, keep-awake requests and agent protection.",
+            helpersReady ? "Perch’s background controls are responding and up to date." : helperWanted ? "Perch is checking or restoring a required helper automatically. Open its status for progress or any failure." : "Needed for scrolling, keep-awake requests and agent protection.",
             "Background helpers…", .maintenance)
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
@@ -90,8 +90,8 @@ struct SetupSnapshot {
 
         if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
-                lidHelperUpdatePending ? "Finish the queued lid helper update in Setup → Lid protection before relying on it." : "Install the lid helper in Setup → Lid protection before using the Mac with its lid closed.",
-                lidHelperUpdatePending ? "Finish helper update…" : "Set up lid protection…", .lidSetup)
+                lidHelperUpdatePending ? "A previous lid helper update is incomplete. Open Setup → Lid protection for its result and retry." : "Install the lid helper in Setup → Lid protection before using the Mac with its lid closed.",
+                lidHelperUpdatePending ? "Retry helper update…" : "Set up lid protection…", .lidSetup)
         }
 
         if lidDisabled == true {
@@ -107,7 +107,7 @@ struct SetupSnapshot {
         } else if !guardianReady && config.keepAwake {
             add("awake", "Keep awake", .checking, "Waiting for the helper to confirm the saved keep-awake request.", "Background helpers…", .maintenance)
         } else if guardian?.keepAwakeActive != true || (lidWanted && lidGuard?.armed != true) {
-            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Open Setup → Lid protection to review the stopped session and resume when ready." : "The observed sleep state does not confirm your saved keep-awake request.", "Lid protection setup…", .lidSetup)
+            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Protection resumes automatically when ready; after a closed-lid battery timeout, open the lid or connect power. Setup → Lid protection shows any setup failure." : "The observed sleep state does not confirm your saved keep-awake request.", "Lid protection setup…", .lidSetup)
         } else {
             add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Lid activity…", .awake)
         }
@@ -325,6 +325,7 @@ extension AppDelegate {
     }
     func openSetupRoute(_ route: SetupRoute, id: String = "") {
         switch route {
+        case .login: reviewLoginApproval()
         case .maintenance: advancedSafetySettings()
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboardAccess: keyboardAccessRecovery()

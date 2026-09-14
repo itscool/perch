@@ -59,7 +59,7 @@ for build, directory in [('1','installed'),('2','candidate')]:
             'CFBundlePackageType':'APPL','CFBundleVersion':build,'CFBundleShortVersionString':'1.2.'+build,'LSMinimumSystemVersion':'26.0',
             'PerchLidProtocolVersion':int(re.search(r'static let protocolVersion = (\d+)', (repo/'Sources/LidRestartHandoff.swift').read_text())[1]),
             'LSUIElement': a.headless,'SUFeedURL':f'http://127.0.0.1:{a.port}/appcast.xml','SUPublicEDKey':public,
-            'SUEnableAutomaticChecks':False,'SUAllowsAutomaticUpdates':False,'SUAutomaticallyUpdate':False,
+            'SUEnableAutomaticChecks':True,'SUAllowsAutomaticUpdates':False,'SUAutomaticallyUpdate':False,
             'SURequireSignedFeed':True,'SUVerifyUpdateBeforeExtraction':True,'FixtureRoot':str(root)}
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     run('python3',repo/'Tools/embed-sparkle.py',app)

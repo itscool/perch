@@ -54,6 +54,20 @@ enum LidMaintenance {
         }
         guard process.terminationStatus == 0 else { throw AppError(message: "Lid update command failed. Independent recovery remains installed.") }
     }
+    static func waitForUnload(now: () -> Double, pause: () -> Void, reap: () -> Void, unloaded: () throws -> Bool) throws {
+        let started = now(), deadline = started + 10
+        while true {
+            let time = now()
+            guard time.isFinite, time >= started, time < deadline else {
+                throw AppError(message: "The previous lid helper has not stopped. Update aborted; sleep recovery remains active.")
+            }
+            // The old helper can be waiting for our ownership lock while
+            // launchd waits for it to exit. Reap before waiting for bootout.
+            reap()
+            if try unloaded() { return }
+            pause()
+        }
+    }
     static func checkStart(observation: LidObservation, disabled: Bool, previousToken: String?, status: LidGuardReply?, now: Double) throws -> (Bool, LidCountdown?, Double?) {
         guard observation.closed != nil, observation.power != .unknown else { throw AppError(message: "Could not read lid and power state before updating.") }
         guard !disabled || previousToken != nil else { throw AppError(message: "Another sleep override is active. Perch cannot take ownership of it for an update.") }
@@ -132,26 +146,31 @@ enum LidMaintenance {
             guard LidGuardClock.now < readyBy else { throw AppError(message: "Independent update recovery did not confirm readiness. Nothing will be replaced.") }
             usleep(25_000)
         }
-        try? command(["/bin/launchctl", "bootout", "system/" + LidGuardInstall.recoveryName])
-        try? command(["/bin/launchctl", "bootout", "system/" + LidGuardService.name])
-        // Refuse takeover if an old supervisor/recovery job is still loaded.
-        for job in [LidGuardService.name, LidGuardInstall.recoveryName] {
-            let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/launchctl"); p.arguments = ["print", "system/" + job]
+        let jobs = [LidGuardInstall.recoveryName, LidGuardService.name]
+        var unloaders: [Process] = []
+        defer { for process in unloaders where process.isRunning { process.terminate() } }
+        for job in jobs {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/launchctl"); p.arguments = ["bootout", "system/" + job]
             p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
-            try p.run(); p.waitUntilExit()
-            guard p.terminationStatus != 0 else { throw AppError(message: "The old lid helper is still running. Update stopped; recovery will restore sleep.") }
+            try p.run(); unloaders.append(p)
         }
-        // launchd unloading and process exit are separate facts. Reap only
-        // root-owned processes executing the exact replaced helper, checking
-        // PID birth before signalling; drain children before changing tokens.
-        let stoppedBy = LidGuardClock.now + 2
-        while true {
-            let old = ProcessTable.snapshot().filter { $0.executable == LidGuardInstall.binary }
-            if old.isEmpty { break }
-            guard LidGuardClock.now < stoppedBy else { throw AppError(message: "The previous helper has not stopped. Update aborted; sleep recovery remains active.") }
-            for process in old { _ = ProcessTable.signal(process, SIGKILL) }
-            usleep(25_000)
-        }
+        try waitForUnload(now: { LidGuardClock.now }, pause: { usleep(25_000) }, reap: {
+            // Only root-owned processes at the exact replaced executable;
+            // ProcessTable rechecks PID birth immediately before signalling.
+            for process in ProcessTable.snapshot() where process.executable == LidGuardInstall.binary {
+                _ = ProcessTable.signal(process, SIGKILL)
+            }
+        }, unloaded: {
+            guard unloaders.allSatisfy({ !$0.isRunning }),
+                  !ProcessTable.snapshot().contains(where: { $0.executable == LidGuardInstall.binary }) else { return false }
+            for job in jobs {
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/launchctl"); p.arguments = ["print", "system/" + job]
+                p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+                try p.run(); p.waitUntilExit()
+                if p.terminationStatus == 0 { return false }
+            }
+            return true
+        })
         guard value.fresh, record.map(guardReady) == true else { throw AppError(message: "The helper update allowance expired or lost independent recovery.") }
         // Old queued workers still carry the old token and will fail their
         // post-lock token check. Old watchdogs cannot release this new owner.

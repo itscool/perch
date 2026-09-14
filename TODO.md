@@ -1,24 +1,40 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.129 is installed on disk
-in /Applications. Running PID 12800 remains on 2.0.120; Scott's next restart loads
-2.0.129. The previous bundle is retained at
-/Applications/.perch-previous-7_6cfko1/Perch.app.
-Public/notarized remains 2.0.94; 2.0.129 is not notarized or published.
-Input helper 120 already supports Num Lock; the current collector launcher is
-installed and healthy. Desktop recovery requires a matching guardian with the
-capability introduced in 122. Coordinated lid-helper maintenance still needs
-administrator authorization. Helper version 4 adds a bounded closed-lid update
-guard; its privileged integration test remains pending. See
-LID-HELPER-MAINTENANCE-2.0.md. No live sleep settings or permissions were changed
-for this update. Earlier authorized native display probes restored the original
-secondary-screen mode and position. LG input switching awaits a confirmed
-starting port. See SETTINGS-CONSOLIDATION-2.0.121.md.
+2.0 development, September 13, 2026. Running app is 2.0.135 (PID 48371).
+Developer ID 2.0.136 is installed on disk; the next restart loads it. The only
+change after tested 135 corrects stale permission-page wording.
+Public/notarized remains 2.0.94. No new notarization or publication occurred.
+The lid helper updated automatically to 2.0.131/helper version 5 while closed
+on AC; saved protection resumed. Active app restart on 135 also preserved its
+owned session after fixing a client claim/poll race. Background helpers and
+collector report Ready. See LID-HELPER-MAINTENANCE-2.0.md for evidence and limits.
+No privacy reset, panic, monitor input or brightness change was performed.
+LG input switching still needs known physical starting ports for a bounded test.
 Dated installation statements below are historical checkpoints. Categories are
 known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
 
 ## Known defects — fix before shipping; target zero
+
+- [x] **Renaming a keyboard discarded known navigation layouts.** Model/transport
+  and descriptor metadata now determine recognition independently of the editable
+  product name. Saved matching, helper delivery and connected/saved UI use the
+  same distinction. Renamed MX Keys and learned-layout regressions pass in 135.
+- [x] **Lid restart claim competed with startup polling.** Separate claim transport,
+  stale-callback fencing and immediate heartbeat renewal fix the observed 134
+  failure. Powered closed-lid native restart passed on 135.
+- [x] **Maintenance required unnecessary manual discovery.** Automatic bounded
+  helper recovery, launch-time installed-helper maintenance and saved lid intent
+  replace generic Repair/Resume. Security owns file protection; Reset Settings
+  owns resets; Login Items approval opens at the failing Start at login action.
+- [x] **Redundant permission Finder actions.** Exact drag/copy targets remain in
+  permission setup. Finder reveal and its unused sibling handlers are removed.
+- [x] **Direct port switching desktop-handoff audit.** Presets, port switches,
+  retries and paired delegation already converge on the same production path.
+  New two-peer tests confirm direct port changes invalidate old desktop evidence
+  and require fresh readback on both peers. Unknown LG input remains a blocker,
+  not permission to assume that a command changed the visible screen.
+
 
 Automated update/fault, packaging/dependency and passive performance work is now
 recorded in AUTOMATED-QA-2.0.120.md. Real hardware/access acceptance below is not
@@ -430,7 +446,7 @@ historical evidence, not additional open release requirements.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.129 candidate is prepared and installed locally with a source snapshot and draft notes.
+   signed development candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.

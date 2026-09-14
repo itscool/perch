@@ -148,7 +148,7 @@ func runSetupOverviewTests() throws {
     try check(!host.back.isHidden && host.pages.count == 3 && host.back.title == "Back" && host.pages.last?.detail.contains("save automatically") == true, "Exception choices do not explain immediate saving and return to Keyboards")
     host.goBack(); host.goBack()
     app.resetHub()
-    try check(host.pages.last?.title == "Resets", "Reset index missing")
+    try check(host.pages.last?.title == "Reset Settings", "Reset index missing")
     host.goBack()
     print("PASS: observed setup readiness; independent permission recovery; stale helpers/events; first use and re-entry; next repair and Back; read-only Recheck; task categories and draft cancellation")
 }

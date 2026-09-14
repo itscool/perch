@@ -202,6 +202,19 @@ import Darwin
         guard writes == 2 else { throw KVMError("Checking inputs repeated hardware writes") }
         try wait("generation-matched desktop evidence") { switchesA.desktopInputs.count == expectedInputs.count && switchesB.desktopInputs.count == expectedInputs.count }
         guard switchesA.desktopInputs == expectedInputs else { throw KVMError("Desktop ownership did not use fresh hardware evidence") }
+        let directAssignment = desk.presets[0].assignments[0]
+        confirmedReadback = false; fakeTime += 1
+        switchesA.activateConnection(directAssignment.connection)
+        guard switchesA.desktopInputs[directAssignment.monitor] == nil else { throw KVMError("Direct port action retained pre-switch desktop authority") }
+        try wait("direct port awaits fresh evidence") { !switchesA.busy }
+        guard switchesA.desktopInputs[directAssignment.monitor] == nil else { throw KVMError("Unconfirmed direct port switch removed desktop space") }
+        confirmedReadback = true; fakeTime += 1
+        switchesA.refreshObservations()
+        try wait("direct port desktop handoff evidence on both peers") {
+            switchesA.desktopInputs == expectedInputs && switchesB.desktopInputs == expectedInputs
+        }
+        guard writes == 3 && a.group == desk && b.group == desk else { throw KVMError("Direct port reconciliation wrote again or changed presets") }
+        print("PASS: direct port switches share preset desktop evidence invalidation and fresh peer reconciliation; unknown inputs never authorize removal")
         fakeTime += 46
         guard switchesA.desktopInputs.isEmpty else { throw KVMError("Expired observations still authorize desktop disconnection") }
         print("PASS: named per-screen failures, stale-read refusal and read-only reconciliation after recovery")

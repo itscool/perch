@@ -24,6 +24,20 @@ final class EventCollectorSetup: NSObject {
     var waitingForSession = false
     var previousSession: String?
     var updateRequestedAt: Date?
+    private var startup = LidHelperStartupUpdate()
+    func afterLaunch(explain: @escaping () -> Void) {
+        guard !SettingsWindow.shared.testing else { return }
+        SettingsWindow.shared.afterInteraction { [weak self] in
+            guard let self, self.startup.claim(pending: self.installed && self.needsRepair,
+                available: !self.installing && !LidHelperUpdate.shared.busy && !AppUpdate.shared.busy && !PerchUpdater.shared.busy) else { return }
+            explain()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                SettingsWindow.shared.afterInteraction {
+                    if self.installed && self.needsRepair { self.installCollector() }
+                }
+            }
+        }
+    }
     var installed: Bool {
         FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/local.scott.perch.events.plist") && FileManager.default.fileExists(atPath: ProcessEventStream.pipePath)
     }
@@ -184,7 +198,6 @@ final class EventCollectorSetup: NSObject {
         waitingForSession = true; updateRequestedAt = Date()
     }
     @objc func openPrivacySettings() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) } }
-    @objc func showFile() { SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: "/usr/bin/eslogger")]); return true } }
 }
 
 extension AppDelegate {

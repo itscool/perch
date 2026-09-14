@@ -14,12 +14,47 @@ struct LidHelperUpdateState: Equatable {
             (info["PerchLidHelperVersion"] as? Int ?? 0) < LidGuardCompatibility.helperVersion)
     }
 }
+struct LidHelperStartupUpdate {
+    private(set) var attempted = false
+    mutating func claim(pending: Bool, available: Bool) -> Bool {
+        guard pending, available, !attempted else { return false }
+        attempted = true
+        return true
+    }
+}
 final class LidHelperUpdate {
     static let shared = LidHelperUpdate()
-    private(set) var busy = false
+    private(set) var busy = false {
+        didSet { if oldValue && !busy { completeStartup() } }
+    }
     private(set) var result: String?
     private var publisherMarker: String?
     private var matchingPublisher = false
+    private var startup = LidHelperStartupUpdate()
+    private var startupCompletion: (() -> Void)?
+    private func completeStartup() {
+        let completion = startupCompletion; startupCompletion = nil
+        if let completion { DispatchQueue.main.async(execute: completion) }
+    }
+    func recordResumeFailure(_ error: Error) {
+        result = "Your lid choice is saved, but protection could not start. " + error.localizedDescription
+    }
+    func afterLaunch(explain: @escaping () -> Void, refresh: @escaping () -> Void, completion: @escaping () -> Void) {
+        guard !SettingsWindow.shared.testing else { completion(); return }
+        SettingsWindow.shared.afterInteraction { [weak self] in
+            guard let self, self.startup.claim(pending: self.state.pending,
+                available: !self.busy && !AppUpdate.shared.busy && !PerchUpdater.shared.busy && !LidGuardClient.shared.changing) else { completion(); return }
+            self.startupCompletion = completion
+            self.result = "Perch needs to update its installed lid helper. macOS will ask for administrator authorization. Your saved choices and existing timer are kept."
+            explain()
+            // Render the explanation before yielding focus to system authorization.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                SettingsWindow.shared.afterInteraction {
+                    self.finish(); refresh()
+                }
+            }
+        }
+    }
     var state: LidHelperUpdateState {
         // This cache only controls the update notice. XPC and the installer
         // independently verify signatures before accepting or executing code.
@@ -32,21 +67,25 @@ final class LidHelperUpdate {
         return LidHelperUpdateState(info: AppUpdate.appInfo(URL(fileURLWithPath: LidGuardInstall.bundle)), lidOpen: MacLidGuardHardware().observe().closed == false, publisherMatches: matchingPublisher)
     }
     func finish() {
-        guard !busy, !AppUpdate.shared.busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing else { return }
-        guard state.pending else { return }
+        guard !busy, !AppUpdate.shared.busy, !PerchUpdater.shared.busy, !SettingsWindow.shared.testing else { completeStartup(); return }
+        guard state.pending else { completeStartup(); return }
         busy = true; result = "Installing the lid helper. macOS will ask for administrator authorization."
         do {
             let resume = try LidGuardInstall.install(protectedUpdate: true)
             LidGuardClient.shared.start()
             waitForHelper(until: LidGuardClock.now + 5, resume: resume)
-        } catch { busy = false; result = "Helper update did not finish. " + error.localizedDescription }
+        } catch { busy = false; result = "The previous helper update did not complete. Retry the update below. " + error.localizedDescription }
     }
     private func waitForHelper(until: Double, resume: Bool) {
         LidGuardClient.shared.refresh()
         let status = LidGuardClient.shared.status
         if status?.fresh == true, status?.codeIdentity == LidGuardIdentity.current {
             guard resume else {
-                busy = false; result = "Lid helper updated and responding. Enable lid protection in the Perch menu when you want it."; return
+                busy = false; result = "Lid helper updated and responding. Your saved Keep awake choices apply automatically."
+                if let app = NSApp.delegate as? AppDelegate {
+                    app.automaticLidResume.repaired(); app.resumeSavedLidProtectionIfReady()
+                }
+                return
             }
             LidGuardClient.shared.change(true) { outcome in
                 self.busy = false

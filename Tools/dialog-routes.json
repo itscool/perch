@@ -167,12 +167,6 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:repairWatcher:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "PanicUI.swift:protectWatcher:alert:1": {
     "file": "PanicUI.swift",
     "kind": "alert",
@@ -279,12 +273,6 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:presentBackgroundSetup:menu-entry:1": {
-    "file": "PanicUI.swift",
-    "kind": "menu-entry",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "PrerequisiteSettings.swift:presentLidProtectionSetup:task-page:1": {
     "review": "SETUP-CONSOLIDATION-2.0.md \u2014 one Setup owner, contextual feature link, retained checklist and observed readiness; no setting changes on entry.",
     "acceptance": "Static route/action review; injected regression and native return checks recorded in SETUP-CONSOLIDATION-2.0.md. Physical permissions/helper installation remain separate acceptance."
@@ -328,5 +316,13 @@
     "acceptance": "Single keyboard readiness/layout page; app exceptions owned by sidebar. Menu switches removed. Source review; native route regression pending.",
     "file": "KeyboardSettingsUI.swift",
     "kind": "page"
+  },
+  "PanicUI.swift:presentBackgroundSetup:task-page:1": {
+    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
+    "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
+  },
+  "PanicUI.swift:securitySettings:task-page:1": {
+    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
+    "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
   }
 }

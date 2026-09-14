@@ -112,7 +112,7 @@ final class NavigationProbePage: NSObject {
             picker.menu?.addItem(NSMenuItem(title: "\(keyboard.name) · \(keyboard.transport)", action: nil, keyEquivalent: ""))
             picker.lastItem?.toolTip = "Device identity: \(keyboard.id)"
         }
-        disconnected = profiles.map(\.identity).filter { identity in !keyboards.contains { $0.identity == identity } }
+        disconnected = profiles.map(\.identity).filter { identity in !keyboards.contains { $0.identity.sameLayout(as: identity) } }
         for identity in disconnected { picker.addItem(withTitle: "\(identity.name) · Saved, disconnected") }
         let identities = keyboards.map(\.identity) + disconnected
         if identities.isEmpty { picker.addItem(withTitle: "No connected or saved external keyboard") }
@@ -149,7 +149,7 @@ final class NavigationProbePage: NSObject {
                 do {
                     let profile = NavigationKeyboardProfile(identity: identity, keys: keys)
                     try saveProfile(profile)
-                    profiles.removeAll { $0.identity == identity }; profiles.append(profile)
+                    profiles.removeAll { $0.identity.sameLayout(as: identity) }; profiles.append(profile)
                     saved = true; saveResult = "✓ Layout saved automatically. Choose another keyboard to manage layouts, or use the sidebar to continue."
                 } catch { saveResult = "⚠ " + error.localizedDescription + " Your previous layout is still in use. Retry saving, or leave this page to keep the previous layout." }
             } else { saveResult = "⚠ Keyboard identity unavailable. Nothing was saved. Choose another keyboard below, then recheck." }

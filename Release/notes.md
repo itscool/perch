@@ -1,10 +1,20 @@
+Keyboard layouts now match hardware model and layout metadata independently of editable device names. Renamed MX Keys keyboards retain bundled and learned navigation mappings in both setup and the input helper. Permission setup keeps its direct drag/copy target and removes redundant Finder-reveal actions.
+
+Restart handoff isolates its claim connection from status polling and fences delayed pre-restart responses before adopting the session.
+
+Background-helper recovery runs automatically after a sustained outage; cancelled or failed authorization is not repeatedly requested. Background setup reports progress instead of offering generic repair and duplicate privacy-reset controls. Helper-file protection has a Security page. Start at login opens macOS Login Items directly when registration fails or needs approval. The reset destination is now named Reset Settings.
+
+Saved lid protection resumes automatically once setup is ready, and after opening the lid or reconnecting power following a stopped session. Active countdowns and battery deadlines are preserved; an expired session cannot repeatedly restart while closed on battery. Setup no longer has a Resume button or an enabled update action for a current helper. Installed collector configuration updates are offered automatically after lid maintenance; optional new components remain optional. Automatic release checks default on, preserving existing user choices.
+
+On launch, Perch brings an outdated installed lid helper into Setup and requests administrator authorization automatically. Cancellation or failure leaves a retry action without repeatedly prompting in the same run. Guarded replacement waits for both launchd unloading and exact old-helper process exit before transferring ownership.
+
 Lid-helper updates can hold sleep protection through replacement with the lid closed. A separate update guard preserves existing countdown/battery deadlines and ends the temporary allowance after handoff, failure or a fixed 60-second limit. Recovery survives replacement and reboot; unrelated system overrides are not taken over. Administrator authorization is still required.
 
 App settings removes repeated login, About, Setup and Reset controls. Its CPU preference and always-available restart remain; the main-menu restart continues to appear for a changed installed app.
 
 Desk desktop handoff now uses fresh monitor input evidence to remove a screen from the losing Mac’s desktop, with saved configuration and independent guardian recovery. Unknown inputs, offline destinations, mirrored targets and the last usable screen remain connected. Requires the matching background helper. LG monitors that cannot report their selected input remain unconfirmed and connected.
 
-Keyboards now has one page for device readiness and layout learning, with App exceptions beneath it. Repeated modifier, function-key and navigation switches are removed from Settings and remain in the Perch menu. Lid activity replaces the redundant Keep awake category; stopped-session recovery stays in Setup → Lid protection. Helper-update messages explain why replacing the helper requires an open lid.
+Keyboards now has one page for device readiness and layout learning, with App exceptions beneath it. Repeated modifier, function-key and navigation switches are removed from Settings and remain in the Perch menu. Lid activity replaces the redundant Keep awake category; stopped-session recovery stays in Setup → Lid protection. Helper-update messages explain the guarded replacement and administrator authorization.
 
 Monitor reads now reject LG’s alternate write channel and permit only the specific standard-channel queries used by Perch. This prevents a supposed input read from issuing a vendor command with unrelated hardware effects. LG alternate input switching remains available, but unreadable current input stays unconfirmed.
 

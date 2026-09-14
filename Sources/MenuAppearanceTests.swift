@@ -27,11 +27,20 @@ func runMenuAppearanceTests() throws {
     try require(store.value == changed, "invalid values replaced usable appearance")
     let item = NSMenuItem(title: "Sleep", action: nil, keyEquivalent: "")
     let row = MenuRowView(item: item, kind: .section); item.view = row; row.panelSection = "Sleep"; row.panelPart = .top
+    row.appearance = NSAppearance(named: .aqua) // The edits above target the light theme.
     row.appearanceOverride = changed
     let tinted = row.displayedText()
     changed.sections.tintTitle = false; row.appearanceOverride = changed
     try require(!tinted.isEqual(to: row.displayedText()), "title tint does not reach production renderer")
     try require((row.displayedText().attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor) == .labelColor, "normal title doesn't use semantic label color")
+    var darkFixture = changed
+    darkFixture.editSection(dark: true, both: false, system: false) { $0.tintTitle = true }
+    row.appearance = NSAppearance(named: .darkAqua); row.appearanceOverride = darkFixture
+    let darkTinted = row.displayedText()
+    darkFixture.editSection(dark: true, both: false, system: false) { $0.tintTitle = false }
+    row.appearanceOverride = darkFixture
+    try require(!darkTinted.isEqual(to: row.displayedText()), "dark title tint does not reach production renderer")
+    row.appearance = NSAppearance(named: .aqua)
     changed.sections.showIcon = false; row.appearanceOverride = changed
     try require(row.textDrawingRect.minX == 25, "Hidden icons still indent titles")
     var dark = changed.theme(dark: true); dark.palette = .coast; dark.sections.thickness = 3

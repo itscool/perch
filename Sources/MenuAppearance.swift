@@ -187,7 +187,7 @@ final class MenuAppearanceStore: ObservableObject {
         }
         if let data = defaults.data(forKey: Self.key) {
             if let decoded = try? JSONDecoder().decode(MenuAppearance.self, from: data), decoded.valid { value = decoded }
-            else { problem = "Saved appearance could not be read. Open Resets → Menu appearance to replace it." }
+            else { problem = "Saved appearance could not be read. Open Reset Settings → Menu appearance to replace it." }
         }
     }
     func save(_ next: MenuAppearance, restoring: Bool = false) {

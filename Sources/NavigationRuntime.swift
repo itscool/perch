@@ -76,7 +76,7 @@ enum NavigationEventDevices {
             let version = (IOHIDServiceClientCopyProperty(keyboard.service, "VersionNumber" as CFString) as? NSNumber)?.intValue
             let matches = profiles.filter { profile in
                 let identity = profile.identity
-                return profile.valid && identity.vendor == keyboard.vendor && identity.product == product && identity.name == keyboard.name && identity.transport == transport && (version == nil || version == identity.version)
+                return profile.valid && identity.vendor == keyboard.vendor && identity.product == product && identity.transport == transport && (version == nil || version == identity.version)
             }
             let maps = matches.compactMap { mapping($0) }
             guard let map = maps.first, maps.allSatisfy({ $0 == map }) else { continue }

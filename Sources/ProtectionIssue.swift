@@ -8,9 +8,9 @@ struct ProtectionIssue: Equatable {
     let route: String
     static func assess(_ state: SafetyStatus?, config: SafetyConfiguration) -> ProtectionIssue? {
         if let state, !state.compatible {
-            return .init(severity: .critical, title: "Background helper needs updating", detail: "The running helper does not match this version of Perch. Repair the background helper before relying on protection.", route: "repair")
+            return .init(severity: .critical, title: "Background helper needs updating", detail: "The running helper does not match this version of Perch. Perch updates installed helpers automatically. Open Background helpers in Setup to see progress or a failure.", route: "repair")
         }
-        guard let state, state.fresh else { return .init(severity: .critical, title: "Panic protection unavailable", detail: "The background helper is not responding. Repair protection before relying on panic.", route: "repair") }
+        guard let state, state.fresh else { return .init(severity: .critical, title: "Panic protection unavailable", detail: "The background helper is not responding. Perch attempts recovery automatically. Open Background helpers in Setup for current status.", route: "repair") }
         if config.shortcut.enabled && !state.shortcutActive && state.testUntil == nil {
             return .init(severity: .critical, title: "Emergency shortcut unavailable", detail: "Your enabled panic shortcut is not registered. Menu panic is still available. Check the shortcut configuration and test it.", route: "shortcut")
         }

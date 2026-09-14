@@ -131,7 +131,6 @@ func runSleepPresentationTests() throws {
 
     app.configureSettings(); app.presentKeyboardAccess(readAccess: { false })
     try check(host.pages.last?.title == "Keyboard access" && host.pages.last!.view.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("already enabled") && !$0.isHidden }, "Access recovery omitted the existing-grant journey")
-    try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Show Perch in Finder" }, "Access recovery has no route to the installed copy")
     try check(host.pages.last!.view.subviews.contains { $0 is PermissionDragItem }, "Keyboard access omitted the current app drag/copy route")
     app.showLidSetup("Fixture: finish setup before enabling protection")
     try check(host.pages.last?.title == "Lid protection setup" && !host.modal && !host.interactionBusy, "Lid setup failure trapped the user in a modal result")

@@ -57,6 +57,11 @@ func runSettingsReviewFixTests() throws {
         try check(host.pages.count == 1 && host.pages.first?.view === overview && host.back.isHidden,
                   "Setup Back lost the original checklist")
     }
+    app.advancedSafetySettings()
+    try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { ["Repair background helpers…", "Open macOS Login Items…", "Protect background helper files…", "Perch privacy reset…"].contains($0.title) }, "Background setup retains maintenance chores or duplicate reset/security controls")
+    try check(host.sidebar.destinations.contains { $0.id == "security" && $0.title == "Security" } && host.sidebar.destinations.contains { $0.id == "reset" && $0.title == "Reset Settings" }, "Security or Reset Settings is missing from navigation")
+    app.securitySettings()
+    try check(host.pages.last?.title == "Security" && host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Require administrator authorization to change helper files…" }, "File protection did not reach its Security home")
     for enter in [app.keyboardSettings, app.keyboardDetails, app.testNavigationKeys] {
         enter()
         try check(!host.pages.last!.view.subviews.contains { $0 is PermissionDragItem },

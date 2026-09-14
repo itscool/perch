@@ -24,7 +24,7 @@ extension AppDelegate {
                 switch state { case .ready: .ready; case .attention, .unverified: .attention; case .optional: .optional; default: .checking }
             }
             return [
-                "maintenance": snapshot.loginNeedsApproval ? .attention : status(helper),
+                "maintenance": status(helper),
                 "keyboard-access": NavigationProbeHID.hasAccess ? .ready : .attention,
                 "input-access": inputReady.ready ? .ready : snapshot.input?.fresh != true ? .checking : .attention,
                 "sharing-access": AXIsProcessTrusted() && CGPreflightPostEventAccess() && CGPreflightListenEventAccess() ? .ready : .attention,
@@ -50,11 +50,12 @@ extension AppDelegate {
             item("custom-agents", "Add or remove agents", ["Add or remove agents"], #selector(manageAgents), depth: 1),
             item("recognition", "Recognition", ["Agent recognition"], #selector(agentRecognition), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
+            item("security", "Security", ["Security"], #selector(securitySettings)),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
             item("hotkeys", "Hotkeys", ["Hotkeys"], #selector(hotkeySettings), depth: 1),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),
             item("updates", "Updates", ["Updates"], #selector(updateSettings), depth: 1),
-            item("reset", "Resets", ["Resets"], #selector(resetHub))
+            item("reset", "Reset Settings", ["Reset Settings"], #selector(resetHub))
         ])
         SettingsWindow.shared.configureResetNavigation(Dictionary(uniqueKeysWithValues: SettingsResetScope.allCases.map { scope in
             (scope, SettingsDestination(id: "reset", title: scope.title, pageTitles: [scope.title], open: { [weak self] in self?.presentResetScope(scope) }))

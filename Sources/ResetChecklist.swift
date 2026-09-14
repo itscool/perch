@@ -226,7 +226,7 @@ final class ResetChecklistPage {
         status.textColor = operation.failedPlan == nil ? .secondaryLabelColor : StatusColors.warning
     }
     func show() {
-        SettingsWindow.shared.show(.init(title: "Resets", detail: "Choose the areas to reset. Checkboxes only define your selection; nothing changes until you confirm Reset selected. All-app privacy is a separate action below.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh(); self?.relayout() }, layout: { [weak self] size in self?.layout(size) }))
+        SettingsWindow.shared.show(.init(title: "Reset Settings", detail: "Choose the areas to reset. Checkboxes only define your selection; nothing changes until you confirm Reset selected. All-app privacy is a separate action below.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [weak self] in self?.refresh(); self?.relayout() }, layout: { [weak self] size in self?.layout(size) }))
         if let highlight, let row = rows[highlight], !highlightedOnShow { row.scrollToVisible(row.bounds); highlightedOnShow = true }
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === self.view else { return }

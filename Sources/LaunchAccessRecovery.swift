@@ -66,17 +66,11 @@ final class KeyboardAccessPage {
         view.addSubview(review)
         let open = SettingsActionButton(title: "Open macOS Input Monitoring", action: openSettings)
         open.frame = NSRect(x: 0, y: 130, width: 330, height: 30); view.addSubview(open)
-        let finder = SettingsActionButton(title: "Show Perch in Finder") {
-            SettingsWindow.shared.handoffToExternalApp { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]); return true }
-        }
-        finder.frame = NSRect(x: 0, y: 90, width: 230, height: 30)
-        finder.toolTip = "To reopen manually, quit Perch and double-click the selected app. Quitting ends an active lid session."
-        view.addSubview(finder)
         let check = SettingsActionButton(title: "Recheck access") { [weak self] in recheck(); self?.refresh() }
-        check.frame = NSRect(x: 310, y: 90, width: 254, height: 30); view.addSubview(check)
+        check.frame = NSRect(x: 0, y: 90, width: 254, height: 30); view.addSubview(check)
         let drag = PermissionDragItem(title: "Perch") { Bundle.main.bundleURL }
         drag.frame = NSRect(x: 8, y: 20, width: 556, height: 42); view.addSubview(drag)
-        repairControls = [instructions, open, finder, check, drag]
+        repairControls = [instructions, open, check, drag]
     }
     func show() {
         SettingsWindow.shared.show(.init(title: "Keyboard access", detail: "Perch checks this copy’s Input Monitoring access automatically. Repair instructions appear when access is missing; reviewing a working grant is optional.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [self] in refresh() }))
@@ -95,7 +89,7 @@ final class KeyboardAccessPage {
         review.isEnabled = granted
         review.title = granted ? disclosure.title : "Permission instructions"
         review.frame = NSRect(x: 0, y: height-135, width: 572, height: 30)
-        status.stringValue = granted ? "✓ Keyboard access is ready. Perch can read supported external keyboards. Choose Keyboards or Keyboard layouts in the sidebar to review your devices." : LaunchAccessRecovery.summary
+        status.stringValue = granted ? "✓ Keyboard access is ready. Perch can read supported external keyboards. Choose Keyboards in the sidebar to review your devices." : LaunchAccessRecovery.summary
         status.textColor = granted ? StatusColors.success : StatusColors.warning
         status.frame = NSRect(x: 8, y: height-98, width: 556, height: 90)
         view.frame.size.height = height

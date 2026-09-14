@@ -60,13 +60,12 @@ func runResetNavigationTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: "Reset checklist: " + message) } }
     func allButtons(_ view: NSView) -> [NSButton] { view.subviews.flatMap { ($0 as? NSButton).map { [$0] } ?? allButtons($0) } }
     for (enter, label, area, parentName) in [
-        (app.lidProtectionSetup, "Sleep reset options…", ResetArea.sleep, "Lid protection"),
-        (app.advancedSafetySettings, "Perch privacy reset…", ResetArea.privacy, "Background helpers")
+        (app.lidProtectionSetup, "Sleep reset options…", ResetArea.sleep, "Lid protection")
     ] {
         enter(); let parent = host.pages.last!.view, overview = host.pages.first!.view
         allButtons(parent).first { $0.title == label }!.performClick(nil)
         let checklist = host.pages.last!.view
-        try check(host.pages.last?.title == "Resets" && host.pages.count == 3 && host.back.title == "Back to " + parentName && host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset", "deep link lost reset ownership or return")
+        try check(host.pages.last?.title == "Reset Settings" && host.pages.count == 3 && host.back.title == "Back to " + parentName && host.sidebar.destinations[host.sidebar.table.selectedRow].id == "reset", "deep link lost reset ownership or return")
         try check(allButtons(checklist).filter { $0.identifier?.rawValue.hasPrefix("reset.area.") == true }.allSatisfy { $0.state == .off }, "repair link selected a destructive action")
         let row = checklist.subviews.first { $0.identifier?.rawValue == "reset.row." + area.rawValue }
         try check(row?.layer?.borderWidth == 1, "repair row was not highlighted")
@@ -116,7 +115,7 @@ func runResetNavigationTests() throws {
     page.refresh()
     try check(page.status.stringValue.contains("completed"), "results vanished after leaving")
     app.openReset(.allAppsPrivacy, returningToCurrentPage: false)
-    try check(host.pages.map(\.title) == ["Resets", "Reset all apps’ privacy permissions?"], "global privacy was combined into checklist")
+    try check(host.pages.map(\.title) == ["Reset Settings", "Reset all apps’ privacy permissions?"], "global privacy was combined into checklist")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification)); app.openResets()
     try check(host.pages.count == 1 && host.back.isHidden, "reopened resets retained a stale contextual return")
 

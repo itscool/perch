@@ -15,6 +15,21 @@ func runAppUpdateTests() throws {
     try runDisposableUpdateWorkerTest()
     try runDisposableUpdateWorkerTest(cancel: true)
     let current: [String: Any] = ["PerchLidProtocolVersion": LidGuardCompatibility.protocolVersion, "PerchLidHelperVersion": LidGuardCompatibility.helperVersion, "CFBundleVersion": "1"]
+    var background = BackgroundHelperRecoveryPolicy()
+    try check(!background.shouldRecover(healthy: false, busy: false, now: 0), "An empty launch status cache caused immediate reinstall")
+    try check(!background.shouldRecover(healthy: false, busy: false, now: 9), "Normal helper startup was interrupted")
+    try check(!background.shouldRecover(healthy: false, busy: true, now: 10), "Automatic helper repair overlapped another operation")
+    try check(background.shouldRecover(healthy: false, busy: false, now: 11), "Missing helpers still required manual repair")
+    try check(!background.shouldRecover(healthy: false, busy: false, now: 1000), "Failed or cancelled helper repair repeated authorization")
+    try check(!background.shouldRecover(healthy: true, busy: false, now: 1001), "Healthy helpers were unnecessarily restarted")
+    try check(!background.shouldRecover(healthy: false, busy: false, now: 1002) && background.shouldRecover(healthy: false, busy: false, now: 1012), "A later independent outage could not recover")
+    background.failed(now: 1013)
+    try check(!background.shouldRecover(healthy: false, busy: false, now: 2000), "Startup authorization cancellation prompted again")
+    var startup = LidHelperStartupUpdate()
+    try check(!startup.claim(pending: false, available: true), "Launch installed an optional or current helper")
+    try check(!startup.claim(pending: true, available: false) && !startup.attempted, "Busy restart consumed or overlapped helper maintenance")
+    try check(startup.claim(pending: true, available: true), "An outdated installed helper was left for the user to discover")
+    try check(!startup.claim(pending: true, available: true), "Cancelled or failed startup maintenance prompted again in the same run")
     try check(!LidHelperUpdateState(info: current, lidOpen: false).pending, "App build changes unnecessarily replace the lid helper")
     try check(LidHelperUpdateState(info: current, lidOpen: false, publisherMatches: false).pending, "Different helper publisher incorrectly appears up to date")
     let pending = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: false)
@@ -38,7 +53,7 @@ func runAppUpdateTests() throws {
     app.presentLidProtectionSetup(readHelper: { helper })
     let host = SettingsWindow.shared, page = host.pages.last!
     let buttons = page.view.subviews.compactMap { $0 as? NSButton }
-    let finish = buttons.first(where: { $0.title == "Finish lid helper update…" })!
+    let finish = buttons.first(where: { $0.title == "Retry incomplete helper update…" })!
     try check(finish.isEnabled && !buttons.contains(where: { $0.title == "Updates…" || $0.title == "Done" }), "Protected closed-lid helper update was blocked or retired Updates page retained")
     helper.helper = LidHelperUpdateState(info: ["CFBundleVersion": "63"], lidOpen: true)
     host.pages.last?.refresh?()
@@ -57,6 +72,7 @@ func runAppUpdateTests() throws {
     helper.helper = LidHelperUpdateState(info: current, lidOpen: true)
     helper.result = "Lid helper updated and responding."
     host.pages.last?.refresh?()
+    try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { $0.title == "Resume lid protection" || ($0.isEnabled && $0.title == "Lid helper is up to date") }, "Healthy setup retained manual resume or unnecessary update")
     try check(host.pages.last!.view.subviews.compactMap { $0 as? SettingsStatusField }.first?.textColor == .labelColor,
               "Successful helper setup is still presented as needing attention")
     host.goBack()

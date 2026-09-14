@@ -121,6 +121,8 @@ final class LidGuardClient {
     private var publishedStatus: LidGuardStatus?
     private var publishedChanging = false
     private var connection: NSXPCConnection?
+    private var restartConnection: NSXPCConnection?
+    private var claimingRestart = false
     private var timer: DispatchSourceTimer?
     private var responsiveness: NSObjectProtocol?
     enum RestartRequest: Equatable { case prepare(String, String), resume(String), cancel(String, String) }
@@ -172,6 +174,12 @@ final class LidGuardClient {
     func resumeAfterRestart(_ ticket: String, completion: @escaping (Result<Void, Error>) -> Void) {
         guard !SettingsWindow.shared.testing || injectedRestart != nil else { completion(.failure(AppError(message: "Live updates are blocked in tests."))); return }
         queue.async {
+            guard !self.claimingRestart else {
+                DispatchQueue.main.async { completion(.failure(AppError(message: "The lid restart handoff is already in progress."))) }
+                return
+            }
+            self.claimingRestart = true
+            self.session.beginRestartClaim()
             self.connection?.invalidate(); self.connection = nil
             var finished = false
             let finish: (Data?) -> Void = { data in
@@ -181,7 +189,12 @@ final class LidGuardClient {
                     do {
                         guard let data else { throw AppError(message: "The lid helper did not respond to the updated app.") }
                         try self.session.adoptRestart(data); result = .success(())
-                    } catch { result = .failure(error) }
+                    } catch { self.session.failRestartClaim(); result = .failure(error) }
+                    self.claimingRestart = false
+                    self.restartConnection?.invalidate(); self.restartConnection = nil
+                    // Move immediately to the normal heartbeat endpoint.
+                    // A claim-only connection is never reused for polling.
+                    self.session.refresh()
                     DispatchQueue.main.async { completion(result) }
                 }
             }
@@ -236,12 +249,13 @@ final class LidGuardClient {
     }
     private func proxy(restart: Bool = false, failure: @escaping () -> Void) -> LidGuardProtocol? {
         guard let requirement = HelperStatusIPC.requirement else { failure(); return nil }
-        if connection == nil {
+        if (restart ? restartConnection : connection) == nil {
             let new = NSXPCConnection(machServiceName: restart ? LidGuardService.restartName : LidGuardService.name, options: .privileged)
             new.setCodeSigningRequirement(requirement); new.remoteObjectInterface = NSXPCInterface(with: LidGuardProtocol.self)
-            new.resume(); connection = new
+            new.resume()
+            if restart { restartConnection = new } else { connection = new }
         }
-        return connection?.remoteObjectProxyWithErrorHandler { _ in failure() } as? LidGuardProtocol
+        return (restart ? restartConnection : connection)?.remoteObjectProxyWithErrorHandler { _ in failure() } as? LidGuardProtocol
     }
     func refresh() {
         guard !SettingsWindow.shared.testing || injectedTransport != nil else { return }
@@ -262,6 +276,7 @@ final class LidGuardClient {
     }
     deinit {
         timer?.cancel(); connection?.invalidate()
+        restartConnection?.invalidate()
         if let responsiveness { ProcessInfo.processInfo.endActivity(responsiveness) }
     }
 
@@ -271,7 +286,7 @@ extension AppDelegate {
     func changeSupervisedLid(_ enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
         do {
             if enabled && (LidGuardClient.shared.status?.fresh != true || LidHelperUpdate.shared.state.pending) {
-                throw AppError(message: "Finish lid protection setup in Keep awake before starting a session. Your saved choice is kept.")
+                throw AppError(message: "Complete Setup → Lid protection before starting a session. Your saved choice is kept.")
             }
             LidGuardClient.shared.start()
             LidGuardClient.shared.change(enabled, completion: completion)

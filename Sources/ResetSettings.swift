@@ -109,7 +109,7 @@ enum SettingsResetScope: CaseIterable, Hashable {
         case .allAppsPrivacy: return nil
         }
     }
-    var title: String { self == .allAppsPrivacy ? "Reset all apps’ privacy permissions?" : "Resets" }
+    var title: String { self == .allAppsPrivacy ? "Reset all apps’ privacy permissions?" : "Reset Settings" }
 
 }
 

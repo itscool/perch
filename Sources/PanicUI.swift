@@ -141,25 +141,34 @@ extension AppDelegate {
             options.insert(("Resume agent activity…", "Stop blocking relaunches. This will not reopen agents or restore privacy permissions.", #selector(resumeAgents)), at: 0)
         }
         if !GuardianInstall.alive {
-            options.insert(("Background helpers in Setup…", "The helper is not responding. Open Setup to repair it before relying on panic.", #selector(advancedSafetySettings)), at: 0)
+            options.insert(("Background helpers in Setup…", "The helper is not responding. Setup shows automatic recovery progress and any access still needed.", #selector(advancedSafetySettings)), at: 0)
         }
         chooseSafetyAction(title: "Agent Kill Switch", detail: GuardianInstall.alive ? (blocked ? "Agent activity is blocked. Resume below when you are ready to allow agents to run again." : "✓ Background protection is running.") : "⛔ Background protection is unavailable. Review setup below.", options: options)
     }
     @objc func advancedSafetySettings() { openSetupStage("maintenance") }
     @objc func presentBackgroundSetup() {
-        let issue = ProtectionIssue.assess(GuardianInstall.status, config: SafetyConfiguration.load())
-        let problem = issue.flatMap { $0.route == "repair" ? $0.detail + "\n\n" : nil } ?? ""
-        let detail = problem + "Repair or protect Perch’s background helpers. Your feature choices are retained when repairing. These actions explain any administrator approval before making changes."
+        let detail = BackgroundHelperRecovery.shared.detail
         if SettingsWindow.shared.pages.last?.title == "Background helpers" {
             SettingsWindow.shared.updateCurrentPageDetail(detail)
             return
         }
         setupOverview()
-        chooseSafetyAction(title: "Background helpers", detail: detail, options: [
-            ("Repair background helpers…", "Install the current Perch build and restart its helpers. Existing feature choices are retained.", #selector(repairWatcher)),
-            ("Open macOS Login Items…", "If Start at login needs approval, allow Perch in macOS. Your startup choice remains in App settings.", #selector(reviewLoginApproval)),
-            ("Protect background helper files…", "Require administrator authorization to replace helper files. This does not prevent disabling protection.", #selector(protectWatcher)),
-            ("Perch privacy reset…", "If Perch’s existing grants still fail after repair, open the Perch-only reset. Saved choices are kept; return here afterward to finish setup.", #selector(perchPrivacyResetFromSettings))])
+        let page = SettingsTaskPage(title: "Background helpers", detail: "Perch installs and maintains the helpers used by scrolling, Keep awake and agent protection automatically.", height: 160, statusHeight: 100)
+        page.update = { [weak page] in
+            page?.status.stringValue = BackgroundHelperRecovery.shared.detail
+            page?.status.textColor = BackgroundHelperRecovery.shared.healthy ? StatusColors.success : StatusColors.warning
+        }
+        page.show(delegate: self)
+    }
+    @objc func securitySettings() {
+        let page = SettingsTaskPage(title: "Security", detail: "Choose how Perch’s background helper files are protected.", height: 230, statusHeight: 80)
+        let protect = page.add("Require administrator authorization to change helper files…", detail: "Protects files from ordinary edits. Helpers still run as your user and can be stopped; this does not isolate them from other apps in your account.") { [weak self] in self?.protectWatcher() }
+        page.update = { [weak page] in
+            let protected = GuardianInstall.inputPermissionApp?.appendingPathComponent("Contents/MacOS/Perch") == GuardianInstall.protectedBinary
+            protect.isEnabled = !protected
+            page?.status.stringValue = protected ? "Helper files are administrator-owned. Changing them requires authorization." : "Helper files use your account’s normal file permissions."
+        }
+        page.show(delegate: self)
     }
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
@@ -354,18 +363,6 @@ extension AppDelegate {
         }
         if let poll { RunLoop.main.add(poll, forMode: .common) }
         SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Choose a settings category when you are finished.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
-    }
-    @objc func repairWatcher() {
-        do {
-            try GuardianInstall.install(); safetyError = nil
-            let result = NSAlert(); result.messageText = "Helper installation finished"
-            result.informativeText = "Perch’s current helper files and launch jobs are installed. Setup & status will check that the helpers respond and show any access still needed. Your feature choices are retained."
-            result.addButton(withTitle: "Check setup & status")
-            result.addButton(withTitle: "Back")
-            SettingsWindow.shared.present(result) { [weak self] response in
-                if response == .alertFirstButtonReturn { self?.setupOverview() }
-            }
-        } catch { safetyError = error.localizedDescription; showError(error) }
     }
     @objc func protectWatcher() {
         let alert = NSAlert()

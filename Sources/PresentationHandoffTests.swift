@@ -61,7 +61,7 @@ func runPresentationHandoffTests() throws {
     host.window.orderFront(nil)
     let priorLevel = host.window.level, priorFloating = host.window.isFloatingPanel
     let permission = PermissionSetup(helperApp: { SafetyFiles.helperApp })
-    let routes: [() -> Void] = [permission.openSettings, permission.revealHelper, EventCollectorSetup.shared.openPrivacySettings, EventCollectorSetup.shared.showFile]
+    let routes: [() -> Void] = [permission.openSettings, EventCollectorSetup.shared.openPrivacySettings]
     for route in routes {
         let before = opens, oldNotices = notices
         route()
@@ -117,5 +117,5 @@ func runPresentationHandoffTests() throws {
     try check(!host.externalHandoff && host.authorizing && !host.window.isVisible, "Authorization retained an external handoff owner")
     endAuthorization()
     try check(!host.interactionBusy && host.window.isFloatingPanel == priorFloating, "Authorization after external return lost window state")
-    print("PASS: all three picker entry routes; modal overlap refusal; queued page/result ownership; Accessibility, Full Disk Access, Finder, keyboard and navigation handoffs, retained drag UI, failed open and return; injected OS operations only")
+    print("PASS: all three picker entry routes; modal overlap refusal; queued page/result ownership; Accessibility, Full Disk Access, keyboard and navigation handoffs, retained drag UI, failed open and return; injected OS operations only")
 }

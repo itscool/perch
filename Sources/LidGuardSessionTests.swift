@@ -26,6 +26,23 @@ private final class LidSessionFixture {
 func runLidGuardSessionTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let token = UUID().uuidString
+    let restart = LidSessionFixture()
+    restart.session.refresh()
+    let preRestartReply = restart.requests.last!.1
+    restart.session.beginRestartClaim()
+    restart.session.refresh()
+    preRestartReply(nil)
+    restart.fire(2)
+    try check(restart.requests.count == 1 && restart.invalidations == 0 && restart.changing,
+              "Startup polling invalidated or overlapped the restart claim")
+    try restart.session.adoptRestart(restart.response(armed: true, token: token))
+    preRestartReply(try restart.response(armed: false, token: nil))
+    restart.session.refresh()
+    try check(restart.requests.last?.0 == .renew(token) && restart.active && !restart.changing,
+              "Restart claim did not move directly to normal heartbeats")
+    restart.session.beginRestartClaim(); restart.session.failRestartClaim(); restart.session.refresh()
+    try check(restart.requests.last?.0 == .status && !restart.changing && !restart.active,
+              "Failed claim left polling suspended or renewed unowned protection")
     let f = LidSessionFixture()
     var completions = 0
     f.session.change(true) { if case .success = $0 { completions += 1 } }

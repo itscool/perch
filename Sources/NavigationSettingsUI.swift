@@ -35,7 +35,7 @@ extension AppDelegate {
     func navigationProfilesForHelper() throws -> [NavigationKeyboardProfile] {
         var profiles = try KeyboardNavigationProfiles.read()
         for profile in keyboardModes.registrations.compactMap({ $0.profile }) {
-            profiles.removeAll { $0.identity == profile.identity }; profiles.append(profile)
+            profiles.removeAll { $0.identity.sameLayout(as: profile.identity) }; profiles.append(profile)
         }
         return profiles
     }

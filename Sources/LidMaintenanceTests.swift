@@ -3,6 +3,60 @@ import Foundation
 func runLidMaintenanceTests() throws {
     func check(_ value: Bool, _ detail: String) throws { if !value { throw AppError(message: detail) } }
     let token = UUID().uuidString
+    var compatible = LidGuardStatus(updatedAt: LidGuardClock.now, armed: false, detail: "Ready")
+    compatible.codeIdentity = "previous-compatible-app-build"
+    try check(LidAutomaticResume.helperReady(compatible, pending: false), "App-only updates disabled automatic resume with a compatible helper")
+    try check(!LidAutomaticResume.helperReady(compatible, pending: true), "Pending helper replacement allowed a new session")
+    compatible.helperVersion = LidGuardCompatibility.helperVersion - 1
+    try check(!LidAutomaticResume.helperReady(compatible, pending: false), "Outdated helper allowed automatic resume")
+    for closed in [false, true, nil] as [Bool?] {
+        for power in [LidPower.external, .battery, .unknown] {
+            for bits in 0..<64 {
+                let wanted = bits & 1 != 0, ready = bits & 2 != 0, active = bits & 4 != 0
+                let countdown = bits & 8 != 0, busy = bits & 16 != 0, clean = bits & 32 != 0
+                var automatic = LidAutomaticResume()
+                let observation = LidObservation(closed: closed, power: power)
+                let expected = wanted && ready && !active && !countdown && !busy && clean && closed != nil && power != .unknown && (closed == false || power == .external)
+                let start = automatic.shouldStart(observation: observation, wanted: wanted, ready: ready, active: active, countdown: countdown, busy: busy, clean: clean)
+                try check(start == expected, "Automatic resume changed an active timer, bypassed readiness or started closed on battery")
+                if start {
+                    try check(!automatic.shouldStart(observation: observation, wanted: wanted, ready: ready, active: false, countdown: false, busy: false, clean: true), "Failed resume or repeated polling retried without a new safe transition")
+                }
+            }
+        }
+    }
+    for recoverByOpening in [false, true] {
+        var automatic = LidAutomaticResume()
+        _ = automatic.shouldStart(observation: .init(closed: true, power: .battery), wanted: true, ready: true, active: true, countdown: false, busy: false, clean: true)
+        for _ in 0..<100 {
+            try check(!automatic.shouldStart(observation: .init(closed: true, power: .battery), wanted: true, ready: true, active: false, countdown: false, busy: false, clean: true), "An expired closed-lid battery session restarted automatically")
+        }
+        let safe = LidObservation(closed: !recoverByOpening, power: recoverByOpening ? .battery : .external)
+        try check(!automatic.shouldStart(observation: safe, wanted: true, ready: true, active: false, countdown: false, busy: false, clean: false), "Automatic resume interrupted pending cleanup")
+        try check(automatic.shouldStart(observation: safe, wanted: true, ready: true, active: false, countdown: false, busy: false, clean: true), "Opening the lid or connecting power still required a Resume button")
+        automatic.repaired()
+        try check(automatic.shouldStart(observation: safe, wanted: true, ready: true, active: false, countdown: false, busy: false, clean: true), "Successful helper repair failed to restore saved intent")
+    }
+    for delay in [0, 1, 9, 10, 20] {
+        var now = 100.0, reaped = false, released = false
+        let accepted: Bool
+        do {
+            try LidMaintenance.waitForUnload(now: { now }, pause: { now += 1 }, reap: { reaped = true }, unloaded: {
+                try check(reaped, "Waited for launchd before releasing its blocked helper process")
+                released = now >= 100 + Double(delay)
+                return released
+            })
+            accepted = true
+        } catch { accepted = false }
+        try check(accepted == (delay < 10), "Delayed launchd unload was rejected early or allowed beyond its bound")
+        try check(accepted == released, "Helper replacement continued without confirmed unloading")
+    }
+    for invalidTime in [Double.nan, .infinity, 99] {
+        var now = 100.0, refused = false
+        do { try LidMaintenance.waitForUnload(now: { now }, pause: { now = invalidTime }, reap: {}, unloaded: { false }) }
+        catch { refused = true }
+        try check(refused, "Invalid clock extended helper unloading")
+    }
     let base = LidMaintenanceRecord(token: token, previousToken: nil, boot: "boot", started: 100, expires: 160, resume: false, countdown: nil, batteryDeadline: nil)
     for now in [Double.nan, -.infinity, 99, 100, 159.999, 160, 161, .infinity] {
         for boot in ["boot", "reboot", ""] {

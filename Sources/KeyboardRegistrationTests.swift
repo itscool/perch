@@ -46,8 +46,14 @@ func runKeyboardRegistrationTests() throws {
     try check(!NavigationPreferences().enabled && monitor.warning && monitor.attentionHint.contains("setup needed"), "Unknown keyboard warning depended on an optional feature being enabled")
     let mx = identity(vendor: 0x046D, product: 0xB35B, name: "MX Keys", transport: "Bluetooth")
     try check(!BundledNavigationProfiles.entries.isEmpty && !KeyboardRegistrationStatus.assess(mx, saved: []).needsSetup, "Bundled MX Keys profile missing or not recognized")
-    for unrelated in [identity(name: "MX Keys"), identity(vendor: 0x046D, product: 0xB35B, name: "MX Keys", transport: "USB"), identity(vendor: 0x046D, product: 0xB35B, name: "Another model", transport: "Bluetooth")] {
+    for unrelated in [identity(name: "MX Keys"), identity(vendor: 0x046D, product: 0xB35B, name: "MX Keys", transport: "USB")] {
         try check(KeyboardRegistrationStatus.assess(unrelated, saved: []).needsSetup, "Bundled profile matched an unrelated device or receiver transport")
+    }
+
+    for name in ["MX Keys Home", "Office keyboard", "Scott’s keyboard"] {
+        let renamed = identity(vendor: mx.vendor, product: mx.product, version: mx.version, name: name, transport: mx.transport)
+        let result = KeyboardRegistrationStatus.assess(renamed, saved: [])
+        try check(result.name == name && result.profile?.keys == [74, 77, 75, 78], "Renaming a known model lost its bundled mapping or display label")
     }
 
     let suite = "Perch.KeyboardRegistration.Tests." + UUID().uuidString
@@ -59,6 +65,11 @@ func runKeyboardRegistrationTests() throws {
     try check(records == [learned], "Profile did not survive decoding")
     let recognized = KeyboardRegistrationStatus.assess(identity(), saved: records)
     try check(!recognized.needsSetup && recognized.profile?.hasHomeEnd == true && recognized.profile?.hasPageKeys == true, "Saved identity did not survive reconnect without a registry ID")
+    let renamedLearned = identity(name: "Home keyboard")
+    let retained = KeyboardRegistrationStatus.assess(renamedLearned, saved: records)
+    try check(retained.profile?.keys == learned.keys && retained.profile?.identity.name == "Home keyboard", "Rename lost the learned layout or retained its old label")
+    try KeyboardNavigationProfiles.save(.init(identity: renamedLearned, keys: learned.keys), defaults: defaults)
+    try check(try KeyboardNavigationProfiles.read(defaults: defaults).count == 1, "Rename created a second layout record")
     monitor.registrations = [recognized]
     try check(!monitor.warning && monitor.attentionHint.isEmpty, "Successful registration retained setup warning")
     monitor.registrations = []

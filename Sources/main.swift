@@ -101,6 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var lidItem: NSMenuItem!
     var observedSleep: SleepStatus?
     var observedLidDisabled: Bool?
+    var automaticLidResume = LidAutomaticResume()
+    var automaticLidResumeReady = false
     var renderedSleep: SleepPresentation?
     let lidSleepNotice = LidSleepNotice()
     var startupKeyboardAccessNotice = StartupKeyboardAccessNotice()
@@ -142,15 +144,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 }
                 PerchUpdater.shared.start()
                 if !GuardianInstall.messagingInstalled {
-                    do { try GuardianInstall.install() } catch { self?.safetyError = error.localizedDescription }
+                    do { try GuardianInstall.install() }
+                    catch {
+                        self?.safetyError = error.localizedDescription
+                        BackgroundHelperRecovery.shared.recordFailure(error)
+                        self?.advancedSafetySettings()
+                    }
                 }
                 if CommandLine.arguments.contains("--complete-restart") || CommandLine.arguments.contains("--show-restart") {
                     self?.configureSettings(); self?.appSettings()
                 }
+                LidHelperUpdate.shared.afterLaunch(explain: { [weak self] in
+                    self?.configureSettings(); self?.lidProtectionSetup()
+                }, refresh: { [weak self] in self?.settingsRefresh?() }, completion: { [weak self] in
+                    EventCollectorSetup.shared.afterLaunch { self?.processEventSetup() }
+                })
+                self?.automaticLidResumeReady = true
+                self?.resumeSavedLidProtectionIfReady()
             }
         }
         inputTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             guard let self else { return }
+            if self.automaticLidResumeReady { BackgroundHelperRecovery.shared.check() }
             if self.menuOpen || Date().timeIntervalSince(self.lastBackgroundRefresh) >= 10 {
                 self.lastBackgroundRefresh = Date()
                 if self.menuOpen { self.nativeKeyboards = NativeModifierKeys.keyboards(); self.keyboardModes.readForPresentation() }
@@ -385,17 +400,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         awakeItem.menuHelp = ControlHelp.awake
         lidItem.menuHelp = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid)
     }
-    @objc func resumeLidProtection() {
-        withMenuClosed { [weak self] in
-            guard let self, UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
-                  SafetyConfiguration.load().keepAwake, !LidGuardClient.shared.active,
-                  !LidGuardClient.shared.changing else { return }
-            self.changeSupervisedLid(true) { result in
-                self.refresh()
-                if case .failure(let error) = result { self.showLidSetup(error.localizedDescription) }
-            }
-        }
-    }
     func perform(_ action: () throws -> Void) {
         do { try action() } catch { showError(error) }
         refresh()
@@ -590,6 +594,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         HelperStatusIPC.inputClient.onChange = repaint
         LidGuardClient.shared.onChange = { [weak self] in
             guard let self else { return }
+            self.resumeSavedLidProtectionIfReady()
             self.applyLidSleepPresentation(); self.settingsRefresh?()
         }
     }
@@ -602,12 +607,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc func toggleFunctionKeys() { keyboardModes.setBuiltIn(fnItem.state != .on) }
     @objc func toggleLogin() {
-        perform {
+        withMenuClosed { [weak self] in
+            guard let self else { return }
+            let enabling = SMAppService.mainApp.status != .enabled
+            do {
             switch SMAppService.mainApp.status {
             case .enabled: try SMAppService.mainApp.unregister()
-            case .requiresApproval: advancedSafetySettings()
+            case .requiresApproval: break // The shared post-check opens approval once.
             default: try SMAppService.mainApp.register()
             }
+                if enabling && SMAppService.mainApp.status == .requiresApproval { self.reviewLoginApproval() }
+            } catch {
+                if enabling { self.reviewLoginApproval() }
+                else { self.showError(error) }
+            }
+            self.refresh()
         }
     }
     @objc func about() {

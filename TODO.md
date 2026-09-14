@@ -58,8 +58,11 @@ complete; physical two-Mac acceptance remains pending.
   failure. Powered closed-lid native restart passed on 135.
 - [x] **Maintenance required unnecessary manual discovery.** Automatic bounded
   helper recovery, launch-time installed-helper maintenance and saved lid intent
-  replace generic Repair/Resume. Security owns file protection; Reset Settings
-  owns resets; Login Items approval opens at the failing Start at login action.
+  replace generic Repair/Resume. Background-helper maintenance is Setup-owned;
+  there is no optional administrator-protection page. If administrator ownership
+  ever becomes a product prerequisite, it belongs in the relevant Setup stage.
+  Reset Settings owns resets; Login Items approval opens at the failing Start at
+  login action.
 - [x] **Redundant permission Finder actions.** Exact drag/copy targets remain in
   permission setup. Finder reveal and its unused sibling handlers are removed.
 - [ ] **Cross-Mac desktop handoff with unreadable monitor inputs.** Presets,

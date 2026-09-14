@@ -109,12 +109,14 @@ Installed collector configuration updates join serialized startup maintenance.
 Optional uninstalled components remain optional; failed/cancelled authorization
 leaves a specific failure instead of repeated prompting.
 
-Settings follow-up: Background helpers becomes a status-only Setup page. Security
-owns administrator protection of helper files. Reset Settings remains its own
-scope-wide destination. Login approval opens from the failed Start at login
-action or its attention-only overview entry. Generic repair, manual lid resume,
-and the duplicate privacy-reset link are removed. UI evidence for these later
-changes is recorded with their final candidate below.
+Settings follow-up: Background helpers becomes a status-only Setup page. There is
+no standalone Security page or optional administrator-protection choice. If
+administrator ownership ever becomes a product prerequisite, it belongs in the
+relevant Setup stage. Reset Settings remains its own scope-wide destination.
+Login approval opens from the failed Start at login action or its attention-only
+overview entry. Generic repair, manual lid resume, and the duplicate
+privacy-reset link are removed. UI evidence for these later changes is recorded
+with their final candidate below.
 
 
 ## Active app restart verification, 2.0.135
@@ -143,7 +145,7 @@ replacement, physical sleep/reboot, or Sparkle download/update acceptance.
 
 Keyboard registration, lid/enforcement and AppKit settings suites passed against
 135; two-/16-peer TLS fixtures also passed. Live settings navigation checked
-Background helpers, Security, Reset Settings, Keyboards and Keyboard access.
+Background helpers, Reset Settings, Keyboards and Keyboard access.
 Permission instructions retain the current app drag/copy target and omit Finder
 reveal. No reset or file-protection action was performed. The only later source
 change for 136 corrects a stale sidebar destination in permission-ready copy.

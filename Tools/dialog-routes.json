@@ -155,18 +155,6 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:protectWatcher:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:protectWatcher:alert:2": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "PermissionSetup.swift:show:page:1": {
     "file": "PermissionSetup.swift",
     "kind": "page",
@@ -300,10 +288,6 @@
     "kind": "page"
   },
   "PanicUI.swift:presentBackgroundSetup:task-page:1": {
-    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
-    "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
-  },
-  "PanicUI.swift:securitySettings:task-page:1": {
     "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
     "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
   },

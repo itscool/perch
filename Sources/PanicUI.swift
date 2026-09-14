@@ -165,16 +165,6 @@ extension AppDelegate {
         }
         page.show(delegate: self)
     }
-    @objc func securitySettings() {
-        let page = SettingsTaskPage(title: "Security", detail: "Choose how Perch’s background helper files are protected.", height: 230, statusHeight: 80)
-        let protect = page.add("Require administrator authorization to change helper files…", detail: "Protects files from ordinary edits. Helpers still run as your user and can be stopped; this does not isolate them from other apps in your account.") { [weak self] in self?.protectWatcher() }
-        page.update = { [weak page] in
-            let protected = GuardianInstall.inputPermissionApp?.appendingPathComponent("Contents/MacOS/Perch") == GuardianInstall.protectedBinary
-            protect.isEnabled = !protected
-            page?.status.stringValue = protected ? "Helper files are administrator-owned. Changing them requires authorization." : "Helper files use your account’s normal file permissions."
-        }
-        page.show(delegate: self)
-    }
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
     }
@@ -385,21 +375,5 @@ extension AppDelegate {
         }
         if let poll { RunLoop.main.add(poll, forMode: .common) }
         SettingsWindow.shared.show(.init(title: "Preview panic targets", detail: "A read-only preview of processes panic would attempt to terminate. Choose a settings category when you are finished.", view: scroll, leave: { poll?.invalidate(); poll = nil }))
-    }
-    @objc func protectWatcher() {
-        let alert = NSAlert()
-        alert.messageText = "Protect the watcher executable"
-        alert.informativeText = "Install an administrator-owned copy so ordinary agent commands cannot overwrite the watcher binary. macOS will ask for your password.\n\nThe watcher still runs as your user. Another process with your account’s access can stop or disable it; this is extra protection against accidental changes, not isolation from a hostile agent."
-        alert.addButton(withTitle: "Install Protected Copy")
-        alert.addButton(withTitle: "Cancel")
-        SettingsWindow.shared.present(alert) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else { return }
-            do {
-                try GuardianInstall.protectExecutable()
-                let result = NSAlert(); result.messageText = "Helper files protected"
-                result.informativeText = "The administrator-owned copy was installed and the background helpers restarted. Their status is checked in Settings."
-                SettingsWindow.shared.present(result)
-            } catch { self.showError(error) }
-        }
     }
 }

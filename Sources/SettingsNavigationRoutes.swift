@@ -53,7 +53,6 @@ extension AppDelegate {
             item("agent-choices", "Agents & panic actions", ["Agents & panic actions"], #selector(editSafetyConfiguration), depth: 1),
             item("agent-recognition", "Agent recognition", ["Agent recognition"], #selector(manageAgents), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
-            item("security", "Security", ["Security"], #selector(securitySettings)),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
             item("hotkeys", "Hotkeys", ["Hotkeys"], #selector(hotkeySettings), depth: 1),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),

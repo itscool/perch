@@ -4,9 +4,9 @@ A native Mac menu bar app for sleep, sound, input controls, and an emergency sto
 
 Setup and recovery: [Support guide](SUPPORT.md). Dependencies: [Third-party notices](THIRD-PARTY-NOTICES.md).
 
-Release notes: [2.0.150](Release/notes.md) · [release history](Release/history.md) · [2.0 development](RELEASE-2.0.md) · [1.2](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). Remaining hardware acceptance is tracked in [TODO.md](TODO.md).
+Release notes: [2.0.151](Release/notes.md) · [release history](Release/history.md) · [2.0 development](RELEASE-2.0.md) · [1.2](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). Remaining hardware acceptance is tracked in [TODO.md](TODO.md).
 
-Perch is a notarized Apple Silicon/macOS 26 app. Download the [2.0.150 release](https://github.com/itscool/perch/releases/tag/v2.0.150), or install it from the maintained Homebrew tap with `brew install --cask itscool/tap/perch`. Building locally still requires a local signing certificate as described below.
+Perch is a notarized Apple Silicon/macOS 26 app. Download the [2.0.151 release](https://github.com/itscool/perch/releases/tag/v2.0.151), or install it from the maintained Homebrew tap with `brew install --cask itscool/tap/perch`. Building locally still requires a local signing certificate as described below.
 
 **Keyboard controls** offer independent built-in/external modifier and Fn choices, plus optional external Home/End and Page Up/Down modes. The external heading shows a connected keyboard’s name or a count; absent devices hide their controls and unknown layouts show setup guidance. Twenty-eight bundled layout profiles retain their evidence/confidence labels. Registration does not certify physical event delivery on every device. See [KEYBOARDS.md](KEYBOARDS.md).
 

@@ -481,7 +481,7 @@ historical evidence, not additional open release requirements.
    tooling and delegates the full resumable flow to Tools/release-all.py. Real update/restart
    acceptance remains QA.
    Direct distribution currently targets Apple silicon/macOS 26+. The verified
-   2.0.150 release is public; Homebrew tap `itscool/tap` carries the matching
+   2.0.151 release is public; Homebrew tap `itscool/tap` carries the matching
    cask. See Release/README.md.
 3. [x] **Dependency and catalog release review.** Audit completed September 10;
    missing BoringSSL/MSI notices fixed, NEC attribution added, catalog provenance
@@ -492,8 +492,8 @@ historical evidence, not additional open release requirements.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
-5. [x] **2.0.150 release and Homebrew cask.** The signed, notarized and stapled
-   DMG/ZIP/appcast/checksum set is published at GitHub v2.0.150. The matching
+5. [x] **2.0.151 release and Homebrew cask.** The signed, notarized and stapled
+   DMG/ZIP/appcast/checksum set is published at GitHub v2.0.151. The matching
    cask is published in `itscool/homebrew-tap` and passes Homebrew style/fetch
    checks. Native hardware acceptance remains open in QA; the public release was
    explicitly authorized before those tests were complete.

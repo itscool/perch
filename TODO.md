@@ -285,6 +285,17 @@ remain open; this is not a claim that untested behavior is defect-free.
   attached. Cover delayed, missing, zero, conflicting and reverted reads plus
   peer loss in unit and native fixtures, then validate both LGs physically.
 
+- [ ] **Finish the simplified Desk preset graph.** Replace the single computer
+  connector plus vertical monitor input toggles with three clearly numbered
+  preset connectors on every computer. Keep monitor connectors physical and
+  allow each preset route to be changed by wiring the numbered computer port to
+  a monitor input; changing the selected preset should only change the editing
+  context, never the physical monitor cards. Show every preset number on its
+  route, highlight the selected preset separately from the currently active
+  routing, and make an incomplete preset explicit without a second hidden
+  editor or redundant preset-input panel. Preserve the existing physical port
+  menu for one-off switching.
+
 - [x] **Monitor control paths, defaults and fresh profile detection.** Control
   choices are scoped to the physical monitor and show computer/port labels;
   protocol overrides retain a separately recorded default. Monitor setup can

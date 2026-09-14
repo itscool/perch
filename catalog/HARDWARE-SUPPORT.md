@@ -14,6 +14,35 @@ Reviewed 2026-09-07. These are exact identity/layout and input-code records, **n
 
 DDCControl inputsource overrides are preferred over their generic capabilities, including Samsung's different write codes. The C49RG9x record marks input control as write-only: cycling requires explicit last-command fallback, and Perch does not treat its readback as switch verification. Each database entry retains its source URL. The DDCControl data license is bundled in `ddccontrol-COPYING.txt`. LG model reports can be partial; only explicitly reported ports are included. The local owner confirmed 27UN850-W USB-C **209**, not 210; this does not certify every cable or direction.
 
+## Standard control inventory for future use
+
+These are standardized MCCS/DDC candidates worth recording separately from
+Perch's current input-switching feature. They are an inventory, not a promise
+that a monitor implements them correctly or that Perch currently changes them.
+The display's capabilities reply is the first filter; a read must then be
+bounded and validated on the exact display and route. A capability advertisement
+does not authorize a write, and a successful write does not prove the resulting
+state.
+
+| VCP code | MCCS name | Common UI meaning | Perch status / safety |
+|---|---|---|---|
+| `0x10` | Luminance | Brightness / backlight level | Candidate read/write control; validate whether the panel exposes actual hardware brightness or a normalized/software value. |
+| `0x12` | Contrast | Contrast | Candidate read/write control; exact panel semantics vary. |
+| `0x14` | Select color preset | Picture or color preset | Candidate read control; writes can change the user's picture mode and require explicit action. |
+| `0x60` | Input source | Selected video input | Current standard input path; readback is the authoritative candidate but is unreliable on some LG models. |
+| `0x62` | Audio speaker volume | Monitor audio volume | Candidate read/write control; unrelated to display routing. |
+| `0xD6` | Power mode | Monitor power state | Read-only diagnostics may be useful; writes are deliberately out of scope until recovery behavior is defined. |
+
+BetterDisplay exposes these controls through DDC names such as `luminance`,
+`contrast` and `inputSelect`, and exposes the alternate LG input path as
+`inputSelectAlt`. Its integration documentation also makes clear that DDC
+access and readback depend on the display. Perch should use the native adapter
+and a model/route allowlist rather than add BetterDisplay as a runtime
+dependency. Future probing should query only advertised, explicitly allowlisted
+read-only candidates, record raw replies and timing, and stop on malformed or
+side-effecting behavior. Sources: [BetterDisplay DDC CLI](https://github.com/waydabber/BetterDisplay/wiki/Integration-features%2C-CLI),
+[VESA DDC/CI reference](https://glenwing.github.io/docs/VESA-DDCCI-1.1.pdf).
+
 | Model / identity | Inputs (decimal command codes) |
 |---|---|
 | ASUS TUF VG27AQ | HDMI 1 = 17, HDMI 2 = 18, DisplayPort = 15 |

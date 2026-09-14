@@ -11,6 +11,8 @@ enum KVMInputMessage: Codable {
     case stop(UUID?)
     case event(UUID, UInt64, KVMInputEvent)
     case delivery(UUID, UUID, UInt64, KVMInputEvent, KVMInputFocus)
+    case heartbeat(UUID, UUID)
+    case heartbeatAck(UUID, UUID)
     case inspect(UUID, String, UUID)
     case visible(UUID, UUID, UInt16?)
     case keyboards(Set<UUID>)
@@ -72,6 +74,10 @@ final class KVMInputSession: ObservableObject {
     private var stateExpires: Double = 0
     private var pendingStart: (UUID, UUID, Double)?
     private var outputSequence: UInt64 = 0
+    private var nextHeartbeat: Double = 0
+    private var heartbeats: [UUID: Double] = [:]
+    private var pendingMotion: KVMInputEvent?
+    private var motionFlushScheduled = false
     private var held = KVMInputHeld()
     private var pointer: KVMInputFocus?
     private var timer: Timer?
@@ -131,6 +137,7 @@ final class KVMInputSession: ObservableObject {
     func allowAutomaticStart() { automaticStartSuppressed = false }
     private func endLocal() {
         release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; sequence = 0
+        pendingMotion = nil; motionFlushScheduled = false; heartbeats = [:]; nextHeartbeat = 0
         attachmentWaitingSince = nil; attachmentBuffered = []
     }
     private func endAuthority() {
@@ -213,10 +220,36 @@ final class KVMInputSession: ObservableObject {
             buffered.append(event); return true
         }
         guard active, event.valid, let grant = lease.grant else { return false }
+        if event.kind == .motion {
+            pendingMotion = pendingMotion.map { previous in
+                var combined = event
+                combined.x += previous.x; combined.y += previous.y
+                return combined
+            } ?? event
+            scheduleMotionFlush()
+            return true
+        }
+        flushMotion()
         guard sequence < UInt64.max else { stop(); return false }
         sequence += 1
         send(.event(grant.id, sequence, event), to: node.ownerID)
         return true
+    }
+    private func scheduleMotionFlush() {
+        guard !motionFlushScheduled else { return }
+        motionFlushScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.004) { [weak self] in
+            guard let self else { return }
+            self.motionFlushScheduled = false
+            self.flushMotion()
+        }
+    }
+    private func flushMotion() {
+        guard let event = pendingMotion else { return }
+        pendingMotion = nil
+        guard active, event.valid, let grant = lease.grant, sequence < UInt64.max else { return }
+        sequence += 1
+        send(.event(grant.id, sequence, event), to: node.ownerID)
     }
     @discardableResult func receive(_ data: Data, peer: UUID) -> Bool {
         guard data.starts(with: Self.wirePrefix) else { return false }
@@ -231,6 +264,15 @@ final class KVMInputSession: ObservableObject {
         guard node.isMember, node.online.contains(peer) else { return }
         let now = clock()
         switch message {
+        case .heartbeat(let nonce, let grantID):
+            guard node.isOwner, enabled, ready(), let grant,
+                  grant.id == grantID, grant.participants.contains(peer), fresh(peer) else { return }
+            send(.heartbeatAck(nonce, grantID), to: peer)
+        case .heartbeatAck(let nonce, let grantID):
+            guard peer == node.ownerID, enabled, let sent = heartbeats.removeValue(forKey: nonce),
+                  now >= sent, now - sent < KVMInputLease.duration,
+                  let grant = lease.grant, grant.id == grantID, lease.alive(now: now) else { return }
+            lease.renew(grant: grantID, now: now)
         case .keyboards(let attached):
             guard node.isOwner, enabled, fresh(peer), attached.count <= 16,
                   attached.isSubset(of: Set((node.group.sharedKeyboards ?? []).filter { $0.bindings[peer] != nil }.map(\.id))) else { return }
@@ -261,7 +303,11 @@ final class KVMInputSession: ObservableObject {
                   connections.count <= 256, computers.isSubset(of: Set(node.group.computers.map(\.id))) else { return }
             if availableConnections != connections { availableConnections = connections }
             if readyComputers != computers { readyComputers = computers }
-            stateExpires = sent + 1
+            // The response proves the owner was reachable now. Start the
+            // local freshness window at receipt, rather than at the sender's
+            // earlier poll timestamp, so normal network latency does not
+            // cause a visible focus hiccup.
+            stateExpires = now + 1
             if let value {
                 let first = lease.grant == nil
                 guard ready(), preparedGrant == value, value.participants.contains(node.localID),
@@ -442,6 +488,13 @@ final class KVMInputSession: ObservableObject {
         if let grant = lease.grant, !lease.alive(now: clock()) || !ready() {
             endLocal(); localProblem = "Input returned locally. Perch will retry sharing when this preset and its Macs are ready."; send(.stop(grant.id), to: node.ownerID)
         }
+        let now = clock()
+        heartbeats = heartbeats.filter { now - $0.value < KVMInputLease.duration }
+        if let grant = lease.grant, lease.alive(now: now), node.ownerID != node.localID, now >= nextHeartbeat {
+            let nonce = UUID(); heartbeats[nonce] = now
+            send(.heartbeat(nonce, grant.id), to: node.ownerID)
+            nextHeartbeat = now + 0.2
+        }
         let nonce = lease.challenge(now: clock())
         polls = polls.filter { clock() - $0.value < 1 }; polls[nonce] = clock()
         send(.poll(nonce, ready()), to: node.ownerID)
@@ -454,13 +507,13 @@ final class KVMInputSession: ObservableObject {
         validateAuthority()
         readiness = readiness.filter { node.online.contains($0.key) }
         rates = rates.filter { node.online.contains($0.key) }
-        let now = clock()
-        probes = probes.filter { now - $0.value.sent < 1.5 }
-        if now >= nextInspection, let revision = configurationRevision, node.canEdit {
-            nextInspection = now + 0.75
+        let ownerNow = clock()
+        probes = probes.filter { ownerNow - $0.value.sent < 1.5 }
+        if ownerNow >= nextInspection, let revision = configurationRevision, node.canEdit {
+            nextInspection = ownerNow + 0.75
             for monitor in node.group.monitors {
                 guard let peer = monitor.control?.computer, fresh(peer), !probes.values.contains(where: { $0.monitor == monitor.id }) else { continue }
-                let id = UUID(); probes[id] = .init(peer: peer, monitor: monitor.id, sent: now, revision: revision)
+                let id = UUID(); probes[id] = .init(peer: peer, monitor: monitor.id, sent: ownerNow, revision: revision)
                 send(.inspect(id, revision, monitor.id), to: peer)
             }
         }

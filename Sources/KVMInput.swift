@@ -109,11 +109,18 @@ struct KVMInputLease {
         // New focus always goes through the release/prepare path first.
         if let grant, grant != value { return false }
         guard grant == nil || alive(now: now) else { return false }
-        grant = value; expires = max(expires, sent + Self.duration)
+        // The challenge proves this state was requested within the bounded
+        // window. Once received, grant a full local lease interval so normal
+        // round-trip latency cannot make focus flicker at the deadline.
+        grant = value; expires = max(expires, now + Self.duration)
         return true
     }
     func alive(now: Double) -> Bool {
         grant != nil && now.isFinite && now >= expires - Self.duration && now < expires
+    }
+    mutating func renew(grant id: UUID, now: Double) {
+        guard grant?.id == id, alive(now: now) else { return }
+        expires = max(expires, now + Self.duration)
     }
     mutating func accepts(source: UUID, grant id: UUID, sequence: UInt64, now: Double) -> Bool {
         guard alive(now: now), let grant, grant.id == id, grant.participants.contains(source),

@@ -70,10 +70,12 @@ complete; physical two-Mac acceptance remains pending.
   fallback and keeps the display attached. Sharing consent now starts a KVM
   focus automatically for an active preset with a remote mapped route, and a
   preset change replaces an old focus without requiring a hidden test action;
-  the emergency shortcut still suppresses automatic restart. Complete the
-  physical two-Mac edge-crossing, recovery and readback/control investigation
-  before closing this defect. BetterDisplay remains optional and is not a
-  runtime dependency.
+  the emergency shortcut still suppresses automatic restart. Input focus now
+  renews through a separate authenticated heartbeat message, and motion events
+  coalesce while key/button/scroll ordering remains strict. Complete the
+  physical two-Mac edge-crossing, jitter, recovery and readback/control
+  investigation before closing this defect. BetterDisplay remains optional and
+  is not a runtime dependency.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now

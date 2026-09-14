@@ -136,7 +136,7 @@ func runSleepPresentationTests() throws {
     app.showLidSetup("Fixture: finish setup before enabling protection")
     try check(host.pages.last?.title == "Lid protection setup" && !host.modal && !host.interactionBusy, "Lid setup failure trapped the user in a modal result")
     if let keyboard = host.sidebar.destinations.first(where: { $0.id == "keyboard" }) { host.navigate(to: keyboard) }
-    try check(host.pages.last?.title == "Keyboard settings", "Lid recovery blocked sibling navigation")
+    try check(host.pages.last?.title == "Keyboards", "Lid recovery blocked sibling navigation")
     app.configureSettings(); app.keepAwakeSettings()
     app.showLidSetup("Fixture: repair failed; retry here")
     try check(host.pages.count == 2 && host.back.title == "Back to setup", "Lid repair failure lost the setup checklist context")
@@ -155,13 +155,13 @@ func runSleepPresentationTests() throws {
     var config = previousConfig; config.keepAwake = false; try config.save()
     UserDefaults.standard.set(true, forKey: SleepPreferences.lidPreferenceKey)
     app.observedLidDisabled = false; app.observedSleep = off; app.keepAwakeSettings()
-    let lidBox = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Including with the lid closed" }!
-    try check(lidBox.state == .on && lidBox.isEnabled, "Settings lost or locked a stopped saved lid choice")
-    try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-saved-lid-choice.png")
+    app.applyLidSleepPresentation()
+    try check(app.lidItem.state == .on && app.lidItem.isEnabled, "Menu lost or locked a stopped saved lid choice")
     app.changeLidChoice(readSleep: { off })
     try check(!UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && !SafetyConfiguration.load().keepAwake, "Clicking checked inactive lid choice enabled protection/master instead of clearing intent")
     host.goBack(); app.observedLidDisabled = false; app.observedSleep = off; app.keepAwakeSettings()
-    try check(host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Including with the lid closed" }?.state == .off, "Cleared lid choice did not survive Back/reopen")
+    app.applyLidSleepPresentation()
+    try check(app.lidItem.state == .off, "Cleared lid choice did not survive reopening history")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     print("PASS: transient sleep assertions, stable polling, saved lid intent/inactive/unknown states, conditional sleep notices, temporal evidence and durable acknowledgement")
 }

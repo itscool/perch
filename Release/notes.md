@@ -1,3 +1,11 @@
+App settings removes repeated login, About, Setup and Reset controls. Its CPU preference and always-available restart remain; the main-menu restart continues to appear for a changed installed app.
+
+Desk desktop handoff now uses fresh monitor input evidence to remove a screen from the losing Mac’s desktop, with saved configuration and independent guardian recovery. Unknown inputs, offline destinations, mirrored targets and the last usable screen remain connected. Requires the matching background helper. LG monitors that cannot report their selected input remain unconfirmed and connected.
+
+Keyboards now has one page for device readiness and layout learning, with App exceptions beneath it. Repeated modifier, function-key and navigation switches are removed from Settings and remain in the Perch menu. Lid activity replaces the redundant Keep awake category; stopped-session recovery stays in Setup → Lid protection. Helper-update messages explain why replacing the helper requires an open lid.
+
+Monitor reads now reject LG’s alternate write channel and permit only the specific standard-channel queries used by Perch. This prevents a supposed input read from issuing a vendor command with unrelated hardware effects. LG alternate input switching remains available, but unreadable current input stays unconfirmed.
+
 Setup sidebar readiness badges stay inside the visible sidebar at narrow widths and with either scrollbar style. Labels leave room for the status icon.
 
 Desk computer details now include Connection activity with recent authenticated connections, closure causes and durations. Unexpected losses remain available for diagnosis after reconnecting; expected local shutdowns and redundant routes are identified separately.

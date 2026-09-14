@@ -73,7 +73,7 @@ final class LidActivityPage {
                 self.status.textColor = helper?.fresh == true && helper?.activityError == nil ? .secondaryLabelColor : StatusColors.warning
             case .failure(let error):
                 self.entries = LidActivityStore.retained(self.entries, now: Date())
-                self.status.stringValue = "Activity unavailable: \(error.localizedDescription) Review lid protection in Keep awake."
+                self.status.stringValue = "Activity unavailable: \(error.localizedDescription) Review Setup → Lid protection."
                 self.status.textColor = StatusColors.warning
             }
             let content = self.entries.isEmpty ? "No recorded lid activity in the last 24 hours. The updated lid helper records changes while it is running, including when lid protection is off." : Self.formatted(self.entries)

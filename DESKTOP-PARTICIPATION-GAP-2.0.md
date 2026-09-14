@@ -73,3 +73,41 @@ control-path recovery; then perform explicitly coordinated physical acceptance.
 New reads must invalidate pre-switch observations before driving desktop changes.
 Do not use a previous command, desired preset, lost peer, or unknown input as
 permission to disconnect a display.
+
+## September 13 implementation and physical recovery findings (2.0.121)
+
+Software disconnect is now implemented with an independent guardian recovery
+journal. Fresh generation-matched monitor observations authorize desktop removal;
+preset intent, transport success, unknown inputs and offline destinations do not.
+The journal is synchronized before a disable, and its eight-second lease requires
+both a responding matching guardian and ongoing app reconciliation. A dead or reused
+owner PID, expiry or invalid clock triggers guardian restoration. Perch restores
+before explicit DDC commands and preserves temporarily disconnected display metadata.
+Mirrored targets and the last usable screen are not disconnected.
+
+Real bounded probes on the secondary LG established:
+
+- SLSConfigureDisplayEnabled accepts a temporary disconnect. `.forAppOnly` does
+  **not** reconnect it on process exit. Do not treat this private mutation like
+  documented public application-scoped display settings.
+- Re-enable must commit before restoring the mode; trying both together fails
+  with CGError 1000.
+- A disabled display loses its public UUID and returns an all-zero CoreDisplay
+  UUID. The physical registry endpoint ID and EDID remain available. Recovery
+  checks both and the boot identity rather than blindly trusting a numeric ID.
+- The production recovery code, compiled into a disposable two-process harness,
+  recovered after the disconnecting child exited. Mode 48 and position (2560,0)
+  returned exactly. Both displays ended active with their original modes/positions.
+  Earlier failed probes were restored through the known test path; none is left off.
+
+Pure tests cover unknown/local/remote/offline/unassigned/ambiguous ownership,
+lease boundaries, invalid/reset time, process death/PID reuse and journal encoding.
+TLS fixtures cover fresh desktop evidence and expiry with injected monitor reads.
+The complete native fixture passed 23/23 suites before the final narrow refinement
+that keeps unaffected screens' evidence during another monitor's switch.
+
+Remaining acceptance: automatic cross-Mac handoff with both current helpers,
+physical unplug/replug and independent guardian relaunch. The live LG monitors
+return zero for standard input readback and cannot yet authorize automatic desktop
+removal. This implementation deliberately keeps those screens connected while
+input is unconfirmed. The K-W control/readback investigation remains open.

@@ -122,6 +122,7 @@ struct SafetyStatus: Codable {
     var watcherPID: Int32 = getpid()
     var helperBuild: String = HelperBuild.current
     var statusProtocol: Int = HelperBuild.protocolVersion
+    var desktopRecoverySupported: Bool? = true
     var locked: Bool
     var pendingLaunchJobs: Int
     var shortcutActive: Bool

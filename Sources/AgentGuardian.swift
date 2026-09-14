@@ -286,6 +286,7 @@ final class AgentGuardian {
 
     func tick() {
         defer { scheduleTimer() }
+        DeskDesktopRecovery.recover()
         // Keep the original one-second recovery check, but only compare cheap
         // file revisions. Notifications still run the work immediately.
         if configSignal?.refresh() == true { configurationDirty = true }

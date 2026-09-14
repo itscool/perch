@@ -2,32 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension AppDelegate {
-    @objc func navigationSettings() {
-        let page = SettingsTaskPage(title: "Navigation keys", detail: "Change Home/End and Page Up/Down on external keyboards. Built-in Fn+arrows keep their normal behavior. Choices save immediately; unknown keyboard sources pass through unchanged.", height: 458)
-        let home = page.add("Home/End move to line edges", detail: "Move to the start or end of the current line in supported apps.", checkbox: true) { [weak self] in self?.toggleHomeEnd() }
-        let paging = page.add("Page Up/Down move the cursor", detail: "Move the text cursor by a page instead of only scrolling the view.", checkbox: true) { [weak self] in self?.togglePageKeys() }
-        page.add("Learn or manage layouts…", detail: "Choose a keyboard. A learned layout saves automatically after the last key.") { [weak self] in self?.testNavigationKeys() }
-        let setup = page.add("Scrolling & navigation access…", detail: "Restore the helper or its access if navigation controls are unavailable.") { [weak self] in
-            if HelperStatusIPC.inputClient.value?.fresh != true { self?.advancedSafetySettings() }
-            else if HelperStatusIPC.inputClient.value?.trusted != true { self?.inputPermissionsFromSettings() }
-            else { self?.inputPermissionsFromSettings() }
-        }
-        page.add("App exceptions…", detail: "Choose apps that keep their own navigation behavior. Browsers are excluded by default.") { [weak self] in self?.navigationExceptions() }
-        page.update = { [weak self, weak page] in
-            guard let self else { return }
-            let preferences = SafetyConfiguration.load().navigation ?? NavigationPreferences()
-            let input = HelperStatusIPC.inputClient.value
-            let access = input?.fresh == true && input?.trusted == true
-            let profiles = self.keyboardModes.registrations.compactMap { $0.profile }.filter { NavigationEventDevices.mapping($0) != nil }
-            home.state = preferences.homeEnd ? .on : .off; paging.state = preferences.pageUpDown ? .on : .off
-            // An enabled choice can always be turned off, even after losing a device or grant.
-            home.isEnabled = preferences.homeEnd || (access && profiles.contains { $0.hasHomeEnd })
-            paging.isEnabled = preferences.pageUpDown || (access && profiles.contains { $0.hasPageKeys })
-            setup.title = input?.fresh != true ? "Background helpers in Setup…" : "Scrolling & navigation access…"
-            page?.status.stringValue = input?.fresh != true ? "The input helper is unavailable. Restore it before checking access or enabling navigation." : !access ? "Perch Helper needs Accessibility. Restore access, then return here to choose behavior." : self.keyboardModes.registrationPending ? "Checking connected keyboards. Your saved behavior choices are kept." : self.keyboardModes.registrationError != nil ? "Keyboard detection needs attention. Review layouts to retry; your saved choices are kept." : self.keyboardModes.registrations.isEmpty ? "Connect an external keyboard to check its navigation keys. Known layouts are recognized automatically; your saved behavior choices are kept." : profiles.isEmpty ? "This keyboard needs a navigation layout. Open Learn or manage layouts to set it up; the layout saves automatically." : input?.navigationUnidentified == true ? "macOS did not identify the source keyboard. Unidentified keys keep their normal behavior; review the layout if needed." : "A supported external layout is available. Choose behavior above; app exceptions can keep individual apps unchanged."
-        }
-        page.show(delegate: self)
-    }
+    @objc func navigationSettings() { keyboardSettings() }
     func refreshNavigationItems() {
         guard homeEndItem != nil else { return }
         let config = SafetyConfiguration.load()
@@ -52,7 +27,7 @@ extension AppDelegate {
             else { warning = "" }
             let hint = warning.isEmpty ? (enabled ? "On · app exceptions apply" : "Off") : warning
             label(item, item === homeEndItem ? "Home/End move to line edges" : "Page Up/Down move the cursor", hint: hint, hintColor: warning.hasPrefix("⚠") ? StatusColors.warning : .secondaryLabelColor)
-            let context = checking ? "Checking input access and keyboard layout. Your saved choice is kept." : needsSetup ? "Select to open Keyboard settings and complete the missing setup." : !warning.isEmpty ? "Your choice is saved. Review Navigation keys in Settings for the current input or keyboard issue; you can turn the choice off here." : "Manage app exceptions in Settings → Keyboards → Navigation keys."
+            let context = checking ? "Checking input access and keyboard layout. Your saved choice is kept." : needsSetup ? "Select to open Keyboards in Settings and complete the missing setup." : !warning.isEmpty ? "Your choice is saved. Review Keyboards in Settings for the current input or keyboard issue; you can turn the choice off here." : "Manage app exceptions in Settings → Keyboards → App exceptions."
             item.menuHelp = ControlHelp.adding(context, to: item === homeEndItem ? ControlHelp.homeEnd : ControlHelp.pageKeys)
         }
         refreshExternalKeyboardSection()

@@ -220,7 +220,7 @@ final class AppUpdate {
                 }
                 var visibleMessage = message
                 do { try JSONEncoder().encode(AppUpdateReceipt(identity: c.identity, message: message, resumed: success)).write(to: c.directory.appendingPathComponent("result.json"), options: .atomic) }
-                catch { visibleMessage += " Restart completion could not be recorded. Review Keep awake." }
+                catch { visibleMessage += " Restart completion could not be recorded. Review Setup → Lid protection." }
                 UserDefaults.standard.set(visibleMessage, forKey: noticeKey); shared.message = visibleMessage
             }
             if let ticket = record.ticket { LidGuardClient.shared.resumeAfterRestart(ticket.id, completion: complete) }

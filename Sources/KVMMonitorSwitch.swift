@@ -53,6 +53,8 @@ struct KVMMonitorOutcome: Codable, Equatable {
 }
 enum KVMMonitorMessage: Codable {
     case refresh
+    case desktopInvalidation(KVMMonitorRequest, Bool)
+    case desktopObserved(UUID, UInt16?, String, String?)
     case prepare(KVMMonitorRequest)
     case prepared(UUID)
     case refused(UUID, String)
@@ -89,6 +91,22 @@ final class KVMMonitorSwitch: ObservableObject {
     private var verifyingMonitors: Set<UUID> = []
     private struct Observation { let input: UInt16; let peer: UUID; let time: TimeInterval; let revision: String }
     private var observations: [UUID: Observation] = [:]
+    private var desktopObservations: [UUID: Observation] = [:]
+    private var desktopGenerations: [UUID: String] = [:]
+    var desktopInputs: [UUID: UInt16] {
+        guard node.canEdit else { return [:] }
+        return desktopObservations.filter { desktopGenerations[$0.key]?.hasSuffix("-pending") != true && $0.value.revision == node.revision && now - $0.value.time <= 45 && node.online.contains($0.value.peer) }.mapValues(\.input)
+    }
+    private func invalidateDesktop(_ request: KVMMonitorRequest, finished: Bool = false) {
+        for route in request.routes {
+            let pending = request.id.uuidString + "-pending"
+            if finished && desktopGenerations[route.monitor] != pending { continue }
+            desktopGenerations[route.monitor] = request.id.uuidString + (finished ? "-done" : "-pending")
+            desktopObservations[route.monitor] = nil
+        }
+        nextRead = 0
+    }
+
     private var reading: Set<UUID> = []
     private var nextRead: TimeInterval = 0
     private var lastRefresh: TimeInterval = -.infinity
@@ -151,6 +169,8 @@ final class KVMMonitorSwitch: ObservableObject {
         self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
         required = Set(request.routes.map { $0.control.computer }); started = now; committed = false
         busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
+        invalidateDesktop(request)
+        for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, false), peer: peer) }
         for peer in required { send(.prepare(request), peer: peer) }
     }
     private func send(_ message: KVMMonitorMessage, peer: UUID) {
@@ -160,6 +180,15 @@ final class KVMMonitorSwitch: ObservableObject {
     private func receive(_ message: KVMMonitorMessage, peer: UUID) {
         guard node.online.contains(peer) else { return }
         switch message {
+        case .desktopInvalidation(let request, let finished):
+            guard request.epoch == node.graph.roster.epoch, request.revision == node.revision,
+                  (try? request.validated(in: node.group)) == request else { return }
+            invalidateDesktop(request, finished: finished)
+        case .desktopObserved(let monitor, let input, let revision, let generation):
+            guard revision == node.revision, generation == desktopGenerations[monitor],
+                  node.group.monitors.contains(where: { $0.id == monitor && ($0.control?.computer == peer || node.group.connections.contains(where: { $0.monitor == monitor && $0.computer == peer })) }) else { return }
+            if let input, input > 0 { desktopObservations[monitor] = Observation(input: input, peer: peer, time: now, revision: revision) }
+            else if desktopObservations[monitor]?.peer == peer { desktopObservations[monitor] = nil }
         case .delegate(let request, let monitor):
             guard node.canEdit, request.epoch == node.graph.roster.epoch, request.revision == node.revision,
                   let route = request.routes.first(where: { $0.monitor == monitor && $0.control.computer == peer }),
@@ -263,9 +292,14 @@ final class KVMMonitorSwitch: ObservableObject {
         leases[route.monitor]?.completed = true
         send(.result(.init(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(detail.prefix(500)))), peer: lease.peer)
     }
+    private func finishedDesktopReadBarrier(_ request: KVMMonitorRequest) {
+        invalidateDesktop(request, finished: true)
+        for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, true), peer: peer) }
+    }
     private func finishIfReady() {
         guard let request, results.count == request.routes.count, verifyingMonitors.isEmpty else { return }
         busy = false
+        finishedDesktopReadBarrier(request)
         for peer in required { send(.release(request.id), peer: peer) }
         if results.values.allSatisfy({ $0.state == .confirmed }) {
             activePreset = request.preset; activeGroup = request.preset == nil ? nil : node.group; lastConfirmed = now; problem = nil
@@ -283,6 +317,7 @@ final class KVMMonitorSwitch: ObservableObject {
     private func finishFailure(_ reason: String) {
         guard let request else { return }
         busy = false; problem = reason; activePreset = nil; activeGroup = nil
+        finishedDesktopReadBarrier(request)
         for route in request.routes where results[route.monitor] == nil { results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .unverified, detail: "Switch not confirmed. " + reason) }
         for peer in required { send(.release(request.id), peer: peer) }
     }
@@ -331,10 +366,13 @@ final class KVMMonitorSwitch: ObservableObject {
             nextRead = now + 20
             for monitor in node.group.monitors where !reading.contains(monitor.id) && (monitor.control?.computer == node.localID || node.group.connections.contains { $0.monitor == monitor.id && $0.computer == node.localID }) {
                 reading.insert(monitor.id)
+                let generation = desktopGenerations[monitor.id]
                 readForVerification(monitor.id) { [weak self] input in
                     guard let self else { return }; self.reading.remove(monitor.id)
                     guard self.node.revision == revision else { return }
                     for peer in self.node.online { self.send(.observed(monitor.id, input, revision), peer: peer) }
+                    guard generation == self.desktopGenerations[monitor.id] else { return }
+                    for peer in self.node.online { self.send(.desktopObserved(monitor.id, input, revision, generation), peer: peer) }
                 }
             }
         }

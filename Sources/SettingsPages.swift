@@ -102,83 +102,22 @@ extension AppDelegate {
         settingsRefresh?()
     }
 
-    @objc func keepAwakeSettings() { presentKeepAwakeSettings(readHelper: { .current }) }
-    func presentKeepAwakeSettings(readHelper: @escaping () -> LidHelperSettingsSnapshot) {
-        let page = SettingsTaskPage(title: "Keep awake", detail: "Keep working with the lid closed on external power. When you undock or close the lid on battery, you have 60 seconds to open it. If it stays closed, Perch requests sleep. Opening the lid starts a fresh interval next time; briefly reconnecting power does not restart the clock.", height: 498, statusHeight: 100)
-        let awake = page.add("Keep awake", detail: "Prevent idle sleep. Turning this off also removes an active lid override.", checkbox: true) { [weak self] in self?.toggleAwake() }
-        let lid = page.add("Including with the lid closed", detail: "Temporarily blocks all system sleep, including Apple menu → Sleep. The 60-second deadline, watchdog and independent recovery remove the override. Turn this off to sleep manually.", checkbox: true) { [weak self] in self?.toggleLid() }
-        awake.toolTip = ControlHelp.awake; awake.setAccessibilityHelp(ControlHelp.awake)
-        lid.toolTip = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid); lid.setAccessibilityHelp(lid.toolTip)
-        let resume = page.add("Resume lid protection", detail: "Restart stopped protection using your saved lid choice. The checkmark keeps that choice; the status above tells you whether protection is running.") { [weak self] in self?.resumeLidProtection() }
-        page.add("Start five-minute countdown", detail: "Temporary keep awake, including with the lid closed. Opening the lid finishes it. Power changes keep the same deadline.") { LidCountdownController.shared.adjust(1) }
-        page.add("Hotkeys…", detail: "Change countdown, Desk and Agent Kill Switch shortcuts in App settings → Hotkeys.") { [weak self] in self?.countdownSettings() }
-        page.add("Lid activity…", detail: "See lid and power changes, countdowns, command results and macOS sleep/wake events from the last 24 hours.") { [weak self] in self?.lidActivity() }
-        let repair = page.add("Lid protection setup…", detail: "Open Setup to finish helper installation, updates or recovery. Your sleep choices stay here.") { [weak self] in
-            self?.lidProtectionSetup()
-        }
-        page.update = { [weak self, weak page] in
-            guard let self else { return }
-            let presentation = self.sleepPresentation()
-            awake.state = presentation.awake
-            awake.isEnabled = presentation.awakeEnabled
-            // The menu remembers the lid choice while Keep awake is off. This page
-            // distinguishes that preference from the observed macOS override.
-            let helper = readHelper()
-            repair.title = helper.helper.pending ? "Lid helper update needed — open Setup…" : "Lid protection setup…"
-            repair.contentTintColor = helper.helper.pending ? StatusColors.warning : nil
-            let guarded = LidGuardClient.shared.active
-            resume.title = LidGuardClient.shared.changing ? "Updating lid protection…" : guarded ? "Lid protection is running" : "Resume lid protection"
-            lid.state = presentation.lid
-            lid.isEnabled = presentation.lidEnabled
-            resume.isEnabled = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self.observedLidDisabled == false && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.fresh == true && !helper.helper.pending
-            let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
-            page?.status.stringValue = self.observedLidDisabled == true ? "System sleep is disabled outside Perch’s current protection session. Perch cannot safely take ownership of that setting. Restore normal system sleep before enabling lid protection." : guarded || remembered || LidGuardClient.shared.changing || LidGuardClient.shared.status?.error != nil ? LidGuardClient.shared.detail : self.observedLidDisabled == nil || awake.state == .mixed ? "Sleep state is not confirmed. Review the helper status before relying on Keep awake." : awake.state == .on ? "Keep awake is active. Enable lid protection below to add the 60-second undocking interval." : "Keep awake is off. Normal macOS sleep behavior applies."
-            if remembered && !guarded && self.actualLidState == .off && !LidGuardClient.shared.changing {
-                page?.status.stringValue = SafetyConfiguration.load().keepAwake
-                    ? "Your lid choice is saved, but protection is stopped. Normal lid sleep applies. Use Resume lid protection to start a new session.\n" + LidGuardClient.shared.detail
-                    : "Your lid choice is saved. Keep awake is off, so normal macOS sleep applies. Turning Keep awake on starts a new lid session."
-            }
-            if remembered && self.actualLidState == .mixed {
-                page?.status.stringValue = "Your lid choice is saved, but the current protection state is unknown. Review the helper status before relying on it.\n" + LidGuardClient.shared.detail
-            }
-            if remembered && self.observedLidDisabled != true {
-                if !helper.helper.installed {
-                    page?.status.stringValue = "Your lid choice is saved. Open Setup → Lid protection, then return here to Resume lid protection after the helper is ready. Protection has not been confirmed."
-                } else if helper.helper.pending {
-                    page?.status.stringValue = "Your lid choice is saved. Finish the helper update before starting a new session."
-                } else if LidGuardClient.shared.status?.fresh != true {
-                    page?.status.stringValue = "Your lid choice is saved. Waiting for the lid helper before Resume becomes available. If it does not connect, review Setup → Lid protection."
-                }
-            }
-            if helper.helper.pending { page?.status.stringValue += "\nReview Setup → Lid protection to finish the update." }
-            let needsAttention = self.observedLidDisabled == true || helper.helper.pending ||
-                LidGuardClient.shared.status?.error != nil ||
-                (remembered && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing)
-            page?.status.textColor = needsAttention ? StatusColors.warning : .labelColor
-        }
-        page.show(delegate: self)
-    }
+    @objc func keepAwakeSettings() { lidActivity() }
     @objc func appSettings() { presentAppSettings(readRestart: { .current }, restart: { AppUpdate.shared.restartCurrentApp() }) }
     func presentAppSettings(readRestart: @escaping () -> RestartSettingsSnapshot, restart: @escaping () -> Void) {
-        let page = SettingsTaskPage(title: "App settings", detail: "Preferences for Perch itself. Feature controls are in their own Settings categories.", height: 532)
-        let login = page.add("Start Perch at login", detail: ControlHelp.login, checkbox: true) { [weak self] in self?.toggleLogin() }
+        let page = SettingsTaskPage(title: "App settings", detail: "Preferences for Perch itself.", height: 260)
         let cpu = page.add("Show top process and Perch CPU usage", detail: "Updates every 10 seconds while the menu is open. Percentages use total CPU capacity.", checkbox: true) {
             let sender = NSButton(); sender.state = CPUDisplaySettings.enabled() ? .off : .on
             self.toggleProcessCPU(sender)
         }
         cpu.identifier = NSUserInterfaceItemIdentifier(CPUDisplaySettings.key)
         let restartButton = page.add("Restart Perch", detail: "Close and reopen Perch, keeping your saved choices. An active lid session keeps its existing timeout.") { [weak page] in restart(); page?.refresh() }
-        page.add("Setup & status…", detail: "Review prerequisite readiness and repair missing access or helpers in Setup.") { [weak self] in self?.setupOverview() }
-        page.add("Resets…", detail: "Reset saved choices, keyboard layouts, menu appearance, privacy permissions or sleep and audio. Choose a scope before making changes.") { [weak self] in self?.openResets() }
-        page.add("About Perch…", detail: "Version and build information.") { [weak self] in self?.about() }
         page.update = { [weak page] in
-            let status = SMAppService.mainApp.status
-            login.state = status == .enabled ? .on : status == .requiresApproval ? .mixed : .off
             cpu.state = CPUDisplaySettings.enabled() ? .on : .off
             let restartState = readRestart()
             restartButton.isEnabled = !restartState.busy
             restartButton.title = restartState.busy ? "Please wait…" : "Restart Perch"
-            page?.status.stringValue = !restartState.message.isEmpty ? restartState.message : status == .requiresApproval ? "Start at login needs approval. Select it to review background setup." : "Ordinary preferences save immediately. Setup and resets explain their effects before making changes."
+            page?.status.stringValue = !restartState.message.isEmpty ? restartState.message : "Changes save automatically."
         }
         page.show(delegate: self)
     }

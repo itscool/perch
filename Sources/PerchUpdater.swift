@@ -165,7 +165,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
                              build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
                              identity: LidGuardIdentity.current, now: LidGuardClock.now) else {
             NetworkUpdateHandoffFile.remove()
-            message = "The previous update’s lid handoff could not be resumed. Review Keep awake and Lid activity before starting a new session."
+            message = "The previous update’s lid handoff could not be resumed. Review Setup → Lid protection and Lid activity before starting a new session."
             completion()
             DispatchQueue.main.async { self.showRecovery?() }
             return

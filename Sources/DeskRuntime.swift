@@ -207,6 +207,7 @@ final class DeskRuntime: ObservableObject {
     }
     deinit { refreshTimer?.invalidate() }
     func stop() {
+        desktopHandoff.stop()
         for (_, window) in identifyWindows.values { window.orderOut(nil) }; identifyWindows = [:]
         inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
@@ -216,6 +217,7 @@ final class DeskRuntime: ObservableObject {
     func start() throws {
         try node.start()
         guard node.isMember else { return }
+        desktopHandoff.start()
         refreshDisplays()
         let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in self?.refreshDisplays() }
         timer.tolerance = 3; refreshTimer = timer; RunLoop.main.add(timer, forMode: .common)
@@ -228,7 +230,7 @@ final class DeskRuntime: ObservableObject {
         registerShortcuts()
         model.group = node.group; model.online = node.online
         model.conflict = node.conflicts.first ?? node.recoveredDraft
-        model.problem = switching.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem
+        model.problem = switching.problem ?? desktopHandoff.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
         model.monitorResults = switching.results.mapValues { $0.state.rawValue.capitalized + ": " + $0.detail }
@@ -311,6 +313,7 @@ final class DeskRuntime: ObservableObject {
                 switch result {
                 case .success(let values):
                     self.discoveryProblem = nil
+                    let retained = (self.displays[self.node.localID] ?? []).filter { old in self.desktopHandoff.disconnected.contains(old.id) && !values.contains(where: { $0.id == old.id }) }
                     self.displays[self.node.localID] = values.map { display in
                         let profile = MonitorProfiles.match(display)
                         let size = CGDisplayScreenSize(display.displayID)
@@ -332,6 +335,7 @@ final class DeskRuntime: ObservableObject {
                         detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
                         return detected
                     }
+                    self.displays[self.node.localID, default: []].append(contentsOf: retained)
                     self.resolvePendingDisplays(); self.publishDisplays()
                 case .failure(let error):
                     self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
@@ -511,7 +515,9 @@ final class DeskRuntime: ObservableObject {
         group.connections[i].computer = computer; group.connections[i].localDisplay = display
         try node.edit(group); model.selected = monitor; node.problem = nil
     }
+    private lazy var desktopHandoff = DeskDesktopHandoff(local: node.localID, group: { [unowned self] in self.node.group }, inputs: { [weak self] in self?.switching.desktopInputs ?? [:] }, online: { [weak self] in self?.node.online ?? [] }, suspended: { [weak self] in self?.node.canEdit != true })
     private func execute(_ route: KVMMonitorRoute, valid: @escaping () -> Bool, completion: @escaping (KVMMonitorOutcome.State, String) -> Void) {
+        guard desktopHandoff.prepareCommand(route.control.localDisplay) else { completion(.failed, desktopHandoff.problem ?? "The display could not reconnect."); return }
         queue(route.control.localDisplay).async {
             let backend = MonitorDisplayBackend()
             let args = [route.control.localDisplay, route.control.mode]
@@ -529,7 +535,7 @@ final class DeskRuntime: ObservableObject {
                 case .unverified: state = .unverified; detail = "Command sent. Checking the picture from another paired computer…"
                 }
             } catch { detail = error.localizedDescription }
-            DispatchQueue.main.async { completion(state, detail) }
+            DispatchQueue.main.async { self.desktopHandoff.finishCommand(route.control.localDisplay); completion(state, detail) }
         }
     }
     private func read(_ monitor: UUID, completion: @escaping (UInt16?) -> Void) {
@@ -542,6 +548,7 @@ final class DeskRuntime: ObservableObject {
                   control.mode == "standard" || control.mode == "lg" && display.vendor == 7789 else { completion(nil); return }
             id = local; mode = display.mode
         }
+        guard !desktopHandoff.disconnected.contains(id) else { completion(nil); return }
         queue(id).async {
             let input = try? JSONDecoder().decode(MonitorInspection.self, from: MonitorDisplayBackend().run(["read", id, mode])).current
             DispatchQueue.main.async { completion(input ?? nil) }

@@ -137,19 +137,15 @@ func runSetupOverviewTests() throws {
     for (name, open) in [("displays", app.displaySettings), ("scrolling", app.scrollingSettings), ("awake", app.keepAwakeSettings), ("app", app.appSettings), ("keyboard", app.keyboardSettings), ("navigation", app.navigationSettings), ("maintenance", app.advancedSafetySettings)] {
         open()
         try check(host.pages.count == 2, "Task page lost Settings parent: " + name)
-        if name == "awake" {
-            let controls = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title == "Keep awake" || $0.title == "Including with the lid closed" }
-            try check(controls.count == 2 && controls.allSatisfy { !$0.isEnabled } && controls.first { $0.title == "Keep awake" }?.state == .mixed, "Unknown actual sleep state became editable or ready")
-            try check(controls.first { $0.title == "Including with the lid closed" }?.state == (UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey) ? .on : .off), "Unknown session erased the saved lid choice")
-        }
+        if name == "awake" { try check(host.pages.last?.title == "Lid activity", "Retired sleep page did not route to history") }
         try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-category-" + name + ".png")
         host.goBack()
     }
     app.navigationSettings()
     let navigationButtons = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }
-    try check(navigationButtons.contains { $0.title == "Learn or manage layouts…" && $0.isEnabled }, "Unavailable helper hides saved layout management")
+    try check(navigationButtons.contains { $0.title == "Learn or change a layout…" || $0.title == "Set up keyboard layout…" && $0.isEnabled }, "Unavailable helper hides saved layout management")
     app.navigationExceptions()
-    try check(!host.back.isHidden && host.pages.count == 3 && host.back.title == "Back" && host.pages.last?.detail.contains("save automatically") == true, "Exception choices do not explain immediate saving and return to Navigation keys")
+    try check(!host.back.isHidden && host.pages.count == 3 && host.back.title == "Back" && host.pages.last?.detail.contains("save automatically") == true, "Exception choices do not explain immediate saving and return to Keyboards")
     host.goBack(); host.goBack()
     app.resetHub()
     try check(host.pages.last?.title == "Resets", "Reset index missing")

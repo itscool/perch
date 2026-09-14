@@ -328,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
         loginItem.menuHelp = ControlHelp.adding(loginStatus == .requiresApproval ? "Select to open macOS Login Items and approve Perch." : nil, to: ControlHelp.login)
         do { let standard = try FunctionKeys.standard(); refreshFunctionKeyItem(standard); keyboardModes.observeStandard(standard) }
-        catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable"); fnItem.menuHelp = ControlHelp.adding("The current setting could not be read. Review Keyboard settings before changing it.", to: ControlHelp.builtInFn) }
+        catch { fnItem.state = .mixed; label(fnItem, "Use F1–F12 directly", hint: "Unavailable"); fnItem.menuHelp = ControlHelp.adding("The current setting could not be read. Review Settings → Keyboards before changing it.", to: ControlHelp.builtInFn) }
         observedSleep = try? SleepStatus.read()
         observedLidDisabled = try? unownedSleepOverride()
         LidGuardClient.shared.refresh()

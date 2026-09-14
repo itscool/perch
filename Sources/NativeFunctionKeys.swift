@@ -20,7 +20,7 @@ enum NativeFunctionKeys {
             guard previous != standard else { return }
             guard IOHIDServiceClientSetProperty(keyboard.service, kIOHIDFKeyModeKey as CFString, NSNumber(value: standard ? 1 : 0)), mode(keyboard) == standard else {
                 _ = IOHIDServiceClientSetProperty(keyboard.service, kIOHIDFKeyModeKey as CFString, NSNumber(value: previous ? 1 : 0))
-                throw AppError(message: "\(keyboard.name) did not confirm the native Fn setting. Review Keyboard settings.")
+                throw AppError(message: "\(keyboard.name) did not confirm the native Fn setting. Review Settings → Keyboards.")
             }
         }
     }

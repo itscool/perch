@@ -15,6 +15,7 @@ static void emit(id object) {
 }
 static int failure(NSString *text) { emit(@{@"error":text}); return 1; }
 static bool query(DDCTransport t, uint8_t address, uint8_t command, const uint8_t *payload, size_t count, uint8_t *reply, uint32_t size) {
+    if (!perch_ddc_safe_query(address, command, payload, count)) return false;
     uint8_t bytes[36] = {0};
     size_t length = perch_ddc_request(bytes, address, command, payload, count);
     if (!length || IOAVServiceWriteI2C(t.service, t.chipAddress, address, bytes, (uint32_t)length)) return false;
@@ -23,10 +24,14 @@ static bool query(DDCTransport t, uint8_t address, uint8_t command, const uint8_
     return IOAVServiceReadI2C(t.service, t.chipAddress, address, reply, size) == kIOReturnSuccess;
 }
 static NSNumber *current(DDCTransport t, bool alternate) {
-    uint8_t feature = alternate ? 0xf4 : 0x60, reply[12] = {0};
+    // LG's 0x50 side channel is for vendor commands, not ordinary Get VCP.
+    // A purported read can change hardware state. Never probe it. Standard
+    // 0x60 values also cannot be compared with LG's alternate write codes.
+    if (alternate) return nil;
+    uint8_t feature = 0x60, reply[12] = {0};
     uint16_t value = 0;
     for (int attempt = 0; attempt < 2; attempt++) {
-        if (query(t, alternate ? 0x50 : 0x51, 0x01, &feature, 1, reply, sizeof(reply)) && perch_ddc_value(reply, sizeof(reply), feature, &value) && value > 0) return @(value);
+        if (query(t, 0x51, 0x01, &feature, 1, reply, sizeof(reply)) && perch_ddc_value(reply, sizeof(reply), feature, &value) && value > 0) return @(value);
         usleep(50000);
     }
     return nil;

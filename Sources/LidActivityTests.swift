@@ -74,10 +74,7 @@ func runLidActivityUITests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let host = SettingsWindow.shared; host.testing = true
     let app = AppDelegate(); app.configureSettings(); app.keepAwakeSettings()
-    let button = host.pages.last!.view.subviews.compactMap { $0 as? SettingsActionButton }.first { $0.title == "Lid activity…" }
-    try check(button != nil, "Keep awake does not offer lid history")
-    button!.callback()
-    try check(host.pages.last?.title == "Lid activity", "Lid activity action did not navigate")
+    try check(host.pages.last?.title == "Lid activity", "Retired Keep awake route does not open history")
     host.goBack()
     let date = Date()
     let entries: [LidActivityEntry] = [
@@ -94,7 +91,7 @@ func runLidActivityUITests() throws {
     try check(page.text.isSelectable && !page.text.isEditable && page.timer != nil, "Log reading controls are not ready")
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-lid-activity.png")
     host.goBack()
-    try check(page.timer == nil && host.pages.last?.title == "Keep awake", "Lid log Back did not stop polling or return to Keep awake")
+    try check(page.timer == nil && host.pages.last?.title != "Lid activity", "Leaving Lid activity did not stop polling")
     var callback: ((Result<[LidActivityEntry], Error>) -> Void)?
     let delayed = LidActivityPage(read: { callback = $0 }); delayed.show(); host.goBack()
     callback?(.success(entries))

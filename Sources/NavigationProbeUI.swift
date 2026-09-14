@@ -194,7 +194,7 @@ final class NavigationProbePage: NSObject {
         switch session.state.phase {
         case .idle:
             instruction.stringValue = ready && !offline ? "Layout ready — no setup needed." : "Start setup to identify one key at a time."
-            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : ready ? "Home/End and Page Up/Down behavior can be changed in Navigation keys. Learn a different layout only if these keys behave differently." : "Start setup to identify Home, End, Page Up and Page Down. If a key is missing, choose “I don’t have this key.”"
+            status.stringValue = selected == nil && selectedIdentity != nil ? "This keyboard is disconnected. You can forget its saved layout here; connect it to learn a replacement." : ready ? "Home/End and Page Up/Down behavior can be changed in the Perch menu. Learn a different layout only if these keys behave differently." : "Start setup to identify Home, End, Page Up and Page Down. If a key is missing, choose “I don’t have this key.”"
             status.textColor = .secondaryLabelColor
         case .listening:
             let key = session.state.currentKey?.name ?? "next key"

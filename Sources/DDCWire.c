@@ -1,4 +1,10 @@
 #include "DDCWire.h"
+bool perch_ddc_safe_query(uint8_t address, uint8_t command, const uint8_t *payload, size_t length) {
+    if (address != 0x51 || !payload) return false;
+    if (command == 0xf3) return length == 2; // Capabilities offset.
+    return command == 0x01 && length == 1 && (payload[0] == 0x60 || payload[0] == 0xef || payload[0] == 0xa1);
+}
+
 size_t perch_ddc_request(uint8_t *out, uint8_t address, uint8_t command, const uint8_t *payload, size_t length) {
     if (!out || length > 32 || (length && !payload)) return 0;
     out[0] = 0x80 | (uint8_t)(length + 1); out[1] = command;

@@ -63,6 +63,7 @@ func runDeskInspectionTests() throws {
 
 /// Model-only detection/control checks: no windows, runtime adapters or hardware.
 func runDeskProfilePolicyTests() throws {
+    try runDeskDesktopTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
     var group = DeskModel.sample()
     let monitor = group.monitors[0].id, cable = group.connections[0]

@@ -95,21 +95,21 @@ struct SetupSnapshot {
         }
 
         if lidDisabled == true {
-            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Keep awake…", .awake)
+            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Lid protection setup…", .lidSetup)
         } else if lidHelperUpdatePending {
             add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Lid protection setup…", .lidSetup)
         } else if lidGuard?.fresh == true && lidGuard?.error != nil {
-            add("awake", "Keep awake", .attention, lidGuard!.detail, "Keep awake…", .awake)
+            add("awake", "Keep awake", .attention, lidGuard!.detail, "Lid protection setup…", .lidSetup)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
-            add("awake", "Keep awake", .ready, lidGuard!.displayDetail, "Keep awake…", .awake)
+            add("awake", "Keep awake", .ready, lidGuard!.displayDetail, "Lid protection setup…", .lidSetup)
         } else if !config.keepAwake {
-            add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Choose behavior…", .awake)
+            add("awake", "Keep awake", .optional, lidDisabled == nil ? "Perch’s request is off. The macOS lid override has not been verified." : "Currently off. Enable it when you want the Mac to keep working.", "Lid activity…", .awake)
         } else if !guardianReady && config.keepAwake {
             add("awake", "Keep awake", .checking, "Waiting for the helper to confirm the saved keep-awake request.", "Background helpers…", .maintenance)
         } else if guardian?.keepAwakeActive != true || (lidWanted && lidGuard?.armed != true) {
-            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Review Keep awake for status and Resume lid protection." : "The observed sleep state does not confirm your saved keep-awake request.", "Keep awake…", .awake)
+            add("awake", "Keep awake", .attention, lidWanted && lidGuard?.armed != true ? "Your lid choice is saved, but protection is stopped or unconfirmed. Open Setup → Lid protection to review the stopped session and resume when ready." : "The observed sleep state does not confirm your saved keep-awake request.", "Lid protection setup…", .lidSetup)
         } else {
-            add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Adjust sleep…", .awake)
+            add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Lid activity…", .awake)
         }
 
         if !agentWanted {
@@ -333,7 +333,7 @@ extension AppDelegate {
         case .keyboards: keyboardSettings()
         case .displays: deskSettings()
         case .deskInput: deskSettings()
-        case .awake: keepAwakeSettings()
+        case .awake: lidActivity()
         case .agents: configurePanic()
         case .events: processEventSetup()
         case .settings: if id == "scrolling" { scrollingSettings() } else { appSettings() }

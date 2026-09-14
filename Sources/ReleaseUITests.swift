@@ -62,7 +62,7 @@ func runReleaseUITests() throws {
     config.reverseWheel = true
     state.inputTrusted = false; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.contains("Accessibility access") && setup.status.stringValue.hasPrefix("⚠"), "Missing permission is not explicit")
-    try check(!setup.instructions.isHidden && !setup.permissionDrag.isHidden && setup.reviewButton.isHidden, "Missing access did not restore the repair instructions")
+    try check(!setup.instructions.isHidden && !setup.permissionDrag.isHidden && !setup.reviewButton.isHidden && !setup.reviewButton.isEnabled, "Missing access did not restore the repair instructions")
     state.inputTrusted = nil; setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.contains("has not been determined"), "Missing helper was misreported as denied permission")
     state.inputTrusted = true; state.timestamp = Date().addingTimeInterval(-10)

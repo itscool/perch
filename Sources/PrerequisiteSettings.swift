@@ -7,26 +7,27 @@ extension AppDelegate {
         presentLidProtectionSetup(readHelper: { .current })
     }
     func presentLidProtectionSetup(readHelper: @escaping () -> LidHelperSettingsSnapshot) {
-        let page = SettingsTaskPage(title: "Lid protection setup", detail: "Install or repair the supervised lid helper here. Your Keep awake choices are retained. Setup does not start a new protected session. An update can resume an existing session; return to Keep awake to choose behavior or resume stopped protection.", height: 444, statusHeight: 120)
+        let page = SettingsTaskPage(title: "Lid protection setup", detail: "Install or repair the supervised lid helper here. Your Keep awake choices are retained. Behavior switches are in the Perch menu. An update preserves an existing session; Resume starts stopped protection using your saved choice.", height: 444, statusHeight: 120)
         let repair = page.add("Set up lid protection…", detail: "macOS asks for administrator authorization. Finish queued updates with the lid open; the current helper stays in place until then.") { [weak self] in
             guard let self else { return }
             if readHelper().helper.pending { LidHelperUpdate.shared.finish(); self.settingsRefresh?(); return }
             do { try LidGuardInstall.install(); LidGuardClient.shared.start(); self.settingsRefresh?() }
             catch { self.showError(error) }
         }
-        page.add("Keep awake settings…", detail: "Choose idle and lid behavior, or resume protection after setup is ready.") { [weak self] in
-            guard let destination = SettingsWindow.shared.sidebar.destinations.first(where: { $0.id == "awake" }) else { return }
-            SettingsWindow.shared.navigate(to: destination)
-            self?.settingsRefresh?()
-        }
+        let resume = page.add("Resume lid protection", detail: "Start stopped protection using your saved lid choice. Keep awake must be enabled in the Perch menu.") { [weak self] in self?.resumeLidProtection() }
         page.add("Background helpers in Setup…", detail: "Repair the shared helper if Perch cannot confirm its idle-sleep request.") { [weak self] in self?.advancedSafetySettings() }
         page.add("Sleep reset options…", detail: "If you need to end Perch’s sleep protection, open its reset options. Nothing changes until you choose and confirm an action; return here afterward.") { [weak self] in self?.openReset(.sleep) }
-        page.update = { [weak page] in
+        page.update = { [weak self, weak page] in
             let helper = readHelper()
+            let remembered = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
+            let guarded = LidGuardClient.shared.active
+            resume.isEnabled = remembered && SafetyConfiguration.load().keepAwake && !guarded && !LidGuardClient.shared.changing && self?.observedLidDisabled == false && !LidGuardOwnership.recorded && LidGuardClient.shared.status?.fresh == true && !helper.helper.pending
+            page?.arrangeRows(hiding: remembered && SafetyConfiguration.load().keepAwake && !guarded ? [] : [resume])
             repair.title = helper.busy ? "Updating lid helper…" : helper.helper.pending ? "Finish lid helper update…" : !helper.helper.installed ? "Set up lid protection…" : "Repair lid protection…"
             repair.isEnabled = !helper.busy && !AppUpdate.shared.busy && (!helper.helper.pending || helper.helper.lidOpen)
             repair.contentTintColor = helper.helper.pending && !helper.busy ? StatusColors.warning : nil
-            page?.status.stringValue = helper.busy ? "The lid helper is being updated. Your saved sleep choices are retained." : helper.helper.pending ? helper.helper.notice : !helper.helper.installed ? "The lid helper is not ready. Complete setup before relying on closed-lid protection." : "The lid helper is installed. Review Keep awake for the current session and observed sleep state."
+            page?.status.stringValue = helper.busy ? "The lid helper is being updated. Your saved sleep choices are retained." : helper.helper.pending ? helper.helper.notice : !helper.helper.installed ? "The lid helper is not ready. Complete setup before relying on closed-lid protection." : "The lid helper is installed. Behavior switches are in the Perch menu; recorded events are in Lid activity."
+            if helper.helper.installed && !helper.helper.pending { page?.status.stringValue += "\n" + LidGuardClient.shared.detail }
             if let result = helper.result { page?.status.stringValue += "\n" + result }
             page?.status.textColor = helper.helper.pending || !helper.helper.installed ? StatusColors.warning : .labelColor
         }

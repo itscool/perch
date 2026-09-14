@@ -1,12 +1,16 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Developer ID 2.0.120 is installed on disk
-in /Applications. Running PID 66808 remains on 2.0.119; Scott can restart to load
-2.0.120. The previous bundle is retained at
-/Applications/.perch-previous-uupq81g3/Perch.app.
-Public/notarized remains 2.0.94; 2.0.120 is not notarized or published. The matching
-input helper is required for Num Lock navigation; coordinated lid-helper/protocol 3
-maintenance also remains. No helper, permission or hardware changes were made.
+2.0 development, September 13, 2026. Developer ID 2.0.122 is installed on disk
+in /Applications. Running PID 12800 remains on 2.0.120; Scott's next restart loads
+2.0.122. The previous bundle is retained at
+/Applications/.perch-previous-isu34yrc/Perch.app.
+Public/notarized remains 2.0.94; 2.0.122 is not notarized or published.
+Input helper 120 already supports Num Lock; the current collector launcher is
+installed and healthy. The new desktop-recovery capability requires the matching
+122 guardian. Coordinated lid-helper/protocol 3 maintenance still needs an open
+lid and administrator authorization. No live permissions were reset. Authorized
+native display probes restored the original secondary-screen mode and position;
+LG input switching awaits a confirmed starting port. See SETTINGS-CONSOLIDATION-2.0.121.md.
 Dated installation statements below are historical checkpoints. Categories are
 known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
@@ -38,16 +42,12 @@ acceptance limits.
   share the existing count/status line; offscreen production rendering verifies
   equal card heights. Included in 2.0.119.
 
-- [ ] **Windows remain on a screen handed to another computer.** Scott reports
-  the losing Mac still keeps windows on the switched monitor. Perch changes
-  monitor input and tracks readback, but has no desktop-participation handoff.
-  A monitor may remain logically connected after changing input; waiting for a
-  macOS disconnect event cannot solve that case. Investigate reversible software
-  disconnect/reconnect tied to confirmed ownership, saved display configuration,
-  last-visible-screen and closed-lid behavior, failed/partial switches, app crash,
-  restart and network recovery. Preserve a control path for switching back. Do
-  not introduce untested display disabling or bulk window movement. See
-  DESKTOP-PARTICIPATION-GAP-2.0.md. This is not fixed in 2.0.116.
+- [x] **Desktop participation implementation.** Fresh, generation-matched input
+  evidence now drives temporary desktop removal with independent guardian recovery.
+  Real process-exit recovery on the secondary LG restored its mode and position.
+  Unknown/unreadable inputs and the last usable screen remain connected. Both
+  current helpers and actual cross-Mac control/readback remain integration QA.
+  See DESKTOP-PARTICIPATION-GAP-2.0.md; LG readback remains the defect below.
 
 - [x] **Record unexpected Desk connection loss.** The earlier real-Mac reset
   report is removed from current known defects at Scott's request because it no
@@ -69,11 +69,12 @@ acceptance limits.
   grows before adding rows; 210 offscreen native hit targets pass. Actual events
   on Scott's other Mac remain acceptance. See DESK-SHARING-AND-LID-ROWS-2.0.md.
 
-- [ ] **Scott’s LG 27UP850-W / 27UP850K-W automatic identification.** The exact
-  27UP850-W match now survives discovery into setup; guessed ports and swallowed
-  inspection errors are fixed. The actual monitor's failed recognition still
-  needs its reported identity/firmware/read result. No verified K-W-specific
-  profile exists in the catalog; do not silently substitute the W variant.
+- [ ] **LG input control/readback.** Both monitors now return capability/family
+  identity: UP850K (EF c024/A1 0074), and older UL850 (EF 5124, matching the
+  earlier owner-identified 27UN850-W record). Both return zero for current input.
+  K-W USB-C code/readback still needs physical verification. Alternate-channel
+  Get VCP probes can change brightness; production reads now categorically reject
+  that channel. Do not guess input state or copy a neighboring model’s profile.
 
 - [x] **Desk cables, monitor setup and dragging were confusing or unstable.**
   Ports now live on monitor cards and computers connect by drag or port menu.
@@ -359,153 +360,42 @@ remain open; this is not a claim that untested behavior is defect-free.
    Anonymous downloads, checksums and the public feed were verified. Real updater
    installation/restart and failure recovery remain QA below.
 
-## QA — implementation acceptance, with defects returned to the first section
+## QA — concrete integration checks, ordered by prerequisites
 
-- [ ] **2.0.119 recovery and device following, on both updated Macs.** Verify
-  fresh armed lid status, real stopped/error/update states, named disconnected
-  coordinator and conflicting edits, refreshed readiness without automatic
-  capture, per-screen input checks/retries and recovery after fresh observations.
-  Follow the illustrated keyboard and mouse setup using actual host buttons;
-  cover Bluetooth and USB receivers, first input after a switch and safe local
-  recovery. Check stable preset-card heights, In use versus editing, full card
-  click areas and separate pencil/Play/port hover. Automated TLS/state and
-  offscreen rendering checks pass; this does not close physical-network defects.
+General UI/UX refinement is permanently outside release QA pass/fail gates at
+Scott's request. Do not recreate a broad "accept all settings/appearance" gate.
+Concrete functional defects remain defects. Older dated UI acceptance notes are
+historical evidence, not additional open release requirements.
 
-- [ ] **2.0.116 Desk sharing, port menu and lid rows:** on both updated Macs,
-  enable sharing from Desk, confirm readiness, choose a screen and start control;
-  cross an adjoining edge and recover with Ctrl–Opt–Esc. Check optional keyboard
-  matching from either Mac. Verify one-off port switching leaves saved presets
-  intact. In Keep awake, click Lid activity and Lid protection setup after Resume,
-  including a smaller Settings window and scrolling to the last row. No live
-  clicks or hardware operations were used for these source changes.
-
-- [ ] **2.0.115 monitor setup:** verify computer/port control choices and saved
-  protocol default labels; run Detect input profile locally and through another
-  Mac on the same build. Exercise unavailable display, unknown profile, timeout,
-  and concurrent edits without losing prior working settings. Native and remote
-  callback acceptance remains pending; pure policy and offscreen checks pass.
-
-- [ ] **Direct Desk preset and connector acceptance.** Actual SwiftUI body hit
-  regions, hover, sockets versus input choices, rewiring/cancel, screen exclusion,
-  selected-route emphasis, small windows/overflow, resize and peer edits. Native
-  socket dispatch, 24 preset/subset combinations, 105 portable KVM checks and real
-  TLS loopback/16-peer tests pass with injected hardware. The current real-network
-  disconnection report remains a known defect above.
-
-- [ ] **Latest settings, keypad and geometry acceptance.** Confirm sidebar icons,
-  new Hotkeys and inline-name routes, stable permission disclosures, and wire
-  endpoints after resize/scroll/peer edits. Enter 27/32-inch diagonal on the real
-  panels; check automatically detected ratio and rotation. Update the matching
-  input helper before testing Num Lock navigation, two external keyboards and
-  physical repeats/modifiers; no permission/helper changes were made by this task.
-
-- [ ] **New countdown integration and appearance acceptance.** App 2.0.106 is installed;
-  complete coordinated helper/protocol 3 maintenance. Check physical configurable
-  +/− shortcuts, actual helper/watchdog deadline delivery and return to normal
-  protection; policy combinations and timing are already tested with virtual time.
-  Cancel → Finished 0:00 and selective Light/Dark preview/batch editing passed
-  native fixtures. Check overlay behavior across actual lock/wake/restart, and
-  keyboard/VoiceOver interaction with previews, mixed values and preset management.
-  Do not repeat all unit-test durations physically. See LID-COUNTDOWN-2.0.md.
-
-- [ ] **Setup recovery acceptance before the next release.** Source fixes cover
-  all seven review findings plus the lid-menu setup dead end. The ownership gate
-  and isolated native regression suites passed under AGENT MODE. Real checklist
-  navigation, Back to setup, picker return and queued-update warning rendering
-  passed. Remaining: real permission recovery,
-  menu/window return, repeated input setup and explicit lid helper setup/resume.
-  Check contextual Back to setup, ordinary sidebar navigation without Close,
-  and return from nested repair failures.
-  Installed/public 2.0.94 still contains the defects. Evidence and scope:
-  SETUP-REVIEW-2.0.94.md.
-
-- [ ] **Full Settings correction acceptance.** The compiled native fixture and
-  bounded child journeys passed under AGENT MODE. Remaining real routes: shortcut
-  collision/replacement, app add/remove failures, completed layout → next keyboard,
-  Desk names/codes and incoming edits/conflict choice, both new sidebar pages,
-  Ready → lost permission recovery, and Appearance inactive controls. The pure
-  draft/conflict models, source gate, picker cancellation/reopen, connection-code
-  validation/save/reopen and Desk child close/Escape/sidebar return passed.
-  Hardware/access transitions and broader production journeys remain. See the
-  full review ledger and AUTOMATED-QA-2.0.96.md.
-
-
-1. [ ] **Accept the latest release candidate on both Macs.** Check persistent navigation, direct menu
-   entry, same-category return from children, validation/discard, Back/Close,
-   small-screen scrolling, keyboard focus and sidebar behavior during operations.
-   Check the new tooltip content (78+) and shared Esc labels. The original Back,
-   tooltip-ownership and flicker fixes remain accepted; do not reopen without a
-   new failure. The local replacement is recorded separately in RELEASE-1.2.md. Desk child Close/Escape, immediate name saving, preset Play with injected monitor commands and Appearance controls were exercised; broader journeys remain.
-2. [ ] **First use and access repair.** Blocked-access startup notice,
-   already-enabled recovery, scoped Automation errors and helper-specific guidance;
-   Setup & status must agree with feature pages. Normal launch and Restart already
-   restored keyboard access. Do not reset live grants to manufacture a failure.
-3. [ ] **Local replacement detection and restart notice.** Test actual newer-copy
-   replacement, one notice per run, deferral while interacting, dismissal, manual
-   restart and failed/partial replacement. Build 80 implementation and isolated
-   tests are complete; see APP-REPLACEMENT-REVIEW.md.
-4. [ ] **Saved lid intent and wake explanations.** Stopped protection retains the
-   choice without silently rearming. Verify Resume, sequence-specific explanation
-   only when requested, acknowledgement and View lid activity. Confirm actual
-   sleep/wake notification order and the 24-hour/1024-entry log contract.
-5. [ ] **Active-session restart and separate helper maintenance.** Successful
-   transfer, expired/unclaimed cleanup, unchanged grace deadlines and visible
-   queued update/open-lid completion. Inactive restart passed; installation of
-   build 77 did not exercise active-session handoff.
-6. [ ] **Lid integration edges and recovery.** Pure decision coverage now has
-   a headless virtual-clock suite: generated lid/power/authorization sequences,
-   exact expiry/stability boundaries, repeated power changes, unknown sensors,
-   watchdog, restart and command failures. See LID-POLICY-TESTS.md. Do not repeat
-   the unit matrix physically or wait through real durations to test policy.
-   Remaining integration checks concern real event delivery/order, independent
-   recovery when both supervisors disappear, reboot recovery, actual OS sleep
-   and restoration. Powered close/open, short grace/replug, full 60-second expiry,
-   menu-process-loss cleanup and explicit disable already have recorded passes.
-7. [ ] **Native event-collector acceptance.** Install the current
-   launcher through coordinated maintenance; test Full Disk Access attribution,
-   event delivery, combined CPU accounting, restart/PID reuse and reboot.
-   Only the current fixed launcher is supported. This launcher is separate from
-   the optional direct Endpoint Security collector in Backlog.
-8. [ ] **Keyboard and spoken VoiceOver acceptance.** Implementation is complete
-   for the reviewed settings set, including the new sidebar. Finish spoken
-   VoiceOver, standard text-editing shortcuts in the new SwiftUI fields, broader
-   production-route/dynamic-list journeys and coordinated OS
-   permission/authorization handoffs. See ACCESSIBILITY-REVIEW-81.md and
-   SETTINGS-SIDEBAR-82.md. Metadata and harmless-lab input are not full acceptance.
-   September 12: real sidebar arrow navigation, Tab focus and Space activation
-   passed in the isolated Settings fixture; spoken VoiceOver remains open.
-9. [ ] **Performance and memory.** A read-only 30-second installed 1.2.87 baseline
-   passed (30/30 healthy, combined app/helpers excluding observer about 1.23% CPU);
-   this does not measure the new input adapter. Idle, open menu, input activity, process bursts
-   and recovery; wakeups, event backlog, sustained memory growth and combined
-   collector CPU. Optimized 16-peer sustained input/edit checks now run without
-   native input or hardware, measuring delivery, queue sizes, latency and RSS.
-   Five minutes delivered 211,328/211,328 events. A separate run continued input
-   after edits stopped; RSS stayed within 32 KiB over the final 90 seconds.
-   See AUTOMATED-QA-2.0.96.md; bounded fixture measurements do not establish
-   physical network latency, a leak-free lifetime or release-wide cost.
-10. [ ] **Sparkle acceptance after implementation.** Signed feed/archive delivery,
-    bad signatures, interruption, cancellation, retry, replacement, permission
-    continuity, active lid handoff, helper compatibility and external Homebrew
-    replacement. See DISTRIBUTION.md for install-on-quit and identity requirements.
-    September 12: native cancellation, bad ZIP signature rejection, failed
-    simulated handoff and successful retry/replacement/relaunch passed. Physical
-    lid transfer and public update permissions remain. A severed download and
-    slow-download cancellation retained build 1; retry in /Applications replaced
-    it with build 2 and claimed the saved identity. Documents stall diagnosed as
-    pending folder access. These are disposable apps with an injected lid client.
-11. [ ] **Desk monitor-only acceptance — next.** Join the two real Macs; verify
-    cross-Mac edits, restart/reconnect and conflict recovery, identify/match screens,
-    map actual ports, and use all presets in both directions. Test one/two screens,
-    mixed arrangements, offline control hosts, partial failure and competing
-    commands. Test Bonjour/nearby Wi-Fi and explicit routed addresses. Then accept 2.0 keyboard/mouse sharing: Control here, pointer boundary handoff,
-    rotation/Retina scaling, separate input hosts, modifiers, buttons/drag/scroll,
-    host-selection first key, access loss, lock/unlock and Ctrl–Opt–Esc recovery.
-    Local keyboards are required for secure entry. Validate reused DDC/USB MCCS/MSI USB/
-    NEC LAN/serial and LG identification on available hardware. Catalog research
-    is not certified support. Retired standalone cycling has no separate QA gate.
-12. [ ] **Destructive action acceptance in a separately authorized disposable
-    environment.** Actual Panic/privacy reset must not target the live workspace.
+1. [ ] **Two-Mac Desk and desktop handoff.** Both current apps/helpers; joining,
+   reconnect/conflicts, actual monitor identification, verified input switching,
+   partial failures and manual changes. Accept automatic desktop removal/return,
+   unplug/replug and guardian relaunch. A real two-process recovery test restored
+   the secondary LG's original mode and position. Unknown LG readback remains a
+   defect above, not a successful handoff. See DESKTOP-PARTICIPATION-GAP-2.0.md.
+2. [ ] **Two-Mac shared input.** Actual boundary crossing, keyboard/mouse computer
+   buttons, first key, modifiers/drag/scroll, rotation/scaling, lost access,
+   lock/unlock and emergency return. Secure entry remains local. TLS and
+   16-peer fixtures pass; they do not simulate physical receiver behavior.
+3. [ ] **Physical helper integration.** External Num Lock; countdown hotkeys and
+   helper event delivery; real sleep/wake, independent recovery and reboot.
+   Complete the queued protocol-3 lid-helper update first. Do not repeat the
+   exhaustive virtual-time policy matrix or previously accepted unrelated fixes.
+4. [ ] **Protected-session update continuity.** Real active lid deadline/identity
+   handoff, permissions, interrupted/expired transfer and helper mismatch.
+   Signed isolated Sparkle cancellation/corruption/retry/relaunch scenarios pass
+   with injected lid state. See AUTOMATED-QA-2.0.120.md.
+5. [ ] **Performance and collector lifecycle.** Controlled idle/open-menu/input/
+   process-burst workloads, complete helper/collector CPU accounting, and collector
+   restart/reboot attribution. The current collector is installed, byte-for-byte
+   executable-matched and delivering healthy events. Bounded 16-peer endurance
+   and passive sampling pass; sustained physical workloads remain.
+6. [ ] **Clean account lifecycle.** Fresh grants, startup, helpers, real install,
+   update, rollback and uninstall in a disposable account/Mac. Dependency repair,
+   source builds, bundle/rpath and packaging fixtures pass; existing live grants
+   do not establish clean-install behavior.
+7. [ ] **Destructive actions in a disposable environment only.** Live Panic and
+   privacy resets remain outside this task's authorization.
 
 ## Release — signing, packaging and distribution
 
@@ -517,7 +407,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    archive/feed verification and draft-to-public GitHub publishing are implemented.
    Apple notarization credentials (Keychain profile Perch) were validated on
    September 10; the 2.0.94 app was accepted, stapled and passed Gatekeeper
-   assessment (Notarized Developer ID), and is installed in /Applications. The
+   assessment (Notarized Developer ID), and was installed in /Applications at that release. The
    DMG is accepted/stapled, and the signed Sparkle ZIP/appcast are published.
    Anonymous public downloads/checksums and the stable feed passed verification.
    The top-level `./release.sh --output FOLDER --publish` prepares its Python
@@ -535,7 +425,7 @@ remain open; this is not a claim that untested behavior is defect-free.
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
 5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed 2.0.120 candidate is prepared and installed locally with a source snapshot and draft notes.
+   signed 2.0.122 candidate is prepared and installed locally with a source snapshot and draft notes.
    Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
    and authorization through the resumable release command. The 2.0.94 public assets
    and checksums are already complete. Homebrew cask preparation remains open.
@@ -546,7 +436,9 @@ remain open; this is not a claim that untested behavior is defect-free.
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future
-PKG wizard additionally needs Developer ID Installer. Verify fresh install, first
+PKG wizard additionally needs Developer ID Installer (not currently available).
+A PKG for initial helper installation/repair remains a proposal, not implemented
+or required by the current distribution plan. Verify fresh install, first
 launch, existing-install replacement and uninstall/recovery as one journey.
 
 ## Backlog — optional future work, outside current release gates

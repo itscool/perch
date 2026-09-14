@@ -63,20 +63,11 @@ func runSettingsReviewFixTests() throws {
                   "Feature page still embeds permission instructions")
         host.goBack()
     }
-    let lidHelper = LidHelperSettingsSnapshot(helper: LidHelperUpdateState(info: [:], lidOpen: false))
-    app.presentKeepAwakeSettings(readHelper: { lidHelper })
-    let featureButtons = buttons(host.pages.last!.view)
-    for button in featureButtons {
-        let page = host.pages.last!.view
-        try check(page.bounds.contains(button.frame), "Keep awake button is outside clickable page bounds: " + button.title)
-        let point = page.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
-        let hit = page.hitTest(page.convert(point, to: page.superview))
-        try check(hit === button || hit?.isDescendant(of: button) == true, "Keep awake button cannot receive a native hit: " + button.title)
-    }
-    try check(!featureButtons.contains { ["Set up lid protection…", "Repair lid protection…", "Finish lid helper update…"].contains($0.title) },
-              "Keep awake still performs prerequisite installation")
-    featureButtons.first { $0.title == "Lid protection setup…" }!.performClick(nil)
-    try check(host.pages.last?.title == "Lid protection setup", "Keep awake repair link missed Setup")
+    app.keepAwakeSettings()
+    try check(host.pages.last?.title == "Lid activity", "Retired Keep awake route did not reach Lid activity")
+    try check(!buttons(host.pages.last!.view).contains { ["Keep awake", "Including with the lid closed", "Start five-minute countdown", "Hotkeys…"].contains($0.title) }, "Lid activity duplicates menu or hotkey controls")
+    app.lidProtectionSetup()
+    try check(host.pages.last?.title == "Lid protection setup", "Lid repair missed Setup")
     var sharingGrant = false
     app.presentSharingAccess(readAccessibility: { sharingGrant }, readMonitoring: { sharingGrant })
     let sharingView = host.pages.last!.view

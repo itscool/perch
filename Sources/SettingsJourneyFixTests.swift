@@ -56,18 +56,13 @@ func runSettingsJourneyFixTests() throws {
     host.modalTestDriver = nil
 
     app.keyboardSettings(); app.keyboardDetails()
-    let route = host.pages.map(\.title)
-    var keyboardChanges = 0
-    app.keyboardActionTestDriver = { _, _ in keyboardChanges += 1 }
-    // Enable only injected controls here; this tests navigation, not live device availability.
-    for title in ["F1–F12 directly", "Swap Control and Command"] {
-        for index in 0..<2 {
-            let control = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title == title }[index]
-            control.isEnabled = true; control.performClick(nil)
-            try check(host.pages.map(\.title) == route, "Keyboard detail change pushed another page")
+    for open in [app.keyboardSettings, app.keyboardDetails, app.navigationSettings] {
+        open()
+        let toggles = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter {
+            ["F1–F12 directly", "Swap Control and Command", "Home/End move to line edges", "Page Up/Down move the cursor"].contains($0.title)
         }
+        try check(toggles.isEmpty, "Settings duplicated the main-menu behavior switches")
     }
-    try check(keyboardChanges == 4, "Not all four keyboard detail actions reached their injected writer")
     host.goBack(); host.goBack()
 
     let suite = "perch-journey-fixture." + UUID().uuidString

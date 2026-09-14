@@ -63,6 +63,7 @@ func runAppUpdateTests() throws {
     var restartState = RestartSettingsSnapshot()
     var restarts = 0
     app.presentAppSettings(readRestart: { restartState }, restart: { restarts += 1; restartState.busy = true; restartState.message = "Preparing to restart…" })
+    try check(!host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.contains { ["Start Perch at login", "Setup & status…", "Resets…", "About Perch…"].contains($0.title) }, "App settings duplicates menu/sidebar destinations")
     let restart = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == "Restart Perch" }!
     restart.performClick(nil)
     try check(restarts == 1 && !restart.isEnabled && host.pages.last?.title == "App settings", "Restart added another page or allowed duplicate requests")

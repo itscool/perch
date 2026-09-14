@@ -32,6 +32,15 @@ func runMonitorInputTests() throws {
         try check(refused,"Invalid manual input list accepted")
     }
     var request = [UInt8](repeating:0,count:36), payload: [UInt8] = [0x60,0,17]
+    for address in 0...255 {
+        for feature in 0...255 {
+            var query = UInt8(feature)
+            let allowed = address == 0x51 && [0x60, 0xef, 0xa1].contains(feature)
+            try check(perch_ddc_safe_query(UInt8(address), 0x01, &query, 1) == allowed, "DDC read allowlist admitted an unsafe address/feature")
+        }
+    }
+    var offset: [UInt8] = [0, 0]
+    try check(perch_ddc_safe_query(0x51, 0xf3, &offset, 2) && !perch_ddc_safe_query(0x50, 0xf3, &offset, 2), "Capabilities read bypassed standard channel restriction")
     let count = perch_ddc_request(&request,0x51,0x03,&payload,payload.count)
     try check(count == 6 && request.prefix(6).reduce(UInt8(0x6e ^ 0x51),^) == 0,"DDC write packet/checksum invalid")
     var reply: [UInt8] = [0x6e,0x88,0x02,0,0x60,0,0,0x1b,0,0x11,0]

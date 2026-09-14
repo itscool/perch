@@ -200,6 +200,10 @@ import Darwin
         switchesA.refreshObservations()
         try wait("fresh passive read clears old switch failure") { switchesA.problem == nil && switchesA.results.values.allSatisfy { $0.state == .confirmed } }
         guard writes == 2 else { throw KVMError("Checking inputs repeated hardware writes") }
+        try wait("generation-matched desktop evidence") { switchesA.desktopInputs.count == expectedInputs.count && switchesB.desktopInputs.count == expectedInputs.count }
+        guard switchesA.desktopInputs == expectedInputs else { throw KVMError("Desktop ownership did not use fresh hardware evidence") }
+        fakeTime += 46
+        guard switchesA.desktopInputs.isEmpty else { throw KVMError("Expired observations still authorize desktop disconnection") }
         print("PASS: named per-screen failures, stale-read refusal and read-only reconciliation after recovery")
 
         // Production input coordinator over the same authenticated links. Native

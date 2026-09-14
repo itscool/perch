@@ -6,7 +6,7 @@ struct LidHelperUpdateState: Equatable {
     let lidOpen: Bool
     var notice: String {
         guard pending else { return installed ? "Lid helper is up to date." : "Lid protection is optional. Set it up in Setup → Lid protection when needed." }
-        return lidOpen ? "Lid helper update ready. Finish it below when convenient." : "Lid helper update queued. Open the lid to finish it; the existing helper stays installed."
+        return lidOpen ? "Lid helper update ready. Finish it below when convenient." : "Lid helper update queued. Open the lid to finish: replacing the helper briefly restores normal lid sleep. The existing helper stays installed until then."
     }
     init(info: [String: Any], lidOpen: Bool, publisherMatches: Bool = true) {
         installed = !info.isEmpty; self.lidOpen = lidOpen
@@ -49,10 +49,10 @@ final class LidHelperUpdate {
         let status = LidGuardClient.shared.status
         if status?.fresh == true, status?.codeIdentity == LidGuardIdentity.current {
             guard resume else {
-                busy = false; result = "Lid helper updated and responding. Enable lid protection in Keep awake when you want it."; return
+                busy = false; result = "Lid helper updated and responding. Enable lid protection in the Perch menu when you want it."; return
             }
             guard MacLidGuardHardware().observe().closed == false else {
-                busy = false; result = "Lid helper updated. The lid closed during installation, so protection was left off. Review Keep awake."; return
+                busy = false; result = "Lid helper updated. The lid closed during installation, so protection was left off. Review Setup → Lid protection."; return
             }
             LidGuardClient.shared.change(true) { outcome in
                 self.busy = false

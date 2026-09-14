@@ -58,9 +58,9 @@ func runSettingsTests() throws {
     try check(host.pages.last?.view === app.permissionSetup?.content && app.permissionSetup?.timer != nil, "Reopening input setup lost its retained controls or refresh timer")
     host.goBack()
     app.keyboardSettings()
-    try check(host.pages.count == 2 && host.pages.last?.title == "Keyboard settings", "Keyboard settings broke navigation")
+    try check(host.pages.count == 2 && host.pages.last?.title == "Keyboards", "Keyboard settings broke navigation")
     let swaps = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.contains("Swap Control") }
-    try check(swaps.count == 2, "Keyboard settings must offer clearly scoped built-in and external controls")
+    try check(swaps.isEmpty, "Keyboards duplicates main-menu modifier switches")
     try render("/private/tmp/perch-keyboard-preview.png")
     host.goBack()
     app.resetHub()

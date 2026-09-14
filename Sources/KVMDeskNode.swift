@@ -102,7 +102,12 @@ final class KVMDeskNode: ObservableObject {
     private var localNonces: [UUID: UUID] = [:]
     private var peerLinks: [UUID: UUID] = [:]
     private var expectedPeers: [UUID: UUID] = [:]
+    /// A peer may have one pending route attempt. The old implementation used
+    /// this timestamp as a retry cooldown, which allowed a still-live attempt
+    /// to be duplicated after 12 seconds.
     private var connecting: [UUID: Date] = [:]
+    private var reconnectAfter: [UUID: Date] = [:]
+    private var failedAttempts: [UUID: Int] = [:]
     private var lastHeard: [UUID: Date] = [:]
     private var hostingPairing = false
     private var directContacts: [UUID: String] = [:]
@@ -156,6 +161,12 @@ final class KVMDeskNode: ObservableObject {
         transport.listenerProblem = { [weak self] in self?.listenerProblem = $0 }
         transport.discoveryProblem = { [weak self] in self?.discoveryProblem = $0 }
         transport.connectionProblem = { [weak self] link, message in self?.connectionStatus(link, message: message) }
+        transport.pathChanged = { [weak self] available, _ in
+            guard available else { return }
+            // A newly usable path is a trigger to retry missing peers, not a
+            // reason to tear down an authenticated route.
+            self?.reconnect()
+        }
     }
     func start(localOnly: Bool = false, port: NWEndpoint.Port = .init(rawValue: 53031)!) throws {
         guard isMember else { problem = "This Mac was removed from the desk. Start a new desk to join again."; return }
@@ -193,9 +204,18 @@ final class KVMDeskNode: ObservableObject {
         if expected == nil {
             guard pairingOpen, pairingConnection == nil, pairings.isEmpty else { return }
             pairingProblem = nil
+        } else if let expected {
+            // Never create a second route while the first one is still
+            // negotiating. A successful peer link also suppresses attempts.
+            // An explicit endpoint request may probe a redundant route, but
+            // automatic reconnect never calls this while an authenticated
+            // route exists. The in-flight guard still prevents duplicate
+            // automatic attempts.
+            guard connecting[expected] == nil else { return }
+            connecting[expected] = Date()
         }
         let link = transport.connect(endpoint)
-        if let expected { expectedPeers[link.id] = expected; connecting[expected] = Date() }
+        if let expected { expectedPeers[link.id] = expected }
         else { pairingConnection = link.id }
     }
     func connect(address: String) throws {
@@ -326,6 +346,7 @@ final class KVMDeskNode: ObservableObject {
             recordConnection(.init(id: UUID(), time: Date(), peer: hello.card.id, peerName: String(hello.card.name.prefix(100)), detail: "Authenticated connection ready", unexpected: false, duration: nil))
         }
         peerLinks[hello.card.id] = link.id; connecting[hello.card.id] = nil
+        reconnectAfter[hello.card.id] = nil; failedAttempts[hello.card.id] = nil
         if pairings.contains(where: { $0.id == link.id }) {
             // Clear operation state before publishing completion: the sheet may close synchronously.
             pairings.removeAll { $0.id == link.id }; pairingConnection = nil; pairingProblem = nil
@@ -364,6 +385,12 @@ final class KVMDeskNode: ObservableObject {
         directContacts[link.id] = nil
         if let peer = hellos[link.id]?.card.id, peerLinks[peer] == link.id {
             peerLinks[peer] = nil; online.remove(peer); lastHeard[peer] = nil; peersChanged?()
+        }
+        if let peer, peerLinks[peer] == nil {
+            connecting[peer] = nil
+            let failures = min((failedAttempts[peer] ?? 0) + 1, 7)
+            failedAttempts[peer] = failures
+            reconnectAfter[peer] = Date().addingTimeInterval(KVMReconnectPolicy.delay(failures: failures))
         }
         pairings.removeAll { $0.id == link.id }; hellos[link.id] = nil; localNonces[link.id] = nil; expectedPeers[link.id] = nil
         syncing.remove(link.id); syncAgain.remove(link.id); historyQueues[link.id] = nil; historyOffsets[link.id] = nil
@@ -456,11 +483,17 @@ final class KVMDeskNode: ObservableObject {
     }
     /// Retry only missing trusted links; healthy connections and membership stay intact.
     func retryConnections() {
-        for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil { connecting[peer.id] = nil }
+        for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil {
+            // An explicit retry cancels only a still-negotiating route. It
+            // leaves authenticated links untouched and clears the backoff.
+            let pending = expectedPeers.compactMap { id, expected in expected == peer.id ? id : nil }
+            for id in pending { if let link = transport.links[id], !link.ready { transport.close(link, reason: .local) } }
+            connecting[peer.id] = nil; reconnectAfter[peer.id] = nil; failedAttempts[peer.id] = nil
+        }
         reconnect()
     }
     private func reconnect() {
-        for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil && Date().timeIntervalSince(connecting[peer.id] ?? .distantPast) > 12 {
+        for peer in membership.peers where peer.id != localID && peerLinks[peer.id] == nil && connecting[peer.id] == nil && Date() >= (reconnectAfter[peer.id] ?? .distantPast) {
             if let nearby = nearby.first(where: { $0.id == peer.id.uuidString }) { connect(nearby.endpoint, expected: peer.id) }
             else if let address = archive.addresses[peer.id], let endpoint = Self.endpoint(address) { connect(endpoint, expected: peer.id) }
         }

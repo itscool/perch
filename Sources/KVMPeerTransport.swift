@@ -62,6 +62,10 @@ final class KVMPeerTransport {
     var listenerProblem: ((String?) -> Void)?
     var discoveryProblem: ((String?) -> Void)?
     var connectionProblem: ((Link, String?) -> Void)?
+    /// Updated when macOS reports a different usable network path. This is
+    /// diagnostic only; existing connections are allowed to migrate or fail
+    /// normally and the desk node decides when to reconnect.
+    var pathChanged: ((Bool, String) -> Void)?
     private var advertisedName = "Perch"
     private var advertising = false
     private var pairingRole = "closed"
@@ -80,6 +84,8 @@ final class KVMPeerTransport {
     var browser: NWBrowser?
     private(set) var links: [UUID: Link] = [:]
     var nearby: [Nearby] = []
+    private var pathMonitor: NWPathMonitor?
+    private(set) var pathSummary = "Network path not checked"
     private let serviceType = "_perch-desk._tcp"
     init(identity: KVMPeerIdentity) { self.identity = identity }
     func parameters(certificate: @escaping (Data) -> Void) -> NWParameters {
@@ -108,6 +114,7 @@ final class KVMPeerTransport {
         if localOnly { params.includePeerToPeer = false; params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: port) }
         let listener = try localOnly ? NWListener(using: params) : NWListener(using: params, on: port)
         self.listener = listener
+        startPathMonitor()
         advertisedName = name; advertising = !localOnly; updateAdvertisement()
         listener.newConnectionHandler = { [weak self] in self?.accept($0) }
         listener.stateUpdateHandler = { [weak self] state in
@@ -198,5 +205,34 @@ final class KVMPeerTransport {
         link.closeReason = reason
         link.connection.stateUpdateHandler = nil; link.connection.cancel(); disconnected?(link)
     }
-    func stop() { browser?.stateUpdateHandler = nil; browser?.cancel(); browser = nil; listener?.stateUpdateHandler = nil; listener?.cancel(); listener = nil; advertising = false; Array(links.values).forEach { close($0, reason: .shutdown) }; listenerProblem?(nil); discoveryProblem?(nil) }
+    func stop() {
+        browser?.stateUpdateHandler = nil; browser?.cancel(); browser = nil
+        listener?.stateUpdateHandler = nil; listener?.cancel(); listener = nil
+        pathMonitor?.cancel(); pathMonitor = nil
+        advertising = false
+        Array(links.values).forEach { close($0, reason: .shutdown) }
+        listenerProblem?(nil); discoveryProblem?(nil)
+    }
+
+    private func startPathMonitor() {
+        guard pathMonitor == nil else { return }
+        let monitor = NWPathMonitor()
+        pathMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            let interfaceTypes: [(NWInterface.InterfaceType, String)] = [
+                (.wiredEthernet, "Ethernet"), (.wifi, "Wi-Fi"), (.loopback, "loopback"),
+                (.other, "other")
+            ]
+            let interfaces = interfaceTypes.compactMap { path.usesInterfaceType($0.0) ? $0.1 : nil }
+            let summary = path.status == .satisfied
+                ? "\(interfaces.isEmpty ? "Available network" : interfaces.joined(separator: ", ")) · usable"
+                : "No usable network path"
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pathSummary = summary
+                self.pathChanged?(path.status == .satisfied, summary)
+            }
+        }
+        monitor.start(queue: .main)
+    }
 }

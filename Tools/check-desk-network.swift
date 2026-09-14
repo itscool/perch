@@ -15,7 +15,11 @@ import Darwin
         guard KVMConnectionEvent.retained(events, now: now).count == 1024,
               KVMConnectionEvent.retained(events, now: now.addingTimeInterval(86401)).isEmpty,
               !KVMCloseReason.duplicate.unexpected, !KVMCloseReason.shutdown.unexpected,
-              KVMCloseReason.network.unexpected, KVMCloseReason.heartbeat.unexpected else { throw KVMError("Connection diagnostic retention/classification failed") }
+              KVMCloseReason.network.unexpected, KVMCloseReason.heartbeat.unexpected,
+              KVMReconnectPolicy.delay(failures: 1) == 1,
+              KVMReconnectPolicy.delay(failures: 2) == 2,
+              KVMReconnectPolicy.delay(failures: 6) == 32,
+              KVMReconnectPolicy.delay(failures: 7) == 60 else { throw KVMError("Connection diagnostic retention/classification or reconnect backoff failed") }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("perch-tls-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let a = try KVMDeskNode(identity: .fresh(), name: "Fixture A", storage: directory.appendingPathComponent("a.json"))

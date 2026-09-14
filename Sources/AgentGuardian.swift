@@ -366,7 +366,7 @@ final class AgentGuardian {
         enforce()
         disableAgentJobs()
         message = "Agents blocked until you explicitly resume"
-        if shouldReset && config.resetAgentPermissions { resetPermissions(global: config.resetAllPermissions == true) }
+        if shouldReset { resetPermissions(scope: config.privacyResetScope) }
     }
 
     func enforce() {
@@ -486,9 +486,21 @@ final class AgentGuardian {
     }
     func broadReset() { panic(resetPermissions: false); pendingGlobalReset = true }
     func resetPermissions(global: Bool) {
+        resetPermissions(scope: global ? .allAppsIncludingPerch : .selectedAgents)
+    }
+    func resetPermissions(scope: PrivacyResetScope) {
         guard permissionWorker?.isRunning != true else { record("privacy reset", result: "already running; retry broad reset when complete"); return }
-        let bundleIDs = global ? NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier) : config.targets.filter(\.enabled).compactMap { appClients[$0.id] }
-        if !global && bundleIDs.isEmpty { record("privacy reset", result: "no attributable GUI-app clients; CLI host permissions unchanged"); return }
+        guard scope != .none else { return }
+        let global = scope == .allAppsIncludingPerch
+        let bundleIDs: [String]
+        if scope == .allAppsExcludingPerch {
+            bundleIDs = PanicReset.knownBundleIDs().filter { $0 != PanicPlan.perchID }
+        } else if global {
+            bundleIDs = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+        } else {
+            bundleIDs = config.targets.filter(\.enabled).compactMap { appClients[$0.id] }
+        }
+        if !global && bundleIDs.isEmpty { record("privacy reset", result: "no attributable app clients; CLI host permissions unchanged"); return }
         do {
             let worker = try PanicReset.launch(bundleIDs: bundleIDs, global: global)
             permissionWorker = worker

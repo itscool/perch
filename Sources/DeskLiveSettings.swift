@@ -326,7 +326,15 @@ struct DeskLiveSheet: View {
                     if let family = detected.firmwareFamily { Text("Firmware family: " + family) }
                     if let issue = detected.inspectionProblem { Text(issue).foregroundStyle(.orange) }
                     Text("A firmware family suggests input controls; it does not prove the retail suffix or identify a unique physical screen.").font(.caption).foregroundStyle(.secondary)
-                    Button("Read monitor details again") { if let control = monitor.control { runtime.inspect(control.localDisplay, computer: control.computer) } }
+                    Button("Read monitor details again") {
+                        if let control = monitor.control {
+                            runtime.inspect(control.localDisplay, computer: control.computer) { result in
+                                if case .failure(let failure) = result { error = failure.localizedDescription }
+                            }
+                        }
+                    }
+                    .disabled(monitor.control.flatMap { runtime.peerActionReadiness($0.computer, action: "read monitor details") } != nil)
+                    .help(monitor.control.flatMap { runtime.peerActionReadiness($0.computer, action: "read monitor details") } ?? "Read the current monitor details again without changing its input.")
                 }
             } else { Text("Reconnect the control computer to read this monitor’s details.").foregroundStyle(.secondary) }
             DisclosureGroup("Advanced control connection") { control }
@@ -360,6 +368,18 @@ struct DeskLiveSheet: View {
             }
             if options.isEmpty {
                 Text("Connect this monitor to a computer and match its display on the desk to add a control path.").font(.caption).foregroundStyle(.secondary)
+            }
+            if let computer, !display.isEmpty,
+               runtime.displays[computer]?.contains(where: { $0.id == display }) != true {
+                let hostName = node.group.computers.first { $0.id == computer }?.name ?? "this Mac"
+                let identifyIssue = runtime.peerActionReadiness(computer, action: "Identify")
+                Button("Identify displays on \(hostName)") {
+                    runtime.identifyComputer(computer)
+                }
+                .disabled(identifyIssue != nil)
+                .help("Show a short label on every display currently visible to this Mac so you can match the saved control path.")
+                if let identifyIssue { Text(identifyIssue).font(.caption).foregroundStyle(.secondary) }
+                Text("This saved display is not currently matched. Identify the displays on that Mac, then choose the matching one on the Desk.").font(.caption).foregroundStyle(.secondary)
             }
             } else {
                 Picker("Control through", selection: Binding<UUID?>(get: { computer }, set: { host in
@@ -426,7 +446,7 @@ extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
         view.frame = NSRect(x: 0, y: 0, width: 720, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange screens and edit presets. Play switches monitor inputs. Enable keyboard and mouse sharing here on each Mac, then select a screen to start control.", view: view, preferredBodyWidth: 720))
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange screens and edit presets. Play switches monitor inputs. Enable keyboard and mouse sharing on each Mac; an active preset with a remote screen starts control automatically.", view: view, preferredBodyWidth: 720))
     }
 }
 
@@ -445,7 +465,7 @@ extension AppDelegate {
         let problem = runtime.inputAdapter.accessProblem ?? runtime.input.problem
         let hint = problem != nil ? "Needs attention" : runtime.input.enabled ? "On" : "Off"
         label(item, "Share on this Mac", hint: hint, hintColor: problem == nil ? .secondaryLabelColor : StatusColors.warning)
-        item.menuHelp = problem ?? "Allow approved Desk computers to send keyboard and mouse input to this Mac. Control starts only when you choose a screen in Desk."
+        item.menuHelp = problem ?? "Allow approved Desk computers to send keyboard and mouse input to this Mac. An active preset with a remote screen starts control automatically."
     }
     @objc func toggleDeskSharing() {
         guard let runtime = DeskCoordinator.shared.runtime else {
@@ -455,6 +475,7 @@ extension AppDelegate {
         let enabled = !runtime.input.enabled
         withMenuClosed { [weak self, weak runtime] in
             runtime?.inputAdapter.enable(enabled)
+            if enabled { runtime?.startInputForActivePreset() }
             self?.refreshDeskSharingMenu()
         }
     }

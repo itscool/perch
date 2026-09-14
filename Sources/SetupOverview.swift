@@ -89,7 +89,7 @@ struct SetupSnapshot {
             monitorBusy ? "Checking which displays are available." : !monitorConfigured ? "Group computers and map monitor inputs in Desk if you want to use shared presets." : monitorState == .unverified ? "Your inputs are saved. Open Desk to review the current monitor state." : monitorDetail,
             monitorConfigured ? "Displays…" : "Set up display…", .displays)
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : .ready,
-            !deskInputEnabled ? "Optional: turn on Share on this Mac from the Perch menu on each participating Mac. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk and select a screen to start control."), deskInputAccessNeeded ? "Shared input access…" : "Open Desk…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
+            !deskInputEnabled ? "Optional: turn on Share on this Mac from the Perch menu on each participating Mac. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. An active preset with a remote screen starts control automatically."), deskInputAccessNeeded ? "Shared input access…" : "Open Desk…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
         if lidHelperBusy {
             add("lid-setup", "Lid protection setup", .checking, "Updating the lid helper and checking its response. Your saved choices are kept.", "View progress…", .lidSetup)

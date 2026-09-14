@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput), help: ControlHelp.monitor)
             if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu() }
         } else {
-            shareInputItem = add("Share on this Mac", #selector(toggleDeskSharing), help: "Allow approved Desk computers to send keyboard and mouse input to this Mac. Enabled by default; control starts only when you choose a screen in Desk.")
+        shareInputItem = add("Share on this Mac", #selector(toggleDeskSharing), help: "Allow approved Desk computers to send keyboard and mouse input to this Mac. Enabled by default; an active preset with a remote screen starts control automatically.")
             // Keep the legacy fixture handle pointing at the menu row while
             // production uses the explicit sharing item.
             monitorInputItem = shareInputItem

@@ -11,6 +11,10 @@ struct DeskSharingControls: View {
     let monitor: UUID?
     private var screen: KVMMonitor? { node.group.monitors.first { $0.id == monitor } }
     private var route: KVMAssignment? { node.group.presets.first { $0.id == preset }?.assignments.first { $0.monitor == monitor } }
+    private var routeComputer: UUID? {
+        guard let connection = route.flatMap({ assignment in node.group.connections.first { $0.id == assignment.connection } }) else { return nil }
+        return connection.computer
+    }
     private var issue: String? {
         guard let screen else { return "Select a screen in the desk to choose where control starts." }
         guard route != nil else { return "This screen is unchanged in the editing preset. Choose one of its inputs to include it." }
@@ -20,7 +24,7 @@ struct DeskSharingControls: View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Keyboard & mouse").font(.headline)
             if !input.enabled {
-                Text("Turn on Share on this Mac in the Perch menu on each Mac you want to control. Then select a screen and start control below.")
+                Text("Turn on Share on this Mac in the Perch menu on each Mac you want to control. An active preset with a remote screen starts control automatically.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 ForEach(node.group.computers) { computer in
@@ -37,8 +41,9 @@ struct DeskSharingControls: View {
                     } else { Button("Restart input sharing") { adapter.restart(); input.refreshReadiness() }
                         .help("Rebuild Perch’s local input tap after macOS stopped it. This does not change permissions.") }
                 }
-                if let screen {
-                    Button("Control \(screen.name)") { input.start(preset: preset, monitor: screen.id) }
+                if let screen, routeComputer != node.localID {
+                    Button("Test remote control") { input.start(preset: preset, monitor: screen.id) }
+                        .frame(maxWidth: .infinity)
                         .disabled(issue != nil)
                         .help("Start keyboard and mouse control on this screen using the editing preset. This does not switch the picture; Play applies its monitor inputs.")
                 }
@@ -49,9 +54,6 @@ struct DeskSharingControls: View {
                 if !node.online.contains(node.ownerID) || node.online.count < node.group.computers.count {
                     Button("Retry desk connection") { node.retryConnections(); input.refreshReadiness() }
                         .help("Retry offline approved computers. Existing connections, sharing choices and desk setup stay intact.")
-                } else if !input.active {
-                    Button("Check control readiness") { input.refreshReadiness() }
-                        .help("Recheck which Macs can receive input. This does not switch a monitor or start control.")
                 }
                 if let focus = input.focus, input.active {
                     Text("Controlling " + (node.group.monitors.first { $0.id == focus.monitor }?.name ?? "screen"))
@@ -63,19 +65,12 @@ struct DeskSharingControls: View {
                     if lower.contains("offline") || lower.contains("reconnect") || lower.contains("waiting") || lower.contains("another computer") {
                         Button("Reconnect desk") { node.retryConnections(); input.refreshReadiness() }
                             .help("Reconnect approved Perch computers, then check sharing readiness again.")
-                    } else if !input.active {
-                        Button("Check control readiness") { input.refreshReadiness() }
-                            .help("Check the current sharing state without starting control.")
                     }
                 }
-                if input.focus != nil { Button("Return to local control") { input.stop() } }
+                if input.focus != nil { Button("Return to local control") { input.stopForLocalControl() } }
                 Text("Move across touching screen edges to change computers. Ctrl–Opt–Esc returns control locally.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Button("Input options…") {
-                let host = SettingsWindow.shared
-                if let destination = host.sidebar.destinations.first(where: { $0.id == "desk-input" }) { host.navigate(to: destination) }
-            }.help("Adjust pointer speed or optionally follow a keyboard’s computer-switch buttons.")
         }.fixedSize(horizontal: false, vertical: true)
     }
 }

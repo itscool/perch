@@ -76,6 +76,12 @@ func runAgentSettingsPageTests() throws {
     reopened.reset.selectItem(at: 0)
     _ = NSApp.sendAction(reopened.reset.action!, to: reopened.reset.target, from: reopened.reset)
     try check(!stored.resetAgentPermissions && stored.keepAwake, "Privacy scope failed to save independently")
+    reopened.reset.selectItem(at: 2)
+    _ = NSApp.sendAction(reopened.reset.action!, to: reopened.reset.target, from: reopened.reset)
+    try check(stored.privacyResetScope == .allAppsExcludingPerch, "All-app privacy reset did not preserve Perch exclusion")
+    reopened.reset.selectItem(at: 3)
+    _ = NSApp.sendAction(reopened.reset.action!, to: reopened.reset.target, from: reopened.reset)
+    try check(stored.privacyResetScope == .allAppsIncludingPerch, "All-app privacy reset did not include Perch when selected")
     failWrite = true
     try click(reopened.agents[0].1)
     try check(reopened.agents[0].1.state == .off && !stored.targets[0].enabled && !reopened.retry.isHidden, "Failed agent write did not restore saved state")

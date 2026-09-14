@@ -167,7 +167,7 @@ final class DeskInputAdapter: ObservableObject {
         // Always leave the emergency shortcut available too. No network event
         // can invoke this path because injected events are tagged above.
         if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53,
-           event.flags.contains([.maskControl, .maskAlternate]) { session.stop(); return false }
+           event.flags.contains([.maskControl, .maskAlternate]) { session.stopForLocalControl(); return false }
         if type == .keyDown, session.enabled,
            let preset = session.node.group.presets.first(where: { preset in
                let shortcut = preset.shortcut

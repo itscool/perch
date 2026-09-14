@@ -27,11 +27,22 @@ struct AgentTarget: Codable, Equatable {
     ] }
 }
 
+enum PrivacyResetScope: String, Codable {
+    case none
+    case selectedAgents
+    case allAppsExcludingPerch
+    case allAppsIncludingPerch
+}
+
 struct SafetyConfiguration: Codable, Equatable {
     var targets = AgentTarget.defaults
     var shortcut = PanicShortcut()
     var resetAgentPermissions = true
     var resetAllPermissions: Bool? = true
+    // Optional keeps older configuration files readable. true means the
+    // all-app reset excludes Perch; the legacy flag remains the including-Perch
+    // choice for existing files.
+    var resetAllPermissionsExcludingPerch: Bool? = false
     var keypadNavigation: Bool? = nil
     var navigation: NavigationPreferences?
     var navigationProfiles: [NavigationKeyboardProfile]?
@@ -39,6 +50,11 @@ struct SafetyConfiguration: Codable, Equatable {
     var reverseTrackpad = false
     var reverseWheel = false
     var swapModifiers = false
+    var privacyResetScope: PrivacyResetScope {
+        guard resetAgentPermissions else { return .none }
+        if resetAllPermissionsExcludingPerch == true { return .allAppsExcludingPerch }
+        return resetAllPermissions == true ? .allAppsIncludingPerch : .selectedAgents
+    }
     static func load() -> Self {
         guard FileManager.default.fileExists(atPath: SafetyFiles.config.path) else { return Self() }
         if let value = try? SafetyFiles.read(Self.self, from: SafetyFiles.config) { return AgentCatalog.available()?.suggestions(for: value) ?? value }

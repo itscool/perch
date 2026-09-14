@@ -424,9 +424,16 @@ final class KVMDeskNode: ObservableObject {
         let nextPending = revision.map { graph.awaitingAcknowledgement(of: $0).subtracting([localID]) } ?? []
         if pendingPeers != nextPending { pendingPeers = nextPending }
     }
-    func sendApplication(_ data: Data, peer: UUID) {
-        guard let link = peerLinks[peer].flatMap({ transport.links[$0] }) else { return }
+    /// Application messages use the same trusted, live peer link as monitor
+    /// switching.  Callers need the result so a stale membership entry cannot
+    /// make a remote action look as though it succeeded.
+    @discardableResult func sendApplication(_ data: Data, peer: UUID) -> Bool {
+        guard let link = peerLinks[peer].flatMap({ transport.links[$0] }) else { return false }
         send(.application(data), to: link)
+        return true
+    }
+    func hasApplicationLink(to peer: UUID) -> Bool {
+        peer == localID || peerLinks[peer].flatMap { transport.links[$0] } != nil
     }
     private func send(_ message: KVMDeskMessage, to link: KVMPeerTransport.Link) {
         do { transport.send(try JSONEncoder().encode(message), to: link) } catch { problem = error.localizedDescription }

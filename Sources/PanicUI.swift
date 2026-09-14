@@ -89,9 +89,15 @@ extension AppDelegate {
         alert.messageText = "Terminate selected agents now?"
         var detail = "Perch will freeze and force-terminate selected agents and their observed child processes, then keep blocking relaunches until you resume. Unsaved work may be lost."
         if config.resetAgentPermissions {
-            detail += config.resetAllPermissions == true
-                ? "\n\nThis will also reset privacy permissions for all apps, including Perch. Apps may ask for permission again."
-                : "\n\nThis will also reset privacy permissions for the selected agent apps. Apps may ask for permission again."
+            switch config.privacyResetScope {
+            case .allAppsIncludingPerch:
+                detail += "\n\nThis will also reset privacy permissions for all apps, including Perch. Apps may ask for permission again."
+            case .allAppsExcludingPerch:
+                detail += "\n\nThis will also reset privacy permissions for all installed apps except Perch. Apps may ask for permission again; Perch stays authorized."
+            case .selectedAgents:
+                detail += "\n\nThis will also reset privacy permissions for the selected agent apps. Apps may ask for permission again."
+            case .none: break
+            }
         }
         alert.informativeText = detail
         alert.addButton(withTitle: "Cancel")
@@ -129,8 +135,8 @@ extension AppDelegate {
         var options: [(String,String,Selector)] = [
             ("Agents & panic actions…", "Choose which agents panic terminates and which privacy grants it resets.", #selector(editSafetyConfiguration)),
             ("Hotkeys…", "Configure emergency, countdown and Desk shortcuts together.", #selector(hotkeySettings)),
-            ("Add or remove agents…", "Add a missing app or executable, or forget one custom entry without resetting the others.", #selector(manageAgents)),
-            ("Agent recognition…", "Import definitions and review changes to how agents are identified.", #selector(agentRecognition)),
+            ("Add or remove agents…", "Add one custom target: choose an app bundle to follow that app and its children, or choose one specific executable for a command-line agent.", #selector(manageAgents)),
+            ("Agent recognition catalog…", "Import and review Perch’s maintained definitions for built-in agent names. This does not add a custom target.", #selector(agentRecognition)),
             (GuardianInstall.status?.eventCoverage == "Process events active" ? "✓ Agent tracking setup…" : "⚠ Agent tracking setup…", GuardianInstall.status?.eventCoverage == "Process events active" ? "Live event collection verified. Review setup and current health." : "Complete setup or review the specific collection problem.", #selector(processEventSetup)),
             ("Preview panic targets…", "Preview the currently tracked processes and recent actions. This does not terminate anything.", #selector(safetyReport)),
             (GuardianInstall.status?.shortcutActive == true ? "✓ Shortcut registered · Test…" : (SafetyConfiguration.load().shortcut.enabled ? "⛔ Shortcut unavailable · Test…" : "Test shortcut…"), "Registration is confirmed separately from testing the physical key combination. This test does not terminate processes or change permissions.", #selector(testPanicShortcut)),
@@ -192,7 +198,7 @@ extension AppDelegate {
             let apply = SettingsActionButton(title: "Apply recognition changes…") { [weak self] in self?.reviewCatalogChanges() }
             apply.frame = NSRect(x: 0, y: 8, width: 300, height: 32); view.addSubview(apply)
         }
-        SettingsWindow.shared.show(.init(title: "Agent recognition", detail: "Import agent definitions, then review changed matching rules below. Applying changes preserves your on/off selections.", view: view))
+        SettingsWindow.shared.show(.init(title: "Agent recognition catalog", detail: "This catalog teaches Perch how to recognize built-in agent names. Import and review matching-rule changes here; custom apps and executables are managed in Add or remove agents.", view: view))
     }
     @objc func manageAgents() {
         let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }
@@ -219,7 +225,7 @@ extension AppDelegate {
             remove.frame = NSRect(x: 428, y: y+8, width: 144, height: 30)
             view.addSubview(label); view.addSubview(remove)
         }
-        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Custom entries are listed below. Forget entry removes only its Perch configuration; the app remains installed and running. Built-in agents can be unchecked in Agents & panic actions.", view: view))
+        SettingsWindow.shared.show(.init(title: "Add or remove agents", detail: "Choose a custom target below. An app bundle (.app) follows that app and its child processes; an executable follows one specific command-line program. Forget entry removes only Perch’s entry. Built-in recognition is managed in the separate catalog.", view: view))
     }
     @objc func editSafetyConfiguration() {
         editSafetyForm(save: { try $0.save() })

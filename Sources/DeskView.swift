@@ -111,18 +111,29 @@ struct DeskView: View {
     @ViewBuilder var inspector: some View {
         InspectorScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if let controls = model.live?.inputControls, model.group.presets.indices.contains(model.presetIndex) {
-                    controls(model.group.presets[model.presetIndex].id, model.selectedMonitor?.id)
-                    Divider()
-                }
                 if let monitor = model.selectedMonitor {
                     HStack {
                         Text(monitor.name).font(.headline)
                         Spacer(minLength: 4)
                         Button((model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "Stop identifying" : "Identify") { model.identify() }
                     }
-                    if model.live != nil { Button("Monitor setup…") { sheet = "monitorSetup" } }
-                    Button("Physical size & position…") { sheet = "dimensions" }
+                    if let live = model.live,
+                       model.group.presets.indices.contains(model.presetIndex),
+                       let assignment = model.group.presets[model.presetIndex].assignments.first(where: { $0.monitor == monitor.id }),
+                       let computer = model.group.connections.first(where: { $0.id == assignment.connection })?.computer,
+                       computer != live.localComputer,
+                       let test = live.testRemoteControl {
+                        let controlIssue = live.remoteControlReadiness?(model.group.presets[model.presetIndex].id, monitor.id)
+                        Button("Test remote control") { test(model.group.presets[model.presetIndex].id, monitor.id) }
+                            .frame(maxWidth: .infinity)
+                            .disabled(controlIssue != nil)
+                            .help(controlIssue ?? "Start keyboard and mouse control on this screen.")
+                        if let controlIssue { Text(controlIssue).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    }
+                    HStack(spacing: 10) {
+                        if model.live != nil { Button("Hardware…") { sheet = "monitorSetup" }.frame(maxWidth: .infinity) }
+                        Button("Physical size & position…") { sheet = "dimensions" }.frame(maxWidth: .infinity)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(model.group.connections.filter { $0.monitor == monitor.id && $0.computer != nil && $0.localDisplay == nil }) { pending in
                         VStack(alignment: .leading, spacing: 5) {
                             Text(model.connectionLabel(pending)).font(.callout)
@@ -130,22 +141,9 @@ struct DeskView: View {
                         }
                     }
                     if let result = model.monitorResults[monitor.id] { Text(result).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-                    if model.monitorProblems.contains(monitor.id), let live = model.live {
-                        if let refresh = live.refreshMonitorStatus {
-                            Button("Check current input again", action: refresh)
-                                .help("Ask connected computers to read the monitor’s input again. Does not switch the display.")
-                        }
-                        if let port = live.retryMonitorConnection?(monitor.id), let change = live.switchConnection {
-                            let issue = live.connectionReadiness?(port)
-                            Button("Retry this screen’s input switch") { change(port) }.disabled(issue != nil)
-                            if let force = live.forceSwitchConnection,
-                               issue?.localizedCaseInsensitiveContains("switch") == true {
-                                Button("Switch this input anyway") { force(port) }
-                                    .help("Take over after the current monitor switch can be safely released. This does not change any preset.")
-                            }
-                            if let issue { SettingsFeedback(text: issue) }
-                        } else { Text("Desk setup changed. Review this screen’s ports, then use Play on the preset you want.").font(.caption).fixedSize(horizontal: false, vertical: true) }
-                        Text("If the picture is wrong or reads keep failing, open Monitor setup above to check its control path and input profile.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if model.monitorProblems.contains(monitor.id) {
+                        Text("Perch could not confirm this monitor’s current input. Use Play on the preset you want to apply it again.")
+                            .font(.caption).fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 12) { Image(systemName: "display.2").font(.largeTitle).foregroundStyle(.teal); Text("Your desk starts here").font(.headline); Text("Add the computers and screens you want to use together. You can return and change anything later.").foregroundStyle(.secondary) }.frame(maxHeight: .infinity, alignment: .top)
@@ -184,6 +182,15 @@ struct DeskView: View {
                 if options.isEmpty {
                     Text(port.computer == computer.id ? "Cable saved. Perch is waiting for this computer’s display identity." : "You can save this cable now and match its display when macOS reports it.").foregroundStyle(.secondary)
                     Text("If the monitor hides inactive inputs, use your preset to show this computer’s picture, then refresh here.").font(.callout).foregroundStyle(.secondary)
+                    if let identifyComputer = live.identifyComputer {
+                        let identifyIssue = live.peerActionReadiness?(computer.id, "Identify")
+                        Button(live.identifyingComputer?(computer.id) == true ? "Stop identifying displays" : "Identify displays on \(computer.name)") {
+                            identifyComputer(computer.id)
+                        }
+                        .disabled(identifyIssue != nil)
+                        .help(identifyIssue ?? "Show a short label on every display currently visible to \(computer.name), so you can match this cable without guessing.")
+                        if let identifyIssue { Text(identifyIssue).font(.caption).foregroundStyle(.secondary) }
+                    }
                     if port.computer != computer.id {
                         Button("Save cable") { live.mapComputer?(port.id, computer.id); if model.problem == nil { sheet = nil } }
                     }

@@ -36,6 +36,24 @@ enum PanicReset {
     static var reportURL: URL { folder.appendingPathComponent("latest-report.json") }
     static var logURL: URL { folder.appendingPathComponent("latest-log.txt") }
 
+    /// tccutil has no single command for “all apps except Perch.” Enumerate
+    /// installed bundles and issue the supported per-bundle reset instead.
+    /// Running applications are included so apps outside the usual folders
+    /// are covered when they are active.
+    static func knownBundleIDs() -> [String] {
+        var ids = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let roots = [URL(fileURLWithPath: "/Applications", isDirectory: true),
+                     URL(fileURLWithPath: "/System/Applications", isDirectory: true)]
+            + (FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask).first.map { [$0] } ?? [])
+        for root in roots {
+            guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
+            for case let url as URL in enumerator where url.pathExtension == "app" {
+                if let id = Bundle(url: url)?.bundleIdentifier { ids.insert(id); enumerator.skipDescendants() }
+            }
+        }
+        return ids.sorted()
+    }
+
     static func launch(bundleIDs: [String], global: Bool) throws -> Process {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let plan = PanicPlan(bundleIDs: bundleIDs, global: global)
@@ -107,5 +125,8 @@ func runPanicTests() throws {
         throw AppError(message: "Panic ordering, deduplication, or failure continuation failed.")
     }
     guard PanicPlan(bundleIDs: []).commands == [["reset", "All"]] else { throw AppError(message: "Empty panic plan must still reset globally.") }
+    guard PanicPlan(bundleIDs: [PanicPlan.perchID, "com.example.A"], global: false).commands == [["reset", "All", "com.example.A"]] else {
+        throw AppError(message: "Perch-excluding reset plan retained Perch or lost its per-app command.")
+    }
     print("PASS: panic plan excludes Perch until final reset, rejects invalid IDs, and continues after errors (mock executor; no permissions reset)")
 }

@@ -52,7 +52,7 @@ extension AppDelegate {
             item("agents", "Agent Kill Switch", ["Agent Kill Switch"], #selector(configurePanic)),
             item("agent-choices", "Agents & panic actions", ["Agents & panic actions"], #selector(editSafetyConfiguration), depth: 1),
             item("custom-agents", "Add or remove agents", ["Add or remove agents"], #selector(manageAgents), depth: 1),
-            item("recognition", "Recognition", ["Agent recognition"], #selector(agentRecognition), depth: 1),
+            item("recognition", "Recognition catalog", ["Agent recognition catalog"], #selector(agentRecognition), depth: 1),
             item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
             item("security", "Security", ["Security"], #selector(securitySettings)),
             item("app", "App settings", ["App settings"], #selector(appSettings)),

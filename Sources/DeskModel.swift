@@ -124,14 +124,19 @@ struct DeskLiveActions {
     let identify: (UUID?) -> Void
     let sheet: (String, UUID?, @escaping () -> Void) -> AnyView
     var identifyDisplay: ((UUID, String) -> Void)? = nil
+    var identifyComputer: ((UUID) -> Void)? = nil
+    var peerActionReadiness: ((UUID, String) -> String?)? = nil
+    var testRemoteControl: ((UUID, UUID) -> Void)? = nil
+    var remoteControlReadiness: ((UUID, UUID) -> String?)? = nil
+    var localComputer: UUID? = nil
     var identifyingDisplay: ((UUID, String) -> Bool)? = nil
+    var identifyingComputer: ((UUID) -> Bool)? = nil
     var identifyingMonitor: ((UUID) -> Bool)? = nil
     var refreshScreens: (() -> Void)? = nil
     var removalIssue: ((UUID) -> String?)? = nil
     var mapComputer: ((UUID, UUID) -> Void)? = nil
     var displayStatus: ((UUID) -> String?)? = nil
     var panelAspect: ((UUID) -> Double?)? = nil
-    var inputControls: ((UUID, UUID?) -> AnyView)? = nil
     var switchConnection: ((UUID) -> Void)? = nil
     var forceSwitchConnection: ((UUID) -> Void)? = nil
     var connectionReadiness: ((UUID) -> String?)? = nil
@@ -142,7 +147,7 @@ struct DeskLiveActions {
 // Interactive product prototype. Never discovers devices or requests permissions.
 // All names, readiness, input routes and pairing outcomes are explicitly simulated.
 final class DeskModel: ObservableObject {
-    static let presetActivationHelp = "Switch the physical monitor inputs. If keyboard and mouse sharing is enabled, resume it only after the selected screen confirms."
+    static let presetActivationHelp = "Switch the physical monitor inputs. If keyboard and mouse sharing is enabled on the participating Macs, control starts automatically when the preset is ready."
     @Published var live: DeskLiveActions?
     @Published var group: KVMGroup
     @Published var selected: UUID?

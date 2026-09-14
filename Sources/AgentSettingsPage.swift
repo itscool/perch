@@ -78,8 +78,15 @@ final class AgentSettingsPage: NSObject {
         caption("After stopping agents", 164)
         reset.frame = NSRect(x: 8, y: 128, width: 556, height: 30)
         reset.toolTip = "Choose which privacy permissions Panic resets after stopping agents. This saves your choice; no permissions change now."
-        reset.addItems(withTitles: ["Privacy reset: None", "Privacy reset: Selected agent apps", "Privacy reset: All apps, including Perch"])
-        reset.selectItem(at: config.resetAgentPermissions ? (config.resetAllPermissions == true ? 2 : 1) : 0)
+        reset.addItems(withTitles: ["Privacy reset: None", "Privacy reset: Selected agent apps", "Privacy reset: All apps, excluding Perch", "Privacy reset: All apps, including Perch"])
+        reset.selectItem(at: {
+            switch config.privacyResetScope {
+            case .none: return 0
+            case .selectedAgents: return 1
+            case .allAppsExcludingPerch: return 2
+            case .allAppsIncludingPerch: return 3
+            }
+        }())
         reset.target = self; reset.action = #selector(resetChanged); view.addSubview(reset)
         let note = NSTextField(wrappingLabelWithString: "Changing this choice does not reset permissions now. A reset during Panic requires granting access again afterward.")
         note.font = .systemFont(ofSize: 12); note.textColor = .secondaryLabelColor
@@ -205,7 +212,9 @@ final class AgentSettingsPage: NSObject {
             }
             config.shortcut = value
         case let .reset(index):
-            config.resetAgentPermissions = index != 0; config.resetAllPermissions = index == 2
+            config.resetAgentPermissions = index != 0
+            config.resetAllPermissionsExcludingPerch = index == 2
+            config.resetAllPermissions = index == 3
         }
         do {
             try save(config); pending = nil; retry.isHidden = true
@@ -216,11 +225,25 @@ final class AgentSettingsPage: NSObject {
             // Ordinary controls show the retained value; Retry remembers the requested change.
             let saved = load()
             if case let .agent(id, _) = change { agents.first { $0.0 == id }?.1.state = saved.targets.first { $0.id == id }?.enabled == true ? .on : .off }
-            if case .reset = change { reset.selectItem(at: saved.resetAgentPermissions ? (saved.resetAllPermissions == true ? 2 : 1) : 0) }
+            if case .reset = change { reset.selectItem(at: {
+                switch saved.privacyResetScope {
+                case .none: return 0
+                case .selectedAgents: return 1
+                case .allAppsExcludingPerch: return 2
+                case .allAppsIncludingPerch: return 3
+                }
+            }()) }
         }
         if pending == nil {
             for (id, box) in agents { box.state = config.targets.first { $0.id == id }?.enabled == true ? .on : .off }
-            reset.selectItem(at: config.resetAgentPermissions ? (config.resetAllPermissions == true ? 2 : 1) : 0)
+            reset.selectItem(at: {
+                switch config.privacyResetScope {
+                case .none: return 0
+                case .selectedAgents: return 1
+                case .allAppsExcludingPerch: return 2
+                case .allAppsIncludingPerch: return 3
+                }
+            }())
         }
         updateStatus()
     }

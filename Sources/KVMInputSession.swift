@@ -39,6 +39,9 @@ final class KVMInputSession: ObservableObject {
     }
     @Published private(set) var availableConnections: Set<UUID> = []
     @Published private(set) var readyComputers: Set<UUID> = []
+    /// Emergency/local-control exits are intentional and must not be
+    /// immediately undone by the runtime's automatic preset start.
+    private(set) var automaticStartSuppressed = false
     var ready: () -> Bool = { false }
     var emit: (KVMInputEvent, KVMInputFocus) -> Void = { _, _ in }
     var release: () -> Void = {}
@@ -107,6 +110,7 @@ final class KVMInputSession: ObservableObject {
     func setEnabled(_ value: Bool) {
         guard value != enabled else { return }
         enabled = value
+        if value { automaticStartSuppressed = false }
         keyboardPublished = nil
         if !value { stop(); timer?.invalidate(); timer = nil; localProblem = nil; coordinatorProblem = nil; blockedTarget = nil; readyComputers = []; availableConnections = []; return }
         lastRevision = configurationRevision; lastContextIssue = contextIssue
@@ -120,6 +124,11 @@ final class KVMInputSession: ObservableObject {
         endLocal()
         if node.isOwner { endAuthority() }
     }
+    func stopForLocalControl() {
+        automaticStartSuppressed = true
+        stop()
+    }
+    func allowAutomaticStart() { automaticStartSuppressed = false }
     private func endLocal() {
         release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; sequence = 0
         attachmentWaitingSince = nil; attachmentBuffered = []
@@ -173,12 +182,12 @@ final class KVMInputSession: ObservableObject {
            let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
             return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
         }
-        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there, then check control readiness here." }
+        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there; Perch will update this status automatically." }
         guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", turn on Share on this Mac from the Perch menu. The desk coordinator must allow sharing too." }
         guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
         let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
         guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }
-        guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Then check control readiness here." }
+        guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Perch will update this status automatically." }
         // A monitor that cannot report its current input must not block KVM.
         // The monitor command and the input handoff are separate operations:
         // an accepted write (including the optimistic readback fallback) is
@@ -431,13 +440,13 @@ final class KVMInputSession: ObservableObject {
             endLocal(); send(.stop(preparedGrant.id), to: node.ownerID); localProblem = "The handoff timed out. Input is local."
         }
         if let grant = lease.grant, !lease.alive(now: clock()) || !ready() {
-            endLocal(); localProblem = "Input returned locally. Choose a screen to resume sharing."; send(.stop(grant.id), to: node.ownerID)
+            endLocal(); localProblem = "Input returned locally. Perch will retry sharing when this preset and its Macs are ready."; send(.stop(grant.id), to: node.ownerID)
         }
         let nonce = lease.challenge(now: clock())
         polls = polls.filter { clock() - $0.value < 1 }; polls[nonce] = clock()
         send(.poll(nonce, ready()), to: node.ownerID)
         if let (preset, monitor, until) = pendingStart {
-            if clock() >= until { pendingStart = nil; localProblem = "The preset switched, but input sharing is still waiting for a ready computer and confirmed screen. Select a screen in Desk and choose Control when ready." }
+            if clock() >= until { pendingStart = nil; localProblem = "The preset switched, but input sharing is still waiting for a ready computer and matched screen. Perch will retry automatically when they are ready." }
             else if readinessIssue(preset: preset, monitor: monitor) == nil { pendingStart = nil; start(preset: preset, monitor: monitor) }
         }
         publishKeyboardAttachments()

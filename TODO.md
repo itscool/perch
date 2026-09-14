@@ -67,9 +67,13 @@ complete; physical two-Mac acceptance remains pending.
   invalidate old desktop evidence before every switch. On the LG displays here,
   current-input readback is zero, so an accepted command now optimistically
   reconciles the local desktop; a positive contradictory read cancels that
-  fallback and keeps the display attached. Complete the physical two-Mac
-  handoff, recovery and readback/control investigation before closing this
-  defect. BetterDisplay remains optional and is not a runtime dependency.
+  fallback and keeps the display attached. Sharing consent now starts a KVM
+  focus automatically for an active preset with a remote mapped route, and a
+  preset change replaces an old focus without requiring a hidden test action;
+  the emergency shortcut still suppresses automatic restart. Complete the
+  physical two-Mac edge-crossing, recovery and readback/control investigation
+  before closing this defect. BetterDisplay remains optional and is not a
+  runtime dependency.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now

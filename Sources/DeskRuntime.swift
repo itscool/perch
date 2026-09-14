@@ -90,6 +90,9 @@ enum DeskDeviceMessage: Codable {
     case inspectionReply(UUID, DeskDetectedDisplay?, String?)
     case identify(String, String)
     case identification(String, String, UUID, Bool)
+    /// Identify every display currently visible to a peer. This lets a user
+    /// match a new cable before its host display identity is saved locally.
+    case identifyAll(String, UUID, Bool)
 }
 enum DeskShortcutKey {
     // Carbon virtual key codes are not consecutive. Keep this independent of
@@ -128,6 +131,11 @@ final class DeskRuntime: ObservableObject {
     private var identifyWindows: [String: (UUID, NSWindow)] = [:]
     private(set) var identifications = DeskIdentificationState()
     private var inputAfterSwitch: (UUID, UUID)?
+    private var lastInputPreset: UUID?
+    /// Avoid repeated focus requests while the owner prepares a grant. A
+    /// failed request can be retried after the short backoff when readiness
+    /// changes.
+    private var automaticInputStart: (preset: UUID, monitor: UUID, at: TimeInterval)?
     init(node: KVMDeskNode) {
         self.node = node
         let switching = KVMMonitorSwitch(node: node)
@@ -143,7 +151,12 @@ final class DeskRuntime: ObservableObject {
                 guard let self else { return AnyView(EmptyView()) }; return AnyView(DeskLiveSheet(runtime: self, kind: kind, selection: selection, close: close))
             },
             identifyDisplay: { [weak self] computer, display in self?.identifyDetected(display, computer: computer, name: "Is this the screen?") },
+            identifyComputer: { [weak self] computer in self?.identifyComputer(computer) },
+            peerActionReadiness: { [weak self] computer, action in self?.peerActionReadiness(computer, action: action) },
+            testRemoteControl: { [weak self] preset, monitor in self?.input.start(preset: preset, monitor: monitor) },
+            remoteControlReadiness: { [weak self] preset, monitor in self?.inputReadiness(preset: preset, monitor: monitor) },
             identifyingDisplay: { [weak self] computer, display in self?.identifications.active[computer.uuidString + "|" + display] != nil },
+            identifyingComputer: { [weak self] computer in self?.identifications.active["computer:" + computer.uuidString] != nil },
             identifyingMonitor: { [weak self] monitor in self?.identifications.active["monitor:" + monitor.uuidString] != nil },
             refreshScreens: { [weak self] in self?.refreshAllDisplays() },
             removalIssue: { [weak node] id in
@@ -159,11 +172,7 @@ final class DeskRuntime: ObservableObject {
                 if !self.node.online.contains(computer) { return "This computer is offline. Its saved cable will remain until it reconnects." }
                 return computer == self.node.localID ? self.discoveryProblem : self.remoteDisplayProblems[computer]
             })
-        model.live?.inputControls = { [weak self] preset, monitor in
-            guard let self else { return AnyView(EmptyView()) }
-            return AnyView(DeskSharingControls(input: self.input, adapter: self.inputAdapter,
-                                               node: self.node, preset: preset, monitor: monitor))
-        }
+        model.live?.localComputer = node.localID
         model.live?.refreshMonitorStatus = { [weak self] in self?.switching.refreshObservations() }
         model.live?.retryMonitorConnection = { [weak self] monitor in self?.switching.retryConnection(for: monitor) }
         model.live?.connectionReadiness = { [weak self] connection in
@@ -174,6 +183,7 @@ final class DeskRuntime: ObservableObject {
             guard let self else { return }
             if self.switching.connectionReadiness(connection) == nil {
                 self.inputAfterSwitch = nil
+                self.automaticInputStart = nil
                 self.input.stop()
             }
             self.switching.activateConnection(connection)
@@ -181,11 +191,18 @@ final class DeskRuntime: ObservableObject {
         model.live?.forceSwitchConnection = { [weak self] connection in
             guard let self else { return }
             self.inputAfterSwitch = nil
+            self.automaticInputStart = nil
             self.input.stop()
             self.switching.forceActivateConnection(connection)
         }
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
+        // Readiness arrives over the input session's polling channel. Retry
+        // automatic focus when a peer becomes ready instead of making the
+        // user reopen Desk or press a hidden test button.
+        input.objectWillChange.sink { [weak self] in
+            DispatchQueue.main.async { self?.startInputForActivePresetIfNeeded() }
+        }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
         switching.readForVerification = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
         input.readMonitor = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
@@ -233,11 +250,9 @@ final class DeskRuntime: ObservableObject {
         timer.tolerance = 3; refreshTimer = timer; RunLoop.main.add(timer, forMode: .common)
     }
     private func updateModel() {
-        if let (preset, monitor) = inputAfterSwitch, !switching.busy {
+        if inputAfterSwitch != nil, !switching.busy {
             inputAfterSwitch = nil
-            if switching.activePreset == preset || switching.optimisticInputs[monitor] != nil {
-                input.resumeAfterPreset(preset, monitor: monitor)
-            }
+            automaticInputStart = nil
         }
         registerShortcuts()
         model.group = node.group; model.online = node.online
@@ -245,6 +260,18 @@ final class DeskRuntime: ObservableObject {
         model.problem = switching.problem ?? desktopHandoff.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
+        if let activePreset = switching.activePreset, activePreset != lastInputPreset {
+            // activatePreset already stopped the old lease before beginning a
+            // monitor switch. Only tear down here when an externally received
+            // preset changed while a lease is still live; preserve the
+            // bounded resume request queued for a local activation.
+            if lastInputPreset != nil && (input.focus != nil || input.active || input.preparing) {
+                inputAfterSwitch = nil
+                automaticInputStart = nil
+                input.stop()
+            }
+            lastInputPreset = activePreset
+        }
         if !switching.busy, let active = model.active,
            let index = node.group.presets.firstIndex(where: { $0.id == active.id }), model.presetIndex != index {
             model.presetIndex = index
@@ -253,6 +280,7 @@ final class DeskRuntime: ObservableObject {
         model.monitorProblems = Set(switching.results.values.filter { $0.state != .confirmed }.map(\.monitor))
         if let selected = model.selected, !node.group.monitors.contains(where: { $0.id == selected }) { model.selected = node.group.monitors.first?.id }
         if model.selected == nil { model.selected = node.group.monitors.first?.id }
+        startInputForActivePresetIfNeeded()
         objectWillChange.send()
     }
     func activatePreset(_ preset: UUID) {
@@ -261,9 +289,46 @@ final class DeskRuntime: ObservableObject {
         let included = node.group.presets.first { $0.id == preset }?.assignments.map(\.monitor) ?? []
         let preferred = input.focus?.monitor ?? model.selected
         let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
+        automaticInputStart = nil
+        input.allowAutomaticStart()
         input.stop()
         switching.activate(preset)
         if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
+    }
+    /// The Share on this Mac menu item is the user's consent. Once a preset
+    /// with a remote route is active, establish focus automatically instead
+    /// of requiring a second hidden "Test remote control" action.
+    func startInputForActivePreset() {
+        startInputForActivePresetIfNeeded(force: true)
+    }
+    private func startInputForActivePresetIfNeeded(force: Bool = false) {
+        guard input.enabled, !input.automaticStartSuppressed, !switching.busy, let preset = switching.activePreset,
+              let saved = node.group.presets.first(where: { $0.id == preset }) else { return }
+        let assignments = saved.assignments.compactMap { assignment -> (KVMAssignment, KVMConnection)? in
+            guard let connection = node.group.connections.first(where: { $0.id == assignment.connection }) else { return nil }
+            return (assignment, connection)
+        }
+        // Local-only presets should not capture and re-inject every event.
+        guard assignments.contains(where: { $0.1.computer != nil && $0.1.computer != node.localID }) else { return }
+        let selected = model.selected.flatMap { selectedID in assignments.first(where: { $0.0.monitor == selectedID })?.0.monitor }
+        let local = assignments.first(where: { $0.1.computer == node.localID })?.0.monitor
+        let candidates = [input.focus?.monitor, selected, local] + assignments.map { $0.0.monitor }
+        guard input.focus == nil || !input.active,
+              let monitor = candidates.compactMap({ $0 }).first(where: { inputReadiness(preset: preset, monitor: $0) == nil }) else { return }
+        if let automaticInputStart,
+           automaticInputStart.preset == preset,
+           automaticInputStart.monitor == monitor,
+           !force,
+           ProcessInfo.processInfo.systemUptime - automaticInputStart.at < 2 { return }
+        automaticInputStart = (preset, monitor, ProcessInfo.processInfo.systemUptime)
+        input.start(preset: preset, monitor: monitor)
+    }
+    func inputReadiness(preset: UUID, monitor: UUID) -> String? {
+        guard node.group.monitors.contains(where: { $0.id == monitor }) else { return "Select a screen in Desk." }
+        guard node.group.presets.first(where: { $0.id == preset })?.assignments.contains(where: { $0.monitor == monitor }) == true else {
+            return "This screen is not included in the selected preset."
+        }
+        return input.readinessIssue(preset: preset, monitor: monitor)
     }
     func controlOptions(for monitor: UUID) -> [DeskMappingOption] {
         let detected = Set(displays.flatMap { computer, displays in displays.map { computer.uuidString + "|" + $0.id } })
@@ -368,10 +433,14 @@ final class DeskRuntime: ObservableObject {
             completion?(.failure(KVMError("This display is no longer reported. Reconnect it and try again."))); return
         }
         if computer != node.localID {
-            guard node.online.contains(computer) else { completion?(.failure(KVMError("The control computer is offline. Reconnect it and try again."))); return }
+            if let issue = peerActionReadiness(computer, action: "read monitor details") {
+                completion?(.failure(KVMError(issue))); return
+            }
             let message: DeskDeviceMessage
+            var pendingToken: UUID?
             if let completion {
                 let token = UUID()
+                pendingToken = token
                 pendingInspections[token] = .init(computer: computer, before: d, completion: completion)
                 message = .inspectRequest(token, display)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
@@ -379,7 +448,10 @@ final class DeskRuntime: ObservableObject {
                     pending.completion(.failure(KVMError("The control computer did not finish detection. Check its connection and Perch version, then retry.")))
                 }
             } else { message = .inspect(display) }
-            if let data = try? JSONEncoder().encode(message) { node.sendApplication(data, peer: computer) }
+            if let data = try? JSONEncoder().encode(message), !node.sendApplication(data, peer: computer) {
+                if let pendingToken { pendingInspections.removeValue(forKey: pendingToken) }
+                completion?(.failure(KVMError("Perch could not reach this Mac. Reconnect it, then retry monitor details.")))
+            }
             return
         }
         queue(display).async { [weak self] in
@@ -504,6 +576,7 @@ final class DeskRuntime: ObservableObject {
             updateModel()
         case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)), token: UUID(), showing: true)
         case .identification(let display, let name, let token, let showing): showIdentification(display, name: String(name.prefix(100)), token: token, showing: showing)
+        case .identifyAll(let name, let token, let showing): showAllIdentifications(name: String(name.prefix(100)), token: token, showing: showing)
         }
     }
     func addScreen(name: String, existing: UUID?, computer: UUID, display: String, input: UInt16, profile: MonitorProfile? = nil, custom: MonitorInput? = nil) throws {
@@ -583,15 +656,106 @@ final class DeskRuntime: ObservableObject {
         if let control = screen.control, !targets.contains(where: { $0.0 == control.computer && $0.1 == control.localDisplay }) {
             targets.append((control.computer, control.localDisplay))
         }
+        // A newly added cable has no matched localDisplay yet. Identify every
+        // display on its host so the user can establish that match; do not
+        // make matching depend on having already matched the display.
+        if targets.isEmpty, let control = screen.control {
+            identifyComputer(control.computer, name: screen.name)
+            return
+        }
+        if targets.isEmpty {
+            model.problem = "Choose this monitor’s control computer in Hardware before identifying it."
+            return
+        }
+        let missing = targets.contains { peer, display in
+            peer != node.localID && displays[peer]?.contains(where: { $0.id == display }) != true
+        }
+        if missing, let control = screen.control {
+            identifyComputer(control.computer, name: screen.name)
+            return
+        }
         toggleIdentification(key: "monitor:" + monitor.uuidString, targets: targets, name: screen.name)
     }
     func identifyDetected(_ display: String, computer: UUID, name: String) {
-        guard displays[computer]?.contains(where: { $0.id == display }) == true else { return }
-        toggleIdentification(key: computer.uuidString + "|" + display, targets: [(computer, display)], name: name)
+        if let issue = peerActionReadiness(computer, action: "identify") {
+            model.problem = issue
+            return
+        }
+        if computer == node.localID && displays[computer]?.contains(where: { $0.id == display }) != true {
+            model.problem = "This display is no longer connected to this Mac. Refresh connected screens, then identify it again."
+            return
+        }
+        let key = computer.uuidString + "|" + display
+        let change = identifications.toggle(key)
+        if !sendIdentification(display, peer: computer, name: name, token: change.token, showing: change.showing) {
+            _ = identifications.expire(key, token: change.token)
+            let computerName = node.group.computers.first { $0.id == computer }?.name ?? "that Mac"
+            model.problem = "Perch could not reach \(computerName). Reconnect it, then try Identify again."
+            return
+        }
+        model.objectWillChange.send(); objectWillChange.send()
+        if change.showing {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self, self.identifications.expire(key, token: change.token) else { return }
+                _ = self.sendIdentification(display, peer: computer, name: name, token: change.token, showing: false)
+                self.model.objectWillChange.send(); self.objectWillChange.send()
+            }
+        }
+    }
+    /// Shared readiness for actions relayed to another Perch. Membership can
+    /// remain valid after a transport drops, so every caller checks the live
+    /// trusted link rather than silently treating a send as successful.
+    func peerActionReadiness(_ computer: UUID, action: String = "action") -> String? {
+        guard node.group.computers.contains(where: { $0.id == computer }) else { return "That computer is no longer part of this desk." }
+        if computer == node.localID { return nil }
+        guard node.online.contains(computer), node.hasApplicationLink(to: computer) else {
+            let name = node.group.computers.first { $0.id == computer }?.name ?? "that Mac"
+            return "\(name) is not connected to this desk. Reconnect it, then try \(action) again."
+        }
+        return nil
+    }
+    func identifyComputer(_ computer: UUID, name: String? = nil) {
+        if let issue = peerActionReadiness(computer, action: "Identify") {
+            model.problem = issue
+            return
+        }
+        let key = "computer:" + computer.uuidString
+        let change = identifications.toggle(key)
+        let label = name ?? (node.group.computers.first { $0.id == computer }?.name ?? "Which screen is this?")
+        if !sendIdentifyAll(computer, name: label, token: change.token, showing: change.showing) {
+            _ = identifications.expire(key, token: change.token)
+            let computerName = node.group.computers.first { $0.id == computer }?.name ?? "that Mac"
+            model.problem = "Perch could not reach \(computerName). Reconnect it, then try Identify again."
+            return
+        }
+        model.objectWillChange.send(); objectWillChange.send()
+        if change.showing {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self, self.identifications.expire(key, token: change.token) else { return }
+                _ = self.sendIdentifyAll(computer, name: label, token: change.token, showing: false)
+                self.model.objectWillChange.send(); self.objectWillChange.send()
+            }
+        }
     }
     private func toggleIdentification(key: String, targets: [(UUID, String)], name: String) {
         let change = identifications.toggle(key)
-        for (peer, display) in targets { sendIdentification(display, peer: peer, name: name, token: change.token, showing: change.showing) }
+        for (peer, display) in targets {
+            if let issue = peerActionReadiness(peer, action: "Identify") {
+                _ = identifications.expire(key, token: change.token); model.problem = issue; return
+            }
+            if change.showing, peer == node.localID,
+               NSScreen.screens.contains(where: { displayID(for: $0) == display }) == false {
+                _ = identifications.expire(key, token: change.token)
+                model.problem = "This display is no longer visible to this Mac. Refresh connected screens, then identify it again."
+                return
+            }
+            guard sendIdentification(display, peer: peer, name: name, token: change.token, showing: change.showing) else {
+                _ = identifications.expire(key, token: change.token)
+                let computerName = node.group.computers.first { $0.id == peer }?.name ?? "that Mac"
+                model.problem = "Perch could not reach \(computerName). Reconnect it, then try Identify again."
+                return
+            }
+        }
         model.objectWillChange.send(); objectWillChange.send()
         if change.showing {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
@@ -601,20 +765,41 @@ final class DeskRuntime: ObservableObject {
             }
         }
     }
-    private func sendIdentification(_ display: String, peer: UUID, name: String, token: UUID, showing: Bool) {
-        if peer == node.localID { showIdentification(display, name: name, token: token, showing: showing) }
-        else if let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identification(display, name, token, showing)) { node.sendApplication(bytes, peer: peer) }
+    @discardableResult private func sendIdentification(_ display: String, peer: UUID, name: String, token: UUID, showing: Bool) -> Bool {
+        if peer == node.localID { showIdentification(display, name: name, token: token, showing: showing); return true }
+        else if let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identification(display, name, token, showing)) { return node.sendApplication(bytes, peer: peer) }
+        return peer == node.localID
+    }
+    private func sendIdentifyAll(_ computer: UUID, name: String, token: UUID, showing: Bool) -> Bool {
+        if computer == node.localID { showAllIdentifications(name: name, token: token, showing: showing); return true }
+        guard let bytes = try? JSONEncoder().encode(DeskDeviceMessage.identifyAll(name, token, showing)) else { return false }
+        return node.sendApplication(bytes, peer: computer)
+    }
+    private func showAllIdentifications(name: String, token: UUID, showing: Bool) {
+        if !showing {
+            let displaysToHide = identifyWindows.compactMap { display, current in current.0 == token ? display : nil }
+            for display in displaysToHide {
+                identifyWindows[display]?.1.orderOut(nil); identifyWindows[display] = nil
+            }
+            return
+        }
+        for (index, screen) in NSScreen.screens.enumerated() {
+            guard let display = displayID(for: screen) else { continue }
+            let screenName = screen.localizedName.isEmpty ? "Display \(index + 1)" : screen.localizedName
+            showIdentification(display, name: "\(name) · \(screenName)", token: token, showing: true)
+        }
+    }
+    private func displayID(for screen: NSScreen) -> String? {
+        guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
+              let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String
     }
     private func showIdentification(_ display: String, name: String, token: UUID, showing: Bool) {
         if !showing {
             if let (current, window) = identifyWindows[display], current == token { window.orderOut(nil); identifyWindows[display] = nil }
             return
         }
-        guard !SettingsWindow.shared.testing, let screen = NSScreen.screens.first(where: {
-            guard let number = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
-                  let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return false }
-            return CFUUIDCreateString(nil, uuid) as String == display
-        }) else { return }
+        guard !SettingsWindow.shared.testing, let screen = NSScreen.screens.first(where: { displayID(for: $0) == display }) else { return }
         identifyWindows[display]?.1.orderOut(nil)
         let window = NSWindow(contentRect: NSRect(x: screen.frame.midX-160, y: screen.frame.midY-60, width: 320, height: 120), styleMask: [.borderless], backing: .buffered, defer: false)
         window.level = .floating; window.isOpaque = false; window.backgroundColor = .clear; window.ignoresMouseEvents = true; window.isReleasedWhenClosed = false
@@ -679,7 +864,10 @@ final class DeskCoordinator: ObservableObject {
             let identity = try KVMPeerIdentity.load()
             let node = try KVMDeskNode(identity: identity, name: Host.current().localizedName ?? "This Mac", storage: Self.storage)
             let runtime = DeskRuntime(node: node); try runtime.start(); self.runtime = runtime; problem = nil
-            if DeskInputAdapter.sharingEnabledByDefault { runtime.inputAdapter.enable(true) }
+            if DeskInputAdapter.sharingEnabledByDefault {
+                runtime.inputAdapter.enable(true)
+                runtime.startInputForActivePreset()
+            }
         } catch { problem = error.localizedDescription }
     }
 }

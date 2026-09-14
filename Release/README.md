@@ -112,7 +112,8 @@ linked from DISTRIBUTION.md.
 
 ## Release documents, notices and checksums
 
-SUPPORT.md, THIRD-PARTY-NOTICES.md, catalog/NOTICE.md, release notes and the pinned
+SUPPORT.md, THIRD-PARTY-NOTICES.md, catalog/NOTICE.md, the current release notes,
+complete release history and the pinned
 Release/dependencies.json inventory ship in the signed app's Resources folder,
 alongside the full license/notice texts and editable catalog JSON. Build-time
 checks compare file hashes and pinned Swift dependency revisions. Catalog changes

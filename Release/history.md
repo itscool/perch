@@ -1,17 +1,12 @@
 # Perch release history
 
-## 2.0.150 — Current
-
-- Added a complete Release history page under Settings → Updates.
-- Sparkle’s update dialog now presents concise version-specific “What’s new” notes.
-- Includes the direct Desk preset graph, signed packaging and dependency repair improvements.
-
-## 2.0.149 — Desk graph
+## 2.0.149 — Current
 
 - Direct Desk preset graph with three numbered preset connectors per computer.
 - Preset routes can be assigned by dragging to physical monitor inputs or using the connector menu.
 - Selected-for-editing and active-now routing states are shown separately.
 - Duplicate monitor preset controls were removed; physical cable ownership stays independent.
+- Signed Sparkle release packaging and automatic dependency repair remain enabled.
 
 ## 2.0.96 — Release foundation
 

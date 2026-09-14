@@ -12,7 +12,7 @@ REPO = Path(__file__).resolve().parents[1]
 INVENTORY = REPO/'Release/dependencies.json'
 DOCUMENTS = {'SUPPORT.md':'SUPPORT.md', 'THIRD-PARTY-NOTICES.md':'THIRD-PARTY-NOTICES.md',
              'catalog/NOTICE.md':'catalog-NOTICE.md', 'Release/dependencies.json':'dependencies.json',
-             'Release/notes.md':'release-notes.txt'}
+             'Release/notes.md':'release-notes.txt', 'Release/history.md':'release-history.txt'}
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()

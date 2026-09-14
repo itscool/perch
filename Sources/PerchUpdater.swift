@@ -180,6 +180,33 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
             if case .failure = result { DispatchQueue.main.async { self.showRecovery?() } }
         }
     }
+
+    /// Sparkle shows the current release notes in its update dialog. Keep the
+    /// complete versioned history in Settings so users can revisit older
+    /// releases independently of when they last updated.
+    @objc func releaseHistory() {
+        guard let url = Bundle.main.url(forResource: "release-history", withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            SettingsWindow.shared.updateCurrentPageDetail("Release history is not available in this Perch build.")
+            return
+        }
+        let width: CGFloat = 572
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 100))
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = .labelColor
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.string = text
+        textView.textContainer?.widthTracksTextView = true
+        let measured = (text as NSString).boundingRect(with: NSSize(width: width - 28, height: .greatestFiniteMagnitude),
+                                                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                                        attributes: [.font: textView.font ?? NSFont.systemFont(ofSize: 13)]).height
+        textView.frame.size.height = max(100, ceil(measured) + 24)
+        SettingsWindow.shared.show(.init(title: "Release history", detail: "Every published Perch release, including the current version.",
+                                         view: textView, preferredBodyHeight: min(600, max(300, textView.frame.height)), preferredBodyWidth: width))
+    }
 }
 
 extension AppDelegate {
@@ -188,6 +215,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Updates", detail: "Check for new Perch releases. Downloaded updates are verified before installation; you choose when to restart.", height: 460, statusHeight: 140)
         let automatic = page.add("Check for updates automatically", detail: "Save this choice immediately. Perch asks before installing an update.", checkbox: true) { updater.automatic.toggle() }
         let check = page.add("Check for updates…", detail: "Show available releases, download progress, and installation or retry options.") { updater.check() }
+        _ = page.add("Release history…", detail: "Read what changed in every Perch release, not only the one you last installed.") { updater.releaseHistory() }
         let retry = updater.waitingToInstall ? page.add("Retry installation", detail: "Try the waiting update again. Perch verifies the lid handoff before quitting.") { updater.retryInstallation() } : nil
         page.update = { [weak page] in
             automatic.state = updater.automatic ? .on : .off

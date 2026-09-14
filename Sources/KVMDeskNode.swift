@@ -245,8 +245,19 @@ final class KVMDeskNode: ObservableObject {
             let card = identity.card(name: group.computers.first { $0.id == localID }?.name ?? "This Mac")
             let hello = KVMHello(card: card, nonce: nonce, signature: try identity.signing.signature(for: KVMHello.bytes(card, nonce, hostingPairing)), hosting: hostingPairing)
             send(.hello(hello), to: link)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 125) { [weak self, weak link] in
-                guard let self, let link, self.peerLinks.values.contains(link.id) == false else { return }; self.transport.close(link, reason: .pairingExpired)
+            // Pairing approval may remain open for its two-minute window, but
+            // the application hello itself must arrive promptly. The previous
+            // 125-second timer kept a TLS-ready, otherwise unusable route
+            // around long enough to block reconnects and produced the
+            // recurring ~116-second disconnects seen in the activity log.
+            // Once a hello has arrived, either trust() or the pairing state
+            // owns the connection lifetime; closePairing handles the latter.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self, weak link] in
+                guard let self, let link,
+                      self.transport.links[link.id] != nil,
+                      self.hellos[link.id] == nil,
+                      self.peerLinks.values.contains(link.id) == false else { return }
+                self.transport.close(link, reason: .timeout)
             }
         } catch { transport.close(link, reason: .protocolFailure) }
     }
@@ -384,6 +395,14 @@ final class KVMDeskNode: ObservableObject {
         if pairingConnection == link.id { pairingConnection = nil }
         directContacts[link.id] = nil
         if let peer = hellos[link.id]?.card.id, peerLinks[peer] == link.id {
+            // Keep the offline peer visible until the authenticated route is
+            // restored. Connection activity is useful diagnostics, but it is
+            // not itself a live status indicator; without this entry the Desk
+            // UI silently dropped an unexpected disconnect while reconnect
+            // backoff was in progress.
+            peerProblems[peer] = link.closeReason.unexpected
+                ? "Connection lost (\(link.closeReason.rawValue)). Reconnecting automatically."
+                : nil
             peerLinks[peer] = nil; online.remove(peer); lastHeard[peer] = nil; peersChanged?()
         }
         if let peer, peerLinks[peer] == nil {

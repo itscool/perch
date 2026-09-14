@@ -311,7 +311,7 @@ final class KVMMonitorSwitch: ObservableObject {
                 let input = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.inputName ?? "input \(route.input)"
                 return name + " (" + input + ")"
             }
-            problem = "Input not confirmed: " + names.joined(separator: ", ") + ". Select a screen below for its result and recovery actions."
+            problem = "Input not confirmed: " + names.joined(separator: ", ") + ". Perch left this Mac’s display connected for safety because it could not verify which input is showing. Check the monitor, then retry the affected screen."
         }
     }
     private func finishFailure(_ reason: String) {

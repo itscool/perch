@@ -22,6 +22,9 @@ final class EventCollectorSetup: NSObject {
     var installError: String?
     var retryUntil: Date?
     var waitingForSession = false
+    var checking: Bool {
+        installing || (waitingForSession && Date().timeIntervalSince(updateRequestedAt ?? .distantPast) <= 10) || (retryUntil.map { $0 > Date() } ?? false)
+    }
     var previousSession: String?
     var updateRequestedAt: Date?
     private var startup = LidHelperStartupUpdate()
@@ -121,14 +124,15 @@ final class EventCollectorSetup: NSObject {
         launcherDrag.isHidden = permissionDrag.isHidden || !FileManager.default.fileExists(atPath: CollectorIdentity.launcher)
         intro.stringValue = ready ? "Process event collection is ready. No further setup is needed." : "Remember agent subprocesses as they start—even if their parents exit quickly. Complete the missing step below."
         installState.stringValue = needsRepair ? "⚠  1. Collector update needed" : installed ? "✓  1. Collector installed" : "1. Install Apple’s collector"
-        accessState.stringValue = receiving ? "✓  2. Full Disk Access confirmed by received events" : "⚠  2. Live access not yet confirmed"
-        readyState.stringValue = ready ? "✓  3. Ready — live event health check passed" : (receiving ? "3. Receiving events — checking stream health…" : "⚠  3. Waiting to receive events")
-        installState.textColor = needsRepair ? StatusColors.warning : installed ? StatusColors.success : .labelColor
-        accessState.textColor = receiving ? StatusColors.success : StatusColors.warning
-        readyState.textColor = ready ? StatusColors.success : StatusColors.warning
+        let progress = checking || (installed && !needsRepair && !fresh && BackgroundHelperRecovery.shared.failure == nil)
+        accessState.stringValue = receiving ? "✓  2. Full Disk Access confirmed by received events" : progress ? "2. Checking live access…" : "⚠  2. Live access not yet confirmed"
+        readyState.stringValue = ready ? "✓  3. Ready — live event health check passed" : (receiving ? "3. Receiving events — checking stream health…" : progress ? "3. Waiting to receive events…" : "⚠  3. Live events are not arriving")
+        installState.textColor = installing ? .secondaryLabelColor : needsRepair ? StatusColors.warning : installed ? StatusColors.success : .labelColor
+        accessState.textColor = receiving ? StatusColors.success : progress ? .secondaryLabelColor : StatusColors.warning
+        readyState.textColor = ready ? StatusColors.success : progress || receiving ? .secondaryLabelColor : StatusColors.warning
         primary.isHidden = false
         primary.isEnabled = !installing
-        if installing { primary.title = "Installing…"; return }
+        if installing { installState.stringValue = "1. Installing collector…"; primary.title = "Installing…"; return }
         if !installed || needsRepair {
             primary.title = needsRepair ? "Update collector…" : "Install collector…"
             guidance.stringValue = installError ?? (needsRepair
@@ -152,6 +156,7 @@ final class EventCollectorSetup: NSObject {
         } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
             primary.title = "Retry health check"
             readyState.stringValue = "⚠  3. Events received, but coverage is degraded"
+            readyState.textColor = StatusColors.warning
             guidance.stringValue = (state?.error ?? "Stream verification failed.") + "\n\nEvents arrived earlier, but current readiness is not confirmed. Repeating the permission toggle may not help. Perch is using snapshot fallback."
         } else if receiving {
             primary.title = "Checking automatically…"; primary.isEnabled = false

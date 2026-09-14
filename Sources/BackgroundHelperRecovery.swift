@@ -19,6 +19,7 @@ final class BackgroundHelperRecovery {
     private var policy = BackgroundHelperRecoveryPolicy()
     private(set) var busy = false
     private(set) var failure: String?
+    private var verificationDeadline: Double?
     var healthy: Bool {
         let guardian = HelperStatusIPC.guardianClient.value, input = HelperStatusIPC.inputClient.value
         return guardian?.fresh == true && guardian?.compatible == true && input?.fresh == true
@@ -36,13 +37,17 @@ final class BackgroundHelperRecovery {
     func check() {
         guard !SettingsWindow.shared.testing else { return }
         let healthy = healthy
-        if healthy { failure = nil }
+        if healthy { failure = nil; verificationDeadline = nil }
+        else if let deadline = verificationDeadline, LidGuardClock.now >= deadline {
+            verificationDeadline = nil
+            failure = "The helpers did not respond after restarting. Quit and reopen Perch to try again."
+        }
         guard policy.shouldRecover(healthy: healthy,
             busy: busy || SettingsWindow.shared.interactionBusy || LidHelperUpdate.shared.busy || AppUpdate.shared.busy || PerchUpdater.shared.busy,
             now: LidGuardClock.now) else { return }
         busy = true
         defer { busy = false }
-        do { try GuardianInstall.install(); failure = nil }
+        do { try GuardianInstall.install(); failure = nil; verificationDeadline = LidGuardClock.now + 5 }
         catch { failure = error.localizedDescription }
         HelperStatusIPC.guardianClient.refresh(); HelperStatusIPC.inputClient.refresh()
     }

@@ -28,7 +28,7 @@ extension AppDelegate {
                 "keyboard-access": NavigationProbeHID.hasAccess ? .ready : .attention,
                 "input-access": inputReady.ready ? .ready : snapshot.input?.fresh != true ? .checking : .attention,
                 "sharing-access": AXIsProcessTrusted() && CGPreflightPostEventAccess() && CGPreflightListenEventAccess() ? .ready : .attention,
-                "lid-setup": snapshot.lidHelperUpdatePending ? .attention : snapshot.lidHelperInstalled ? .ready : snapshot.lidWanted ? .attention : .optional,
+                "lid-setup": snapshot.lidHelperBusy || LidGuardClient.shared.changing ? .checking : snapshot.lidHelperUpdatePending ? .attention : snapshot.lidHelperInstalled ? .ready : snapshot.lidWanted ? .attention : .optional,
                 "events": status(tracking)
             ]
         }

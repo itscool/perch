@@ -47,6 +47,17 @@ struct AgentCatalog: Codable {
         let catalog = try read(url)
         try SafetyFiles.write(catalog, to: installed)
     }
+    func updates(for current: SafetyConfiguration) -> [CatalogEntry] {
+        entries.filter { entry in current.targets.contains { $0.id == entry.target.id && ($0.kind != entry.target.kind || $0.match != entry.target.match) } }
+    }
+    func updateSummary(for current: SafetyConfiguration) -> String {
+        let changes = updates(for: current)
+        guard !changes.isEmpty else { return "No pending changes to existing matching rules. Catalog reviewed: \(reviewedOn)." }
+        return "Pending recognition changes\n\n" + changes.map { entry in
+            let old = current.targets.first { $0.id == entry.target.id }!
+            return "\(old.name): \(old.kind) · \(old.match) → \(entry.target.kind) · \(entry.target.match)"
+        }.joined(separator: "\n\n")
+    }
     func suggestions(for current: SafetyConfiguration) -> SafetyConfiguration {
         var result = current
         for entry in entries where !result.targets.contains(where: { $0.id == entry.target.id }) {
@@ -66,16 +77,13 @@ extension AppDelegate {
         guard SettingsWindow.shared.open(panel) == .OK, let url = panel.url else { return }
         do {
             try AgentCatalog.install(from: url)
-            let alert = NSAlert()
-            alert.messageText = "Agent catalog updated"
-            alert.informativeText = "New candidates are checked by default. Your existing on/off choices are preserved."
-            SettingsWindow.shared.present(alert)
+            presentAgentRecognition("Catalog imported. New candidates are checked by default; existing on/off choices are kept.")
         } catch { showError(error) }
     }
     @objc func reviewCatalogChanges() {
         guard let catalog = AgentCatalog.available() else { showError(AppError(message: "No valid agent catalog is installed.")); return }
         var config = SafetyConfiguration.load()
-        let updates = catalog.entries.filter { entry in config.targets.contains { $0.id == entry.target.id && ($0.kind != entry.target.kind || $0.match != entry.target.match) } }
+        let updates = catalog.updates(for: config)
         let alert = NSAlert()
         alert.messageText = "Review catalog updates"
         alert.informativeText = updates.isEmpty ? "No matching rules have changed for your existing targets. New candidates can be enabled in Agent Kill Switch. Catalog reviewed: \(catalog.reviewedOn)." : "These existing targets have updated matching rules:\n\n" + updates.map { entry in
@@ -94,7 +102,7 @@ extension AppDelegate {
                     config.targets[index] = target
                 }
             }
-            do { try config.save() } catch { self?.showError(error) }
+            do { try config.save(); self?.presentAgentRecognition("Recognition changes applied. Your on/off choices were kept.") } catch { self?.showError(error) }
         }
     }
 }
@@ -109,6 +117,10 @@ func runCatalogTests() throws {
     var optedOut = merged
     optedOut.targets[optedOut.targets.count - 1].enabled = false
     guard catalog.suggestions(for: optedOut) == optedOut else { throw AppError(message: "Catalog overrode an explicit opt-out") }
+    var changedTarget = entry.target; changedTarget.match = "replacement-agent"
+    let updated = AgentCatalog(schemaVersion: 1, reviewedOn: "2026-09-13", entries: [.init(target: changedTarget, category: entry.category, note: "", sources: entry.sources)])
+    guard updated.updates(for: merged).count == 1, updated.updateSummary(for: merged).contains("test-agent → cli · replacement-agent"),
+          catalog.updates(for: merged).isEmpty, catalog.updateSummary(for: merged).contains("No pending") else { throw AppError(message: "Inline recognition review lost changed or unchanged matching rules") }
     let bad = CatalogEntry(target: .init(id: "bad", name: "Shell", kind: "cli", match: "zsh"), category: "bad", note: "", sources: ["https://example.com"])
     do { try AgentCatalog(schemaVersion: 1, reviewedOn: "2026-09-04", entries: [bad]).validate(); throw AppError(message: "Generic shell catalog entry accepted.") }
     catch let error as AppError { if error.message == "Generic shell catalog entry accepted." { throw error } }

@@ -217,24 +217,20 @@ struct CountdownShortcutSettings: View {
     func row(_ title: String, path: WritableKeyPath<CountdownShortcuts, PanicShortcut>) -> some View {
         let shortcut = model.shortcuts[keyPath: path]
         func edit(_ change: (inout PanicShortcut) -> Void) { var value = model.shortcuts; change(&value[keyPath: path]); model.saveShortcuts(value) }
-        return VStack(alignment: .leading, spacing: 8) {
-            Toggle(title, isOn: Binding(get: { shortcut.enabled }, set: { value in edit { $0.enabled = value } }))
-            HStack {
-                Picker("Key", selection: Binding(get: { shortcut.key }, set: { value in edit { $0.key = value } })) {
-                    ForEach(CountdownShortcuts.keys, id: \.1) { Text($0.0).tag($0.1) }
-                }.frame(width: 110)
-                ForEach([(controlKey,"Ctrl"),(optionKey,"Opt"),(cmdKey,"Cmd"),(shiftKey,"Shift")], id: \.0) { flag, name in
-                    Toggle(name, isOn: Binding(get: { shortcut.modifiers & UInt32(flag) != 0 }, set: { on in edit { if on { $0.modifiers |= UInt32(flag) } else { $0.modifiers &= ~UInt32(flag) } } }))
-                }
-            }
-        }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+        return SettingsShortcutEditor(title: title,
+            enabled: Binding(get: { shortcut.enabled }, set: { value in edit { $0.enabled = value } }),
+            key: Binding(get: { shortcut.key }, set: { value in edit { $0.key = value } }), choices: CountdownShortcuts.keys,
+            modifiers: Binding(get: { shortcut.modifiers }, set: { value in edit { $0.modifiers = value } }))
     }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            row("Add five minutes", path: \.increase)
-            row("Subtract five minutes", path: \.decrease)
+            HStack(alignment: .top, spacing: 12) {
+                row("Add five minutes", path: \.increase).frame(maxWidth: .infinity, alignment: .leading)
+                row("Subtract five minutes", path: \.decrease).frame(maxWidth: .infinity, alignment: .leading)
+            }
             Text("The + shortcut uses the +/= key; add Shift only if you want it in the shortcut. Changes save immediately. Held keys never repeat adjustments.").font(.callout).foregroundStyle(.secondary)
-            if let error = model.shortcutError { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            SettingsFeedback(text: model.shortcutError)
         }.padding(4)
     }
 }

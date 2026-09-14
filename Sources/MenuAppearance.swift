@@ -25,7 +25,20 @@ struct MenuSectionAppearance: Codable, Equatable {
     var edgeToEdge: Bool? = false
     var fadeLeft: Bool? = false
     var fadeRight: Bool? = false
-    static let edgeFadeWidth = 24.0
+    var fadeDistance: Double? = 0.08
+    var fadeFraction: Double { get { fadeDistance ?? 0.08 } set { fadeDistance = newValue } }
+    /// Normalized stops stay ordered even when left/right fades overlap.
+    /// At full distance a single edge fades across the entire menu width.
+    var fadeStops: [(location: CGFloat, alpha: CGFloat)] {
+        let f = CGFloat(fadeFraction)
+        guard isEdgeToEdge, f > 0, f <= 1 else { return [] }
+        if fadeLeft == true && fadeRight == true {
+            return f < 0.5 ? [(0, 0), (f, 1), (1-f, 1), (1, 0)] : [(0, 0), (0.5, 0.5/f), (1, 0)]
+        }
+        if fadeLeft == true { return f == 1 ? [(0, 0), (1, 1)] : [(0, 0), (f, 1), (1, 1)] }
+        if fadeRight == true { return f == 1 ? [(0, 1), (1, 0)] : [(0, 1), (1-f, 1), (1, 0)] }
+        return []
+    }
     var isEdgeToEdge: Bool { edgeToEdge == true }
     var drawnSides: Set<Side> { isEdgeToEdge ? sides.subtracting([.left, .right]) : sides }
     var decorationMargin: Double { isEdgeToEdge ? 0 : 4 }
@@ -33,7 +46,7 @@ struct MenuSectionAppearance: Codable, Equatable {
     static var system: Self { var s = Self(); s.borderScope = .none; s.backgroundScope = .none; s.gap = 0; s.showIcon = false; s.tintTitle = false; return s }
     var valid: Bool {
         [(thickness, 0...6), (borderIntensity, 0...1), (backgroundIntensity, 0...1),
-         (greyLevel, 0...1), (iconTintStrength, 0...1), (radius, 0...12), (titleIntensity, 0...1), (gap, 0...8)].allSatisfy { $0.0.isFinite && $0.1.contains($0.0) }
+         (fadeFraction, 0...1), (greyLevel, 0...1), (iconTintStrength, 0...1), (radius, 0...12), (titleIntensity, 0...1), (gap, 0...8)].allSatisfy { $0.0.isFinite && $0.1.contains($0.0) }
     }
 }
 enum MenuPalette: String, Codable, CaseIterable {
@@ -68,7 +81,11 @@ struct MenuTheme: Codable, Equatable {
     var system = MenuSectionAppearance.system
     var palette: MenuPalette = .rainbow
     var valid: Bool { sections.valid && system.valid }
-    func style(_ name: String?) -> MenuSectionAppearance { name == "System" ? system : sections }
+    func style(_ name: String?) -> MenuSectionAppearance {
+        guard name == "System" else { return sections }
+        var result = system; result.gap = 0
+        return result
+    }
 }
 struct MenuAppearance: Codable, Equatable {
     var sections = MenuSectionAppearance()
@@ -146,10 +163,12 @@ struct MenuAppearancePreset: Codable, Equatable, Identifiable {
         ribbon.sections.greyLevel = 0.5; ribbon.sections.backgroundIntensity = 0.09
         ribbon.sections.radius = 0; ribbon.sections.showIcon = false
         ribbon.sections.titleIntensity = 0.5; ribbon.sections.gap = 0
+        ribbon.sections.fadeFraction = 0.12
         ribbon.sections.edgeToEdge = true; ribbon.sections.fadeLeft = true; ribbon.sections.fadeRight = true
 
         var horizon = MenuTheme()
         horizon.palette = .graphite
+        horizon.sections.fadeFraction = 0.65
         horizon.sections.edgeToEdge = true; horizon.sections.fadeRight = true
         horizon.sections.borderScope = .full; horizon.sections.sides = [.top]
         horizon.sections.thickness = 0.7; horizon.sections.borderIntensity = 0.35
@@ -215,15 +234,14 @@ final class MenuAppearanceStore: ObservableObject {
 
 extension MenuRowView {
     func drawDecoration(_ style: MenuSectionAppearance) {
-        let fades = style.isEdgeToEdge && (style.fadeLeft == true || style.fadeRight == true)
+        let stops = style.fadeStops
+        let fades = !stops.isEmpty
         let context = NSGraphicsContext.current?.cgContext
         if fades { context?.saveGState(); context?.beginTransparencyLayer(auxiliaryInfo: nil) }
         defer {
             if fades, let context {
-                let fraction = min(0.49, MenuSectionAppearance.edgeFadeWidth / max(1, bounds.width))
-                let alpha: [CGFloat] = [style.fadeLeft == true ? 0 : 1, 1, 1, style.fadeRight == true ? 0 : 1]
-                let colors = alpha.map { CGColor(gray: 0, alpha: $0) } as CFArray
-                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(), colors: colors, locations: [0, fraction, 1-fraction, 1]) {
+                let colors = stops.map { CGColor(gray: 0, alpha: $0.alpha) } as CFArray
+                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(), colors: colors, locations: stops.map(\.location)) {
                     context.setBlendMode(.destinationIn)
                     context.drawLinearGradient(gradient, start: CGPoint(x: bounds.minX, y: bounds.midY), end: CGPoint(x: bounds.maxX, y: bounds.midY), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
                 }
@@ -332,7 +350,7 @@ struct MenuAppearancePage: View {
                     Button("Cancel") { self.deletingPreset = nil }
                 }
             }
-            if let error = store.presetProblem { Text(error).foregroundStyle(.orange) }
+            if let error = store.presetProblem { SettingsFeedback(text: error) }
             if both { Text("Editing both · Mixed means the values differ. Changes affect only the setting you touch.").font(.caption).foregroundStyle(.secondary) }
             HStack(spacing: 0) {
                 sectionButton("Colored sections", system: false)
@@ -346,7 +364,7 @@ struct MenuAppearancePage: View {
                 if both && theme.palette != store.value.theme(dark: !dark).palette { Text("Mixed").tag(nil as MenuPalette?).disabled(true) }
                 ForEach(MenuPalette.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
             }
-            if let problem = store.problem { Text(problem).foregroundStyle(.orange) }
+            if let problem = store.problem { SettingsFeedback(text: problem) }
             Group {
                 HStack(spacing: 12) {
                     AppearanceMixedToggle(title: "Edge to edge", value: both && style.isEdgeToEdge != otherStyle.isEdgeToEdge ? nil : style.isEdgeToEdge) { next in edit { $0.edgeToEdge = next } }
@@ -355,9 +373,12 @@ struct MenuAppearancePage: View {
                     AppearanceMixedToggle(title: "Fade right", value: both && (style.fadeRight == true) != (otherStyle.fadeRight == true) ? nil : style.fadeRight == true) { next in edit { $0.fadeRight = next } }.frame(height: 22).fixedSize(horizontal: true, vertical: false).disabled(neither { $0.isEdgeToEdge })
                     Spacer(minLength: 0)
                 }
+                slider("Fade distance", path: \.fadeFraction, range: 0...1, suffix: "")
+                    .disabled(neither { $0.isEdgeToEdge && ($0.fadeLeft == true || $0.fadeRight == true) })
+                    .help("0 means no fade; 1 fades across the entire width. Applies to each selected edge.")
                 Text("Border").font(.headline).padding(.top, 4)
                 HStack(spacing: 10) {
-                    scopePicker("Border area", path: \.borderScope).frame(width: 215)
+                    scopePicker("Border area", path: \.borderScope)
                     ForEach(MenuSectionAppearance.Side.allCases, id: \.self) { side in
                         AppearanceMixedToggle(title: side.rawValue, value: both && style.drawnSides.contains(side) != otherStyle.drawnSides.contains(side) ? nil : style.drawnSides.contains(side)) { enabled in
                             edit { style in
@@ -372,28 +393,29 @@ struct MenuAppearancePage: View {
                 slider("Line intensity", path: \.borderIntensity, range: 0...1).disabled(neither { $0.borderScope != .none && !$0.drawnSides.isEmpty })
                 slider("Corner radius", path: \.radius, range: 0...12, suffix: "pt").disabled(neither { !$0.isEdgeToEdge && ($0.backgroundScope != .none || ($0.borderScope != .none && !$0.drawnSides.isEmpty)) })
                 Text("Fill").font(.headline).padding(.top, 4)
-                HStack(spacing: 12) {
-                    scopePicker("Highlight area", path: \.backgroundScope).frame(width: 215)
-                    toggle("Use grey highlights", path: \.greyBackground).disabled(neither { $0.backgroundScope != .none })
+                HStack { scopePicker("Highlight area", path: \.backgroundScope); Spacer(minLength: 0) }
+                HStack(spacing: 8) {
+                    toggle("Use grey highlights", path: \.greyBackground).frame(width: 145, alignment: .leading)
+                        .disabled(neither { $0.backgroundScope != .none })
+                    valueSlider("Grey highlight shade", path: \.greyLevel, range: 0...1)
+                        .disabled(neither { $0.greyBackground && $0.backgroundScope != .none })
                 }
-                slider("Grey shade", path: \.greyLevel, range: 0...1).disabled(neither { $0.greyBackground && $0.backgroundScope != .none })
                 slider("Highlight intensity", path: \.backgroundIntensity, range: 0...1).disabled(neither { $0.backgroundScope != .none })
                 Text("Titles").font(.headline).padding(.top, 4)
+                if system {
+                    AppearanceMixedToggle(title: "Show System title", value: both && (style.showTitle != false) != (otherStyle.showTitle != false) ? nil : style.showTitle != false) { next in edit { $0.showTitle = next } }.frame(height: 22)
+                } else {
+                    slider("Space above titles", path: \.gap, range: 0...8, suffix: "pt")
+                }
                 HStack(spacing: 12) {
                     toggle("Tint title text to its section color", path: \.tintTitle).frame(width: 275, alignment: .leading)
                     valueSlider("Title tint", path: \.titleIntensity, range: 0...1).disabled(neither { $0.tintTitle })
                 }
-                HStack {
-                    toggle("Show title icons", path: \.showIcon)
-                    if system {
-                        AppearanceMixedToggle(title: "Show System title", value: both && (style.showTitle != false) != (otherStyle.showTitle != false) ? nil : style.showTitle != false) { next in edit { $0.showTitle = next } }.frame(height: 22)
-                    }
-                }
+                toggle("Show title icons", path: \.showIcon)
                 HStack(spacing: 12) {
                     toggle("Tint icons to their section color", path: \.iconTinted).frame(width: 275, alignment: .leading)
                     valueSlider("Icon tint", path: \.iconTintStrength, range: 0...1).disabled(neither { $0.showIcon && $0.iconTinted })
                 }.disabled(neither { $0.showIcon })
-                slider("Space above titles", path: \.gap, range: 0...8, suffix: "pt")
             }.disabled(store.problem != nil)
             HStack {
                 Spacer()
@@ -427,15 +449,19 @@ struct MenuAppearancePage: View {
             .accessibilityValue(both || self.dark == dark ? "Selected" : "Not selected")
     }
     func scopePicker(_ label: String, path: WritableKeyPath<MenuSectionAppearance, MenuSectionAppearance.Scope>) -> some View {
-        Picker(label, selection: selection(path)) {
-            if mixed(path) { Text("Mixed").tag(nil as MenuSectionAppearance.Scope?).disabled(true) }
-            ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
+        HStack(spacing: 8) {
+            Text(label).frame(width: 145, alignment: .leading)
+            Picker(label, selection: selection(path)) {
+                if mixed(path) { Text("Mixed").tag(nil as MenuSectionAppearance.Scope?).disabled(true) }
+                ForEach(MenuSectionAppearance.Scope.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
+            }.labelsHidden().frame(width: 130)
         }
+
     }
     func valueSlider(_ label: String, path: WritableKeyPath<MenuSectionAppearance, Double>, range: ClosedRange<Double>, suffix: String = "%") -> some View {
         HStack(spacing: 8) {
-            Slider(value: binding(path), in: range, step: suffix == "%" ? 0.01 : 0.1).accessibilityLabel(label).accessibilityValue(mixed(path) ? "Mixed" : String(style[keyPath: path]))
-            Text(mixed(path) ? "Mixed" : suffix == "%" ? "\(Int(style[keyPath: path] * 100))%" : String(format: "%.1f %@", style[keyPath: path], suffix)).monospacedDigit().frame(width: 65, alignment: .trailing)
+            Slider(value: binding(path), in: range, step: suffix == "%" || suffix.isEmpty ? 0.01 : 0.1).accessibilityLabel(label).accessibilityValue(mixed(path) ? "Mixed" : String(style[keyPath: path]))
+            Text(mixed(path) ? "Mixed" : suffix == "%" ? "\(Int(style[keyPath: path] * 100))%" : suffix.isEmpty ? String(format: "%.2f", style[keyPath: path]) : String(format: "%.1f %@", style[keyPath: path], suffix)).monospacedDigit().frame(width: 65, alignment: .trailing)
         }
     }
     func slider(_ label: String, path: WritableKeyPath<MenuSectionAppearance, Double>, range: ClosedRange<Double>, suffix: String = "%") -> some View {

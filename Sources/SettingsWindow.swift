@@ -16,7 +16,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private var resetDestinations: [SettingsResetScope: SettingsDestination] = [:]
     private var openingReturn: (destination: String, title: String)?
     var hasContextualReturn: Bool { openingReturn != nil }
-    private var sidebarWidth: CGFloat { hasSidebar ? 228 : 0 }
+    private var sidebarWidth: CGFloat { hasSidebar ? sidebar.preferredWidth : 0 }
     struct Page {
         var title: String
         var detail: String

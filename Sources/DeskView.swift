@@ -128,7 +128,7 @@ struct DeskView: View {
                         if let port = live.retryMonitorConnection?(monitor.id), let change = live.switchConnection {
                             let issue = live.connectionReadiness?(port)
                             Button("Retry this screen’s input switch") { change(port) }.disabled(issue != nil)
-                            if let issue { Text(issue).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+                            if let issue { SettingsFeedback(text: issue) }
                         } else { Text("Desk setup changed. Review this screen’s ports, then use Play on the preset you want.").font(.caption).fixedSize(horizontal: false, vertical: true) }
                         Text("If the picture is wrong or reads keep failing, open Monitor setup above to check its control path and input profile.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
@@ -225,7 +225,7 @@ struct DeskView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { Text(model.live == nil ? "DESK LAB" : "DESK").font(.caption).foregroundStyle(.secondary); Spacer(); Button { sheet = nil; showRemove = false } label: { Image(systemName: "xmark") }.accessibilityLabel("Close").help("Close this temporary step.").keyboardShortcut(.cancelAction) }
             ScrollView { sheetContents }.frame(maxHeight: 560)
-            if let problem = model.problem { Text(problem).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let problem = model.problem { SettingsFeedback(text: problem) }
         }.padding(25).frame(width: 440)
     }
 

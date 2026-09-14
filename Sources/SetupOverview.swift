@@ -46,6 +46,9 @@ struct SetupSnapshot {
     var lidHelperUpdatePending = false
     var lidHelperInstalled = false
     var loginNeedsApproval = false
+    var helperRecoveryFailure: String?
+    var collectorChecking = false
+    var lidHelperBusy = false
 
     var checks: [SetupCheck] {
         let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
@@ -61,8 +64,8 @@ struct SetupSnapshot {
             add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Open Login Items to allow Perch.", "Open macOS Login Items…", .login)
         }
         let helpersReady = guardianReady && (!inputWanted || inputReady)
-        add("helpers", "Background controls", helpersReady ? .ready : helperWanted ? .attention : .optional,
-            helpersReady ? "Perch’s background controls are responding and up to date." : helperWanted ? "Perch is checking or restoring a required helper automatically. Open its status for progress or any failure." : "Needed for scrolling, keep-awake requests and agent protection.",
+        add("helpers", "Background controls", helpersReady ? .ready : helperRecoveryFailure != nil ? .attention : helperWanted ? .checking : .optional,
+            helpersReady ? "Perch’s background controls are responding and up to date." : helperRecoveryFailure ?? (helperWanted ? "Perch is checking or restoring a required helper automatically." : "Needed for scrolling, keep-awake requests and agent protection."),
             "Background helpers…", .maintenance)
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
@@ -88,7 +91,9 @@ struct SetupSnapshot {
         add("desk-input", "Desk keyboard & mouse sharing", !deskInputEnabled ? .optional : deskInputProblem != nil ? .attention : .ready,
             !deskInputEnabled ? "Optional: turn on Share on this Mac in Desk on each participating Mac. Ctrl–Opt–Esc returns to local control during sharing." : deskInputProblem ?? (deskInputActive ? "Input sharing is active for this session. Ctrl–Opt–Esc returns control locally." : "Sharing is enabled here. Open Desk and select a confirmed screen to start control."), deskInputAccessNeeded ? "Shared input access…" : "Open Desk…", deskInputAccessNeeded ? .sharingAccess : .deskInput)
 
-        if !lidHelperInstalled || lidHelperUpdatePending {
+        if lidHelperBusy {
+            add("lid-setup", "Lid protection setup", .checking, "Updating the lid helper and checking its response. Your saved choices are kept.", "View progress…", .lidSetup)
+        } else if !lidHelperInstalled || lidHelperUpdatePending {
             add("lid-setup", "Lid protection setup", lidWanted ? .attention : .optional,
                 lidHelperUpdatePending ? "A previous lid helper update is incomplete. Open Setup → Lid protection for its result and retry." : "Install the lid helper in Setup → Lid protection before using the Mac with its lid closed.",
                 lidHelperUpdatePending ? "Retry helper update…" : "Set up lid protection…", .lidSetup)
@@ -96,8 +101,10 @@ struct SetupSnapshot {
 
         if lidDisabled == true {
             add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Lid protection setup…", .lidSetup)
+        } else if lidHelperBusy {
+            add("awake", "Keep awake", .checking, "The lid helper update is in progress. Your existing protection deadline is retained.", "Lid protection setup…", .lidSetup)
         } else if lidHelperUpdatePending {
-            add("awake", "Keep awake", .attention, "Lid helper update queued. Open the lid and review Setup → Lid protection to finish. The existing helper is kept until then.", "Lid protection setup…", .lidSetup)
+            add("awake", "Keep awake", .attention, "The lid helper update is incomplete. Open Setup → Lid protection to retry.", "Lid protection setup…", .lidSetup)
         } else if lidGuard?.fresh == true && lidGuard?.error != nil {
             add("awake", "Keep awake", .attention, lidGuard!.detail, "Lid protection setup…", .lidSetup)
         } else if lidGuard?.fresh == true && lidGuard?.armed == true {
@@ -126,7 +133,9 @@ struct SetupSnapshot {
             add("agents", "Agent Kill Switch", .ready, config.shortcut.enabled ? "Protection is responding and the shortcut is registered. Use the harmless test to check the physical keys." : "Protection is responding. The keyboard shortcut is intentionally off.", "Agent Kill Switch…", .agents)
         }
 
-        if !collectorInstalled {
+        if collectorChecking {
+            add("events", "Live agent tracking", .checking, "Waiting for the collector’s current access and event checks to finish.", "View progress…", .events)
+        } else if !collectorInstalled {
             add("events", "Live agent tracking", .optional, "Improves tracking of short-lived agent subprocesses. Setup uses Full Disk Access for Apple’s eslogger.", "Set up tracking…", .events)
         } else if !guardianReady {
             add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Background helpers…", .maintenance)
@@ -288,11 +297,14 @@ extension AppDelegate {
         result.collectorInstalled = EventCollectorSetup.shared.installed
         result.collectorNeedsRepair = EventCollectorSetup.shared.needsRepair
         result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
+        result.collectorChecking = EventCollectorSetup.shared.checking
+        result.helperRecoveryFailure = BackgroundHelperRecovery.shared.failure
         result.lidDisabled = observedLidDisabled
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status
         result.lidHelperUpdatePending = LidHelperUpdate.shared.state.pending
         result.lidHelperInstalled = LidHelperUpdate.shared.state.installed
+        result.lidHelperBusy = LidHelperUpdate.shared.busy
         return result
     }
     func showFirstSetupIfNeeded(snapshot: SetupSnapshot? = nil) {

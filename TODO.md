@@ -1,18 +1,38 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Running app is 2.0.135 (PID 48371).
-Developer ID 2.0.136 is installed on disk; the next restart loads it. The only
-change after tested 135 corrects stale permission-page wording.
+2.0 development, September 13, 2026. Running app is now 2.0.142 (PID 54150)
+with its matching helper. Developer ID 2.0.142 is built, installed on disk and
+loaded by the current process for native acceptance. The
+candidate includes the settings progress/sidebar and shared feedback fixes,
+plus an explicit explanation when monitor desktop handoff is withheld.
 Public/notarized remains 2.0.94. No new notarization or publication occurred.
 The lid helper updated automatically to 2.0.131/helper version 5 while closed
 on AC; saved protection resumed. Active app restart on 135 also preserved its
 owned session after fixing a client claim/poll race. Background helpers and
 collector report Ready. See LID-HELPER-MAINTENANCE-2.0.md for evidence and limits.
-No privacy reset, panic, monitor input or brightness change was performed.
 LG input switching still needs known physical starting ports for a bounded test.
 Dated installation statements below are historical checkpoints. Categories are
 known defects, features, QA, release and backlog; each is ordered independently.
 This supersedes stale open-item wording in dated review checkpoints.
+
+## Current continuation checkpoint
+
+The requested normalized appearance fade and control regrouping are implemented.
+All seven Light/Dark presets were reviewed with offscreen production rendering;
+Ribbon and Horizon use different normalized fade distances, while Perch original
+is unchanged. Candidate 2.0.142 is built, signed and installed on disk and has
+been launched after replacing the prior 2.0.138 process.
+
+Hotkeys now has a content-sized emergency editor and side-by-side countdown
+shortcuts. Recognition displays pending changes under Import with an explicit
+Apply confirmation. The shared feedback widget uses neutral progress for checks
+and reserves orange for actionable failures. A monitor switch whose current
+input cannot be read now explicitly says the local Mac’s display remains
+connected for safety. Native desk acceptance still requires a physical
+two-Mac test with a monitor that reports its current input; then commit/push
+and update this checkpoint.
+The earlier maintenance/keyboard/Finder changes are committed and pushed at
+860504a. The settings batch is still uncommitted.
 
 ## Known defects — fix before shipping; target zero
 
@@ -29,11 +49,13 @@ This supersedes stale open-item wording in dated review checkpoints.
   owns resets; Login Items approval opens at the failing Start at login action.
 - [x] **Redundant permission Finder actions.** Exact drag/copy targets remain in
   permission setup. Finder reveal and its unused sibling handlers are removed.
-- [x] **Direct port switching desktop-handoff audit.** Presets, port switches,
-  retries and paired delegation already converge on the same production path.
-  New two-peer tests confirm direct port changes invalidate old desktop evidence
-  and require fresh readback on both peers. Unknown LG input remains a blocker,
-  not permission to assume that a command changed the visible screen.
+- [ ] **Cross-Mac desktop handoff with unreadable monitor inputs.** Presets,
+  port switches, retries and paired delegation converge on one safe path, and
+  tests invalidate old desktop evidence before every switch. On the LG displays
+  here, current-input readback is zero, so Perch correctly leaves the local
+  display attached to macOS; the UI now says that explicitly. Complete the
+  physical readback/control investigation before claiming automatic desktop
+  removal works on these screens.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now

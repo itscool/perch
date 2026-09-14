@@ -9,12 +9,28 @@ func runAgentSettingsPageTests() throws {
     var stored = SafetyConfiguration(), writes = 0, failWrite = false, conflict = false
     try check(stored.shortcut.key == UInt32(kVK_Escape) && stored.shortcut.modifiers == UInt32(controlKey | optionKey | cmdKey), "Fresh configuration has the wrong emergency shortcut")
     stored.shortcut.enabled = false
+    let compact = AgentSettingsPage(mode: .shortcut, load: { stored }, save: { _ in }, conflicts: { _ in false })
+    let compactHeight = compact.layoutShortcut(width: 640)
+    try check(compactHeight < 180, "Healthy emergency shortcut retained its blank status area")
+    compact.status.stringValue = String(repeating: "Registration or saving needs attention; the previous shortcut is kept. ", count: 12)
+    compact.retry.isHidden = false
+    let expandedHeight = compact.layoutShortcut(width: 572)
+    try check(expandedHeight > compactHeight && compact.view.subviews.allSatisfy { $0.isHidden || compact.view.bounds.contains($0.frame) }, "Compact editor clipped wrapped errors or Retry")
+    try check(compact.status.frame.maxY < compact.keys.frame.minY && compact.status.frame.minY > compact.retry.frame.maxY, "Shortcut error overlaps key controls or Retry")
     let makePage = {
         AgentSettingsPage(mode: .fixtureCombined, load: { stored }, save: { value in
             if failWrite { throw AppError(message: "Fixture write failure") }
             stored = value; writes += 1
         }, conflicts: { _ in conflict })
     }
+    let adapter = makePage()
+    var changed = adapter.shortcut; changed.key = UInt32(kVK_F9)
+    adapter.editShortcut(changed)
+    try check(stored.shortcut.key == UInt32(kVK_F9), "Shared shortcut adapter bypassed saving")
+    conflict = true; changed.enabled = true; changed.key = UInt32(kVK_F8)
+    adapter.editShortcut(changed)
+    try check(stored.shortcut.key == UInt32(kVK_F9) && adapter.shortcut.key == UInt32(kVK_F8) && adapter.feedbackKind == .warning, "Shared editor lost rejected draft or replaced saved shortcut")
+    conflict = false; writes = 0; stored = SafetyConfiguration(); stored.shortcut.enabled = false
     let page = makePage(); page.show()
     try check(!host.modal && NSApp.modalWindow == nil && host.pages.last?.view === page.view, "Agent page entered a modal session")
     func click(_ button: NSButton) throws {

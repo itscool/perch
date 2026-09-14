@@ -23,7 +23,18 @@ func runSetupOverviewTests() throws {
     config.targets = [.init(id: "fixture", name: "Fixture agent", kind: "cli", match: "fixture")]
     config.shortcut.enabled = true; snapshot.config = config
     func item(_ id: String) -> SetupCheck { snapshot.checks.first { $0.id == id }! }
-    try check(item("helpers").state == .attention && item("scrolling").state == .checking && item("agents").state == .checking, "Missing helper was confused with lost grants or working protection")
+    try check(item("helpers").state == .checking && item("scrolling").state == .checking && item("agents").state == .checking, "Missing helper was confused with lost grants or working protection")
+    snapshot.helperRecoveryFailure = "Recovery failed"
+    try check(item("helpers").state == .attention, "Failed automatic recovery remained progress")
+    snapshot.helperRecoveryFailure = nil
+    snapshot.collectorChecking = true
+    try check(item("events").state == .checking, "Collector verification was a warning")
+    snapshot.collectorChecking = false
+    snapshot.lidHelperBusy = true; snapshot.lidHelperUpdatePending = true
+    try check(item("lid-setup").state == .checking && item("awake").state == .checking, "In-flight lid update was a warning")
+    snapshot.lidHelperBusy = false
+    try check(item("awake").state == .attention, "Incomplete lid update lost its recovery warning")
+    snapshot.lidHelperUpdatePending = false
     var guardian = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: false, inputActive: false, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
     snapshot.guardian = guardian; snapshot.input = InputHelperStatus(trusted: false, active: false)
     snapshot.collectorInstalled = true; snapshot.keyboardAccessNeeded = true; snapshot.keyboardSetupWanted = true
@@ -59,7 +70,7 @@ func runSetupOverviewTests() throws {
     snapshot.input = InputHelperStatus(trusted: true, active: true)
     try check(item("scrolling").state == .ready && item("events").state == .attention && item("keyboards").state == .attention, "One restored grant made unrelated features ready")
     snapshot.input?.timestamp = Date().addingTimeInterval(-10)
-    try check(item("scrolling").state == .checking && item("helpers").state == .attention, "Stale helper status stayed ready")
+    try check(item("scrolling").state == .checking && item("helpers").state == .checking, "Stale helper status stayed ready")
     snapshot.input = InputHelperStatus(trusted: true, active: true)
     guardian.eventCoverage = "Process events active"; guardian.eventConnected = true; guardian.eventLastSeen = Date().addingTimeInterval(-60)
     snapshot.guardian = guardian

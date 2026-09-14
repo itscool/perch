@@ -75,7 +75,7 @@ final class PermissionSetup: NSObject {
         reviewButton.title = readiness.ready ? disclosure.title : "Permission instructions"
         repairButton.isHidden = readiness.route != "repair"
         status.stringValue = readiness.message
-        status.textColor = readiness.ready ? StatusColors.success : StatusColors.warning
+        status.textColor = readiness.ready ? StatusColors.success : readiness.route == "checking" ? .secondaryLabelColor : StatusColors.warning
         let height: CGFloat = expanded ? 410 : 160
         status.frame = NSRect(x: 20, y: height-108, width: 480, height: 100)
         reviewButton.frame.origin.y = height-150

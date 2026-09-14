@@ -97,6 +97,10 @@ final class SettingsExplanationScroll: NSScrollView {
 
 /// Read-only, changing text remains observable without narrating every poll.
 final class SettingsStatusField: NSTextField {
+    func measuredHeight(width: CGFloat, minimum: CGFloat = 0) -> CGFloat {
+        guard !stringValue.isEmpty else { return minimum }
+        return max(minimum, ceil(cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: max(1, width), height: 10000)).height ?? 0))
+    }
     var announcesChanges = false
     override var stringValue: String {
         didSet {

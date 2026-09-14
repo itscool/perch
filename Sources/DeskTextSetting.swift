@@ -28,7 +28,7 @@ struct DeskTextSetting: View {
                 }.controlSize(.small)
             }
             if let problem {
-                Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                SettingsFeedback(text: problem)
                 Button("Retry saving") { commit() }.controlSize(.small).disabled(draft.conflict)
             } else if numeric && draft.dirty && !draft.conflict {
                 Text("Not saved yet. Press Return or leave this field to save a complete input code (1–65535). Saved: \(saved.isEmpty ? "not set" : saved). Invalid edits are discarded when leaving this editor.")

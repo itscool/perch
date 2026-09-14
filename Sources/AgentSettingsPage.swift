@@ -22,6 +22,9 @@ final class AgentSettingsPage: NSObject {
     private var pending: Change?
     private var message = "Choices save automatically."
     private var shortcutIssue: String?
+    private var registrationWait: Date?
+    private var shortcutCaption: NSTextField?
+    var shortcutLayoutChanged: ((CGFloat) -> Void)?
     private var timer: Timer?
     private let readStatus: () -> SafetyStatus?
 
@@ -87,8 +90,10 @@ final class AgentSettingsPage: NSObject {
         retry.frame = NSRect(x: 430, y: 30, width: 134, height: 30); retry.bezelStyle = .rounded
         retry.target = self; retry.action = #selector(retrySaving); retry.isHidden = true; view.addSubview(retry)
         // Registration failures and retained-shortcut explanations must fit alongside save feedback.
-        for child in view.subviews where child !== status && child !== retry { child.frame.origin.y += 150 }
-        view.frame.size.height += 150; status.frame.size.height += 150; retry.frame.origin.y += 75
+        if mode == .fixtureCombined {
+            for child in view.subviews where child !== status && child !== retry { child.frame.origin.y += 150 }
+            view.frame.size.height += 150; status.frame.size.height += 150; retry.frame.origin.y += 75
+        }
         switch mode {
         case .agents:
             shortcutViews.forEach { $0.removeFromSuperview() }
@@ -96,11 +101,32 @@ final class AgentSettingsPage: NSObject {
             view.frame.size.height -= 120
         case .shortcut:
             (agentViews + actionViews).forEach { $0.removeFromSuperview() }
-            shortcutViews.forEach { $0.frame.origin.y -= 150 }
-            view.frame.size.height = 300; status.frame.size.height = 155; retry.frame.origin.y = 65
+            shortcutCaption = shortcutViews.compactMap { $0 as? NSTextField }.first
         case .fixtureCombined: break
         }
         updateStatus()
+    }
+    /// Compact healthy state; grow only for actual wrapped status or retry.
+    @discardableResult func layoutShortcut(width: CGFloat) -> CGFloat {
+        guard mode == .shortcut else { return view.frame.height }
+        let width = max(572, width)
+        let statusWidth = width - 16
+        let statusHeight = max(30, ceil(status.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: statusWidth, height: 10000)).height ?? 30))
+        let retryHeight: CGFloat = retry.isHidden ? 0 : 36
+        let height = 20 + 28 + 28 + statusHeight + retryHeight + 24
+        var y = height - 20
+        shortcutCaption?.frame = NSRect(x: 8, y: y, width: width-16, height: 20)
+        y -= 28; enabled.frame = NSRect(x: 8, y: y, width: width-16, height: 28)
+        y -= 28
+        for (index, pair) in modifiers.enumerated() { pair.0.frame = NSRect(x: CGFloat(8+index*112), y: y, width: 112, height: 28) }
+        keys.frame = NSRect(x: 460, y: y, width: 104, height: 28)
+        y -= 8 + statusHeight
+        status.frame = NSRect(x: 8, y: y, width: statusWidth, height: statusHeight)
+        retry.frame = NSRect(x: 8, y: 4, width: 134, height: 30)
+        let changed = abs(view.frame.height-height) > 0.5
+        view.frame.size = NSSize(width: width, height: height)
+        if changed { view.invalidateIntrinsicContentSize(); shortcutLayoutChanged?(height) }
+        return height
     }
     func show() {
         SettingsWindow.shared.show(.init(title: mode == .shortcut ? "Hotkeys" : "Agents & panic actions", detail: "Panic force-quits selected local agents and their observed children, then blocks relaunches until you resume. Unsaved work can be lost. The watcher cannot stop remote jobs, root processes or children it never observed.\n\nChanges save automatically. Configure shortcuts in App settings → Hotkeys.", view: view, leave: { [self] in self.timer?.invalidate(); self.timer = nil }, refresh: { [self] in updateStatus() }))
@@ -111,7 +137,7 @@ final class AgentSettingsPage: NSObject {
         }
         self.timer = timer; RunLoop.main.add(timer, forMode: .common)
     }
-    private var shortcut: PanicShortcut {
+    var shortcut: PanicShortcut {
         .init(key: PanicShortcut.keys[max(0, keys.indexOfSelectedItem)].1,
               modifiers: modifiers.filter { $0.0.state == .on }.reduce(0) { $0 | $1.1 }, enabled: enabled.state == .on)
     }
@@ -119,13 +145,27 @@ final class AgentSettingsPage: NSObject {
         guard let id = agents.first(where: { $0.1 === sender })?.0 else { return }
         apply(.agent(id, sender.state == .on))
     }
+    func editShortcut(_ value: PanicShortcut) {
+        enabled.state = value.enabled ? .on : .off
+        keys.selectItem(at: PanicShortcut.keys.firstIndex { $0.1 == value.key } ?? 0)
+        for (box, flag) in modifiers { box.state = value.modifiers & flag != 0 ? .on : .off }
+        apply(.shortcut(value))
+    }
+    private(set) var feedbackKind = SettingsFeedbackKind.information
     @objc private func shortcutChanged() { apply(.shortcut(shortcut)) }
     @objc private func resetChanged() { apply(.reset(reset.indexOfSelectedItem)) }
-    @objc private func retrySaving() { if let pending { apply(pending) } }
+    @objc func retrySaving() { if let pending { apply(pending) } }
     func updateStatus() {
         if mode == .agents {
             status.stringValue = message
             status.textColor = pending == nil ? .secondaryLabelColor : StatusColors.warning
+            let height = status.measuredHeight(width: status.frame.width, minimum: retry.isHidden ? 20 : 56)
+            let delta = height - status.frame.height
+            if abs(delta) > 0.5 {
+                for child in view.subviews where child !== status && child !== retry { child.frame.origin.y += delta }
+                status.frame.size.height = height; view.frame.size.height += delta
+                if view.window != nil, let current = SettingsWindow.shared.pages.last, current.view === view { SettingsWindow.shared.display(current) }
+            }
             return
         }
         let saved = load().shortcut
@@ -135,7 +175,13 @@ final class AgentSettingsPage: NSObject {
         let registered = state?.fresh == true && state?.registeredShortcut == saved && state?.shortcutActive == true
         let readiness = !saved.enabled ? "" : registered ? " Registered and ready." : state?.fresh != true ? " Waiting for background protection to confirm registration." : " Not registered. " + (state?.error ?? "Background protection is applying the saved choice.")
         status.stringValue = message + "\n" + current + readiness + unsaved
-        status.textColor = pending != nil || !unsaved.isEmpty || (saved.enabled && !registered) ? StatusColors.warning : .secondaryLabelColor
+        if !saved.enabled || registered { registrationWait = nil }
+        else if registrationWait == nil { registrationWait = Date() }
+        let waiting = saved.enabled && !registered && state?.error == nil && Date().timeIntervalSince(registrationWait ?? Date()) < 5
+        feedbackKind = pending != nil || !unsaved.isEmpty ? .warning :
+            saved.enabled && !registered ? (waiting ? .progress : .warning) : .information
+        status.textColor = feedbackKind.color
+        if mode == .shortcut { layoutShortcut(width: view.frame.width) }
     }
     private func apply(_ change: Change) {
         var config = load()

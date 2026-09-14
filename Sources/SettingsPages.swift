@@ -11,7 +11,9 @@ final class SettingsTaskPage {
     var update: (() -> Void)?
     private var timer: Timer?
     private var y: CGFloat
-    private let statusHeight: CGFloat
+    private var statusHeight: CGFloat
+    private var hiddenRows: [NSButton] = []
+    private var footerHeight: CGFloat = 0
     private var rows: [(button: NSButton, label: NSTextField)] = []
     init(title: String, detail: String, height: CGFloat, statusHeight: CGFloat = 60) {
         self.title = title; self.detail = detail; self.statusHeight = statusHeight
@@ -47,11 +49,13 @@ final class SettingsTaskPage {
     /// Reflow optional instructions as one row, including their explanation.
     /// Hidden setup controls must not leave stale instructions or empty blocks.
     func arrangeRows(hiding hidden: [NSButton], footerHeight: CGFloat = 0) {
+        hiddenRows = hidden; self.footerHeight = footerHeight
+        statusHeight = status.measuredHeight(width: 556)
         let visible = rows.filter { row in !hidden.contains { $0 === row.button } }
         let height = statusHeight + 54 + CGFloat(visible.count) * 74 + footerHeight
         let resized = view.frame.height != height
         view.frame.size.height = height
-        status.frame.origin.y = height - statusHeight - 5
+        status.frame = NSRect(x: 8, y: height-statusHeight-5, width: 556, height: statusHeight)
         var y = height - statusHeight - 83
         for row in rows {
             let hide = hidden.contains { $0 === row.button }
@@ -61,6 +65,7 @@ final class SettingsTaskPage {
                 y -= 74
             }
         }
+        guard view.window != nil else { return }
         let host = SettingsWindow.shared
         if host.pages.last?.view === view, let focused = host.window.firstResponder as? NSView,
            focused.isHiddenOrHasHiddenAncestor {
@@ -71,6 +76,7 @@ final class SettingsTaskPage {
     func refresh() {
         guard !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === view else { return }
         update?()
+        arrangeRows(hiding: hiddenRows, footerHeight: footerHeight)
     }
     func show(delegate: AppDelegate? = nil) {
         let host = SettingsWindow.shared

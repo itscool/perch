@@ -33,7 +33,7 @@ struct DeskSharingControls: View {
                         .font(.caption).foregroundStyle(ready ? Color.secondary : Color.orange)
                 }
                 if let problem = adapter.accessProblem {
-                    Text(problem).font(.caption).foregroundStyle(.orange)
+                    SettingsFeedback(text: problem)
                     if adapter.needsPermissionSetup {
                         Button("Set up shared input access…") { SettingsWindow.shared.navigateToSetupStage("sharing-access") }
                     } else { Button("Retry sharing") { adapter.enable(true) } }
@@ -55,7 +55,7 @@ struct DeskSharingControls: View {
                     Text("Controlling " + (node.group.monitors.first { $0.id == focus.monitor }?.name ?? "screen"))
                         .font(.caption).foregroundStyle(.teal)
                 }
-                if let problem = input.problem { Text(problem).font(.caption).foregroundStyle(.orange) }
+                if let problem = input.problem { SettingsFeedback(text: problem) }
                 if input.focus != nil { Button("Return to local control") { input.stop() } }
                 Text("Move across touching screen edges to change computers. Ctrl–Opt–Esc returns control locally.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -156,7 +156,7 @@ private struct DeskFollowDeviceSettings: View {
                 }
                 Button("Refresh connected devices") { adapter.refreshKeyboards() }
                 if connected.isEmpty { Text("No uniquely identifiable \(noun) is connected. Connect it, then refresh.").font(.caption).foregroundStyle(.secondary) }
-                if let problem { Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+                if let problem { SettingsFeedback(text: problem) }
                 if let focus = input.focus, input.active {
                     let screenName = node.group.monitors.first(where: { $0.id == focus.monitor })?.name ?? "screen"
                     let computerName = node.group.computers.first(where: { $0.id == focus.computer })?.name ?? "computer"

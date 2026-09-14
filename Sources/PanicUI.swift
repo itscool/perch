@@ -156,7 +156,7 @@ extension AppDelegate {
         let page = SettingsTaskPage(title: "Background helpers", detail: "Perch installs and maintains the helpers used by scrolling, Keep awake and agent protection automatically.", height: 160, statusHeight: 100)
         page.update = { [weak page] in
             page?.status.stringValue = BackgroundHelperRecovery.shared.detail
-            page?.status.textColor = BackgroundHelperRecovery.shared.healthy ? StatusColors.success : StatusColors.warning
+            page?.status.textColor = BackgroundHelperRecovery.shared.healthy ? StatusColors.success : BackgroundHelperRecovery.shared.failure != nil ? StatusColors.warning : .secondaryLabelColor
         }
         page.show(delegate: self)
     }
@@ -173,10 +173,26 @@ extension AppDelegate {
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }
     }
-    @objc func agentRecognition() {
-        chooseSafetyAction(title: "Agent recognition", detail: "Review the scope of new or changed matching rules before applying them.", options: [
-            ("Import recognition catalog…", "Load updated agent suggestions from a JSON file. New entries default to checked; existing choices are preserved.", #selector(importAgentCatalog)),
-            ("Review recognition updates…", "Review changes to existing agent matching rules before applying them.", #selector(reviewCatalogChanges))])
+    @objc func agentRecognition() { presentAgentRecognition() }
+    func presentAgentRecognition(_ result: String? = nil) {
+        let config = SafetyConfiguration.load(), catalog = AgentCatalog.available()
+        let changes = catalog?.updates(for: config) ?? []
+        let text = [result, catalog?.updateSummary(for: config) ?? "No recognition catalog is installed. Import a catalog to review its matching rules here."].compactMap { $0 }.joined(separator: "\n\n")
+        let summary = NSTextField(wrappingLabelWithString: text)
+        summary.font = .systemFont(ofSize: 13)
+        let summaryHeight = max(50, ceil(summary.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 556, height: 10000)).height ?? 50))
+        let height = 56 + summaryHeight + (changes.isEmpty ? 16 : 54)
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: height))
+        let importButton = SettingsActionButton(title: "Import recognition catalog…") { [weak self] in self?.importAgentCatalog() }
+        importButton.frame = NSRect(x: 0, y: height-32, width: 300, height: 32)
+        view.addSubview(importButton)
+        summary.frame = NSRect(x: 8, y: height-48-summaryHeight, width: 556, height: summaryHeight)
+        view.addSubview(summary)
+        if !changes.isEmpty {
+            let apply = SettingsActionButton(title: "Apply recognition changes…") { [weak self] in self?.reviewCatalogChanges() }
+            apply.frame = NSRect(x: 0, y: 8, width: 300, height: 32); view.addSubview(apply)
+        }
+        SettingsWindow.shared.show(.init(title: "Agent recognition", detail: "Import agent definitions, then review changed matching rules below. Applying changes preserves your on/off selections.", view: view))
     }
     @objc func manageAgents() {
         let targets = SafetyConfiguration.load().targets.filter { $0.id.hasPrefix("custom-") }

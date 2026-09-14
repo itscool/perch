@@ -30,7 +30,7 @@ for scrollerStyle in [NSScroller.Style.overlay, .legacy] {
         .init(id: "access", title: "Scrolling & navigation", pageTitles: [], depth: 1, setupStage: true, open: {}),
         .init(id: "desk", title: "Desk", pageTitles: [], open: {})
     ] + (0..<30).map { SettingsDestination(id: "extra\($0)", title: "Extra page \($0)", pageTitles: [], open: {}) })
-    for width: CGFloat in [220, 180, 320, 220] {
+    for width: CGFloat in [sidebar.preferredWidth, sidebar.preferredWidth + 60, sidebar.preferredWidth] {
         sidebar.setFrameSize(NSSize(width: width, height: 330))
         sidebar.needsLayout = true; sidebar.layoutSubtreeIfNeeded()
         sidebar.update(selected: "access", busy: false)
@@ -40,7 +40,10 @@ for scrollerStyle in [NSScroller.Style.overlay, .legacy] {
             check(sidebar.table.selectedRow == 1 && navigations == 0, "Refresh changed navigation")
             check(sidebar.table.view(atColumn: 0, row: 1, makeIfNecessary: false) === cell, "Refresh replaced the row")
             check(cell.imageView?.image != nil, "Missing status symbol")
-            check(cell.imageView?.isHidden == false && cell.bounds.contains(cell.imageView!.frame), "Status image outside actual cell bounds")
+            check(cell.imageView?.isHidden == (state == .checking) && cell.bounds.contains(cell.imageView!.frame), "Wrong status presentation or bounds")
+            let progress = (cell as! SettingsSidebarCell).progress
+            check(progress.isHidden == (state != .checking), "Progress did not replace the static status symbol")
+            check(cell.textField!.frame.width >= cell.textField!.intrinsicContentSize.width, "Full destination label is truncated")
             check(cell.bounds.contains(cell.textField!.frame), "Label outside actual cell bounds")
             check(!cell.textField!.frame.intersects(cell.imageView!.frame), "Label overlaps status image")
             check(cell.accessibilityValue() as? String == state.rawValue, "Missing accessible status")

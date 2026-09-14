@@ -205,7 +205,7 @@ final class NavigationProbePage: NSObject {
         case .complete:
             instruction.stringValue = saved ? "Setup complete" : "The layout could not be saved"
             status.stringValue = saveResult ?? "Saving layout…"
-            status.textColor = saved ? StatusColors.success : StatusColors.warning
+            status.textColor = saved ? StatusColors.success : saveResult == nil ? .secondaryLabelColor : StatusColors.warning
         case .incomplete:
             instruction.stringValue = "Setup timed out"
             status.stringValue = "⚠ Setup ended before all four prompts were completed. Your saved layout was kept. Start again when ready."

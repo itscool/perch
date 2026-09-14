@@ -25,6 +25,23 @@ func runMenuAppearanceTests() throws {
     try require(store.value.sections.radius == 8, "System editing changed rainbow sections")
     var invalid = changed; invalid.sections.radius = .nan; store.save(invalid)
     try require(store.value == changed, "invalid values replaced usable appearance")
+    var fade = MenuSectionAppearance(); fade.edgeToEdge = true; fade.fadeLeft = true
+    for distance in [0.0, 0.08, 0.5, 0.65, 1.0] {
+        fade.fadeFraction = distance
+        for right in [false, true] {
+            fade.fadeRight = right
+            let stops = fade.fadeStops
+            try require(distance == 0 ? stops.isEmpty : !stops.isEmpty, "zero fade must draw no mask")
+            try require(zip(stops, stops.dropFirst()).allSatisfy { $0.location < $1.location } && stops.allSatisfy { (0...1).contains($0.alpha) }, "overlapping fades have invalid stops")
+            let decoded = try JSONDecoder().decode(MenuSectionAppearance.self, from: JSONEncoder().encode(fade))
+            try require(decoded.fadeFraction == distance, "fade distance did not persist")
+        }
+    }
+    fade.fadeRight = false
+    try require(fade.fadeStops.count == 2 && fade.fadeStops.last?.location == 1, "full-distance fade does not span full width")
+    for invalid in [-0.01, 1.01, Double.nan, Double.infinity] { fade.fadeFraction = invalid; try require(!fade.valid, "invalid fade accepted") }
+    var systemGap = MenuTheme(); systemGap.system.gap = 8
+    try require(systemGap.style("System").gap == 0 && systemGap.style("Sleep").gap == 3, "System retained an uneditable title gap")
     let item = NSMenuItem(title: "Sleep", action: nil, keyEquivalent: "")
     let row = MenuRowView(item: item, kind: .section); item.view = row; row.panelSection = "Sleep"; row.panelPart = .top
     row.appearance = NSAppearance(named: .aqua) // The edits above target the light theme.

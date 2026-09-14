@@ -22,6 +22,7 @@ enum SettingsSetupStatus: String {
 /// the table width plus an autoresizing offset from an initially empty cell.
 final class SettingsSidebarCell: NSTableCellView {
     private let depth: Int
+    let progress = NSProgressIndicator()
     init(item: SettingsDestination) {
         depth = item.depth
         super.init(frame: .zero)
@@ -33,6 +34,10 @@ final class SettingsSidebarCell: NSTableCellView {
         if item.setupStage {
             let icon = NSImageView()
             imageView = icon; addSubview(icon)
+            progress.style = .spinning; progress.controlSize = .small
+            progress.isIndeterminate = true; progress.isDisplayedWhenStopped = false
+            progress.setAccessibilityLabel("Checking")
+            addSubview(progress)
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -42,6 +47,14 @@ final class SettingsSidebarCell: NSTableCellView {
         textField?.frame = NSRect(x: start, y: (bounds.height - 18) / 2,
                                  width: max(0, bounds.width - start - 8 - (imageView == nil ? 0 : 22)), height: 18)
         imageView?.frame = NSRect(x: max(0, bounds.width - 23), y: (bounds.height - 14) / 2, width: 14, height: 14)
+        progress.frame = imageView?.frame ?? .zero
+    }
+    func showStatus(_ state: SettingsSetupStatus) {
+        imageView?.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.rawValue)
+        imageView?.contentTintColor = state.color
+        imageView?.isHidden = state == .checking
+        progress.isHidden = state != .checking
+        if state == .checking { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     }
 }
 
@@ -50,6 +63,14 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     let scroll = NSScrollView()
     let hint = NSTextField(wrappingLabelWithString: "")
     private(set) var destinations: [SettingsDestination] = []
+    var preferredWidth: CGFloat {
+        // Reserve indentation, status, source-list insets and a legacy scrollbar.
+        // Size from the full label, not from an already-truncated cell.
+        max(260, destinations.map { item in
+            ceil((item.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: item.depth == 0 ? .medium : .regular)]).width)
+                + CGFloat(item.depth * 14) + (item.setupStage ? 22 : 0) + 80
+        }.max() ?? 0)
+    }
     var choose: ((SettingsDestination) -> Void)?
     private var synchronizing = false
     private var available = true
@@ -77,8 +98,7 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     }
     private func updateStatus(_ cell: NSTableCellView, item: SettingsDestination) {
         let state = setupStatuses[item.id] ?? .checking
-        cell.imageView?.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.rawValue)
-        cell.imageView?.contentTintColor = state.color
+        (cell as? SettingsSidebarCell)?.showStatus(state)
         cell.toolTip = item.title + " — " + state.rawValue
         cell.setAccessibilityValue(state.rawValue)
     }

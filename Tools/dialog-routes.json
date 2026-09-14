@@ -5,12 +5,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "AgentCatalog.swift:importAgentCatalog:alert:1": {
-    "file": "AgentCatalog.swift",
-    "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "AgentCatalog.swift:reviewCatalogChanges:alert:1": {
     "file": "AgentCatalog.swift",
     "kind": "alert",
@@ -221,12 +215,6 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:agentRecognition:menu-entry:1": {
-    "file": "PanicUI.swift",
-    "kind": "menu-entry",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1\u2013U11 and D1\u2013D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "AppReplacement.swift:considerAppReplacementNotice:alert:1": {
     "file": "AppReplacement.swift",
     "kind": "alert",
@@ -324,5 +312,9 @@
   "PanicUI.swift:securitySettings:task-page:1": {
     "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status, Security file-protection owner, no routine repair or duplicate reset/login controls.",
     "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
+  },
+  "PanicUI.swift:presentAgentRecognition:page:1": {
+    "review": "Recognition displays imported changes directly below Import; Apply retains explicit matching-rule confirmation and fresh on/off selections. No modal success layer.",
+    "acceptance": "Catalog policy and isolated settings tests; no live catalog import or matching-rule change."
   }
 }

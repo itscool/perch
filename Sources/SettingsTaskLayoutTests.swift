@@ -11,6 +11,17 @@ func runSettingsTaskLayoutTests() throws {
         for index in 0..<count {
             buttons.append(page.add("Action \(index)", detail: "Explanation", action: {}))
         }
+        page.status.stringValue = "Ready"
+        page.arrangeRows(hiding: [])
+        let compactHeight = page.view.frame.height
+        page.status.stringValue = String(repeating: "An actionable failure with details that must wrap. ", count: 30)
+        page.arrangeRows(hiding: [])
+        guard page.view.frame.height > compactHeight,
+              page.status.frame.height >= page.status.measuredHeight(width: page.status.frame.width) else {
+            throw AppError(message: "Shared task feedback did not expand for the error")
+        }
+        page.status.stringValue = "Ready"; page.arrangeRows(hiding: [])
+        guard page.view.frame.height == compactHeight else { throw AppError(message: "Shared task feedback retained an empty error area") }
         for button in buttons {
             guard page.view.bounds.contains(button.frame) else { throw AppError(message: "A task button exceeds its document bounds") }
             let point = parent.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)

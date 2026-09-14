@@ -54,8 +54,8 @@ for width in [640.0, 900.0] {
         positions[button.title] = button.convert(button.bounds, to: host).minX
     }
     let sliders = descendants(host).compactMap { $0 as? NSSlider }
-    precondition(sliders.count == 8, "Expected the eight appearance sliders, found \(sliders.count)")
-    if let slider = sliders.dropFirst(5).first {
+    precondition(sliders.count == 9, "Expected the nine appearance sliders, found \(sliders.count)")
+    if let slider = sliders.dropFirst(7).first {
         positions["Title tint"] = slider.convert(slider.bounds, to: host).minX
     }
     precondition(positions.count == 7, "Appearance layout fixture missed a target control: \(positions)")
@@ -195,6 +195,19 @@ try export("perch-edge-fades.png", width: 1080, height: 635) {
         menu(value, dark: false, x: x, y: y); menu(value, dark: true, x: x + 253, y: y)
     }
 }
+try export("perch-fade-distance.png", width: 1080, height: 635) {
+    label("Perch · Normalized fade distance", x: 28, y: 592, size: 23, bold: true)
+    label("Right edge · 0 means none; 1 spans the whole width · Light and Dark", x: 28, y: 566)
+    for (index, distance) in [0.0, 0.12, 0.65, 1.0].enumerated() {
+        var value = presets.first { $0.name == "Horizon" }!.appearance
+        value.editSection(dark: false, both: true, system: false) {
+            $0.fadeFraction = distance; $0.backgroundIntensity = 0.2; $0.borderIntensity = 0.65
+        }
+        let x = CGFloat(index % 2) * 532 + 24, y = 292 - CGFloat(index / 2) * 270
+        label(String(format: "Distance %.2f", distance), x: x, y: y + 228, size: 17, bold: true)
+        menu(value, dark: false, x: x, y: y); menu(value, dark: true, x: x + 253, y: y)
+    }
+}
 try export("perch-preview-focus.png", width: 560, height: 574) {
     label("Menu previews · Focus and dropdown edges", x: 24, y: 539, size: 20, bold: true)
     for (index, system) in [false, true].enumerated() {
@@ -219,5 +232,5 @@ try export("perch-palette-studies.png", width: 1080, height: 590) {
 precondition(NSApp.windows.isEmpty, "Offscreen render created a window")
 print("PASS: seven valid/stable presets, unchanged Perch original, eight round-trip palettes; images rendered without windows or live state")
 ''')
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(repo/'Sources/StatusColors.swift'), str(repo/'Sources/PerchVersion.swift'), str(repo/'Sources/DeskCanvasLayout.swift'), str(repo/'Sources/MenuAppearanceTests.swift'), str(root/'main.swift'), '-o', str(root/'render')], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(repo/'Sources/StatusColors.swift'), str(repo/'Sources/SettingsFeedback.swift'), str(repo/'Sources/PerchVersion.swift'), str(repo/'Sources/DeskCanvasLayout.swift'), str(repo/'Sources/MenuAppearanceTests.swift'), str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(output)], check=True)

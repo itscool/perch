@@ -1,3 +1,9 @@
+Settings fits full sidebar labels and distinguishes neutral checking progress from actionable warnings. Shortcut editors share the Desk control layout; repeated feedback uses content-sized status areas that grow for errors and shrink afterward.
+
+Hotkeys removes the emergency editor’s fixed empty status area and places countdown shortcuts side by side. Actual errors grow the editor as needed. Recognition shows pending matching-rule changes beneath Import, with explicit Apply confirmation and inline success feedback.
+
+Menu appearance adds normalized fade distance (0–1), aligned area selectors and a single grey-highlight toggle/shade row. Titles begins with spacing for colored sections or Show System title for System; System no longer adds a title gap. Ribbon uses short 12% edge fades; Horizon uses a broad 65% right fade. Perch original, Quiet, Signal, Soft tiles and Outline keep their compositions in both themes.
+
 Keyboard layouts now match hardware model and layout metadata independently of editable device names. Renamed MX Keys keyboards retain bundled and learned navigation mappings in both setup and the input helper. Permission setup keeps its direct drag/copy target and removes redundant Finder-reveal actions.
 
 Restart handoff isolates its claim connection from status polling and fences delayed pre-restart responses before adopting the session.
@@ -19,6 +25,10 @@ Keyboards now has one page for device readiness and layout learning, with App ex
 Monitor reads now reject LG’s alternate write channel and permit only the specific standard-channel queries used by Perch. This prevents a supposed input read from issuing a vendor command with unrelated hardware effects. LG alternate input switching remains available, but unreadable current input stays unconfirmed.
 
 Setup sidebar readiness badges stay inside the visible sidebar at narrow widths and with either scrollbar style. Labels leave room for the status icon.
+
+When a monitor switch cannot provide current-input evidence, Desk now says that
+the local display remains connected for safety and names the affected screen so
+the user knows exactly what to check before retrying.
 
 Desk computer details now include Connection activity with recent authenticated connections, closure causes and durations. Unexpected losses remain available for diagnosis after reconnecting; expected local shutdowns and redundant routes are identified separately.
 

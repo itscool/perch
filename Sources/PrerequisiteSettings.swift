@@ -24,7 +24,7 @@ extension AppDelegate {
             page?.status.stringValue = helper.busy ? "The lid helper is being updated. Your saved sleep choices are retained." : helper.helper.pending ? helper.helper.notice : !helper.helper.installed ? "The lid helper is not ready. Complete setup before relying on closed-lid protection." : "The lid helper is installed. Behavior switches are in the Perch menu; recorded events are in Lid activity."
             if helper.helper.installed && !helper.helper.pending { page?.status.stringValue += "\n" + LidGuardClient.shared.detail }
             if let result = helper.result { page?.status.stringValue += "\n" + result }
-            page?.status.textColor = helper.helper.pending || !helper.helper.installed ? StatusColors.warning : .labelColor
+            page?.status.textColor = helper.busy ? .secondaryLabelColor : helper.helper.pending || !helper.helper.installed ? StatusColors.warning : .labelColor
         }
         page.show(delegate: self)
     }

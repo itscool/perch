@@ -195,6 +195,7 @@ import Darwin
         switchesA.activate(desk.presets[0].id)
         try wait("unconfirmed inputs have named recovery") { !switchesA.busy && switchesA.problem?.contains(desk.monitors[0].name) == true }
         guard switchesA.results.values.allSatisfy({ $0.state == .unverified }), writes == 2 else { throw KVMError("Old observation falsely cleared new readback failure") }
+        guard switchesA.problem?.contains("left this Mac’s display connected for safety") == true else { throw KVMError("Unconfirmed switch did not explain why desktop handoff was withheld") }
         guard switchesA.retryConnection(for: desk.monitors[0].id) != nil else { throw KVMError("Unchanged failed input has no retry target") }
         confirmedReadback = true; fakeTime += 1
         switchesA.refreshObservations()

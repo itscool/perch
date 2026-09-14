@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Carbon
 
 struct DeskLiveSheet: View {
     @ObservedObject var runtime: DeskRuntime
@@ -33,7 +34,7 @@ struct DeskLiveSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             contents
             // Temporary sheets already present model.problem; stable sidebar pages own their error display.
-            if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["hotkeys", "input"].contains(kind) || error != runtime.model.problem { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let error = error ?? (kind == "computer" ? node.pairingProblem ?? node.displayProblem : node.displayProblem), ["hotkeys", "input"].contains(kind) || error != runtime.model.problem { SettingsFeedback(text: error) }
         }.onAppear { computer = node.localID; if kind == "screen" { runtime.refreshAllDisplays() }; if kind == "removeComputer" { removing = true }; if ["control", "monitorSetup"].contains(kind) { loadControl() }; if kind == "monitorSetup", let computer, !display.isEmpty { runtime.inspect(display, computer: computer) } }
             .onChange(of: node.completedPairing) { _, value in if kind == "computer", value != nil { close() } }
             .onDisappear { if kind == "computer" { node.closePairing() } }
@@ -188,23 +189,17 @@ struct DeskLiveSheet: View {
     var shortcutSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(node.group.presets.indices, id: \.self) { i in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(node.group.presets[i].name).font(.headline)
-                    HStack {
-                        Picker("Key", selection: Binding(get: { node.group.presets[i].shortcut.key }, set: { key in changeShortcut(i) { $0.key = key } })) { ForEach(DeskShortcutKey.names, id: \.self) { Text($0).tag($0) } }.frame(width: 100)
-                        modifier("Ctrl", \.control, i); modifier("Opt", \.option, i); modifier("Cmd", \.command, i); modifier("Shift", \.shift, i)
-                    }
-                }
+                SettingsShortcutEditor(title: node.group.presets[i].name,
+                    key: Binding(get: { node.group.presets[i].shortcut.key }, set: { value in changeShortcut(i) { $0.key = value } }),
+                    choices: DeskShortcutKey.names.map { ($0, $0) },
+                    modifiers: Binding(get: { node.group.presets[i].shortcut.modifierFlags }, set: { value in changeShortcut(i) { $0.modifierFlags = value } }))
             }
             Text("Desk shortcuts are shared with every computer in this desk. Editing does not switch the screens.").font(.callout).foregroundStyle(.secondary)
-            if !node.pendingPeers.isEmpty { Text("Saved here. Waiting for \(node.group.computers.filter { node.pendingPeers.contains($0.id) }.map(\.name).joined(separator: ", ")) to acknowledge the latest change.").font(.callout).foregroundStyle(.orange) }
-            if let issue = runtime.shortcutProblem { Text(issue).foregroundStyle(.orange) }
+            if !node.pendingPeers.isEmpty { SettingsFeedback(text: "Saved here. Waiting for \(node.group.computers.filter { node.pendingPeers.contains($0.id) }.map(\.name).joined(separator: ", ")) to acknowledge the latest change.", kind: .progress) }
+            SettingsFeedback(text: runtime.shortcutProblem)
         }
     }
     func changeShortcut(_ i: Int, _ edit: (inout KVMShortcut) -> Void) { perform { var group = node.group; edit(&group.presets[i].shortcut); guard !([SafetyConfiguration.load().shortcut, LidCountdownController.shared.shortcuts.increase, LidCountdownController.shared.shortcuts.decrease].contains { group.presets[i].shortcut.matches($0) }) else { throw KVMError("Those keys are used by another Perch action on this Mac. Choose another combination.") }; try node.edit(group) } }
-    func modifier(_ title: String, _ key: WritableKeyPath<KVMShortcut, Bool>, _ i: Int) -> some View {
-        Toggle(title, isOn: Binding(get: { node.group.presets[i].shortcut[keyPath: key] }, set: { value in changeShortcut(i) { $0[keyPath: key] = value } }))
-    }
     var computerDetails: some View {
         VStack(alignment: .leading, spacing: 12) {
             let peer = node.group.computers.first { $0.id == selection }
@@ -486,5 +481,15 @@ extension AppDelegate {
         SettingsWindow.shared.show(.init(title: "Input options",
             detail: "Adjust pointer speed on this Mac and optionally follow a keyboard’s computer buttons. Start keyboard and mouse sharing from Desk. Changes save immediately.",
             view: view, preferredBodyWidth: 650))
+    }
+}
+
+extension KVMShortcut {
+    var modifierFlags: UInt32 {
+        get { (control ? UInt32(controlKey) : 0) | (option ? UInt32(optionKey) : 0) | (command ? UInt32(cmdKey) : 0) | (shift ? UInt32(shiftKey) : 0) }
+        set {
+            control = newValue & UInt32(controlKey) != 0; option = newValue & UInt32(optionKey) != 0
+            command = newValue & UInt32(cmdKey) != 0; shift = newValue & UInt32(shiftKey) != 0
+        }
     }
 }

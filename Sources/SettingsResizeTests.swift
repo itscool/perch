@@ -19,7 +19,7 @@ func runSettingsResizeTests() throws {
     host.window.setContentSize(NSSize(width: old.width + 140, height: old.height + 60))
     host.windowDidResize(Notification(name: NSWindow.didResizeNotification, object: host.window))
     let chosen = host.window.contentView!.bounds.size
-    try check(available.width == chosen.width - 228 - 48 && available.height > 96, "content did not receive available space")
+    try check(available.width == chosen.width - host.sidebar.preferredWidth - 48 && available.height > 96, "content did not receive available space")
     host.navigate(to: b)
     try check(host.window.contentView!.bounds.size == chosen && host.pages.last!.view.frame.width == available.width, "page change reset size or wasted added width")
     let alert = NSAlert(); alert.messageText = "Resize confirmation"; alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Continue")

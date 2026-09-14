@@ -276,6 +276,19 @@ remain open; this is not a claim that untested behavior is defect-free.
   tests cover one target only and stale-edit cancellation, including recovery
   into the next preset switch.
 
+- [ ] **Working KVM handoff with optimistic reconciliation.** Make the normal
+  path feel successful immediately after the exact profile command is accepted:
+  show the selected preset as pending, run bounded post-switch reads through
+  every safe channel (standard `0x60`, exact-model LG candidates and paired Mac
+  observers), and promote the handoff as soon as fresh evidence confirms it.
+  Do not depend on BetterDisplay at runtime. If no trustworthy readback arrives,
+  keep the local desktop attached, identify the affected screen and offer a
+  retry; never hide a desktop based only on a sent command, desired preset,
+  display count or stale observation. Cover delayed, missing, zero, conflicting
+  and reverted reads plus peer loss in unit and native fixtures, then validate
+  both LGs physically before enabling automatic desktop removal for their exact
+  model/firmware profiles.
+
 - [x] **Monitor control paths, defaults and fresh profile detection.** Control
   choices are scoped to the physical monitor and show computer/port labels;
   protocol overrides retain a separately recorded default. Monitor setup can

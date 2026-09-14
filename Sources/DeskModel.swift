@@ -111,6 +111,16 @@ struct DeskIdentificationState {
         if let token = active.removeValue(forKey: key) { return (token, false) }
         let token = UUID(); active[key] = token; return (token, true)
     }
+    /// Apply an identification session received from another Perch in the
+    /// same desk. The token makes an old stop event harmless after a newer
+    /// identification has started.
+    mutating func apply(_ key: String, token: UUID, showing: Bool) {
+        if showing {
+            active[key] = token
+        } else if active[key] == nil || active[key] == token {
+            active[key] = nil
+        }
+    }
     @discardableResult mutating func expire(_ key: String, token: UUID) -> Bool {
         guard active[key] == token else { return false }; active[key] = nil; return true
     }
@@ -286,7 +296,10 @@ final class DeskModel: ObservableObject {
     }
     func renameMonitor(_ name: String) { guard let id = selected else { return }; edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].name = name } } }
     func move(_ id: UUID, x: Double, y: Double) {
-        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].geometry.x = x; g.monitors[i].geometry.y = y } }
+        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) {
+            g.monitors[i].geometry.x = KVMGeometry.millimetres(x)
+            g.monitors[i].geometry.y = KVMGeometry.millimetres(y)
+        } }
     }
     func rotate(_ rotation: KVMRotation) {
         guard let id = selected else { return }
@@ -299,7 +312,10 @@ final class DeskModel: ObservableObject {
     }
     func resize(width: Double, height: Double) {
         guard let id = selected else { return }
-        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].geometry.width = width; g.monitors[i].geometry.height = height } }
+        edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) {
+            g.monitors[i].geometry.width = KVMGeometry.millimetres(width)
+            g.monitors[i].geometry.height = KVMGeometry.millimetres(height)
+        } }
     }
     func assign(_ connection: UUID?, preset index: Int? = nil, monitor explicitMonitor: UUID? = nil) {
         guard let monitor = explicitMonitor ?? selected else { return }

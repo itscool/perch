@@ -90,6 +90,10 @@ enum DeskDeviceMessage: Codable {
     case inspectionReply(UUID, DeskDetectedDisplay?, String?)
     case identify(String, String)
     case identification(String, String, UUID, Bool)
+    /// A monitor identification session is shared by the whole desk. The
+    /// monitor ID, rather than the currently selected input, is the stable
+    /// identity so any paired Mac can stop it.
+    case monitorIdentification(UUID, String, UUID, Bool)
     /// Identify every display currently visible to a peer. This lets a user
     /// match a new cable before its host display identity is saved locally.
     case identifyAll(String, UUID, Bool)
@@ -228,7 +232,11 @@ final class DeskRuntime: ObservableObject {
             guard let first = ratios.first, ratios.allSatisfy({ abs($0-first) < 0.02 }) else { return nil }
             return first
         }
-        node.peersChanged = { [weak self] in self?.refreshAllDisplays(); self?.updateModel() }
+        node.peersChanged = { [weak self] in
+            self?.refreshAllDisplays()
+            self?.syncActiveMonitorIdentifications()
+            self?.updateModel()
+        }
         inputAdapter.presetShortcut = { [weak self] in self?.activatePreset($0) }
         updateModel()
     }
@@ -576,6 +584,8 @@ final class DeskRuntime: ObservableObject {
             updateModel()
         case .identify(let display, let name): showIdentification(display, name: String(name.prefix(100)), token: UUID(), showing: true)
         case .identification(let display, let name, let token, let showing): showIdentification(display, name: String(name.prefix(100)), token: token, showing: showing)
+        case .monitorIdentification(let monitor, let name, let token, let showing):
+            applyMonitorIdentification(monitor, name: String(name.prefix(100)), token: token, showing: showing, broadcast: false)
         case .identifyAll(let name, let token, let showing): showAllIdentifications(name: String(name.prefix(100)), token: token, showing: showing)
         }
     }
@@ -646,35 +656,83 @@ final class DeskRuntime: ObservableObject {
 
     func identify(_ monitor: UUID?) {
         guard let monitor, let screen = node.group.monitors.first(where: { $0.id == monitor }) else { return }
-        var targets = node.group.connections.filter { $0.monitor == monitor }.compactMap { c -> (UUID, String)? in
-            guard let peer = c.computer, let display = c.localDisplay else { return nil }; return (peer, display)
-        }
-        // A monitor can have a control computer even while none of its input
-        // ports is mapped to that computer. Identification follows the control
-        // route too, so a screen owned by another Perch can still be identified
-        // from this Desk view.
-        if let control = screen.control, !targets.contains(where: { $0.0 == control.computer && $0.1 == control.localDisplay }) {
-            targets.append((control.computer, control.localDisplay))
-        }
-        // A newly added cable has no matched localDisplay yet. Identify every
-        // display on its host so the user can establish that match; do not
-        // make matching depend on having already matched the display.
-        if targets.isEmpty, let control = screen.control {
-            identifyComputer(control.computer, name: screen.name)
-            return
-        }
-        if targets.isEmpty {
+        let targets = monitorIdentificationTargets(monitor)
+        // A newly added cable can have no matched localDisplay yet. The
+        // shared event still goes to every Perch; the control computer will
+        // identify all of its visible displays so the user can establish the
+        // match. Do not make stop/cancel depend on the current input owner.
+        if targets.isEmpty && screen.control == nil {
             model.problem = "Choose this monitor’s control computer in Hardware before identifying it."
             return
         }
-        let missing = targets.contains { peer, display in
-            peer != node.localID && displays[peer]?.contains(where: { $0.id == display }) != true
+        let key = monitorIdentificationKey(monitor)
+        let change = identifications.toggle(key)
+        applyMonitorIdentification(monitor, name: screen.name, token: change.token, showing: change.showing, broadcast: true)
+    }
+
+    private func monitorIdentificationKey(_ monitor: UUID) -> String { "monitor:" + monitor.uuidString }
+
+    /// Return every saved display route for this physical monitor. This is
+    /// deliberately independent of the input currently selected on the
+    /// monitor: identification is a group operation, not an input-owner
+    /// operation.
+    private func monitorIdentificationTargets(_ monitor: UUID) -> [(UUID, String)] {
+        guard let screen = node.group.monitors.first(where: { $0.id == monitor }) else { return [] }
+        var targets = node.group.connections.filter { $0.monitor == monitor }.compactMap { connection -> (UUID, String)? in
+            guard let computer = connection.computer, let display = connection.localDisplay else { return nil }
+            return (computer, display)
         }
-        if missing, let control = screen.control {
-            identifyComputer(control.computer, name: screen.name)
-            return
+        if let control = screen.control, !targets.contains(where: { $0.0 == control.computer && $0.1 == control.localDisplay }) {
+            targets.append((control.computer, control.localDisplay))
         }
-        toggleIdentification(key: "monitor:" + monitor.uuidString, targets: targets, name: screen.name)
+        return targets
+    }
+
+    /// Render a monitor identification locally and propagate the same token
+    /// to every connected Perch. A peer receiving the event only renders it;
+    /// it never rebroadcasts, so a stop from any Mac is one shared stop.
+    private func applyMonitorIdentification(_ monitor: UUID, name: String, token: UUID, showing: Bool, broadcast: Bool) {
+        let key = monitorIdentificationKey(monitor)
+        identifications.apply(key, token: token, showing: showing)
+        let targets = monitorIdentificationTargets(monitor)
+        for (computer, display) in targets where computer == node.localID {
+            showIdentification(display, name: name, token: token, showing: showing)
+        }
+        // If the control path is known but its cable has not been matched,
+        // preserve the existing "identify all displays" behavior on that Mac.
+        if let control = node.group.monitors.first(where: { $0.id == monitor })?.control,
+           control.computer == node.localID, targets.isEmpty {
+            showAllIdentifications(name: name, token: token, showing: showing)
+        }
+        if !showing {
+            // A stop may arrive after a cable was edited. Close every window
+            // carrying this shared token, even if its route is no longer in
+            // the current graph or the monitor has a new current input.
+            let displaysToHide = identifyWindows.compactMap { display, current in current.0 == token ? display : nil }
+            for display in displaysToHide { showIdentification(display, name: name, token: token, showing: false) }
+        }
+        if broadcast, let bytes = try? JSONEncoder().encode(DeskDeviceMessage.monitorIdentification(monitor, name, token, showing)) {
+            for peer in node.online where peer != node.localID { _ = node.sendApplication(bytes, peer: peer) }
+        }
+        model.objectWillChange.send(); objectWillChange.send()
+        if showing {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self, self.identifications.expire(key, token: token) else { return }
+                self.applyMonitorIdentification(monitor, name: name, token: token, showing: false, broadcast: true)
+            }
+        }
+    }
+
+    /// Re-send active monitor sessions to a peer after it reconnects. This
+    /// keeps the settings UI and the stop action in sync even when a Mac was
+    /// offline when the original start event was sent.
+    private func syncActiveMonitorIdentifications() {
+        for (key, token) in identifications.active {
+            guard key.hasPrefix("monitor:"), let monitor = UUID(uuidString: String(key.dropFirst("monitor:".count))),
+                  let screen = node.group.monitors.first(where: { $0.id == monitor }),
+                  let bytes = try? JSONEncoder().encode(DeskDeviceMessage.monitorIdentification(monitor, screen.name, token, true)) else { continue }
+            for peer in node.online where peer != node.localID { _ = node.sendApplication(bytes, peer: peer) }
+        }
     }
     func identifyDetected(_ display: String, computer: UUID, name: String) {
         if let issue = peerActionReadiness(computer, action: "identify") {
@@ -733,34 +791,6 @@ final class DeskRuntime: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
                 guard let self, self.identifications.expire(key, token: change.token) else { return }
                 _ = self.sendIdentifyAll(computer, name: label, token: change.token, showing: false)
-                self.model.objectWillChange.send(); self.objectWillChange.send()
-            }
-        }
-    }
-    private func toggleIdentification(key: String, targets: [(UUID, String)], name: String) {
-        let change = identifications.toggle(key)
-        for (peer, display) in targets {
-            if let issue = peerActionReadiness(peer, action: "Identify") {
-                _ = identifications.expire(key, token: change.token); model.problem = issue; return
-            }
-            if change.showing, peer == node.localID,
-               NSScreen.screens.contains(where: { displayID(for: $0) == display }) == false {
-                _ = identifications.expire(key, token: change.token)
-                model.problem = "This display is no longer visible to this Mac. Refresh connected screens, then identify it again."
-                return
-            }
-            guard sendIdentification(display, peer: peer, name: name, token: change.token, showing: change.showing) else {
-                _ = identifications.expire(key, token: change.token)
-                let computerName = node.group.computers.first { $0.id == peer }?.name ?? "that Mac"
-                model.problem = "Perch could not reach \(computerName). Reconnect it, then try Identify again."
-                return
-            }
-        }
-        model.objectWillChange.send(); objectWillChange.send()
-        if change.showing {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-                guard let self, self.identifications.expire(key, token: change.token) else { return }
-                for (peer, display) in targets { self.sendIdentification(display, peer: peer, name: name, token: change.token, showing: false) }
                 self.model.objectWillChange.send(); self.objectWillChange.send()
             }
         }

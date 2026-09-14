@@ -47,8 +47,14 @@ struct KVMGeometry: Codable, Equatable {
     var bottom: Double { y + displayedHeight }
     func contains(_ p: KVMPoint) -> Bool { p.x >= x && p.x <= right && p.y >= y && p.y <= bottom }
     func overlaps(_ other: Self) -> Bool {
-        min(right, other.right) > max(x, other.x) && min(bottom, other.bottom) > max(y, other.y)
+        // Geometry is stored in millimetres but edited through scaled pixel
+        // drags and decimal fields. Ignore sub-tenth-millimetre noise so a
+        // screen placed exactly beside another one is not rejected as an
+        // overlap because of a binary floating-point remainder.
+        let epsilon = 0.1
+        return (min(right, other.right) - max(x, other.x) > epsilon) && (min(bottom, other.bottom) - max(y, other.y) > epsilon)
     }
+    static func millimetres(_ value: Double) -> Double { (value * 10).rounded() / 10 }
     func nativePoint(_ p: KVMPoint, pixelWidth: Int, pixelHeight: Int) throws -> KVMPoint {
         guard [x, y, width, height, p.x, p.y].allSatisfy(\.isFinite), width > 0, height > 0,
               contains(p), pixelWidth > 0, pixelHeight > 0 else { throw KVMError("The pointer is outside this screen.") }
@@ -226,6 +232,7 @@ struct KVMDisplayObservation: Equatable {
 }
 
 enum KVMEdge {
+    private static let alignmentToleranceMM = 0.1
     enum Crossing: Equatable { case blocked, native, remote(monitor: UUID, computer: UUID, entry: KVMPoint) }
     static func crossing(group: KVMGroup, preset: KVMPreset, source: UUID, from: KVMPoint, to: KVMPoint) -> Crossing {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),
@@ -246,16 +253,21 @@ enum KVMEdge {
             guard other.id != source else { return false }
             let h = other.geometry
             switch exit.1 {
-            case 0: return abs(h.x - g.right) < 0.001 && p.y > h.y && p.y < h.bottom
-            case 1: return abs(h.right - g.x) < 0.001 && p.y > h.y && p.y < h.bottom
-            case 2: return abs(h.y - g.bottom) < 0.001 && p.x > h.x && p.x < h.right
-            default: return abs(h.bottom - g.y) < 0.001 && p.x > h.x && p.x < h.right
+            case 0: return abs(h.x - g.right) <= alignmentToleranceMM && p.y >= h.y && p.y <= h.bottom
+            case 1: return abs(h.right - g.x) <= alignmentToleranceMM && p.y >= h.y && p.y <= h.bottom
+            case 2: return abs(h.y - g.bottom) <= alignmentToleranceMM && p.x >= h.x && p.x <= h.right
+            default: return abs(h.bottom - g.y) <= alignmentToleranceMM && p.x >= h.x && p.x <= h.right
             }
         }
         guard targets.count == 1, let target = targets.first,
               let a = preset.assignments.first(where: { $0.monitor == target.id }),
               let targetConnection = group.connections.first(where: { $0.id == a.connection }), targetConnection.localDisplay != nil,
               let computer = targetConnection.computer else { return .blocked }
-        return computer == owner ? .native : .remote(monitor: target.id, computer: computer, entry: p)
+        // Clamp the crossing point into the destination’s edge when the two
+        // saved millimetre rectangles differ by rounding noise. This avoids a
+        // focus handoff immediately bouncing back at a sub-pixel gap.
+        let entry = KVMPoint(x: min(target.geometry.right, max(target.geometry.x, p.x)),
+                             y: min(target.geometry.bottom, max(target.geometry.y, p.y)))
+        return computer == owner ? .native : .remote(monitor: target.id, computer: computer, entry: entry)
     }
 }

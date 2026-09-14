@@ -54,8 +54,10 @@ struct DeskView: View {
                                     .background((model.presetIndex == index ? Color.teal : Color.secondary).opacity(0.11), in: Capsule())
                                     .fixedSize()
                                     .help(model.presetIndex == index ? "This is the preset whose connections are shown below." : "Select this card to edit its connections.")
-                                Text("\(preset.assignments.count) screens")
-                                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                if !preset.assignments.isEmpty {
+                                    Text("\(preset.assignments.count) screens")
+                                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                }
                                 if model.active?.id == preset.id {
                                     Text(model.changedSinceUse ? "Active now · edited" : "Active now")
                                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
@@ -89,6 +91,8 @@ struct DeskView: View {
                     DeskCanvas(model: model,
                         remove: { id in model.selected = id; sheet = "removeScreen" },
                         dimensions: { id in model.selected = id; sheet = "dimensions" },
+                        identify: { id in model.selected = id; model.identify() },
+                        hardware: { id in model.selected = id; sheet = "monitorSetup" },
                         cable: beginCable,
                         editPort: { id in draftConnection = id; sheet = "port" },
                         addPort: { id in model.selected = id; draftScreen = id; sheet = "connections" },
@@ -112,11 +116,7 @@ struct DeskView: View {
         InspectorScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let monitor = model.selectedMonitor {
-                    HStack {
-                        Text(monitor.name).font(.headline)
-                        Spacer(minLength: 4)
-                        Button((model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "Stop identifying" : "Identify") { model.identify() }
-                    }
+                    Text(monitor.name).font(.headline)
                     if let live = model.live,
                        model.group.presets.indices.contains(model.presetIndex),
                        let assignment = model.group.presets[model.presetIndex].assignments.first(where: { $0.monitor == monitor.id }),
@@ -130,10 +130,6 @@ struct DeskView: View {
                             .help(controlIssue ?? "Start keyboard and mouse control on this screen.")
                         if let controlIssue { Text(controlIssue).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                     }
-                    HStack(spacing: 10) {
-                        if model.live != nil { Button("Hardware…") { sheet = "monitorSetup" }.frame(maxWidth: .infinity) }
-                        Button("Physical size & position…") { sheet = "dimensions" }.frame(maxWidth: .infinity)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(model.group.connections.filter { $0.monitor == monitor.id && $0.computer != nil && $0.localDisplay == nil }) { pending in
                         VStack(alignment: .leading, spacing: 5) {
                             Text(model.connectionLabel(pending)).font(.callout)
@@ -442,6 +438,8 @@ struct DeskCanvas: View {
     @ObservedObject var model: DeskModel
     let remove: (UUID) -> Void
     let dimensions: (UUID) -> Void
+    let identify: (UUID) -> Void
+    let hardware: (UUID) -> Void
     let cable: (UUID, UUID) -> Void
     let editPort: (UUID) -> Void
     let addPort: (UUID) -> Void
@@ -569,7 +567,7 @@ struct DeskCanvas: View {
     }
     private func rectangle(_ g: KVMGeometry) -> CGRect { CGRect(x: g.x, y: g.y, width: g.displayedWidth, height: g.displayedHeight) }
     private func isScreenControl(_ point: CGPoint, monitor: UUID) -> Bool {
-        var ids = ["rename:", "rotate:", "remove:", "addPort:"].map { $0 + monitor.uuidString }
+        var ids = ["rename:", "identify:", "hardware:", "dimensions:", "rotate:", "remove:", "addPort:"].map { $0 + monitor.uuidString }
         for port in model.group.connections where port.monitor == monitor {
             ids += ["port:" + port.id.uuidString]
         }
@@ -621,6 +619,18 @@ struct DeskCanvas: View {
             }
             if !compact {
                 HStack(spacing: 2) {
+                    Button { identify(monitor.id) } label: { Image(systemName: (model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "stop.circle" : "viewfinder") }
+                        .accessibilityLabel((model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "Stop identifying (monitor.name)" : "Identify (monitor.name)")
+                        .help((model.live?.identifyingMonitor?(monitor.id) ?? (model.identifying == monitor.id)) ? "Stop identifying this screen on every Perch in the desk." : "Identify this screen on every Perch in the desk.")
+                        .deskControl("identify:" + monitor.id.uuidString)
+                    if model.live != nil {
+                        Button { hardware(monitor.id) } label: { Image(systemName: "gearshape") }
+                            .accessibilityLabel("Hardware for " + monitor.name).help("Choose this screen’s hardware and control path")
+                            .deskControl("hardware:" + monitor.id.uuidString)
+                    }
+                    Button { dimensions(monitor.id) } label: { Image(systemName: "ruler") }
+                        .accessibilityLabel("Physical size for " + monitor.name).help("Edit physical size and position in millimetres")
+                        .deskControl("dimensions:" + monitor.id.uuidString)
                     Button { model.rotateScreen(monitor.id) } label: { Image(systemName: "rotate.right") }
                         .accessibilityLabel("Rotate \(monitor.name)").help("Rotate clockwise")
                         .deskControl("rotate:" + monitor.id.uuidString)
@@ -637,7 +647,11 @@ struct DeskCanvas: View {
                             .buttonStyle(DeskCanvasButtonStyle()).help("Add a monitor port")
                             .deskControl("addPort:" + monitor.id.uuidString).padding(.bottom, 3)
                     }.padding(.horizontal, 7)
-                }.scrollIndicators(.hidden).frame(height: portLabelHeight + 35)
+                        // Keep the socket row pinned to the physical screen
+                        // edge. ScrollView otherwise centers its content when
+                        // the labels are shorter than the available row.
+                        .frame(minHeight: portLabelHeight + 35, alignment: .bottom)
+                }.scrollIndicators(.hidden).frame(height: portLabelHeight + 35, alignment: .bottom)
             }.frame(width: width, height: height)
         }.frame(width: width, height: height)
             .contentShape(Rectangle())
@@ -679,9 +693,8 @@ struct DeskCanvas: View {
     }
     private func portSocket(_ port: KVMConnection, labelHeight: CGFloat) -> some View {
         VStack(spacing: 3) {
-            Text(port.inputName).font(.system(size: 10, weight: .medium)).lineLimit(1)
-                .frame(width: 14, height: labelHeight, alignment: .leading)
-                .rotationEffect(.degrees(-90)).frame(width: 14, height: labelHeight)
+            Text(port.inputName).font(.system(size: 10, weight: .medium)).lineLimit(1).fixedSize()
+                .rotationEffect(.degrees(-90)).frame(width: labelHeight, height: 14)
                 .foregroundStyle(.secondary)
             DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
                            label: model.connectionLabel(port), controller: wire,

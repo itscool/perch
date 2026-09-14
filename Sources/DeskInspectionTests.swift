@@ -30,6 +30,10 @@ func runDeskInspectionTests() throws {
     let bytes = try JSONEncoder().encode(DeskDeviceMessage.displays([detected]))
     guard case .displays(let remote) = try JSONDecoder().decode(DeskDeviceMessage.self, from: bytes) else { throw KVMError("Missing peer display metadata") }
     try check(remote.first?.profile(choice: "")?.name == suggested?.name, "Remote setup lost firmware profile evidence")
+    let monitorID = UUID(), session = UUID()
+    let identificationBytes = try JSONEncoder().encode(DeskDeviceMessage.monitorIdentification(monitorID, "Shared screen", session, true))
+    guard case .monitorIdentification(let receivedMonitor, let receivedName, let receivedSession, let showing) = try JSONDecoder().decode(DeskDeviceMessage.self, from: identificationBytes) else { throw KVMError("Shared monitor identification event could not be decoded") }
+    try check(receivedMonitor == monitorID && receivedName == "Shared screen" && receivedSession == session && showing, "Shared monitor identification lost its monitor or session identity")
     var extended = generic; extended.applyInspection(.init(current: nil, capabilities: nil, lgIdentity: 0xc000, lgExtendedIdentity: 1))
     try check(extended.profile(choice: "")?.name == "LG 27UP850-W", "Extended firmware ID not used by Desk")
     for identity in [nil, 0x0124, 0xffff] as [UInt16?] {

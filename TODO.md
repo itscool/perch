@@ -55,7 +55,11 @@ The earlier maintenance/keyboard/Finder changes are committed and pushed at
   here, current-input readback is zero, so Perch correctly leaves the local
   display attached to macOS; the UI now says that explicitly. Complete the
   physical readback/control investigation before claiming automatic desktop
-  removal works on these screens.
+  removal works on these screens. We can imitate BetterDisplay's LG alternate
+  addressing without adding BetterDisplay as a dependency, but unknown readback
+  must remain fail-closed: keep the desktop attached and explain the unverified
+  result. Only stable, side-effect-free readback for an exact model/firmware
+  profile may authorize hiding a display.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now

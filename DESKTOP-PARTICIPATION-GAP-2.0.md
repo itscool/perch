@@ -111,3 +111,18 @@ physical unplug/replug and independent guardian relaunch. The live LG monitors
 return zero for standard input readback and cannot yet authorize automatic desktop
 removal. This implementation deliberately keeps those screens connected while
 input is unconfirmed. The K-W control/readback investigation remains open.
+
+### Failure preference for LG readback
+
+Perch may implement the BetterDisplay-style LG alternate addressing internally;
+it must not depend on BetterDisplay being installed. That technique is a
+model-specific control/readback experiment, not proof that a sent command took
+effect. A command acknowledgement, the selected preset, a peer being online,
+or a stale/unknown read must never authorize hiding a local desktop display.
+When a bounded readback still cannot identify the active input, Perch fails
+closed: it records the switch as unverified, explains which screen could not be
+confirmed, and leaves that screen attached to the Mac desktop. This is the
+preferred recovery because an unverified switch that hides the desktop is more
+disruptive than a switch that did not occur while the desktop remains visible.
+Only an exact model/firmware profile with stable, side-effect-free readback may
+opt into automatic desktop removal, after physical validation.

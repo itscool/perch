@@ -378,6 +378,7 @@ struct DeskCanvas: View {
     let addComputer: () -> Void
     var addScreen: () -> Void = {}
     @State private var renamingMonitor: UUID?
+    @State private var hoveredScreen: UUID?
     @State private var drag: DeskScreenDrag?
     @State private var controlFrames: [String: CGRect] = [:]
     @StateObject private var wire = DeskWireController()
@@ -519,8 +520,8 @@ struct DeskCanvas: View {
                     Spacer(minLength: 0)
                 }.padding(.horizontal, 9).padding(.top, 9)
                     .frame(width: width, height: height, alignment: .topLeading).clipped()
-                    .background(RoundedRectangle(cornerRadius: 9).fill(model.selected == monitor.id ? Color.teal.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
-                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selected == monitor.id ? Color.teal : Color.gray.opacity(0.65), lineWidth: model.selected == monitor.id ? 2.5 : 1.5))
+                    .background(RoundedRectangle(cornerRadius: 9).fill(model.selected == monitor.id ? Color.teal.opacity(0.14) : (hoveredScreen == monitor.id ? Color.teal.opacity(0.06) : Color(nsColor: .controlBackgroundColor))))
+                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selected == monitor.id ? Color.teal : (hoveredScreen == monitor.id ? Color.teal.opacity(0.7) : Color.gray.opacity(0.65)), lineWidth: model.selected == monitor.id ? 2.5 : (hoveredScreen == monitor.id ? 2 : 1.5)))
                 .allowsHitTesting(false)
                 .accessibilityLabel("Screen \(index + 1), \(monitor.name), \(model.owner(monitor.id)), \(g.rotation.rawValue) degrees")
             if !compact && model.identifying != monitor.id {
@@ -569,6 +570,7 @@ struct DeskCanvas: View {
             }.frame(width: width, height: height)
         }.frame(width: width, height: height)
             .contentShape(Rectangle())
+                .onHover { hovering in hoveredScreen = hovering ? monitor.id : (hoveredScreen == monitor.id ? nil : hoveredScreen) }
                 .help("Drag to arrange this physical screen. Guides preview edge and center alignment. Hold Shift to bypass snapping; gaps are allowed. Right-click for exact size in millimetres.")
                 .contextMenu {
                     Button("Position & physical size…") { dimensions(monitor.id) }
@@ -659,8 +661,10 @@ struct DeskCanvas: View {
         let routes = model.preset.assignments.filter { a in model.group.connections.contains { $0.id == a.connection && $0.computer == computer.id } }
         let focused = routes.contains { $0.monitor == model.selected }
         return VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
-                Button(computer.name) { computerDetails(computer.id) }.buttonStyle(DeskCanvasButtonStyle()).font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 7) {
+                Image(systemName: "desktopcomputer").font(.system(size: 12, weight: .semibold)).foregroundStyle(.blue)
+                Text(computer.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 2)
                 Button { removeComputer(computer.id) } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(DeskCanvasButtonStyle()).accessibilityLabel("Remove \(computer.name)")
                     .disabled(model.live?.removalIssue?(computer.id) != nil || model.group.computers.count == 1)
@@ -668,8 +672,8 @@ struct DeskCanvas: View {
             }
             Text(model.online.contains(computer.id) ? "Online" : "Offline").font(.caption).foregroundStyle(.secondary)
         }.padding(.horizontal, 10).padding(.bottom, 8).padding(.top, 19)
-            .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.teal.opacity(0.18) : Color(nsColor: .controlBackgroundColor)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.teal, lineWidth: focused ? 2.5 : 1))
+            .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.blue.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.blue.opacity(0.75), lineWidth: focused ? 2.5 : 1))
             .overlay(alignment: .topLeading) {
                 DeskWireSocket(id: "computer:" + computer.id.uuidString, connected: true,
                                label: computer.name + " cable connector", controller: wire,
@@ -686,7 +690,10 @@ struct DeskCanvas: View {
                     .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["computer:" + computer.id.uuidString: $0] }
                     .padding(.leading, 10)
             }
-            .help("Draw a wire from the connector to the monitor port its cable plugs into.")
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .onTapGesture { computerDetails(computer.id) }
+            .accessibilityAction(named: "Edit computer") { computerDetails(computer.id) }
+            .help("Click this computer to edit its details. Drag its connector to a monitor port to wire a cable.")
     }
 }
 

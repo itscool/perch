@@ -129,8 +129,12 @@ final class DeskRuntime: ObservableObject {
     private(set) var identifications = DeskIdentificationState()
     private var inputAfterSwitch: (UUID, UUID)?
     init(node: KVMDeskNode) {
-        self.node = node; switching = KVMMonitorSwitch(node: node)
-        input = KVMInputSession(node: node); inputAdapter = DeskInputAdapter(session: input)
+        self.node = node
+        let switching = KVMMonitorSwitch(node: node)
+        self.switching = switching
+        let input = KVMInputSession(node: node)
+        input.optimisticMonitorInput = { [weak switching] monitor in switching?.optimisticInputs[monitor] }
+        self.input = input; inputAdapter = DeskInputAdapter(session: input)
         model = DeskModel(store: node.storage.deletingLastPathComponent().appendingPathComponent("unused-preview.json"))
         model.group = node.group; model.selected = node.group.monitors.first?.id
         model.live = DeskLiveActions(edit: { [weak node] in try node?.edit($0) }, activate: { [weak self] in self?.activatePreset($0) }, readiness: { [weak self] in self?.switching.readiness($0) },
@@ -225,7 +229,9 @@ final class DeskRuntime: ObservableObject {
     private func updateModel() {
         if let (preset, monitor) = inputAfterSwitch, !switching.busy {
             inputAfterSwitch = nil
-            if switching.activePreset == preset { input.resumeAfterPreset(preset, monitor: monitor) }
+            if switching.activePreset == preset || switching.optimisticInputs[monitor] != nil {
+                input.resumeAfterPreset(preset, monitor: monitor)
+            }
         }
         registerShortcuts()
         model.group = node.group; model.online = node.online
@@ -515,7 +521,7 @@ final class DeskRuntime: ObservableObject {
         group.connections[i].computer = computer; group.connections[i].localDisplay = display
         try node.edit(group); model.selected = monitor; node.problem = nil
     }
-    private lazy var desktopHandoff = DeskDesktopHandoff(local: node.localID, group: { [unowned self] in self.node.group }, inputs: { [weak self] in self?.switching.desktopInputs ?? [:] }, online: { [weak self] in self?.node.online ?? [] }, suspended: { [weak self] in self?.node.canEdit != true })
+    private lazy var desktopHandoff = DeskDesktopHandoff(local: node.localID, group: { [unowned self] in self.node.group }, inputs: { [weak self] in self?.switching.desktopInputs ?? [:] }, optimisticInputs: { [weak self] in self?.switching.optimisticInputs ?? [:] }, online: { [weak self] in self?.node.online ?? [] }, suspended: { [weak self] in self?.node.canEdit != true })
     private func execute(_ route: KVMMonitorRoute, valid: @escaping () -> Bool, completion: @escaping (KVMMonitorOutcome.State, String) -> Void) {
         guard desktopHandoff.prepareCommand(route.control.localDisplay) else { completion(.failed, desktopHandoff.problem ?? "The display could not reconnect."); return }
         queue(route.control.localDisplay).async {
@@ -656,6 +662,7 @@ final class DeskCoordinator: ObservableObject {
             let identity = try KVMPeerIdentity.load()
             let node = try KVMDeskNode(identity: identity, name: Host.current().localizedName ?? "This Mac", storage: Self.storage)
             let runtime = DeskRuntime(node: node); try runtime.start(); self.runtime = runtime; problem = nil
+            if DeskInputAdapter.sharingEnabledByDefault { runtime.inputAdapter.enable(true) }
         } catch { problem = error.localizedDescription }
     }
 }

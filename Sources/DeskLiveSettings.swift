@@ -415,7 +415,7 @@ struct DeskSettingsRoot: View {
             VStack(alignment: .leading, spacing: 18) {
                 Label("One desk, all your screens", systemImage: "display.2").font(.title.bold())
                 Text("Group your Perch computers, arrange up to 16 physical screens, and switch their monitor inputs with three shared presets.")
-                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: turn on Share on this Mac in Desk on each computer when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
+                Text("Set up monitor presets first. Keyboard and mouse sharing is optional: turn on Share on this Mac from the Perch menu on each computer when you are ready. Secure password entry always needs a local keyboard.").foregroundStyle(.secondary)
                 Button("Set up this desk") { coordinator.enable() }.buttonStyle(.borderedProminent)
                 if let problem = coordinator.problem { Text(problem).foregroundStyle(.orange); Button("Try opening Desk again") { coordinator.enable() } }
             }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -431,6 +431,33 @@ extension AppDelegate {
 }
 
 extension AppDelegate {
+    func refreshDeskSharingMenu() {
+        guard let item = shareInputItem else { return }
+        guard let runtime = DeskCoordinator.shared.runtime else {
+            item.state = .off
+            item.action = #selector(deskSettings)
+            label(item, "Share on this Mac", hint: "Set up Desk")
+            item.menuHelp = "Set up Desk before enabling keyboard and mouse sharing."
+            return
+        }
+        item.action = #selector(toggleDeskSharing)
+        item.state = runtime.input.enabled ? .on : .off
+        let problem = runtime.inputAdapter.accessProblem ?? runtime.input.problem
+        let hint = problem != nil ? "Needs attention" : runtime.input.enabled ? "On" : "Off"
+        label(item, "Share on this Mac", hint: hint, hintColor: problem == nil ? .secondaryLabelColor : StatusColors.warning)
+        item.menuHelp = problem ?? "Allow approved Desk computers to send keyboard and mouse input to this Mac. Control starts only when you choose a screen in Desk."
+    }
+    @objc func toggleDeskSharing() {
+        guard let runtime = DeskCoordinator.shared.runtime else {
+            withMenuClosed { [weak self] in self?.deskSettings() }
+            return
+        }
+        let enabled = !runtime.input.enabled
+        withMenuClosed { [weak self, weak runtime] in
+            runtime?.inputAdapter.enable(enabled)
+            self?.refreshDeskSharingMenu()
+        }
+    }
     func refreshDeskMenu() {
         let runtime = DeskCoordinator.shared.runtime
         runtime?.registerShortcuts()

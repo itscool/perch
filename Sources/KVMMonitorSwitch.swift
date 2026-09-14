@@ -78,6 +78,9 @@ final class KVMMonitorSwitch: ObservableObject {
     @Published private(set) var busy = false
     @Published private(set) var activePreset: UUID?
     @Published private(set) var activeGroup: KVMGroup?
+    /// Accepted monitor routes remain usable for KVM and desktop reconciliation
+    /// when readback is unavailable. A contradictory fresh read clears them.
+    @Published private(set) var optimisticInputs: [UUID: UInt16] = [:]
     @Published private(set) var problem: String?
     let node: KVMDeskNode
     var execute: ((KVMMonitorRoute, @escaping () -> Bool, @escaping (KVMMonitorOutcome.State, String) -> Void) -> Void)?
@@ -167,6 +170,7 @@ final class KVMMonitorSwitch: ObservableObject {
     }
     private func begin(_ request: KVMMonitorRequest) {
         self.request = request; results = [:]; prepared = []; verification = [:]; verifyingMonitors = []
+        for route in request.routes { optimisticInputs[route.monitor] = nil }
         required = Set(request.routes.map { $0.control.computer }); started = now; committed = false
         busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
         invalidateDesktop(request)
@@ -219,6 +223,9 @@ final class KVMMonitorSwitch: ObservableObject {
             guard revision == node.revision, node.group.monitors.contains(where: { $0.id == monitor && ($0.control?.computer == peer || node.group.connections.contains(where: { $0.monitor == monitor && $0.computer == peer })) }) else { return }
             if let input, input > 0 { observations[monitor] = Observation(input: input, peer: peer, time: now, revision: revision) }
             else if observations[monitor]?.peer == peer { observations[monitor] = nil }
+            if let input, input > 0, optimisticInputs[monitor] != nil, input != optimisticInputs[monitor] {
+                optimisticInputs[monitor] = nil
+            }
             if !busy { deriveActive() }
         case .prepare(let request):
             do {
@@ -274,10 +281,23 @@ final class KVMMonitorSwitch: ObservableObject {
             guard busy, let request, request.id == id, verification[monitor]?.contains(peer) == true,
                   let route = request.routes.first(where: { $0.monitor == monitor }) else { return }
             verification[monitor]?.remove(peer)
-            if input == route.input {
+            if results[monitor]?.state == .failed {
+                // A contradictory positive read already won; another observer
+                // must not turn this confirmed failure back into success.
+                if verification[monitor]?.isEmpty == true { verifyingMonitors.remove(monitor) }
+            } else if let input, input > 0, input == route.input {
                 results[monitor] = .init(request: id, monitor: monitor, input: route.input, state: .confirmed, detail: "A fresh monitor read on \(node.group.computers.first { $0.id == peer }?.name ?? "a paired Mac") confirms this input.")
+                optimisticInputs[monitor] = nil
                 verifyingMonitors.remove(monitor)
-            } else if verification[monitor]?.isEmpty == true { verifyingMonitors.remove(monitor) }
+            } else if let input, input > 0 {
+                // Nil/zero means this observer cannot report its input. Keep
+                // the accepted-command fallback in that case.
+                optimisticInputs[monitor] = nil
+                results[monitor] = .init(request: id, monitor: monitor, input: route.input, state: .failed, detail: "A fresh monitor read contradicted the requested input.")
+                if verification[monitor]?.isEmpty == true { verifyingMonitors.remove(monitor) }
+            } else if verification[monitor]?.isEmpty == true {
+                verifyingMonitors.remove(monitor)
+            }
             finishIfReady()
         }
     }
@@ -298,6 +318,12 @@ final class KVMMonitorSwitch: ObservableObject {
     }
     private func finishIfReady() {
         guard let request, results.count == request.routes.count, verifyingMonitors.isEmpty else { return }
+        for route in request.routes where results[route.monitor]?.state == .confirmed || results[route.monitor]?.state == .unverified {
+            // Permit KVM and desktop reconciliation for an accepted route even
+            // when its current input cannot be read. A later contradictory
+            // readback clears this fallback before desktop reconciliation.
+            optimisticInputs[route.monitor] = route.input
+        }
         busy = false
         finishedDesktopReadBarrier(request)
         for peer in required { send(.release(request.id), peer: peer) }
@@ -311,12 +337,13 @@ final class KVMMonitorSwitch: ObservableObject {
                 let input = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.inputName ?? "input \(route.input)"
                 return name + " (" + input + ")"
             }
-            problem = "Input not confirmed: " + names.joined(separator: ", ") + ". Perch left this Mac’s display connected for safety because it could not verify which input is showing. Check the monitor, then retry the affected screen."
+            problem = "Input needs attention: " + names.joined(separator: ", ") + ". Perch accepted the switch and will reconcile this Mac’s desktop optimistically while the monitor cannot report its input. Check the picture and retry only if it did not change."
         }
     }
     private func finishFailure(_ reason: String) {
         guard let request else { return }
         busy = false; problem = reason; activePreset = nil; activeGroup = nil
+        for route in request.routes { optimisticInputs[route.monitor] = nil }
         finishedDesktopReadBarrier(request)
         for route in request.routes where results[route.monitor] == nil { results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .unverified, detail: "Switch not confirmed. " + reason) }
         for peer in required { send(.release(request.id), peer: peer) }

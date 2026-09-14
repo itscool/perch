@@ -1,19 +1,22 @@
 import AppKit
 
-/// Desired monitor input is not evidence of desktop ownership. Only fresh,
-/// generation-matched monitor readback can temporarily remove desktop space.
+/// Reconciles desktop participation with the monitor input Perch accepted.
+/// Fresh readback wins when available; an accepted command is the fallback
+/// when the monitor cannot report its input. A contradictory readback removes
+/// that fallback before the next reconciliation pass.
 final class DeskDesktopHandoff {
     private let local: UUID
     private let group: () -> KVMGroup
     private let inputs: () -> [UUID: UInt16]
+    private let optimisticInputs: () -> [UUID: UInt16]
     private let online: () -> Set<UUID>
     private let suspended: () -> Bool
     private var timer: Timer?
     private var holds: Set<String> = []
     private(set) var problem: String?
     private(set) var disconnected: Set<String> = []
-    init(local: UUID, group: @escaping () -> KVMGroup, inputs: @escaping () -> [UUID: UInt16], online: @escaping () -> Set<UUID>, suspended: @escaping () -> Bool) {
-        self.local = local; self.group = group; self.inputs = inputs; self.online = online; self.suspended = suspended
+    init(local: UUID, group: @escaping () -> KVMGroup, inputs: @escaping () -> [UUID: UInt16], optimisticInputs: @escaping () -> [UUID: UInt16] = { [:] }, online: @escaping () -> Set<UUID>, suspended: @escaping () -> Bool) {
+        self.local = local; self.group = group; self.inputs = inputs; self.optimisticInputs = optimisticInputs; self.online = online; self.suspended = suspended
     }
     func start() {
         guard timer == nil else { return }
@@ -34,11 +37,18 @@ final class DeskDesktopHandoff {
         }
         return away
     }
+    static func effectiveInputs(reported: [UUID: UInt16], optimistic: [UUID: UInt16]) -> [UUID: UInt16] {
+        var result = optimistic
+        for (monitor, input) in reported { result[monitor] = input }
+        return result
+    }
     func reconcile() {
         guard !SettingsWindow.shared.testing else { return }
         let helper = HelperStatusIPC.guardianClient.value
         let ready = helper?.fresh == true && helper?.compatible == true && helper?.desktopRecoverySupported == true && !suspended()
-        let requested = Self.awayDisplays(group: group(), local: local, inputs: inputs(), online: online()).subtracting(holds)
+        // A fresh observation is stronger than the accepted-command fallback.
+        let knownInputs = Self.effectiveInputs(reported: inputs(), optimistic: optimisticInputs())
+        let requested = Self.awayDisplays(group: group(), local: local, inputs: knownInputs, online: online()).subtracting(holds)
         let wanted = ready ? requested : []
         problem = !ready && !requested.isEmpty ? "Desktop handoff needs a matching background helper. Open Setup → Background helpers." : nil
         do {

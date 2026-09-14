@@ -4,7 +4,8 @@
 with its matching helper. Developer ID 2.0.142 is built, installed on disk and
 loaded by the current process for native acceptance. The
 candidate includes the settings progress/sidebar and shared feedback fixes,
-plus an explicit explanation when monitor desktop handoff is withheld.
+plus optimistic desktop reconciliation when an accepted monitor command has no
+usable readback.
 Public/notarized remains 2.0.94. No new notarization or publication occurred.
 The lid helper updated automatically to 2.0.131/helper version 5 while closed
 on AC; saved protection resumed. Active app restart on 135 also preserved its
@@ -27,10 +28,10 @@ Hotkeys now has a content-sized emergency editor and side-by-side countdown
 shortcuts. Recognition displays pending changes under Import with an explicit
 Apply confirmation. The shared feedback widget uses neutral progress for checks
 and reserves orange for actionable failures. A monitor switch whose current
-input cannot be read now explicitly says the local Mac’s display remains
-connected for safety. Native desk acceptance still requires a physical
-two-Mac test with a monitor that reports its current input; then commit/push
-and update this checkpoint.
+input cannot be read now uses the accepted target for desktop reconciliation;
+a positive contradictory read cancels that fallback. Native desk acceptance
+still requires a physical two-Mac test; then commit/push and update this
+checkpoint.
 The earlier maintenance/keyboard/Finder changes are committed and pushed at
 860504a. The settings batch is still uncommitted.
 
@@ -50,16 +51,13 @@ The earlier maintenance/keyboard/Finder changes are committed and pushed at
 - [x] **Redundant permission Finder actions.** Exact drag/copy targets remain in
   permission setup. Finder reveal and its unused sibling handlers are removed.
 - [ ] **Cross-Mac desktop handoff with unreadable monitor inputs.** Presets,
-  port switches, retries and paired delegation converge on one safe path, and
-  tests invalidate old desktop evidence before every switch. On the LG displays
-  here, current-input readback is zero, so Perch correctly leaves the local
-  display attached to macOS; the UI now says that explicitly. Complete the
-  physical readback/control investigation before claiming automatic desktop
-  removal works on these screens. We can imitate BetterDisplay's LG alternate
-  addressing without adding BetterDisplay as a dependency, but unknown readback
-  must remain fail-closed: keep the desktop attached and explain the unverified
-  result. Only stable, side-effect-free readback for an exact model/firmware
-  profile may authorize hiding a display.
+  port switches, retries and paired delegation converge on one path, and tests
+  invalidate old desktop evidence before every switch. On the LG displays here,
+  current-input readback is zero, so an accepted command now optimistically
+  reconciles the local desktop; a positive contradictory read cancels that
+  fallback and keeps the display attached. Complete the physical two-Mac
+  handoff, recovery and readback/control investigation before closing this
+  defect. BetterDisplay remains optional and is not a runtime dependency.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now
@@ -277,17 +275,15 @@ remain open; this is not a claim that untested behavior is defect-free.
   into the next preset switch.
 
 - [ ] **Working KVM handoff with optimistic reconciliation.** Make the normal
-  path feel successful immediately after the exact profile command is accepted:
+  path feel successful immediately after the accepted monitor command:
   show the selected preset as pending, run bounded post-switch reads through
   every safe channel (standard `0x60`, exact-model LG candidates and paired Mac
   observers), and promote the handoff as soon as fresh evidence confirms it.
-  Do not depend on BetterDisplay at runtime. If no trustworthy readback arrives,
-  keep the local desktop attached, identify the affected screen and offer a
-  retry; never hide a desktop based only on a sent command, desired preset,
-  display count or stale observation. Cover delayed, missing, zero, conflicting
-  and reverted reads plus peer loss in unit and native fixtures, then validate
-  both LGs physically before enabling automatic desktop removal for their exact
-  model/firmware profiles.
+  Do not depend on BetterDisplay at runtime. If no readback arrives after an
+  accepted command, use that accepted target for KVM and desktop reconciliation;
+  a fresh read that contradicts it cancels the fallback and keeps the desktop
+  attached. Cover delayed, missing, zero, conflicting and reverted reads plus
+  peer loss in unit and native fixtures, then validate both LGs physically.
 
 - [x] **Monitor control paths, defaults and fresh profile detection.** Control
   choices are scoped to the physical monitor and show computer/port labels;
@@ -551,6 +547,14 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   Define behavior when several members travel, a member is revoked at one place,
   or both groups are reachable through routed networks/VPNs. First establish the
   multi-group model and intuitive switching flow; automatic selection is optional.
+
+- [ ] **Laptop display participation in Desk topology.** Decide how a MacBook's
+  built-in panel appears alongside shared external monitors, including mirrored
+  mode, clamshell mode, lid transitions, sleep/wake and a laptop moving between
+  Desk groups. Keep the internal panel scoped to its owning Mac unless an
+  explicit, supported handoff is defined; never infer that a closed or missing
+  panel is an available remote screen. Make its geometry and availability clear
+  in presets without letting it destabilize external monitor routing.
 
 1. [ ] **Direct process events.** Investigate a minimal native Endpoint Security
    collector replacing eslogger. Requires Apple's restricted Endpoint Security

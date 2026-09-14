@@ -4,9 +4,9 @@ September 13, 2026. Scott reports that after a monitor switches to another
 computer's input, this Mac still leaves windows on that monitor.
 
 Source review: DeskRuntime refreshes reported displays and KVMMonitorSwitch
-tracks fresh input observations. No Perch code changes macOS display enablement,
-mirroring or window positions in response. A successful input command does not
-promise that the losing Mac removes the screen from its desktop.
+tracks fresh input observations. The recovery-backed desktop handoff now changes
+display participation after a confirmed read or an accepted command with no
+usable readback. A contradictory positive read cancels the optimistic path.
 
 The likely mechanism is that the monitor continues advertising the connection
 while displaying another input. This particular monitor's electrical/OS state
@@ -28,9 +28,10 @@ was not tested, so it remains a diagnosis to verify, not an observed hardware fa
 ## Proposed implementation boundary
 
 Treat shared input, physical monitor input and participation in each Mac's desktop
-as separate states. On a confirmed handoff, reconcile which screens each Mac can
-actually use, and restore its saved configuration when screens return. Investigate
-the OS-specific disconnect backend before wiring it into normal switching.
+as separate states. On a confirmed handoff, or an accepted command with no
+usable readback, reconcile which screens each Mac can actually use, and restore
+its saved configuration when screens return. A positive contradictory read,
+refused command or failed command leaves the desktop attached.
 
 Required cases: last visible screen, closed lid, an offline peer, partial monitor
 switch, unknown input, app crash/restart, manual monitor changes and reconnection.
@@ -108,9 +109,9 @@ that keeps unaffected screens' evidence during another monitor's switch.
 
 Remaining acceptance: automatic cross-Mac handoff with both current helpers,
 physical unplug/replug and independent guardian relaunch. The live LG monitors
-return zero for standard input readback and cannot yet authorize automatic desktop
-removal. This implementation deliberately keeps those screens connected while
-input is unconfirmed. The K-W control/readback investigation remains open.
+return zero for standard input readback, so accepted LG commands currently use
+the optimistic reconciliation path until a fresh read contradicts them. The
+K-W control/readback investigation remains open.
 
 ### Failure preference for LG readback
 
@@ -119,10 +120,10 @@ it must not depend on BetterDisplay being installed. That technique is a
 model-specific control/readback experiment, not proof that a sent command took
 effect. A command acknowledgement, the selected preset, a peer being online,
 or a stale/unknown read must never authorize hiding a local desktop display.
-When a bounded readback still cannot identify the active input, Perch fails
-closed: it records the switch as unverified, explains which screen could not be
-confirmed, and leaves that screen attached to the Mac desktop. This is the
-preferred recovery because an unverified switch that hides the desktop is more
-disruptive than a switch that did not occur while the desktop remains visible.
-Only an exact model/firmware profile with stable, side-effect-free readback may
-opt into automatic desktop removal, after physical validation.
+When a command is accepted but bounded readback cannot identify the active input,
+Perch uses the accepted target optimistically for KVM and desktop reconciliation;
+this avoids leaving an invisible extended desktop under a monitor that probably
+switched. A fresh contradictory read immediately removes that fallback and the
+desktop remains attached. The guardian journal, expiry and last-usable-display
+checks still bound recovery. A command that is refused or fails never authorizes
+desktop removal.

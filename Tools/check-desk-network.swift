@@ -195,7 +195,8 @@ import Darwin
         switchesA.activate(desk.presets[0].id)
         try wait("unconfirmed inputs have named recovery") { !switchesA.busy && switchesA.problem?.contains(desk.monitors[0].name) == true }
         guard switchesA.results.values.allSatisfy({ $0.state == .unverified }), writes == 2 else { throw KVMError("Old observation falsely cleared new readback failure") }
-        guard switchesA.problem?.contains("left this Mac’s display connected for safety") == true else { throw KVMError("Unconfirmed switch did not explain why desktop handoff was withheld") }
+        guard switchesA.problem?.contains("accepted the switch") == true else { throw KVMError("Unconfirmed switch did not explain optimistic desktop reconciliation") }
+        guard switchesA.optimisticInputs == expectedInputs else { throw KVMError("Accepted unverified inputs did not authorize optimistic reconciliation") }
         guard switchesA.retryConnection(for: desk.monitors[0].id) != nil else { throw KVMError("Unchanged failed input has no retry target") }
         confirmedReadback = true; fakeTime += 1
         switchesA.refreshObservations()
@@ -208,14 +209,14 @@ import Darwin
         switchesA.activateConnection(directAssignment.connection)
         guard switchesA.desktopInputs[directAssignment.monitor] == nil else { throw KVMError("Direct port action retained pre-switch desktop authority") }
         try wait("direct port awaits fresh evidence") { !switchesA.busy }
-        guard switchesA.desktopInputs[directAssignment.monitor] == nil else { throw KVMError("Unconfirmed direct port switch removed desktop space") }
+        guard switchesA.optimisticInputs[directAssignment.monitor] == desk.connections.first(where: { $0.id == directAssignment.connection })!.inputCode else { throw KVMError("Unconfirmed direct port switch did not retain accepted target") }
         confirmedReadback = true; fakeTime += 1
         switchesA.refreshObservations()
         try wait("direct port desktop handoff evidence on both peers") {
             switchesA.desktopInputs == expectedInputs && switchesB.desktopInputs == expectedInputs
         }
         guard writes == 3 && a.group == desk && b.group == desk else { throw KVMError("Direct port reconciliation wrote again or changed presets") }
-        print("PASS: direct port switches share preset desktop evidence invalidation and fresh peer reconciliation; unknown inputs never authorize removal")
+        print("PASS: direct port switches share desktop invalidation; accepted unknown inputs reconcile optimistically and fresh reads override them")
         fakeTime += 46
         guard switchesA.desktopInputs.isEmpty else { throw KVMError("Expired observations still authorize desktop disconnection") }
         print("PASS: named per-screen failures, stale-read refusal and read-only reconciliation after recovery")

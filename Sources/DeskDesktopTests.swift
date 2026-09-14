@@ -12,6 +12,8 @@ func runDeskDesktopTests() throws {
     let monitor = group.monitors[0].id
     let own = group.connections.first { $0.monitor == monitor && $0.computer == local }!
     let other = group.connections.first { $0.monitor == monitor && $0.computer != nil && $0.computer != local }!
+    try check(DeskDesktopHandoff.effectiveInputs(reported: [:], optimistic: [monitor: other.inputCode!])[monitor] == other.inputCode!, "Accepted command was not used when readback was unavailable")
+    try check(DeskDesktopHandoff.effectiveInputs(reported: [monitor: own.inputCode!], optimistic: [monitor: other.inputCode!])[monitor] == own.inputCode!, "Fresh readback did not override accepted-command fallback")
     for connected in [Set<UUID>(), Set([local]), all] {
         for code in [nil, own.inputCode, other.inputCode, UInt16(65535)] {
             let inputs = code.map { [monitor: $0] } ?? [:]

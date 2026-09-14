@@ -43,6 +43,9 @@ final class KVMInputSession: ObservableObject {
     var emit: (KVMInputEvent, KVMInputFocus) -> Void = { _, _ in }
     var release: () -> Void = {}
     var readMonitor: ((UUID, @escaping (UInt16?) -> Void) -> Void)?
+    /// Accepted write-only monitor routes can permit a KVM lease while their
+    /// current input remains unconfirmed. A contradictory read removes it.
+    var optimisticMonitorInput: ((UUID) -> UInt16?)?
     var attachedKeyboards: () -> Set<UUID> = { [] }
     var motionScale: (KVMInputFocus) -> KVMPoint = { _ in .init(x: 1, y: 1) }
     var clock: () -> Double = { ProcessInfo.processInfo.systemUptime }
@@ -170,12 +173,12 @@ final class KVMInputSession: ObservableObject {
            let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
             return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
         }
-        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac in Desk there, then refresh status here." }
-        guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", open Desk and turn on Share on this Mac. The desk coordinator must allow sharing too." }
+        guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there, then refresh status here." }
+        guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", turn on Share on this Mac from the Perch menu. The desk coordinator must allow sharing too." }
         guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
         let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
         guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }
-        guard readyComputers.contains(owner) else { return "On " + name + ", open Desk, turn on Share on this Mac and resolve any access warning shown there. Then refresh status here." }
+        guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Then refresh status here." }
         guard let connection = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor })?.connection,
               availableConnections.contains(connection) else { return "This screen has not confirmed the selected preset’s input. Use Play in Desk to switch it, or check its connection." }
         return nil
@@ -227,9 +230,11 @@ final class KVMInputSession: ObservableObject {
             if grant?.participants.contains(peer) == true && !available { endAuthority() }
             validateAuthority()
             let connections = Set(node.group.connections.filter { connection in
-                guard let observed = visibility[connection.monitor], observed.revision == configurationRevision,
-                      now >= observed.sent, now - observed.sent < 2 else { return false }
-                return observed.input == connection.inputCode
+                if let observed = visibility[connection.monitor], observed.revision == configurationRevision,
+                   now >= observed.sent, now - observed.sent < 2 {
+                    return observed.input == connection.inputCode
+                }
+                return optimisticMonitorInput?(connection.monitor) == connection.inputCode
             }.map(\.id))
             send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer), to: peer)
         case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus):
@@ -352,11 +357,13 @@ final class KVMInputSession: ObservableObject {
         return connection.computer
     }
     private func visible(preset: UUID, monitor: UUID) -> Bool {
-        guard let observation = visibility[monitor], observation.revision == configurationRevision,
-              clock() >= observation.sent, clock() - observation.sent < 2,
-              let route = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
+        guard let route = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
               let input = node.group.connections.first(where: { $0.id == route.connection })?.inputCode else { return false }
-        return observation.input == input
+        if let observation = visibility[monitor], observation.revision == configurationRevision,
+           clock() >= observation.sent, clock() - observation.sent < 2 {
+            return observation.input == input
+        }
+        return optimisticMonitorInput?(monitor) == input
     }
     private func prepare(_ value: KVMInputGrant) {
         endAuthority(); pending = value; pendingAt = clock()

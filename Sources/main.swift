@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var homeEndItem: NSMenuItem!
     var pageKeysItem: NSMenuItem!
     var monitorInputItem: NSMenuItem!
+    var shareInputItem: NSMenuItem!
     var deskPresetItems: [NSMenuItem] = []
     let legacyMonitorFixture: Bool
     let monitorInputs: MonitorInputController
@@ -199,7 +200,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             monitorInputItem = add("Cycle monitor input", #selector(cycleMonitorInput), help: ControlHelp.monitor)
             if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu() }
         } else {
-            monitorInputItem = add("Desk…", #selector(deskSettings), help: "Group Perch computers, arrange screens and choose monitor input presets.")
+            shareInputItem = add("Share on this Mac", #selector(toggleDeskSharing), help: "Allow approved Desk computers to send keyboard and mouse input to this Mac. Enabled by default; control starts only when you choose a screen in Desk.")
+            // Keep the legacy fixture handle pointing at the menu row while
+            // production uses the explicit sharing item.
+            monitorInputItem = shareInputItem
             for i in 0..<3 { let item = add("Preset \(i+1)", #selector(useDeskPreset(_:)), help: "Switch monitor inputs to this Desk preset. Keyboard and mouse stay on their current computer."); item.tag = i; deskPresetItems.append(item) }
             refreshDeskMenu()
         }
@@ -234,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let quit = add("Quit Perch", #selector(quit), help: ControlHelp.quit)
         quit.keyEquivalent = "q"
         label(quit, "Quit Perch", hint: "Background controls stay on")
-        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, keypadItem, homeEndItem, pageKeysItem, loginItem].compactMap({ $0 }) {
+        for item in [awakeItem, lidItem, audioItem, trackpadItem, wheelItem, swapItem, externalSwapItem, fnItem, externalFnItem, keypadItem, homeEndItem, pageKeysItem, loginItem, shareInputItem].compactMap({ $0 }) {
             item.view = MenuRowView(item: item, kind: .toggle, text: menuTitleSources[item])
         }
         (lidItem.view as? MenuRowView)?.opensAnotherInterface = { true }
@@ -337,7 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         refreshSafety()
         refreshNavigationItems()
-        if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu() }
+        if legacyMonitorFixture { refreshMonitorInputItem() } else { refreshDeskMenu(); refreshDeskSharingMenu() }
         let loginStatus = SMAppService.mainApp.status
         loginItem.state = loginStatus == .enabled ? .on : (loginStatus == .requiresApproval ? .mixed : .off)
         label(loginItem, "Start at login", hint: loginStatus == .requiresApproval ? "Needs approval" : "Menu app")
@@ -557,6 +561,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if SettingsWindow.shared.modal { return false }
         if item === replacementRestartItem { return appReplacement.state.available != nil && !RestartSettingsSnapshot.current.busy }
         if item === monitorInputItem { return legacyMonitorFixture ? monitorInputMenuEnabled : true }
+        if item === shareInputItem { return true }
         if deskPresetItems.contains(item) { return DeskCoordinator.shared.runtime.map { $0.switching.readiness($0.node.group.presets[item.tag].id) == nil } ?? false }
         if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }

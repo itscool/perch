@@ -19,10 +19,8 @@ struct DeskSharingControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Keyboard & mouse").font(.headline)
-            Toggle("Share on this Mac", isOn: Binding(get: { input.enabled }, set: { adapter.enable($0) }))
-                .help("Allow keyboard and mouse input between approved desk computers for this Perch session. Starts off after restarting Perch.")
             if !input.enabled {
-                Text("Turn on here and in Desk on each Mac you want to control. Then select a screen and start control below. Sharing turns off when Perch restarts.")
+                Text("Turn on Share on this Mac in the Perch menu on each Mac you want to control. Then select a screen and start control below.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 ForEach(node.group.computers) { computer in

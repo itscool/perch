@@ -5,6 +5,11 @@ import Combine
 /// Native boundary kept out of the portable session and its network tests.
 /// Construction does not create a tap, request access, or post an event.
 final class DeskInputAdapter: ObservableObject {
+    static let sharingEnabledKey = "desk.shareOnThisMac"
+    static var sharingEnabledByDefault: Bool {
+        guard UserDefaults.standard.object(forKey: sharingEnabledKey) != nil else { return true }
+        return UserDefaults.standard.bool(forKey: sharingEnabledKey)
+    }
     let session: KVMInputSession
     var presetShortcut: ((UUID) -> Void)?
     @Published private(set) var accessProblem: String?
@@ -60,6 +65,7 @@ final class DeskInputAdapter: ObservableObject {
     deinit { stop() }
     func enable(_ enabled: Bool) {
         guard !SettingsWindow.shared.testing else { return }
+        UserDefaults.standard.set(enabled, forKey: Self.sharingEnabledKey)
         if !enabled { stop(); return }
         attachmentObserver.start()
         tapStartFailed = false

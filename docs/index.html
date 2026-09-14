@@ -3,161 +3,90 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Perch is a native macOS menu bar app for safer AI-agent control, monitor switching, keyboard input, and lid-aware sleep.">
-  <meta name="theme-color" content="#090b12">
-  <title>Perch — stay in control of your Mac</title>
+  <meta name="description" content="Perch puts lid-aware sleep, desk switching, input controls, safety and system status in one native macOS menu bar app.">
+  <meta name="theme-color" content="#0a0c12">
+  <title>Perch — your Mac, under control</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --ink: #f7f8fb;
-      --muted: #a9afbd;
-      --quiet: #777e8d;
-      --panel: rgba(20, 24, 35, .76);
-      --line: rgba(255,255,255,.12);
-      --blue: #68a9ff;
-      --violet: #a78bfa;
-      --green: #52d69a;
-      --orange: #ffb454;
-      --shadow: 0 28px 90px rgba(0,0,0,.36);
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
-      background:
-        radial-gradient(900px 500px at 12% -8%, rgba(91, 139, 255, .28), transparent 65%),
-        radial-gradient(850px 480px at 88% 8%, rgba(170, 104, 255, .20), transparent 64%),
-        #090b12;
-    }
-    a { color: inherit; }
-    .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
-    header { padding: 26px 0 0; }
-    nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .brand { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; font-weight: 700; letter-spacing: -.02em; }
-    .mark { width: 30px; height: 30px; border-radius: 10px 10px 10px 3px; background: linear-gradient(140deg, #67b5ff, #9674ff 56%, #f07db5); box-shadow: 0 7px 24px rgba(112, 132, 255, .35); position: relative; }
-    .mark::after { content: ""; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #fff; left: 11px; top: 10px; box-shadow: 0 0 0 4px rgba(255,255,255,.16); }
-    .nav-links { display: flex; align-items: center; gap: 22px; color: var(--muted); font-size: 14px; }
-    .nav-links a { text-decoration: none; }
-    .nav-links a:hover { color: var(--ink); }
-    .nav-download { color: var(--ink) !important; border: 1px solid var(--line); padding: 7px 13px; border-radius: 999px; background: rgba(255,255,255,.06); }
-    .hero { display: grid; grid-template-columns: 1.02fr .98fr; gap: 68px; align-items: center; padding: 100px 0 106px; }
-    .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: #b9c9ff; text-transform: uppercase; letter-spacing: .13em; font-size: 11px; font-weight: 700; }
-    .eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--blue); box-shadow: 8px 0 0 var(--violet); }
-    h1 { font-size: clamp(48px, 7vw, 82px); line-height: .98; letter-spacing: -.065em; margin: 19px 0 25px; max-width: 650px; }
-    .lede { font-size: 20px; line-height: 1.5; color: var(--muted); max-width: 590px; margin: 0; }
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
-    .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 45px; padding: 0 17px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; font-weight: 650; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
-    .button:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.3); }
-    .button.primary { color: #0b0e16; border-color: transparent; background: linear-gradient(135deg, #a8d1ff, #b7a6ff); box-shadow: 0 12px 34px rgba(117, 140, 255, .25); }
-    .button.secondary { color: var(--ink); background: rgba(255,255,255,.07); }
-    .fine { color: var(--quiet); font-size: 12px; margin-top: 13px; }
-    .fine a { color: var(--muted); }
-    .window { position: relative; min-height: 430px; border: 1px solid rgba(255,255,255,.17); border-radius: 20px; background: linear-gradient(150deg, rgba(38,43,60,.88), rgba(15,17,26,.93)); box-shadow: var(--shadow); transform: rotate(1.3deg); overflow: hidden; }
-    .window::before { content: ""; position: absolute; inset: 0; background: radial-gradient(400px 220px at 45% -5%, rgba(153, 128, 255, .2), transparent 70%); pointer-events: none; }
-    .traffic { display: flex; gap: 7px; padding: 15px 17px; border-bottom: 1px solid rgba(255,255,255,.09); }
-    .traffic i { display: block; width: 8px; height: 8px; border-radius: 50%; background: #ff7d83; opacity: .85; }
-    .traffic i:nth-child(2) { background: #ffca58; } .traffic i:nth-child(3) { background: #5bdd8e; }
-    .menu { position: relative; padding: 25px 24px 23px; }
-    .menu-title { display: flex; justify-content: space-between; align-items: center; padding: 0 1px 18px; font-weight: 700; }
-    .menu-title span { color: var(--muted); font-size: 12px; font-weight: 500; }
-    .menu-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 14px; margin: 6px 0; border: 1px solid transparent; border-radius: 11px; color: #ebedf3; background: rgba(255,255,255,.045); }
-    .menu-row.active { border-color: rgba(104,169,255,.42); background: linear-gradient(90deg, rgba(79,126,222,.2), rgba(172,121,247,.1)); }
-    .menu-row small { color: var(--quiet); font-size: 11px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 13px rgba(82,214,154,.7); flex: 0 0 auto; }
-    .menu-rule { height: 1px; background: rgba(255,255,255,.1); margin: 17px 0; }
-    .menu-footer { display: flex; justify-content: space-between; color: #8991a1; font-size: 11px; }
-    section { padding: 32px 0 100px; }
-    .section-head { display: flex; justify-content: space-between; gap: 30px; align-items: end; margin-bottom: 28px; }
-    h2 { font-size: clamp(30px, 4vw, 46px); line-height: 1.06; letter-spacing: -.045em; margin: 0; }
-    .section-head p { color: var(--muted); max-width: 465px; margin: 0; }
-    .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .card { position: relative; padding: 25px; min-height: 185px; border: 1px solid var(--line); border-radius: 17px; background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)); overflow: hidden; }
-    .card::after { content: ""; position: absolute; width: 170px; height: 170px; right: -70px; bottom: -90px; border-radius: 50%; background: var(--glow, rgba(104,169,255,.17)); filter: blur(1px); }
-    .card:nth-child(2) { --glow: rgba(167,139,250,.19); } .card:nth-child(3) { --glow: rgba(82,214,154,.15); } .card:nth-child(4) { --glow: rgba(255,180,84,.14); }
-    .card-kicker { color: var(--quiet); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
-    h3 { margin: 11px 0 6px; font-size: 21px; letter-spacing: -.025em; }
-    .card p { color: var(--muted); max-width: 400px; margin: 0; }
-    .release { display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: center; padding: 30px 32px; border: 1px solid rgba(104,169,255,.28); border-radius: 18px; background: linear-gradient(100deg, rgba(65,105,192,.18), rgba(129,86,187,.11)); }
-    .release p { color: var(--muted); margin: 7px 0 0; }
-    .release-links { display: flex; gap: 10px; flex-wrap: wrap; justify-content: end; }
-    .release-links a { color: var(--ink); text-decoration: none; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.25); }
-    .install { display: grid; grid-template-columns: .8fr 1.2fr; gap: 28px; align-items: center; }
-    .terminal { border: 1px solid var(--line); border-radius: 14px; background: #07090e; padding: 18px 20px; color: #d7def0; font: 14px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
-    .terminal b { color: var(--green); font-weight: 500; } .terminal span { color: #8590a8; }
-    .requirements { color: var(--muted); margin: 0; }
-    footer { border-top: 1px solid var(--line); padding: 28px 0 42px; color: var(--quiet); font-size: 13px; }
-    footer .foot { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; } footer a { color: var(--muted); text-decoration: none; } footer a:hover { color: var(--ink); }
-    @media (max-width: 850px) { .hero { grid-template-columns: 1fr; gap: 48px; padding-top: 76px; } .window { max-width: 650px; margin: auto; width: 100%; } .section-head, .install { grid-template-columns: 1fr; display: grid; align-items: start; } .release { grid-template-columns: 1fr; } .release-links { justify-content: start; } }
-    @media (max-width: 610px) { .wrap { width: min(100% - 28px, 1120px); } .nav-links a:not(.nav-download) { display: none; } h1 { font-size: 54px; } .features { grid-template-columns: 1fr; } .window { min-height: 375px; } .menu { padding: 20px 16px; } }
-    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .button { transition: none; } }
+    :root { color-scheme: dark; --ink:#f6f7fb; --muted:#aeb4c1; --quiet:#7e8695; --line:rgba(255,255,255,.13); --blue:#78b6ff; --violet:#b59aff; --green:#5bd69b; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:radial-gradient(850px 480px at 12% -10%,rgba(90,139,255,.25),transparent 66%),radial-gradient(850px 500px at 89% 4%,rgba(174,111,255,.18),transparent 64%),#0a0c12; font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",sans-serif; }
+    a { color:inherit; }
+    .wrap { width:min(1120px,calc(100% - 40px)); margin:0 auto; }
+    header { padding:25px 0 0; }
+    nav { display:flex; align-items:center; justify-content:space-between; gap:22px; }
+    .brand { display:inline-flex; align-items:center; gap:11px; text-decoration:none; font-weight:720; letter-spacing:-.02em; }
+    .mark { width:30px; height:30px; border-radius:10px 10px 10px 3px; background:linear-gradient(140deg,#70baff,#9878ff 56%,#f07db6); box-shadow:0 7px 24px rgba(112,132,255,.35); position:relative; }
+    .mark::after { content:""; position:absolute; width:8px; height:8px; border-radius:50%; background:#fff; left:11px; top:10px; box-shadow:0 0 0 4px rgba(255,255,255,.15); }
+    .nav-links { display:flex; align-items:center; gap:22px; color:var(--muted); font-size:14px; }
+    .nav-links a { text-decoration:none; }
+    .nav-links a:hover { color:var(--ink); }
+    .nav-download { color:var(--ink)!important; border:1px solid var(--line); padding:7px 13px; border-radius:999px; background:rgba(255,255,255,.06); }
+    .hero { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; padding:104px 0 100px; }
+    .eyebrow { display:inline-flex; align-items:center; gap:8px; color:#bdccff; text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:720; }
+    .eyebrow::before { content:""; width:22px; height:1px; background:var(--blue); box-shadow:8px 0 0 var(--violet); }
+    h1 { font-size:clamp(50px,7vw,82px); line-height:.97; letter-spacing:-.07em; margin:18px 0 24px; max-width:600px; }
+    .lede { font-size:20px; line-height:1.5; color:var(--muted); max-width:570px; margin:0; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:32px; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:45px; padding:0 17px; border:1px solid var(--line); border-radius:12px; text-decoration:none; font-weight:650; transition:transform .18s,border-color .18s,background .18s; }
+    .button:hover { transform:translateY(-2px); border-color:rgba(255,255,255,.3); }
+    .button.primary { color:#0b0e16; border-color:transparent; background:linear-gradient(135deg,#a9d2ff,#b9a8ff); box-shadow:0 12px 34px rgba(117,140,255,.24); }
+    .button.secondary { color:var(--ink); background:rgba(255,255,255,.07); }
+    .fine { color:var(--quiet); font-size:12px; margin-top:13px; }
+    .menu-shot { margin:0; padding:10px; border:1px solid rgba(255,255,255,.15); border-radius:20px; background:rgba(255,255,255,.08); box-shadow:0 28px 80px rgba(0,0,0,.34); }
+    .menu-shot img { display:block; width:100%; height:auto; border-radius:12px; }
+    .menu-shot figcaption { color:var(--quiet); font-size:12px; padding:10px 5px 1px; }
+    section { padding:34px 0 100px; }
+    .section-head { display:flex; justify-content:space-between; gap:30px; align-items:end; margin-bottom:32px; }
+    h2 { font-size:clamp(32px,4vw,48px); line-height:1.04; letter-spacing:-.05em; margin:0; }
+    .section-head p { color:var(--muted); max-width:480px; margin:0; }
+    .features { display:grid; grid-template-columns:repeat(2,1fr); gap:0 46px; border-top:1px solid var(--line); }
+    .feature { position:relative; padding:25px 0 27px 25px; border-bottom:1px solid var(--line); }
+    .feature::before { content:""; position:absolute; left:0; top:28px; width:3px; height:38px; border-radius:3px; background:var(--accent,var(--blue)); }
+    .feature:nth-child(2) { --accent:#b59aff; } .feature:nth-child(3) { --accent:#5bd69b; } .feature:nth-child(4) { --accent:#ffba68; } .feature:nth-child(5) { --accent:#f27d91; } .feature:nth-child(6) { --accent:#74d4e8; }
+    .feature-kicker { color:var(--quiet); font-size:12px; text-transform:uppercase; letter-spacing:.12em; font-weight:720; }
+    h3 { margin:8px 0 6px; font-size:22px; letter-spacing:-.03em; }
+    .feature p { color:var(--muted); max-width:440px; margin:0; }
+    .install { display:grid; grid-template-columns:.9fr 1.1fr; gap:38px; align-items:start; padding-top:8px; }
+    .install-intro p { color:var(--muted); max-width:470px; margin:12px 0 0; }
+    .platforms { display:grid; gap:12px; }
+    .platform { padding:20px 22px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.05); }
+    .platform strong { display:block; margin-bottom:4px; font-size:17px; }
+    .platform p { color:var(--muted); margin:0; font-size:14px; }
+    .command { display:inline-block; margin-top:11px; padding:8px 10px; border-radius:7px; background:#07090e; color:#d8e0f2; font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .command b { color:var(--green); font-weight:500; }
+    .release { display:grid; grid-template-columns:1fr auto; gap:28px; align-items:center; padding:30px 32px; border:1px solid rgba(104,169,255,.28); border-radius:18px; background:linear-gradient(100deg,rgba(65,105,192,.18),rgba(129,86,187,.11)); }
+    .release p { color:var(--muted); margin:8px 0 0; }
+    .release-links { display:flex; gap:14px; flex-wrap:wrap; justify-content:end; }
+    .release-links a { color:var(--ink); text-decoration:none; font-size:13px; border-bottom:1px solid rgba(255,255,255,.25); }
+    footer { border-top:1px solid var(--line); padding:28px 0 42px; color:var(--quiet); font-size:13px; }
+    footer .foot { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; } footer a { color:var(--muted); text-decoration:none; } footer a:hover { color:var(--ink); }
+    @media (max-width:850px) { .hero { grid-template-columns:1fr; gap:45px; padding-top:75px; } .menu-shot { max-width:650px; margin:auto; } .section-head,.install { display:grid; grid-template-columns:1fr; align-items:start; } .release { grid-template-columns:1fr; } .release-links { justify-content:start; } }
+    @media (max-width:610px) { .wrap { width:min(100% - 28px,1120px); } .nav-links a:not(.nav-download) { display:none; } h1 { font-size:54px; } .features { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .button { transition:none; } }
   </style>
 </head>
 <body>
-  <header class="wrap">
-    <nav aria-label="Primary navigation">
-      <a class="brand" href="./" aria-label="Perch home"><span class="mark" aria-hidden="true"></span><span>Perch</span></a>
-      <div class="nav-links">
-        <a href="#features">Features</a>
-        <a href="https://github.com/itscool/perch/discussions">Community</a>
-        <a href="https://github.com/itscool/perch/releases" class="nav-download">Releases</a>
-      </div>
-    </nav>
-  </header>
-
+  <header class="wrap"><nav aria-label="Primary navigation"><a class="brand" href="./" aria-label="Perch home"><span class="mark" aria-hidden="true"></span><span>Perch</span></a><div class="nav-links"><a href="#features">What it does</a><a href="https://github.com/itscool/perch/discussions">Community</a><a href="https://github.com/itscool/perch/releases" class="nav-download">Releases</a></div></nav></header>
   <main>
     <section class="wrap hero">
-      <div>
-        <div class="eyebrow">A calmer Mac for intense work</div>
-        <h1>Stay in control of the edges.</h1>
-        <p class="lede">Perch is a native Mac menu bar app for safer AI-agent control, confident display switching, keyboard input, and lid-aware sleep.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/itscool/perch/releases/download/v2.0.151/Perch-2.0.151.dmg">Download Perch <span aria-hidden="true">↗</span></a>
-          <a class="button secondary" href="https://github.com/itscool/homebrew-tap">View Homebrew tap</a>
-        </div>
-        <div class="fine">Perch 2.0.151 · Apple silicon · macOS 26+ · <a href="https://github.com/itscool/perch/releases/tag/v2.0.151">signed and notarized</a></div>
-      </div>
-      <div class="window" aria-label="Illustration of the Perch menu bar menu">
-        <div class="traffic"><i></i><i></i><i></i></div>
-        <div class="menu">
-          <div class="menu-title"><span>PERCH</span><span>2.0.151</span></div>
-          <div class="menu-row active"><span>Keep awake</span><span class="dot" title="Ready"></span></div>
-          <div class="menu-row"><span>Including with lid closed</span><small>Ready</small></div>
-          <div class="menu-row"><span>Desk · Studio</span><small>Preset 1</small></div>
-          <div class="menu-row"><span>Keyboard input</span><small>Local</small></div>
-          <div class="menu-rule"></div>
-          <div class="menu-footer"><span>System</span><span>Settings…</span></div>
-        </div>
-      </div>
+      <div><div class="eyebrow">Perch for macOS</div><h1>Your Mac, under control.</h1><p class="lede">Keep it awake when you need it. Switch your desk. Make your keyboards and mice behave the way you expect. Stop a runaway agent before it gets away from you.</p><div class="actions"><a class="button primary" href="https://github.com/itscool/perch/releases/download/v2.0.151/Perch-2.0.151.dmg">Download Perch <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/itscool/homebrew-tap">Homebrew tap</a></div><div class="fine">Apple silicon · macOS 26+</div></div>
+      <figure class="menu-shot"><img src="assets/perch-preview-focus.png" alt="Perch menu rendered in light and dark mode, showing System, Agent Kill Switch, Displays, and Audio sections"><figcaption>Perch's menu in light and dark mode.</figcaption></figure>
     </section>
 
-    <section class="wrap" id="features">
-      <div class="section-head">
-        <h2>Quiet controls for noisy problems.</h2>
-        <p>Perch keeps the important state visible, gives risky actions a clear path, and stays out of the way when everything is ready.</p>
-      </div>
-      <div class="features">
-        <article class="card"><div class="card-kicker">Sleep</div><h3>Lid-aware keep awake</h3><p>Keep a Mac awake when it is closed on power, with a supervised timeout and an activity log when normal sleep should resume.</p></article>
-        <article class="card"><div class="card-kicker">Displays</div><h3>See the route</h3><p>Build three display presets by wiring numbered computer ports to physical monitor inputs, then switch with an honest result.</p></article>
-        <article class="card"><div class="card-kicker">Input</div><h3>Make keyboards yours</h3><p>Separate built-in and external keyboard controls, direct function keys, modifier swaps, navigation keys, and device-aware setup.</p></article>
-        <article class="card"><div class="card-kicker">Safety</div><h3>A real emergency brake</h3><p>Preview recognized local agents, test the kill shortcut safely, and keep the action close without pretending it is containment.</p></article>
-      </div>
-    </section>
+    <section class="wrap" id="features"><div class="section-head"><h2>The things you reach for.</h2><p>Perch brings the small utilities and the important safeguards into one place, with the state visible when you need it.</p></div><div class="features">
+      <article class="feature"><div class="feature-kicker">Your sleep</div><h3>Lid and power-aware keep awake</h3><p>Keep a closed Mac awake on power, let battery sleep happen safely, and use a one-time meeting delay when you need a little longer.</p></article>
+      <article class="feature"><div class="feature-kicker">Your desk</div><h3>Display presets with a virtual KVM</h3><p>Map your computers and physical screens, switch desk presets, and move keyboard and pointer control across the desk.</p></article>
+      <article class="feature"><div class="feature-kicker">Your displays</div><h3>Know what is connected</h3><p>Keep monitor inputs, physical layout, and active routing together instead of hunting through separate display utilities.</p></article>
+      <article class="feature"><div class="feature-kicker">Your input</div><h3>External devices on your terms</h3><p>Set up external keyboards and mice without changing how the built-in laptop keyboard and trackpad behave.</p></article>
+      <article class="feature"><div class="feature-kicker">Your safety</div><h3>A stop button for runaway agents</h3><p>Track agent harnesses and their children, including orphaned descendants, so an emergency stop is there when you need it.</p></article>
+      <article class="feature"><div class="feature-kicker">Your system</div><h3>A quick read on your Mac</h3><p>See CPU, GPU, memory, thermal pressure, audio, and the other small system checks you otherwise open several utilities to find.</p></article>
+    </div></section>
 
-    <section class="wrap">
-      <div class="release">
-        <div><div class="eyebrow">Latest release</div><h2>Perch 2.0.151</h2><p>Direct Desk routing, clearer readiness states, signed packaging, and a complete release history inside Settings → Updates.</p></div>
-        <div class="release-links"><a href="https://github.com/itscool/perch/releases/tag/v2.0.151">Release notes ↗</a><a href="https://github.com/itscool/perch/blob/main/Release/history.md">Full history ↗</a></div>
-      </div>
-    </section>
+    <section class="wrap install" id="install"><div class="install-intro"><div class="eyebrow">Install</div><h2>Start here.</h2><p>Perch is currently for Apple silicon Macs running macOS 26 or later. Other platforms can have their own instructions when they are ready.</p></div><div class="platforms"><div class="platform"><strong>macOS · Apple silicon</strong><p>Download the DMG, move Perch to Applications, then open that copy from Finder.</p><a class="button secondary" href="https://github.com/itscool/perch/releases/download/v2.0.151/Perch-2.0.151.dmg">Download DMG</a></div><div class="platform"><strong>Homebrew</strong><p>Install the same public release from the maintained Perch tap.</p><code class="command"><b>brew tap itscool/tap</b><br><b>brew install --cask itscool/tap/perch</b></code></div></div></section>
 
-    <section class="wrap install">
-      <div><div class="eyebrow">Install</div><h2>One quiet command.</h2><p class="requirements">Or download the signed DMG above and move Perch to Applications. Perch currently requires Apple silicon and macOS 26 or later.</p></div>
-      <div class="terminal" aria-label="Homebrew installation command"><span>$</span> <b>brew tap itscool/tap</b><br><span>$</span> <b>brew install --cask itscool/tap/perch</b></div>
-    </section>
+    <section class="wrap"><div class="release"><div><div class="eyebrow">Latest release</div><h2>Perch 2.0.151</h2><p>Direct Desk routing, clearer readiness states, and a complete release history inside Settings → Updates.</p></div><div class="release-links"><a href="https://github.com/itscool/perch/releases/tag/v2.0.151">Release notes ↗</a><a href="https://github.com/itscool/perch/blob/main/Release/history.md">Full history ↗</a></div></div></section>
   </main>
-
   <footer><div class="wrap foot"><span>© 2026 Perch</span><span><a href="https://github.com/itscool/perch/blob/main/SUPPORT.md">Support</a> · <a href="https://github.com/itscool/perch/issues">Report a problem</a> · <a href="https://github.com/itscool/perch">GitHub</a></span></div></footer>
 </body>
 </html>

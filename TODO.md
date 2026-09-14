@@ -1,7 +1,8 @@
 # Perch work checklist
 
-2.0 development, September 13, 2026. Running app is now 2.0.142 (PID 54150)
-with its matching helper. Developer ID 2.0.142 is built, installed on disk and
+2.0 development, September 13, 2026. Signed release 2.0.149 is built, installed on
+disk and pushed. The currently running process remains the earlier 2.0.142 until restart;
+its matching helper was not interrupted. Developer ID 2.0.142 is built, installed on disk and
 loaded by the current process for native acceptance. The
 candidate includes the settings progress/sidebar and shared feedback fixes,
 plus optimistic desktop reconciliation when an accepted monitor command has no

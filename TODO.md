@@ -480,8 +480,9 @@ historical evidence, not additional open release requirements.
    The top-level `./release.sh --output FOLDER --publish` prepares its Python
    tooling and delegates the full resumable flow to Tools/release-all.py. Real update/restart
    acceptance remains QA.
-   Direct distribution currently targets Apple silicon/macOS 26+; Homebrew cask
-   draft follows verified public artifacts. See Release/README.md.
+   Direct distribution currently targets Apple silicon/macOS 26+. The verified
+   2.0.150 release is public; Homebrew tap `itscool/tap` carries the matching
+   cask. See Release/README.md.
 3. [x] **Dependency and catalog release review.** Audit completed September 10;
    missing BoringSSL/MSI notices fixed, NEC attribution added, catalog provenance
    and maintenance documented, and 22 bundled resources checked automatically.
@@ -491,14 +492,14 @@ historical evidence, not additional open release requirements.
 4. [ ] **Release QA: clean install and lifecycle.** Clean Mac/account grants,
    helpers/collector, login startup, upgrade, rollback and uninstall; no reliance
    on this development Mac's grants/jobs. Verify Gatekeeper and supported systems.
-5. [ ] **Next corrected release and optional Homebrew cask.** The
-   signed development candidate is prepared and installed locally with a source snapshot and draft notes.
-   Notarization, final DMG/ZIP/appcast and checksums follow physical acceptance
-   and authorization through the resumable release command. The 2.0.94 public assets
-   and checksums are already complete. Homebrew cask preparation remains open.
-   Notarization and publication still require their explicit authorization.
-6. [ ] **Publish only after explicit approval** of the concrete release, relevant
-   QA passing and zero known defects. Commit/push is not public release approval.
+5. [x] **2.0.150 release and Homebrew cask.** The signed, notarized and stapled
+   DMG/ZIP/appcast/checksum set is published at GitHub v2.0.150. The matching
+   cask is published in `itscool/homebrew-tap` and passes Homebrew style/fetch
+   checks. Native hardware acceptance remains open in QA; the public release was
+   explicitly authorized before those tests were complete.
+6. [x] **Publish with explicit approval.** Scott explicitly authorized cutting
+   this release on September 14, including notarization, GitHub publication and
+   the Homebrew tap. Future releases still require their own explicit approval.
 
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature

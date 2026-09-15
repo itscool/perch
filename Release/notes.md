@@ -1,9 +1,10 @@
-# Perch 2.0.151 — What’s new
+# Perch 2.0.204 — What’s new
 
-- **Release history:** Settings → Updates now includes the complete versioned release history, not only the changes since the last update.
-- **Desk graph:** map each of three presets directly from numbered computer ports to physical monitor inputs. Selected and active routes are visually distinct, and duplicate monitor preset controls are gone.
-- **Desk clarity:** monitor ports retain their physical cable ownership, unassigned inputs remain usable with an explicit warning, and computer cards open their details when clicked.
-- **Reliability:** accepted monitor switches reconcile the desktop safely when hardware readback is unavailable; fresh contradictory reads still cancel the fallback.
-- **Release quality:** signed Sparkle packaging, dependency repair checks and the guarded restart path are included.
+- **Desk:** a redesigned Desk page, steadier connections between Macs, and keyboard and mouse sharing that follows your hand. Update every Mac on your desk to this version; older versions are refused with a clear message.
+- **Quit:** quitting now turns Perch off. If something is on, Perch lists what stops first, and blocked agents stay blocked. Quit also works while a Settings dialog is open.
+- **Closed-lid mode:** no longer switches itself off, and on power it comes back by itself if it ever stops. The lid helper update asks for your password once.
+- **Prevent idle lock:** a new Sleep option keeps your Mac from locking when idle, without moving the pointer.
+- **Hotkeys:** a conflict names the feature that already uses the shortcut, Desk shortcut problems show on the shortcut they affect, and holding a key no longer repeats a panic or preset action.
+- **Background helpers:** repair themselves again after a failed restart, without asking you to quit and reopen Perch.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

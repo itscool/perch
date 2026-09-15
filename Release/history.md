@@ -1,6 +1,15 @@
 # Perch release history
 
-## 2.0.151 — Current
+## 2.0.204 — Current
+
+- Redesigned Desk page, steadier Desk connections and keyboard and mouse sharing that follows the pointer; every Mac on a desk needs this version.
+- Quit turns Perch off and first lists what stops; an Agent Kill Switch block stays in place.
+- Closed-lid mode no longer ends on its own and resumes by itself on power; the lid helper updates once.
+- New Prevent idle lock option.
+- Hotkey conflicts name their feature, Desk shortcut problems show on the right shortcut, and held keys no longer repeat panic or preset actions.
+- Background helpers repair themselves after a failed restart; Quit works while a Settings dialog is open.
+
+## 2.0.151 — Release history
 
 - Corrected the Sparkle update dialog to show concise version-specific “What’s new” notes.
 - Added the complete Release history page under Settings → Updates.

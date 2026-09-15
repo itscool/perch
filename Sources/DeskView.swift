@@ -452,8 +452,11 @@ struct DeskCanvas: View {
         // visible viewport. Once the cards reach their readable minimum the
         // outer ScrollView can pan this whole surface instead of clipping its
         // right or bottom edge.
-        let deskSurfaceWidth = max(available.width, canvasSize.width)
-        let deskSurfaceHeight = max(available.height, surfaceSize.height + 72)
+        // The padding belongs to the desk image. Include it in the measured
+        // document size so the border, graph and computer row share one exact
+        // rectangle instead of leaving a second clipped viewport beside them.
+        let deskSurfaceWidth = max(available.width, canvasSize.width + 24)
+        let deskSurfaceHeight = max(available.height, surfaceSize.height + 96)
         let canvasPanOffset = DeskCanvasLayout.clampedPan(rawCanvasPanOffset,
                                                           content: surfaceSize,
                                                           viewport: available)
@@ -554,7 +557,7 @@ struct DeskCanvas: View {
         // Nodes can move inside it; the surface itself does not grow or
         // disappear as content is rearranged.
         .padding(12)
-        .frame(minWidth: deskSurfaceWidth, minHeight: deskSurfaceHeight, alignment: .topLeading)
+        .frame(width: deskSurfaceWidth, height: deskSurfaceHeight, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -580,6 +583,9 @@ struct DeskCanvas: View {
                 if let scroll = current as? NSScrollView {
                     scroll.scrollerStyle = .overlay
                     scroll.autohidesScrollers = true
+                    // Keep the slim indicators in the desk border’s padding,
+                    // outside the readable inner content.
+                    scroll.scrollerInsets = NSEdgeInsets(top: 3, left: 3, bottom: 3, right: 3)
                     scroll.verticalScroller = DeskThinScroller()
                     scroll.horizontalScroller = DeskThinScroller()
                     return

@@ -101,8 +101,7 @@ dialog-ownership incl. window-owned polling, kvm-lab 265, renders for desk defau
 empty and appearance, functional host builds). `--settings-self-test` and the functional
 run need an AGENT MODE session and were not run. Installed to /Applications/Perch.app
 (2.0.203, Developer ID); the running process is still the 2.0.202 build, executing from
-`Perch.previous-2.0.202.app`, which is kept on disk. Nothing is committed; the index holds
-the staged directory moves. Physical two-Mac acceptance still pending.
+`Perch.previous-2.0.202.app`, which is kept on disk. Committed and pushed to main as d7494cc. Physical two-Mac acceptance still pending.
 
 September 15 (morning) launch repairs and manual Quit. Running the restructured build
 exposed three defects, all fixed and covered by self-tests. Quit could hang forever: every
@@ -119,7 +118,9 @@ stops the guardian and input helper and keeps them from starting at login, while
 Kill Switch block stays enforced (Scott's choice). The next launch allows the helpers
 again without re-copying the app. Restart for an update and Reset are unchanged. The root
 lid helper and event collector stay loaded but no feature depends on them after Quit.
-Native click-through of the Quit notice is pending.
+Native click-through of the Quit notice is pending. The Quit build is installed on disk;
+the running Perch still executes the earlier 2.0.203 build from
+`Perch.previous-2.0.203.app`, so the next Quit and reopen loads it.
 
 ## Known defects — fix before shipping; target zero
 

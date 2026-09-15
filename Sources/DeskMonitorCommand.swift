@@ -7,7 +7,10 @@ enum DeskMonitorCommand {
         var errorDescription: String? { "The switch was cancelled before its monitor command." }
     }
     static func run(input: UInt16, permitted: () -> Bool, read: () throws -> UInt16?,
-                    write: () throws -> Void, settle: () -> Void, force: Bool = false) throws -> Outcome {
+                    write: () throws -> Void, settle: () -> Void, force: Bool = false,
+                    wake: (() -> Void)? = nil) throws -> Outcome {
+        guard permitted() else { throw Cancelled() }
+        wake?()
         guard permitted() else { throw Cancelled() }
         let current = try? read()
         guard permitted() else { throw Cancelled() }

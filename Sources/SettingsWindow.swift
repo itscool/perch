@@ -415,6 +415,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         }
         rememberScroll()
         if let previous = pages.last, previous.title == page.title { page.scrollFromTop = previous.scrollFromTop; page.focusIdentifier = previous.focusIdentifier; page.focusView = previous.focusView; page.selection = previous.selection }
+        // Desk owns its own graph scrolling. Re-entering it should always
+        // reveal the desk identity and preset context instead of restoring a
+        // stale outer-page offset that hides the header after a resize.
+        if page.title == "Desk" { page.scrollFromTop = 0 }
         feedback = nil
         if page.title == "Perch settings" {
             pages.reversed().forEach { $0.leave?() }

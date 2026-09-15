@@ -36,6 +36,14 @@ static NSNumber *current(DDCTransport t, bool alternate) {
     }
     return nil;
 }
+// Best-effort DDC/CI wake. VCP 0xD6 power mode value 0x01 requests ON; some
+// monitors ignore DDC while deeply asleep, so callers must still send the
+// requested input command and treat this as a hint rather than confirmation.
+static bool wake(DDCTransport t) {
+    uint8_t payload[3] = {0xd6, 0x00, 0x01}, bytes[36] = {0};
+    size_t length = perch_ddc_request(bytes, 0x51, 0x03, payload, sizeof(payload));
+    return length && IOAVServiceWriteI2C(t.service, t.chipAddress, 0x51, bytes, (uint32_t)length) == kIOReturnSuccess;
+}
 // LG OSC 7.20 uses standard Get VCP identity reads, not firmware mode.
 static NSNumber *lgIdentityValue(DDCTransport t, uint8_t feature) {
     if (feature != 0xef && feature != 0xa1) return nil;
@@ -66,8 +74,8 @@ int main(int argc, const char **argv) { @autoreleasepool {
     NSString *command = @(argv[1]);
     if ([command isEqual:@"usb-list"] && argc==2) { emit(PerchUSBMonitors()); return 0; }
     if ([command isEqual:@"transport-self-test"] && argc==2) return PerchTransportSelfTest() ? 0 : 1;
-    bool list = [command isEqual:@"list"], inspect = [command isEqual:@"inspect"], read = [command isEqual:@"read"], change = [command isEqual:@"switch"];
-    if ((!list && !inspect && !read && !change) || (list && argc != 2) || ((inspect || read) && argc != 4) || (change && argc != 5)) return failure(@"Invalid display command.");
+    bool list = [command isEqual:@"list"], inspect = [command isEqual:@"inspect"], read = [command isEqual:@"read"], change = [command isEqual:@"switch"], wakeOnly = [command isEqual:@"wake"];
+    if ((!list && !inspect && !read && !change && !wakeOnly) || (list && argc != 2) || ((inspect || read || wakeOnly) && argc != 4) || (change && argc != 5)) return failure(@"Invalid display command.");
     DisplayInfos displays[MAX_DISPLAYS] = {0};
     int count = (int)getOnlineDisplayInfos(displays);
     if (list) {
@@ -103,6 +111,12 @@ int main(int argc, const char **argv) { @autoreleasepool {
     if (alternate && selected->vendor != 0x1e6d) return failure(@"LG input protocol is only available for LG monitors.");
     DDCTransport t = getDisplayDDCTransport(selected);
     if (!t.service) return failure(@"This display connection does not expose DDC input control.");
+    if (wakeOnly) {
+        bool sent = wake(t);
+        CFRelease(t.service);
+        if (!sent) return failure(@"The monitor did not accept the wake request.");
+        emit(@{ @"sent": @YES }); return 0;
+    }
     if (inspect || read) {
         NSNumber *value = current(t, alternate);
         NSString *caps = inspect ? capabilities(t) : nil; // Capabilities use standard DDC even with LG input switching.

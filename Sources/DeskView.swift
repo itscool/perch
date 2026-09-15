@@ -56,6 +56,7 @@ struct DeskView: View {
                                     .foregroundStyle(model.presetIndex == index ? .teal : .secondary)
                                     .padding(.horizontal, 6).padding(.vertical, 2)
                                     .background((model.presetIndex == index ? Color.teal : Color.secondary).opacity(0.11), in: Capsule())
+                                    .fixedSize()
                                     .help(model.presetIndex == index ? "This is the preset whose connections are shown below." : "Select this card to edit its connections.")
                                 if let issue = model.readinessIssue(for: index) {
                                     DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
@@ -69,7 +70,7 @@ struct DeskView: View {
                                     Text(model.changedSinceUse ? "Active now · edited" : "Active now")
                                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
                                         .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(Color.green.opacity(0.12), in: Capsule())
+                                        .background(Color.green.opacity(0.12), in: Capsule()).fixedSize()
                                         .help(model.changedSinceUse ? "This preset is still active on the displays, but its saved connections were edited. Play it again to apply those edits." : "This is the preset currently active on the displays. Selecting another card only changes what you edit.")
                                 }
                             }.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)

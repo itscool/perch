@@ -1,0 +1,84 @@
+import AppKit
+
+func runSettingsTests() throws {
+    try runAboutDialogTests()
+    try runMenuAppearanceTests()
+    try runPannableSurfaceTests()
+    try DesktopTestSession.check()
+    try runDialogOwnershipTests()
+    try runSettingsAccessibilityTests()
+    try runSettingsSidebarTests()
+    try runShortcutDialogBackTests()
+    try runSleepPresentationTests()
+    try runSettingsJourneyFixTests()
+    try runSettingsReviewFixTests()
+    try runResetNavigationTests()
+    try runSettingsResizeTests()
+    try runStatusColorTests()
+    try runReleaseUITests()
+    try runNavigationProbeUITests()
+    try runKeyboardRegistrationUITests()
+    try runReviewFixTests()
+    try runPresentationHandoffTests()
+    try runSetupOverviewTests()
+    try runLidActivityUITests()
+    let host = SettingsWindow.shared
+    host.testing = true
+    let app = AppDelegate()
+    func check(_ condition: Bool, _ message: String) throws { if !condition { throw AppError(message: message) } }
+    try check(host.window.isFloatingPanel && host.window.level == .floating && !host.window.hidesOnDeactivate, "Setup window can disappear behind other apps")
+    app.configureSettings()
+    let identity = host.window.windowNumber
+    try check(host.pages.count == 1, "Settings root missing")
+    app.appSettings()
+    let cpuBox = host.pages.last?.view.subviews.compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == CPUDisplaySettings.key }
+    try check(cpuBox != nil && (cpuBox?.state == .on) == CPUDisplaySettings.enabled(), "CPU checkbox missing or disagrees with preference")
+    host.goBack()
+    try render("/private/tmp/perch-settings-root-preview.png")
+    app.configurePanic()
+    try check(host.pages.count == 2 && host.window.windowNumber == identity, "Agent Kill Switch changed windows")
+    app.processEventSetup()
+    try check(host.pages.count == 2 && EventCollectorSetup.shared.primary.window === host.window, "Collector controls are outside shared window")
+    // Render the real view hierarchy into an explicit test background.
+    func render(_ path: String) throws {
+        guard let view = host.window.contentView else { throw AppError(message: "Settings content missing") }
+        try renderReleaseView(view, path: path)
+    }
+    try render("/private/tmp/perch-settings-preview.png")
+    host.goBack()
+    try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status" && EventCollectorSetup.shared.timer == nil, "Collector did not return to its Setup owner or stop refreshing")
+    try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status", "Settings Back failed")
+    app.inputPermissionsFromSettings()
+    try check(app.permissionSetup?.status.window === host.window && host.pages.count == 2, "Input setup changed windows")
+    try render("/private/tmp/perch-input-preview.png")
+    host.goBack()
+    try check(host.pages.count == 1 && app.permissionSetup?.timer == nil, "Input Back did not return to parent")
+    app.inputPermissionsFromSettings()
+    try check(host.pages.last?.view === app.permissionSetup?.content && app.permissionSetup?.timer != nil, "Reopening input setup lost its retained controls or refresh timer")
+    host.goBack()
+    app.keyboardSettings()
+    try check(host.pages.count == 2 && host.pages.last?.title == "Keyboards", "Keyboard settings broke navigation")
+    let swaps = host.pages.last!.view.subviews.compactMap { $0 as? NSButton }.filter { $0.title.contains("Swap Control") }
+    try check(swaps.isEmpty, "Keyboards duplicates main-menu modifier switches")
+    try render("/private/tmp/perch-keyboard-preview.png")
+    host.goBack()
+    app.resetHub()
+    try check(host.pages.count == 2 && host.window.windowNumber == identity, "Reset checklist opened another window")
+    try render("/private/tmp/perch-reset-preview.png")
+    host.goBack()
+    app.privacyOnlyReset(global:false)
+    try check(host.pages.last?.title == "Reset Perch’s privacy permissions?", "Perch privacy scope missing")
+    host.goBack()
+    app.privacyOnlyReset(global:true)
+    try check(host.pages.last?.title == "Reset all apps’ privacy permissions?", "Global privacy scope missing")
+    try render("/private/tmp/perch-privacy-only-preview.png")
+    host.goBack()
+    app.configurePanic(); app.advancedSafetySettings()
+    try check(host.pages.count == 2 && host.pages.first?.title == "Setup & status" && host.pages.last?.title == "Background helpers" && host.window.windowNumber == identity, "Background setup did not select its canonical stage")
+    try render("/private/tmp/perch-advanced-preview.png")
+    // The test panel stays offscreen and may already be closed. Exercise the
+    // close delegate explicitly; AppKit does not resend close for a closed panel.
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
+    try check(host.pages.isEmpty, "Closing settings retained navigation stack")
+    print("PASS: one-window Settings → Agent Kill Switch → Collector and Back; Input Back returns to root; Advanced navigation; timers stop on leaving")
+}

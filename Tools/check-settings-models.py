@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Nonpresenting value-model tests. No app/helper launch, windows, devices or settings writes."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 
@@ -68,6 +70,6 @@ keyboard.sharedKeyboards![0].bindings[computer.id] = "two"
 check(keyboard.reviewDetails != beforeBinding, "Review hides keyboard attachment")
 print("PASS: pristine/dirty/concurrent draft transitions and complete Desk conflict value coverage; no UI or live state")
 ''')
-    sources = ['DeskTextDraft.swift', 'KVMGroup.swift', 'KVMReviewDetails.swift', 'MonitorConnection.swift']
-    subprocess.run(['xcrun', 'swiftc', *[str(repo / 'Sources' / name) for name in sources], str(root / 'main.swift'), '-o', str(root / 'check')], check=True)
+    sources = ['DeskTextDraft.swift', 'PerchError.swift', 'KVMGroup.swift', 'KVMReviewDetails.swift', 'MonitorConnection.swift']
+    subprocess.run(['xcrun', 'swiftc', *[str(perch_source(name)) for name in sources], str(root / 'main.swift'), '-o', str(root / 'check')], check=True)
     subprocess.run([str(root / 'check')], check=True)

@@ -25,26 +25,6 @@ enum CollectorIdentity { static let bootID: UUID? = UUID(uuidString: "44E03998-6
 enum LidGuardOwnership { static var recorded: Bool { true } }
 struct MacLidGuardHardware { struct Observation { let closed = true }; func observe() -> Observation { Observation() } }
 enum LidSleepOverride { static func verify(_ value: Bool) throws { throw AppError(message: "Fixture reports an active mock session") } }
-enum HelperStatusIPC {
-    static var requirement: String? {
-        var code: SecCode?, staticCode: SecStaticCode?, rule: SecRequirement?, text: CFString?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
-              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopyDesignatedRequirement(staticCode, [], &rule) == errSecSuccess, let rule,
-              SecRequirementCopyString(rule, [], &text) == errSecSuccess else { return nil }
-        return text as String?
-    }
-}
-enum LidGuardIdentity {
-    static var current: String? {
-        var code: SecCode?, staticCode: SecStaticCode?, info: CFDictionary?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
-              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, [], &info) == errSecSuccess,
-              let bytes = (info as? [String:Any])?[kSecCodeInfoUnique as String] as? Data else { return nil }
-        return bytes.map { String(format: "%02x", $0) }.joined()
-    }
-}
 final class LidGuardClient {
     static let shared = LidGuardClient()
     let changing = false, active = true
@@ -57,7 +37,7 @@ final class LidGuardClient {
     }
     func cancelRestart(_ ticket: String) { log("cancel ticket") }
     func resumeAfterRestart(_ ticket: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        log("claim exact identity " + (LidGuardIdentity.current ?? "missing")); completion(.success(()))
+        log("claim exact identity " + (CodeIdentity.current ?? "missing")); completion(.success(()))
     }
 }
 // These UI stubs log production ownership callbacks. Sparkle's UI is real.
@@ -65,6 +45,9 @@ final class SettingsWindow {
     static let shared = SettingsWindow(); let testing = false
     let interactionBusy = false
     func beginAuthorization() -> () -> Void { log("yield settings"); return { log("restore settings") } }
+    struct Page { var title: String; var detail: String; var view: NSView; var preferredBodyHeight: CGFloat = 490; var preferredBodyWidth: CGFloat = 0 }
+    func show(_ page: Page) { log("show settings page \(page.title)") }
+    func updateCurrentPageDetail(_ detail: String) { log("page detail \(detail)") }
 }
 final class SettingsTaskPage {
     let status = NSTextField(); var update: (() -> Void)?

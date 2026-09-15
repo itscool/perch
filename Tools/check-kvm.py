@@ -2,6 +2,8 @@
 """Compile and exercise only portable KVM code. No native windows or live devices."""
 import argparse
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 
@@ -13,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='perch-kvm-') as temporary:
     out = a.output.resolve() if a.output else Path(temporary) / 'check-kvm'
     out.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors',
-                    *[str(repo / 'Sources' / f) for f in ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'KVMInput.swift']],
+                    *[str(perch_source(f)) for f in ['PerchError.swift', 'KVMGroup.swift', 'KVMSync.swift', 'KVMInput.swift']],
+                    str(repo / 'Tools/kvm-lab/KVMHandoff.swift'),
                     str(repo / 'Tools/check-kvm.swift'), '-o', str(out)], check=True)
     subprocess.run([str(out)], check=True)

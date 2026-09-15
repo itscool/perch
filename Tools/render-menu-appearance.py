@@ -5,6 +5,8 @@ Compile only model/drawing declarations, excluding AppDelegate and Settings page
 The process cannot launch the app, run helpers, or present a window.
 """
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import argparse
 import subprocess
 import tempfile
@@ -17,15 +19,10 @@ output = args.output.resolve()
 output.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='perch-appearance-render-') as temp:
     root = Path(temp)
-    appearance = (repo/'Sources/MenuAppearance.swift').read_text()
-    row = (repo/'Sources/MenuRowView.swift').read_text().split('\nextension AppDelegate {')[0]
-    model = appearance.split('\nstruct MenuAppearancePage: View {')[0]
-    preview = appearance.split('final class MenuAppearancePreviewHost: NSView {')[1].split('\nstruct MenuAppearancePreview: NSViewRepresentable {')[0]
-    page = 'struct MenuAppearancePage: View {' + appearance.split('struct MenuAppearancePage: View {')[1].split('final class MenuAppearancePreviewHost: NSView {')[0]
-    representable = 'struct MenuAppearancePreview: NSViewRepresentable {' + appearance.split('struct MenuAppearancePreview: NSViewRepresentable {')[1].split('\nextension AppDelegate {')[0]
-    toggle = 'struct AppearanceMixedToggle: NSViewRepresentable {' + appearance.split('struct AppearanceMixedToggle: NSViewRepresentable {')[1]
+    row = (perch_source('MenuRowView.swift')).read_text().split('\nextension AppDelegate {')[0]
+    page = (perch_source('MenuAppearancePage.swift')).read_text().split('\nextension AppDelegate {')
     stub = '\nfinal class SettingsWindow { enum Reset { case appearance }; static let shared = SettingsWindow(); func navigateToReset(_ reset: Reset) {} }\n'
-    (root/'Drawing.swift').write_text(model + '\n' + row + '\nfinal class MenuAppearancePreviewHost: NSView {' + preview + '\n' + page + '\n' + representable + '\n' + toggle + stub)
+    (root/'Drawing.swift').write_text(row + '\n' + page[0] + '\n' + page[1].split('\n}\n', 1)[1] + stub)
     (root/'main.swift').write_text(r'''
 import AppKit
 import SwiftUI
@@ -232,5 +229,5 @@ try export("perch-palette-studies.png", width: 1080, height: 590) {
 precondition(NSApp.windows.isEmpty, "Offscreen render created a window")
 print("PASS: seven valid/stable presets, unchanged Perch original, eight round-trip palettes; images rendered without windows or live state")
 ''')
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(repo/'Sources/StatusColors.swift'), str(repo/'Sources/SettingsFeedback.swift'), str(repo/'Sources/PerchVersion.swift'), str(repo/'Sources/DeskCanvasLayout.swift'), str(repo/'Sources/MenuAppearanceTests.swift'), str(root/'main.swift'), '-o', str(root/'render')], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(root/'Drawing.swift'), str(perch_source('MenuAppearanceModel.swift')), str(perch_source('MenuAppearanceStore.swift')), str(perch_source('MenuAppearanceDrawing.swift')), str(perch_source('JSONStore.swift')), str(perch_source('StatusColors.swift')), str(perch_source('SettingsFeedback.swift')), str(perch_source('PerchVersion.swift')), str(perch_source('DeskCanvasLayout.swift')), str(perch_source('PannableSurface.swift')), str(perch_source('MenuAppearanceTests.swift')), str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(output)], check=True)

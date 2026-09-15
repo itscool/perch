@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Render production setup controls and test disclosure without windows or OS writes."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import argparse, subprocess, tempfile
 p=argparse.ArgumentParser(description=__doc__); p.add_argument('--output', type=Path, required=True); args=p.parse_args()
 repo=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='perch-setup-layout-') as tmp:
     root=Path(tmp)
-    access=(repo/'Sources/LaunchAccessRecovery.swift').read_text()
+    access=(perch_source('LaunchAccessRecovery.swift')).read_text()
     access=access[:access.index('struct StartupKeyboardAccessNotice')] + access[access.index('final class KeyboardAccessPage'):]
     (root/'Access.swift').write_text(access)
-    source=(repo/'Sources/PermissionSetup.swift').read_text()
+    source=(perch_source('PermissionSetup.swift')).read_text()
     constructor=source[:source.index('    func show(')]
     present=source[source.index('    private func present('):source.index('    @objc func openSettings')].replace('private func present(', 'func present(')
     (root/'Permission.swift').write_text(constructor + present + '\n func refresh() {}\n @objc func openSettings() {}\n}\n')
-    source=(repo/'Sources/EventSetup.swift').read_text()
+    source=(perch_source('EventSetup.swift')).read_text()
     source=source[:source.index('    func show(')]
-    (root/'Events.swift').write_text(source + '\n func refresh() {}\n @objc func nextStep() {}\n @objc func openPrivacySettings() {}\n}\n')
+    (root/'Events.swift').write_text(source + '\n func refresh() {}\n func installCollector() {}\n @objc func nextStep() {}\n @objc func openPrivacySettings() {}\n}\n')
     (root/'Stubs.swift').write_text('''import AppKit
 final class SettingsStatusField: NSTextField {}
 final class SettingsActionButton: NSButton {
@@ -26,13 +28,20 @@ final class SettingsActionButton: NSButton {
 }
 final class SettingsWindow {
  static let shared=SettingsWindow()
- struct Page { var title: String; var detail: String; var view: NSView; var leave: (() -> Void)?; var refresh: (() -> Void)? }
- var pages: [Page]=[]; var interactionBusy=false
+ struct Poll { init(every: TimeInterval, whileBusy: Bool = false, _ body: @escaping () -> Void) {} }
+ struct Page { var title: String; var detail: String; var view: NSView; var leave: (() -> Void)?; var refresh: (() -> Void)?; var poll: Poll? = nil }
+ var pages: [Page]=[]; var interactionBusy=false; let testing=false
+ func pollTimer(for view: NSView) -> Timer? { nil }
+ func afterInteraction(_ body: @escaping () -> Void) { body() }
  func show(_ page: Page) { pages=[page] }
  func display(_ page: Page) {}
  func navigateToSetupStage(_ id: String) { fatalError("No navigation in offscreen fixture") }
  func handoffToExternalApp(_ action: () -> Bool) { fatalError("No OS handoffs in offscreen fixture") }
 }
+struct LidHelperStartupUpdate { mutating func claim(pending: Bool, available: Bool) -> Bool { false } }
+final class LidHelperUpdate { static let shared=LidHelperUpdate(); let busy=false }
+final class AppUpdate { static let shared=AppUpdate(); let busy=false }
+final class PerchUpdater { static let shared=PerchUpdater(); let busy=false }
 enum GuardianInstall { static let inputPermissionApp: URL?=nil }
 enum SafetyFiles { static let helperApp=URL(fileURLWithPath:"/fixture/Perch Helper.app") }
 struct InputReadiness { var ready: Bool; var title: String; var message: String; var route: String }
@@ -103,7 +112,7 @@ try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPa
 check(NSApp.windows.isEmpty,"Offscreen fixture presented a window")
 print("PASS: required/ready/review/lost/restored disclosure, stable status and disclosure anchors, aligned permission targets, no windows or OS writes")
 ''')
-    files=[repo/'Sources/SetupDisclosure.swift', repo/'Sources/PermissionDragItem.swift', repo/'Sources/SettingsSidebar.swift']+list(root.glob('*.swift'))
+    files=[perch_source('MainTimer.swift'), perch_source('SetupDisclosure.swift'), perch_source('PermissionDragItem.swift'), perch_source('SettingsSidebar.swift')]+list(root.glob('*.swift'))
     subprocess.run(['xcrun','swiftc','-o',str(root/'check')]+[str(f) for f in files],check=True)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     subprocess.run([str(root/'check'),str(args.output.resolve())],check=True)

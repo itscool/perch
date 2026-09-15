@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Check the production AppKit sidebar without windows or live state."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 
@@ -62,5 +64,5 @@ check(NSApp.windows.isEmpty, "Fixture opened a window")
 print("PASS: \(checks) production sidebar states across Light/Dark and width changes; visible symbols, contained nonoverlapping labels, stable cells/selection and accessible status; no windows")
 ''')
     binary = root / 'check'
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(repo / 'Sources/SettingsSidebar.swift'), str(root / 'main.swift'), '-o', str(binary)], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(perch_source('SettingsSidebar.swift')), str(root / 'main.swift'), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

@@ -6,6 +6,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 
@@ -46,7 +48,7 @@ def compile_launcher(name, destination=directory, executable=child):
         '-DPERCH_IDENTITY_DIRECTORY='+json.dumps(str(destination)),
         '-DPERCH_COLLECTOR_EXECUTABLE='+json.dumps(str(executable)),
         '-DPERCH_LAUNCHER_OWNER_UID='+str(os.getuid()),
-        str(repo/'Sources/PerchEventLauncher.c'),'-o',str(target)],check=True)
+        str(perch_source('PerchEventLauncher.c')),'-o',str(target)],check=True)
     return target
 launcher=compile_launcher('launcher-fixture')
 def run(expect_record=True, executable=launcher):

@@ -7,6 +7,8 @@ The first run compiles; unchanged reruns reuse the binary. No live power access.
 import argparse
 import hashlib
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import time
 
@@ -16,17 +18,15 @@ args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 output = (args.output or repo / 'build/lid-policy-tests').resolve()
 output.mkdir(parents=True, exist_ok=True)
-sources = [repo / 'Sources' / name for name in [
+sources = [perch_source(name) for name in [
     'LidGuardPolicy.swift', 'LidGuardWatchdogState.swift', 'LidGuardEnforcer.swift',
-    'LidRestartHandoff.swift', 'LidCountdown.swift', 'LidPolicyTests.swift', 'LidCountdownTests.swift',
+    'LidRestartHandoff.swift', 'HotKeyLatch.swift', 'LidCountdown.swift', 'LidPolicyTests.swift', 'LidCountdownTests.swift',
 ]]
 # Only the app's error container is supplied by the harness. Every policy,
 # watchdog, restart and enforcement implementation is compiled unchanged.
+sources.insert(0, perch_source('PerchError.swift'))
+sources.insert(1, perch_source('MonotonicClock.swift'))
 main = '''import Foundation
-struct AppError: LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
-}
 do { try runLidPolicyTests(); try runLidCountdownTests() }
 catch { fputs("FAIL: \\(error.localizedDescription)\\n", stderr); exit(1) }
 '''

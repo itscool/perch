@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Render the production SwiftUI Desk canvas with simulated devices and no windows."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import argparse
 import subprocess
 import tempfile
@@ -8,6 +10,9 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--full', action='store_true', help='Render the entire Desk page rather than only the canvas')
 parser.add_argument('--active-preset', type=int, choices=[1, 2, 3], help='Simulate a confirmed preset independently of the editing selection')
+parser.add_argument('--scenario', choices=['default', 'busy', 'empty'], default='default', help='busy: status, caution, conflict, failure and switching states; empty: first-use desk')
+parser.add_argument('--width', type=int, default=1200, help='Full-page render width in points')
+parser.add_argument('--height', type=int, default=860, help='Full-page render height in points')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -48,7 +53,8 @@ computer.mouseDown(with: mouse(.leftMouseDown, 122)); computer.mouseDragged(with
 port.mouseDown(with: mouse(.leftMouseDown, 22)); interaction.remove(port); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 2)
 interaction.cancel()
 print("PASS: native socket dispatch previews and commits both directions, cancels invalid drops/Esc/source removal; no event posting or windows")
-let model = DeskModel(store: URL(fileURLWithPath: CommandLine.arguments[2]))
+let simulation = DeskSimulation(store: URL(fileURLWithPath: CommandLine.arguments[2]))
+let model = simulation.makeModel()
 // Occupied inputs lift the existing computer end without changing storage
 // until a valid drop. Exercise native dispatch rather than only assigning state.
 let rewireController = DeskWireController()
@@ -56,7 +62,7 @@ let rewires = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
 let oldPort = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 22))
 let newPort = DeskWireSocketView(frame: NSRect(x: 110, y: 10, width: 24, height: 22))
 let hostSocket = DeskWireSocketView(frame: NSRect(x: 210, y: 10, width: 24, height: 22))
-var desk = DeskModel.sample()
+var desk = KVMGroup.sample()
 let original = desk.connections[0], targetCable = desk.connections[1]
 oldPort.socketID = "port:" + original.id.uuidString
 newPort.socketID = "port:" + targetCable.id.uuidString
@@ -113,6 +119,18 @@ for presetIndex in 0..<3 {
 }
 model.group = sample; model.presetIndex = 0
 if let active = Int(CommandLine.arguments[4]), (1...3).contains(active) { model.active = sample.presets[active - 1]; model.activeGroup = sample }
+switch CommandLine.arguments[7] {
+case "busy":
+    model.status = "Controlling Main screen on Mac Studio."
+    model.caution = "Perch accepted the switch for Main screen (DisplayPort) but the monitor cannot report its input. The picture usually changed; if it did not, choose the input again."
+    model.active = sample.presets[1]; model.activeGroup = sample; model.activeUnconfirmed = true
+    model.switchingPreset = sample.presets[2].id
+    model.monitorProblems = [sample.monitors[2].id]
+    simulation.simulateConflict()
+case "empty":
+    simulation.newDesk("New desk")
+default: break
+}
 print("PASS: occupied-input rewiring, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
 let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, identify: { _ in }, hardware: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {
@@ -123,7 +141,7 @@ let content = VStack(alignment: .leading, spacing: 14) {
 let full = CommandLine.arguments[3] == "full"
 let rootView = full ? AnyView(DeskView(model: model).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .light)) : AnyView(content)
 let host = NSHostingView(rootView: rootView)
-host.frame = NSRect(x: 0, y: 0, width: full ? 1200 : 998, height: full ? 860 : 682)
+host.frame = NSRect(x: 0, y: 0, width: full ? CGFloat(Int(CommandLine.arguments[5]) ?? 1200) : 998, height: full ? CGFloat(Int(CommandLine.arguments[6]) ?? 860) : 682)
 host.layoutSubtreeIfNeeded()
 if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
     host.cacheDisplay(in: host.bounds, to: bitmap)
@@ -135,6 +153,6 @@ precondition(NSApp.windows.isEmpty, "Renderer presented a window")
 print("PASS: production Desk canvas rendered without windows or live settings")
 }
 ''')
-    sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'PannableSurface.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(repo/'Sources'/s) for s in sources], str(root/'main.swift'), '-o', str(root/'render')], check=True)
-    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0)], check=True)
+    sources = ['PerchError.swift', 'KVMGroup.swift', 'KVMSync.swift', 'DeskModel.swift', 'DeskBackend.swift', 'DeskFixtures.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskPageState.swift', 'DeskHeader.swift', 'DeskPresetStrip.swift', 'DeskCanvas.swift', 'DeskScreenTile.swift', 'DeskPortSocket.swift', 'DeskComputerCard.swift', 'DeskWireController.swift', 'DeskSheets.swift', 'DeskCanvasLayout.swift', 'PannableSurface.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(perch_source(s)) for s in sources], *[str(repo / 'Tools/kvm-lab' / s) for s in ['KVMHandoff.swift', 'DeskSimulation.swift', 'LabSheets.swift']], str(root/'main.swift'), '-o', str(root/'render')], check=True)
+    subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0), str(args.width), str(args.height), args.scenario], check=True)

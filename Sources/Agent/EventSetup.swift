@@ -1,0 +1,210 @@
+import AppKit
+
+// One persistent window, one next action, and observed results rather than an assumed grant.
+final class EventCollectorSetup: NSObject {
+    static let shared = EventCollectorSetup()
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 510))
+    let installState = SettingsStatusField(wrappingLabelWithString: "")
+    let accessState = SettingsStatusField(wrappingLabelWithString: "")
+    let readyState = SettingsStatusField(wrappingLabelWithString: "")
+    let guidance = SettingsStatusField(wrappingLabelWithString: "")
+    let primary = NSButton()
+    let openSettings = NSButton()
+    var review: SettingsActionButton!
+    private var disclosure = SetupDisclosure()
+    private let permissionInstructions = "Drag eslogger into Full Disk Access and enable it. If events still do not arrive, add PerchEventLauncher as well.\n\nKeyboard: focus a file below and press Space to copy its path. In System Settings choose +, press ⌘⇧G, paste, then Open. Perch checks incoming events automatically (allow up to 45 seconds)."
+    var permissionDrag: PermissionDragItem!
+    var launcherDrag: PermissionDragItem!
+    let intro = NSTextField(wrappingLabelWithString: "")
+    var timer: Timer? { SettingsWindow.shared.pollTimer(for: content) }
+    var fromSettings = false
+    var installing = false
+    var installError: String?
+    var retryUntil: Date?
+    var waitingForSession = false
+    var checking: Bool {
+        installing || (waitingForSession && Date().timeIntervalSince(updateRequestedAt ?? .distantPast) <= 10) || (retryUntil.map { $0 > Date() } ?? false)
+    }
+    var previousSession: String?
+    var updateRequestedAt: Date?
+    private var startup = LidHelperStartupUpdate()
+    func afterLaunch(explain: @escaping () -> Void) {
+        guard !SettingsWindow.shared.testing else { return }
+        SettingsWindow.shared.afterInteraction { [weak self] in
+            guard let self, self.startup.claim(pending: self.installed && self.needsRepair,
+                available: !self.installing && !LidHelperUpdate.shared.busy && !AppUpdate.shared.busy && !PerchUpdater.shared.busy) else { return }
+            explain()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                SettingsWindow.shared.afterInteraction {
+                    if self.installed && self.needsRepair { self.installCollector() }
+                }
+            }
+        }
+    }
+    var installed: Bool {
+        FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/local.scott.perch.events.plist") && FileManager.default.fileExists(atPath: ProcessEventStream.pipePath)
+    }
+    var repairReason: String? {
+        guard installed else { return nil }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: "/Library/LaunchDaemons/local.scott.perch.events.plist")),
+              let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return "The collector configuration cannot be read. Update it to restore the supported configuration." }
+        if !Self.supportedArguments(job["ProgramArguments"] as? [String]) {
+            return "The collector uses an unsupported launcher or command. Update it to restore the fixed collector command."
+        }
+        if job["ProcessType"] as? String != "Interactive" {
+            return "The collector uses macOS’s default CPU and I/O throttling. Updating removes that throttling so process events can be delivered promptly. It restarts the collector and begins a new verified observation session; earlier gaps cannot be recovered."
+        }
+        return nil
+    }
+    var needsRepair: Bool { repairReason != nil }
+    static func supportedArguments(_ arguments: [String]?) -> Bool {
+        arguments == [CollectorIdentity.launcher]
+    }
+    override init() {
+        super.init()
+        intro.stringValue = "Remember agent subprocesses as they start—even if their parents exit quickly. Setup and health are checked automatically."
+        intro.frame = NSRect(x: 24, y: 441, width: 512, height: 46)
+        content.addSubview(intro)
+        for (index, label) in [installState, accessState, readyState].enumerated() {
+            label.font = .systemFont(ofSize: 14, weight: .medium)
+            label.frame = NSRect(x: 24, y: 400 - index * 35, width: 512, height: 27)
+            content.addSubview(label)
+        }
+        guidance.frame = NSRect(x: 24, y: 110, width: 512, height: 154)
+        content.addSubview(guidance)
+        primary.bezelStyle = .rounded; primary.target = self; primary.action = #selector(nextStep)
+        primary.frame = NSRect(x: 306, y: 26, width: 230, height: 32)
+        content.addSubview(primary)
+        let drag = PermissionDragItem(title: "eslogger") { URL(fileURLWithPath: "/usr/bin/eslogger") }
+        permissionDrag = drag
+        drag.frame = NSRect(x: 24, y: 65, width: 250, height: 38)
+        content.addSubview(drag)
+        launcherDrag = PermissionDragItem(title: "PerchEventLauncher") { URL(fileURLWithPath: CollectorIdentity.launcher) }
+        launcherDrag.frame = NSRect(x: 286, y: 65, width: 250, height: 38)
+        content.addSubview(launcherDrag)
+        openSettings.title = "Open Full Disk Access"
+        openSettings.target = self; openSettings.action = #selector(openPrivacySettings)
+        openSettings.bezelStyle = .rounded
+        openSettings.frame = NSRect(x: 24, y: 26, width: 230, height: 32)
+        content.addSubview(openSettings)
+        review = SettingsActionButton(title: "Show permission instructions") { [weak self] in self?.disclosure.toggle(); self?.refresh() }
+        review.frame = NSRect(x: 24, y: 285, width: 512, height: 30)
+        review.isBordered = false; review.alignment = .left
+        review.font = .systemFont(ofSize: 12, weight: .semibold)
+        content.addSubview(review)
+
+    }
+    func show(fromSettings: Bool) {
+        self.fromSettings = fromSettings
+        SettingsWindow.shared.show(.init(title: "Process event collection", detail: "See current collection health or complete any missing setup. Status updates automatically; you can return here at any time.", view: content, poll: .init(every: 0.5, whileBusy: true) { [weak self] in self?.refresh() }))
+        refresh()
+    }
+    static func collectionReady(_ state: SafetyStatus?, installed: Bool, needsRepair: Bool, waitingForSession: Bool, now: Date = Date()) -> Bool {
+        guard installed, !needsRepair, !waitingForSession, state?.fresh == true,
+              state?.eventCoverage == "Process events active", state?.eventConnected == true,
+              let last = state?.eventLastSeen else { return false }
+        return now.timeIntervalSince(last) >= 0 && now.timeIntervalSince(last) < 45
+    }
+    func refresh() {
+        let state = GuardianInstall.status
+        let fresh = state?.fresh == true
+        if waitingForSession, let session = state?.eventSessionID, session != previousSession { waitingForSession = false }
+        let receiving = fresh && state?.eventConnected == true && (state?.eventLastSeen.map { Date().timeIntervalSince($0) < 45 } ?? false)
+        let ready = Self.collectionReady(state, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession)
+        disclosure.update(ready: ready)
+        review.isEnabled = ready
+        review.title = ready ? disclosure.title : "Permission instructions"
+        review.isHidden = !installed || needsRepair || waitingForSession || !fresh
+        let showPermissions = disclosure.expanded && installed && !needsRepair && !waitingForSession && fresh && (!receiving || ready)
+        permissionDrag.isHidden = !showPermissions
+        openSettings.isHidden = !showPermissions
+        launcherDrag.isHidden = permissionDrag.isHidden || !FileManager.default.fileExists(atPath: CollectorIdentity.launcher)
+        intro.stringValue = ready ? "Process event collection is ready. No further setup is needed." : "Remember agent subprocesses as they start—even if their parents exit quickly. Complete the missing step below."
+        installState.stringValue = needsRepair ? "⚠  1. Collector update needed" : installed ? "✓  1. Collector installed" : "1. Install Apple’s collector"
+        let progress = checking || (installed && !needsRepair && !fresh && BackgroundHelperRecovery.shared.failure == nil)
+        accessState.stringValue = receiving ? "✓  2. Full Disk Access confirmed by received events" : progress ? "2. Checking live access…" : "⚠  2. Live access not yet confirmed"
+        readyState.stringValue = ready ? "✓  3. Ready — live event health check passed" : (receiving ? "3. Receiving events — checking stream health…" : progress ? "3. Waiting to receive events…" : "⚠  3. Live events are not arriving")
+        installState.textColor = installing ? .secondaryLabelColor : needsRepair ? StatusColors.warning : installed ? StatusColors.success : .labelColor
+        accessState.textColor = receiving ? StatusColors.success : progress ? .secondaryLabelColor : StatusColors.warning
+        readyState.textColor = ready ? StatusColors.success : progress || receiving ? .secondaryLabelColor : StatusColors.warning
+        primary.isHidden = false
+        primary.isEnabled = !installing
+        if installing { installState.stringValue = "1. Installing collector…"; primary.title = "Installing…"; return }
+        if !installed || needsRepair {
+            primary.title = needsRepair ? "Update collector…" : "Install collector…"
+            guidance.stringValue = installError ?? (needsRepair
+                ? (repairReason ?? "Collector update required.") + "\n\nApprove the update in Perch’s macOS prompt. The update does not reset permissions; macOS may require access for the new launcher. The checks above verify event delivery again."
+                : "Perch will ask for administrator approval to install Apple’s built-in eslogger as a background service. It observes process starts, forks and exits. A small Perch launcher records its process identity, then becomes Apple’s collector.\n\nNext, review Full Disk Access. macOS may require access for the native Perch collector launcher; received events confirm whether access is working.")
+
+        } else if waitingForSession {
+            let expired = Date().timeIntervalSince(updateRequestedAt ?? .distantPast) > 10
+            primary.title = expired ? "Retry verification" : "Starting new observation…"
+            primary.isEnabled = expired
+            guidance.stringValue = expired ? "The collector update finished, but the helper has not acknowledged the new observation session. Retry verification; if it still cannot respond, repair background protection in Settings." : "The collector update finished. Waiting for Perch to start a new observation session before checking readiness."
+        } else if ready {
+            primary.isHidden = true
+            guidance.stringValue = disclosure.expanded ? permissionInstructions : ""
+        } else if let until = retryUntil, until > Date() {
+            primary.title = "Checking…"; primary.isEnabled = false
+            guidance.stringValue = "Retry requested. Waiting for a fresh probe event (up to 10 seconds). You can still open Full Disk Access using the button below."
+        } else if !fresh {
+            primary.title = "Background helpers in Setup…"; primary.isEnabled = true
+            guidance.stringValue = installError ?? "The collector is installed, but Perch’s background helper is not responding. Review Setup → Background helpers, then return here to check collection."
+        } else if (state?.processEventCount ?? 0) > 0 && state?.error != nil && state?.error != "Process events need setup. Open Agent Kill Switch settings." {
+            primary.title = "Retry health check"
+            readyState.stringValue = "⚠  3. Events received, but coverage is degraded"
+            readyState.textColor = StatusColors.warning
+            guidance.stringValue = (state?.error ?? "Stream verification failed.") + "\n\nEvents arrived earlier, but current readiness is not confirmed. Repeating the permission toggle may not help. Perch is using snapshot fallback."
+        } else if receiving {
+            primary.title = "Checking automatically…"; primary.isEnabled = false
+            guidance.stringValue = "Full Disk Access is working. Perch is now checking that a known process appears in the event stream. This can take up to 45 seconds; no further clicks are needed."
+        } else {
+            primary.isHidden = true
+            guidance.stringValue = permissionInstructions
+        }
+    }
+    @objc func nextStep() {
+        if !installed || needsRepair {
+            installCollector()
+        } else if GuardianInstall.status?.fresh != true {
+            SettingsWindow.shared.navigateToSetupStage("maintenance")
+        } else if waitingForSession {
+            do { try requestNewSession(); refresh() } catch { guidance.stringValue = error.localizedDescription }
+        } else if Self.collectionReady(GuardianInstall.status, installed: installed, needsRepair: needsRepair, waitingForSession: waitingForSession) { refresh() }
+        else if (GuardianInstall.status?.processEventCount ?? 0) > 0 {
+            do { try SafetyFiles.send("check-events"); retryUntil = Date().addingTimeInterval(10); refresh() }
+            catch { guidance.stringValue = "Could not request a health check: \(error.localizedDescription)" }
+        }
+        else { SettingsWindow.shared.openSystemSettings(.fullDiskAccess) }
+    }
+    private func installCollector() {
+        guard !installing else { return }
+        guard !SettingsWindow.shared.testing else { installError = "Collector installation is blocked in tests."; return }
+        guard let url = Bundle.main.url(forResource: "install-event-collector", withExtension: "sh"),
+              let requirement = CodeIdentity.designatedRequirement,
+              requirement.contains("identifier \"local.scott.perch\"") else {
+            installError = "The signed collector installer is unavailable. Reinstall Perch."; refresh(); return
+        }
+        let launcher = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/PerchEventLauncher")
+        let launcherRequirement = requirement.replacingOccurrences(of: "identifier \"local.scott.perch\"", with: "identifier \"local.scott.perch.event-launcher\"")
+        installing = true; refresh()
+        let command = "/bin/sh " + AdminShell.quote(url.path) + " " + String(getuid()) + " " + AdminShell.quote(launcher.path) + " " + AdminShell.quote(launcherRequirement)
+        do { try AdminShell.runPrivileged(command); try requestNewSession(); installError = nil }
+        catch { installError = "Installation did not finish: \(error.localizedDescription). You can try again." }
+        installing = false; refresh()
+    }
+    func requestNewSession() throws {
+        previousSession = GuardianInstall.status?.eventSessionID
+        try SafetyFiles.send("restart-events")
+        waitingForSession = true; updateRequestedAt = Date()
+    }
+    @objc func openPrivacySettings() { SettingsWindow.shared.openSystemSettings(.fullDiskAccess) }
+}
+
+extension AppDelegate {
+    @objc func processEventSetup() { openSetupStage("events") }
+    @objc func presentEventSetupStage() {
+        setupOverview()
+        EventCollectorSetup.shared.show(fromSettings: true)
+    }
+}

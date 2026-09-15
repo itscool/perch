@@ -14,3 +14,6 @@ __pycache__/
 # Pinned Swift package build artifacts; Package.resolved remains tracked.
 Vendor/PerchCertificates/.build/
 Vendor/PerchCertificates/.swiftpm/
+
+# Task session artifacts (AGENT MODE sessions, audits) stay outside tracked source.
+work/

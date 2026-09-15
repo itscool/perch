@@ -36,16 +36,90 @@ still requires a physical two-Mac test. The optimistic handoff and routing
 state visual changes are committed and pushed at 209d2e2 (release metadata at
 126ed52).
 
-The current unreleased Desk candidate keeps actionable switching failures in a compact badge
-beside the Desk title instead of expanding the canvas, stacks computer cards when the available
-width is narrow, and exposes a safe direct-input takeover after stale/non-executing leases. A
-hardware write is never interrupted while its validity window is active; an orphaned lease is
-recoverable after that window. Direct port switches and preset switches broadcast accepted
-runtime state so paired Perch instances can select the matching preset without replaying the
-monitor command. Input sharing now has an explicit Restart input sharing action that rebuilds a
-macOS-disabled event tap, plus Reconnect desk for peer/offline sharing failures. Unknown monitor
-input no longer blocks KVM; it is shown as a check-picture note. Source/build verification is
-complete; physical two-Mac acceptance remains pending.
+September 14 (evening) audit and repair. Seven parallel audits (transport, protocol and
+security, switch state machine, input forwarding, concurrency, UX truthfulness, tests) and
+live forensics are recorded in `work/kvm-audit-2026-09-14/`. Root causes found on the live
+desk: the 20:49 install deleted the bundle the running Perch executed from (packaging now
+keeps `Perch.previous-<version>.app` and never removes a bundle a process runs from);
+macOS Local Network privacy restarted every desk flow about every 95 s because the bundle
+was replaced ~40 times under a local signing identity (only a stable identity fixes that);
+the two Macs ran incompatible builds with no version check, so the older one rejected
+history revisions written under a newer validation rule and reconnected every 5 s.
+Repairs in the working tree (desk protocol 2, both Macs must run it): versioned hello with a
+named refusal; goodbye frames so peers log why a link closed; heads-only sync instead of a
+full history replay; semantic rejections no longer close links; per-link liveness, one
+dialer per pair, stale routes replaced by new ones, link-local addresses ignored, TCP
+keepalive, peer-to-peer only while pairing; runtime stopped on quit with a flushed log.
+Input: 3 s lease with 0.5 s heartbeats (survives 400 ms latency and a lost heartbeat in
+the suite), the Mac with focus keeps its keys, clicks and cursor native and only reports
+its pointer position, focus starts under the hand instead of a screen centre, automatic
+starts never follow the editing selection and wait for a settling handoff, coalesced
+handoff buffers, tap re-enabled automatically, no HID enumeration in the tap callback,
+Perch's own hotkeys never forwarded, scroll phases and wheel notches carried, modifier
+state synced on capture changes. Switch: cross-Mac verification actually runs (bounded to
+1.5 s), per-route outcomes broadcast so every Mac holds the same optimistic state, a
+release no longer orphans an executing lease, unrestorable recovery records are pruned,
+display and journal work runs off the main thread with a 2 s away grace, destinations
+reconnect their display and answer before the write, reads are generation-fenced.
+UI: the Desk header states facts (what has control, what could not be confirmed), an
+unconfirmed switch is "Active · unconfirmed" with one "Picture didn't move" undo, a failed
+switch has one "Retry the switch", the menu never says Confirmed for an unconfirmed
+switch, the Share row opens access setup when access is missing, and the never-mounted
+recovery button panel is deleted. `./build.sh --no-bump` builds the same version on every
+Mac. Physical two-Mac acceptance remains pending; the other Mac must be rebuilt.
+
+September 15 (early) restructure. The tree was reorganized for maintainability
+without behavior changes beyond those named here. `Sources/` is grouped by concern
+(`Core`, `Entry`, `Menu`, `Settings`, `Desk`, `Input`, `Lid`, `Agent`, `Update`, `Native`);
+tests live in `Tests/` and `Tools/perch_sources.py` resolves basenames for every check
+tool. `Core` now holds the single implementations of previously duplicated solutions:
+`PerchError`, `Subprocess`, `SecureFile`, `JSONStore`, `MainTimer`, `MonotonicClock`,
+`Awake`, `Shortcut`/`HotKey`/`ShortcutRegistry` (one Carbon registrar with transactional
+registration and held-key filtering; four shortcut types and three hand-rolled conflict
+checks retired; wire and defaults formats unchanged), `AccessCheck`, `AdminShell` (one
+quoter, one privileged-script escaper; two callers had not escaped newlines),
+`CodeIdentity`, `DisplayIdentity`, `HIDDevices`/`HIDAttachmentObserver` (three copies of
+the IOKit notification dance, one of which could deliver a callback after teardown),
+`LaunchdJob` (a hung launchctl in lid maintenance now times out). The legacy monitor
+stack (MonitorGroups/MonitorInputs UI, probe and tests) is deleted with its nine UI routes;
+`main.swift` is a 13-line entry over a `ProcessRole` dispatcher (tested) and four
+`AppDelegate` files. The Desk simulation, `KVMHandoff` and the lab-only controls moved
+to `Tools/kvm-lab`; the app's Desk views talk to a `DeskBackend` protocol implemented by
+`DeskRuntimeBackend`, and no view branches on "is this the demo" any more. The Desk page
+was rebuilt (no dead band, wrapping computer cards, readable port chips, inline screen
+actions, facts-only status rows). `MenuAppearance` is split into model, store, drawing
+and page; settings pages pass a `poll:` to `SettingsWindow.show` and the window owns and
+stops the timer (no page keeps its own repeating timer); read-only logs and reports
+share `SettingsLogView`/`SettingsLogPage`. Memory leaks fixed: the desk transport's
+unused path summary, un-cleared IOKit dispatch queues, orphaned page timers on re-show,
+and the Carbon hotkey handler cycle. Stale tools repaired: check-sparkle,
+check-setup-layout, check-dialog-ownership, check-shortcut-back, check-menu-tooltips,
+check-app-bundle; `Tools/typecheck.sh` type-checks the whole tree in ~45 s without the
+build lock. Verified: `./build.sh --no-bump` 2.0.203, `--self-test` 30 PASS, every
+headless suite green (kvm 108, desk-network 13, lid-policy, dialog-contract 48 sites,
+dialog-ownership incl. window-owned polling, kvm-lab 265, renders for desk default/busy/
+empty and appearance, functional host builds). `--settings-self-test` and the functional
+run need an AGENT MODE session and were not run. Installed to /Applications/Perch.app
+(2.0.203, Developer ID); the running process is still the 2.0.202 build, executing from
+`Perch.previous-2.0.202.app`, which is kept on disk. Nothing is committed; the index holds
+the staged directory moves. Physical two-Mac acceptance still pending.
+
+September 15 (morning) launch repairs and manual Quit. Running the restructured build
+exposed three defects, all fixed and covered by self-tests. Quit could hang forever: every
+quit path (menu, Reset, update restart) called terminate from inside a main-queue block,
+and the deferred reply was queued on that same serial queue; replies now use a run-loop
+timer (`TerminationReply`). Helper install raced launchd: `launchctl bootstrap` ran 3 ms
+after `bootout`, before launchd removed the old guardian, so the guardian stayed unloaded;
+`LaunchdJob.replace(with:)` waits for the unload and retries. The switch from the local
+certificate to Developer ID signing made the old helpers reject the new app until they
+restarted, and macOS asks once to re-enable Perch under Accessibility (the old grant
+belongs to the local certificate). Manual Quit now turns Perch off: when anything is on it
+asks once, listing in plain words what stops and what is kept; it ends closed-lid mode,
+stops the guardian and input helper and keeps them from starting at login, while an Agent
+Kill Switch block stays enforced (Scott's choice). The next launch allows the helpers
+again without re-copying the app. Restart for an update and Reset are unchanged. The root
+lid helper and event collector stay loaded but no feature depends on them after Quit.
+Native click-through of the Quit notice is pending.
 
 ## Known defects — fix before shipping; target zero
 
@@ -75,10 +149,14 @@ complete; physical two-Mac acceptance remains pending.
   preset change replaces an old focus without requiring a hidden test action;
   the emergency shortcut still suppresses automatic restart. Input focus now
   renews through a separate authenticated heartbeat message, and motion events
-  coalesce while key/button/scroll ordering remains strict. Complete the
+  coalesce while key/button/scroll ordering remains strict. September 14
+  evening: the audited causes (version skew with no check, Local Network
+  session restarts, deleted running bundle, dead verification path, 1 s lease
+  on a blocking main thread, focus re-requests after every handoff) are fixed
+  in source and covered headlessly; see the checkpoint above. Complete the
   physical two-Mac edge-crossing, jitter, recovery and readback/control
-  investigation before closing this defect. BetterDisplay remains optional and
-  is not a runtime dependency.
+  investigation with both Macs on desk protocol 2 before closing this defect.
+  BetterDisplay remains optional and is not a runtime dependency.
 
 
 Automated update/fault, packaging/dependency and passive performance work is now

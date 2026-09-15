@@ -16,7 +16,7 @@ patterns = {
 }
 found = {}
 errors = []
-for file in sorted((repo/'Sources').glob('*.swift')):
+for file in sorted((repo/'Sources').rglob('*.swift')):
     if file.name.endswith('Tests.swift'): continue
     function = 'declaration'; counts = {}
     for number, line in enumerate(file.read_text().splitlines(), 1):

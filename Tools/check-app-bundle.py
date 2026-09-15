@@ -33,6 +33,8 @@ with tempfile.TemporaryDirectory(prefix='perch-packaging-tests-') as directory:
     shell.write_text('''set -euo pipefail
 APP=/fixture/Perch.app
 CHECK_DEPENDENCIES=0
+BUMP_VERSION=1
+OUTPUT_GIVEN=1
 set -- --output "$APP"
 python3() { printf '%s\\n' "$@"; }
 codesign() { printf '%s\\n' "$@"; }
@@ -112,12 +114,12 @@ codesign() { printf '%s\\n' "$@"; }
     assert marker.read_text() == 'previous app' and candidate.exists()
     # Even a failed rollback must leave the old app recoverable, not clean it up.
     def fail_move_and_restore(source, target):
-        if source == candidate or source.parent.name.startswith('.perch-previous-'):
+        if source == candidate or source.name.startswith('Previous.previous-'):
             raise OSError('Simulated destination failure')
         return rename(source, target)
     with patch.object(app_bundle.os, 'replace', side_effect=fail_move_and_restore):
         rejects(lambda: app_bundle.finish(candidate, destination), 'Rollback failure not reported')
-    backups = list(root.glob('.perch-previous-*/Previous.app'))
+    backups = list(root.glob('Previous.previous-*.app'))
     assert len(backups) == 1 and (backups[0]/'old-build-marker').read_text() == 'previous app'
     rename(backups[0], destination)
     app_bundle.finish(candidate, destination)

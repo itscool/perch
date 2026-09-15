@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Deterministic keypad state and panel-size tests; no devices, taps or windows."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess, tempfile
 repo=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='perch-keypad-tests-') as folder:
@@ -57,5 +59,5 @@ check(abs(DeskPhysicalSize.estimate(inches:27,aspect:16.0/9.0)!.width-597.7275)<
 for bad in [0.0,-1,Double.infinity,Double.nan,301] { check(DeskPhysicalSize.estimate(inches:bad,aspect:16.0/9.0)==nil,"Invalid diagonal accepted") }
 print("PASS: \(checks) keypad isolation/toggle/repeat/release/lifecycle and panel-size checks; no devices or event posting")
 '''.replace('key(source,down:false,sender:sender)','key(source,sender:sender,down:false)'))
- subprocess.run(['xcrun','swiftc',str(repo/'Sources/KeypadNavigation.swift'),str(repo/'Sources/DeskCanvasLayout.swift'),str(root/'main.swift'),'-o',str(root/'check')],check=True)
+ subprocess.run(['xcrun','swiftc',str(perch_source('KeypadNavigation.swift')),str(perch_source('DeskCanvasLayout.swift')),str(root/'main.swift'),'-o',str(root/'check')],check=True)
  subprocess.run([str(root/'check')],check=True)

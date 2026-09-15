@@ -64,3 +64,15 @@ Text-entry evidence: typed Desk-name changes were saved and survived Escape.
 The fixture did not select all text with Cmd+A (it omits the normal application
 menu); replacement-selection and standard editing shortcuts remain native QA
 for the production SwiftUI fields rather than being counted as passes.
+
+## September 14, 2026 evening: repair evidence and limits
+
+Headless, on this Mac only: `Tools/check-desk-network.py` (real TLS loopback) now
+also covers version refusal on both sides with backoff and recovery, stale-route
+replacement announced as expected, no history replay on reconnect with equal
+heads, "Perch stopped" logged as expected, the focused Mac keeping its input
+native, a 16-peer mesh on heads-only sync, and a lease surviving 400 ms one-way
+latency plus a dropped heartbeat. `check-kvm`, `check-input-native`,
+`kvm-lab/check` and a full `./build.sh --no-bump` pass. Not covered here: the
+real event tap, cursor hide on the source, real Wi-Fi, the LG readback, and any
+two-Mac behaviour; the other Mac must be rebuilt on desk protocol 2 first.

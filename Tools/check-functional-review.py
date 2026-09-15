@@ -48,18 +48,24 @@ fixture_storage = Path(tempfile.mkdtemp(prefix='perch-functional-storage-')).res
 (root / 'fixture-storage.txt').write_text(str(fixture_storage))
 src = root / 'Sources'
 src.mkdir(parents=True, exist_ok=True)
-for path in (repo / 'Sources').iterdir():
-    if path.is_file():
-        shutil.copy2(path, src / path.name)
+# Sources are grouped in directories; the isolated build compiles them flat.
+for root_dir in (repo / 'Sources', repo / 'Tests'):
+    for path in sorted(root_dir.rglob('*')):
+        if path.is_file():
+            shutil.copy2(path, src / path.name)
 images = root / 'renders'
 images.mkdir(exist_ok=True)
 for path in src.glob('*Tests.swift'):
     path.write_text(path.read_text().replace('/private/tmp/perch-', str(images / 'perch-')))
 main = src / 'main.swift'
-declarations = main.read_text().split('if CommandLine.arguments.contains("--check-modifier-access")')[0]
-declarations = declarations.replace('func script(_ source: String) throws -> NSAppleEventDescriptor {', 'func script(_ source: String) throws -> NSAppleEventDescriptor {\n    throw AppError(message: "AppleScript blocked in isolated tests")\n/*')
-declarations = declarations.replace('\n// Current protection', '\n*/}\n\n// Current protection', 1)
-# The disabled original script body includes its closing brace inside the comment.
+marker = 'if let role = ProcessRole.parse(CommandLine.arguments) { role.run() }'
+assert marker in main.read_text(), 'main.swift no longer dispatches roles through ProcessRole'
+declarations = main.read_text().split(marker)[0]
+# No AppleScript (and so no administrator prompt) can run from the isolated build.
+admin = src / 'AdminShell.swift'
+marker = 'static func run(_ source: String) throws -> NSAppleEventDescriptor { try perform(source) }'
+assert marker in admin.read_text(), 'AdminShell.swift no longer has the AppleScript entry point this fixture blocks'
+admin.write_text(admin.read_text().replace(marker, 'static func run(_ source: String) throws -> NSAppleEventDescriptor { throw AppError(message: "AppleScript blocked in isolated tests") }'))
 main.write_text(declarations + '''
 _ = NSApplication.shared
 NSApp.setActivationPolicy(.prohibited)
@@ -110,10 +116,9 @@ let suites: [(String, () throws -> Void)] = [
     ("privacy plan with mock executor", runPanicTests), ("input transforms", runInputTests),
     ("keyboard protocol", runKeyboardModeTests), ("navigation keys", runNavigationKeyTests),
     ("navigation runtime", runNavigationRuntimeTests), ("reset isolation", runSettingsResetTests),
-    ("monitor connections", runMonitorConnectionTests), ("monitor logic", runMonitorInputTests),
-    ("monitor transactions", runMonitorTransactionTests), ("navigation probe", runNavigationProbeTests),
+    ("navigation probe", runNavigationProbeTests),
     ("keyboard registration", runKeyboardRegistrationTests), ("AppKit settings", runSettingsTests),
-    ("multi-monitor groups", runMonitorGroupTests), ("lid grace and enforcement", runLidGuardTests)
+    ("lid grace and enforcement", runLidGuardTests)
 ]
 let selected = CommandLine.arguments.firstIndex(of: "--suite").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }
 let chosen = suites.filter { selected == nil || $0.0 == selected }

@@ -3,6 +3,8 @@
 import argparse
 import subprocess
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, required=True)
@@ -25,8 +27,11 @@ NSApp.setActivationPolicy(.prohibited)
 do { try runMenuTooltipTests(); try runMenuBoundaryTests() }
 catch { fputs("FAIL: \\(error)\\n", stderr); exit(1) }
 ''')
-subprocess.run(['xcrun', 'swiftc', str(repo/'Sources/MenuRowView.swift'),
-                str(repo/'Sources/MenuPresentation.swift'), str(repo/'Sources/MenuBoundaryTests.swift'),
-                str(repo/'Sources/MenuTooltipTests.swift'), str(root/'main.swift'),
-                '-framework', 'AppKit', '-o', str(root/'menu-tooltips')], check=True)
+subprocess.run(['xcrun', 'swiftc', str(perch_source('MenuRowView.swift')),
+                str(perch_source('MenuPresentation.swift')), str(perch_source('MenuAppearanceModel.swift')),
+                str(perch_source('MenuAppearanceStore.swift')), str(perch_source('MenuAppearanceDrawing.swift')),
+                str(perch_source('JSONStore.swift')), str(perch_source('PerchVersion.swift')),
+                str(perch_source('MenuBoundaryTests.swift')),
+                str(perch_source('MenuTooltipTests.swift')), str(root/'main.swift'),
+                '-framework', 'AppKit', '-framework', 'SwiftUI', '-o', str(root/'menu-tooltips')], check=True)
 subprocess.run([str(root/'menu-tooltips')], check=True)

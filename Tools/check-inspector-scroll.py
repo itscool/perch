@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise production inspector sizing across content and viewport changes, offscreen."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 repo = Path(__file__).resolve().parents[1]
@@ -84,5 +86,5 @@ check(NSApp.windows.isEmpty, "Fixture opened a window")
 print("PASS: \(checks) inspector states, wrapped heading/last action contained, stable width and scroll position, overflow/collapse across Light/Dark and resize; no windows")
 ''')
     binary = root / 'check'
-    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(repo / 'Sources/InspectorScrollView.swift'), str(root / 'main.swift'), '-o', str(binary)], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', str(perch_source('InspectorScrollView.swift')), str(root / 'main.swift'), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

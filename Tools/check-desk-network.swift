@@ -18,8 +18,8 @@ import Darwin
               KVMCloseReason.network.unexpected, KVMCloseReason.heartbeat.unexpected,
               KVMReconnectPolicy.delay(failures: 1) == 1,
               KVMReconnectPolicy.delay(failures: 2) == 2,
-              KVMReconnectPolicy.delay(failures: 6) == 32,
-              KVMReconnectPolicy.delay(failures: 7) == 60 else { throw KVMError("Connection diagnostic retention/classification or reconnect backoff failed") }
+              KVMReconnectPolicy.delay(failures: 6) == 15,
+              KVMReconnectPolicy.delay(failures: 7) == 15 else { throw KVMError("Connection diagnostic retention/classification or reconnect backoff failed") }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("perch-tls-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let a = try KVMDeskNode(identity: .fresh(), name: "Fixture A", storage: directory.appendingPathComponent("a.json"))
@@ -85,6 +85,31 @@ import Darwin
         }
         guard a.transport.links.values.filter({ $0.ready }).count == 1,
               b.transport.links.values.filter({ $0.ready }).count == 1 else { throw KVMError("Automatic reconnect retained duplicate authenticated routes") }
+        // Reconnecting with identical heads must not replay the signed history.
+        var replayed = 0
+        let originalReceive = a.transport.received
+        a.transport.received = { link, data in
+            if String(decoding: data.prefix(16), as: UTF8.self).contains("\"revision\"") { replayed += 1 }
+            originalReceive?(link, data)
+        }
+        // A peer that dials while this side still holds an older route is the
+        // one whose old route is gone: the new route wins and the stale one is
+        // announced as replaced, never as an unexpected loss.
+        RunLoop.main.run(until: Date().addingTimeInterval(2.2))
+        let staleID = a.transport.links.values.first { $0.ready }!.id
+        b.connect(endpoint, expected: a.localID)
+        try wait("newer route replaces stale route") {
+            a.transport.links[staleID] == nil && a.online.contains(b.localID) && b.online.contains(a.localID) &&
+            a.transport.links.values.filter { $0.ready }.count == 1 && b.transport.links.values.filter { $0.ready }.count == 1
+        }
+        // Both Macs prefer the new route; whichever closes its stale link second
+        // learns the reason from the goodbye frame. Neither side may log it as
+        // an unexpected loss.
+        try wait("replacement recorded as expected on both Macs") {
+            [a, b].allSatisfy { node in node.connectionEvents.contains { $0.detail.contains(KVMCloseReason.duplicate.rawValue) && !$0.unexpected && $0.time > now } }
+        }
+        guard replayed == 0 else { throw KVMError("Reconnect replayed \(replayed) revisions although both heads matched") }
+        a.transport.received = originalReceive
         print("PASS: bounded connection activity and expected/unexpected classifications")
         print("PASS: readable discovery metadata, role selection, duplicate-click guard, scoped failures/recovery, completed pairing close, redundant-route failure isolation")
         var changed = b.group; changed.name = "Shared from B"; try b.edit(changed)
@@ -93,6 +118,9 @@ import Darwin
         let oldB = b.group
         b.transport.stop()
         try wait("disconnect") { a.online.count == 1 }
+        try wait("deliberate stop announced as expected") {
+            a.connectionEvents.contains { $0.peer == b.localID && !$0.unexpected && $0.detail == KVMCloseReason.remote.rawValue + " · " + KVMCloseReason.shutdown.rawValue }
+        }
         var fromA = a.group; fromA.name = "Offline A"; try a.edit(fromA)
         var fromB = oldB; fromB.name = "Offline B"; try b.edit(fromB)
         b.closePairing(); a.closePairing()
@@ -219,14 +247,14 @@ import Darwin
         }
         fakeTime += 1; writes = 0
         switchesA.activate(desk.presets[0].id)
-        try wait("unconfirmed inputs have named recovery") { !switchesA.busy && switchesA.problem?.contains(desk.monitors[0].name) == true }
+        try wait("unconfirmed inputs have named recovery") { !switchesA.busy && switchesA.caution?.contains(desk.monitors[0].name) == true }
         guard switchesA.results.values.allSatisfy({ $0.state == .unverified }), writes == 2 else { throw KVMError("Old observation falsely cleared new readback failure") }
-        guard switchesA.problem?.contains("accepted the switch") == true else { throw KVMError("Unconfirmed switch did not explain optimistic desktop reconciliation") }
+        guard switchesA.problem == nil, switchesA.caution?.contains("accepted the switch") == true else { throw KVMError("Unconfirmed switch was reported as a failure instead of a neutral caution") }
         guard switchesA.optimisticInputs == expectedInputs else { throw KVMError("Accepted unverified inputs did not authorize optimistic reconciliation") }
         guard switchesA.retryConnection(for: desk.monitors[0].id) != nil else { throw KVMError("Unchanged failed input has no retry target") }
         confirmedReadback = true; fakeTime += 1
         switchesA.refreshObservations()
-        try wait("fresh passive read clears old switch failure") { switchesA.problem == nil && switchesA.results.values.allSatisfy { $0.state == .confirmed } }
+        try wait("fresh passive read clears old switch failure") { switchesA.problem == nil && switchesA.caution == nil && switchesA.results.values.allSatisfy { $0.state == .confirmed } }
         guard writes == 2 else { throw KVMError("Checking inputs repeated hardware writes") }
         try wait("generation-matched desktop evidence") { switchesA.desktopInputs.count == expectedInputs.count && switchesB.desktopInputs.count == expectedInputs.count }
         guard switchesA.desktopInputs == expectedInputs else { throw KVMError("Desktop ownership did not use fresh hardware evidence") }
@@ -312,14 +340,15 @@ import Darwin
         // suppressed and its keyboard events must be delivered to the same
         // focused computer as its mouse events; otherwise both Macs can react
         // to one physical action while the owner has no local lease.
+        // The Mac that has focus keeps its own keys, clicks and cursor native:
+        // nothing is captured and nothing is echoed back to it. Only its
+        // pointer position reaches the coordinator, to notice an edge push.
         let beforeOwnerLocal = deliveries.count
-        guard inputA.capture(.init(kind: .keyDown, code: 16)) else { throw KVMError("Owner keyboard was left local while focus was local") }
-        try wait("owner keyboard reaches the focused local Mac") { deliveries[beforeOwnerLocal...].contains { $0.0 == a.localID && $0.1.code == 16 } }
-        guard deliveries[beforeOwnerLocal...].allSatisfy({ $0.0 == a.localID }) else {
-            throw KVMError("Owner keyboard and mouse did not share the focused destination")
-        }
+        guard !inputA.capture(.init(kind: .keyDown, code: 16)) else { throw KVMError("Owner keyboard was captured while focus was local") }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard deliveries.count == beforeOwnerLocal else { throw KVMError("A local key was echoed back to the focused Mac") }
         let beforeBoundary = deliveries.count
-        guard inputA.capture(.init(kind: .motion, x: 300, y: 0)) else { throw KVMError("Mouse could not send") }
+        guard !inputA.capture(.init(kind: .motion, x: 300, y: 0)) else { throw KVMError("Local pointer motion was swallowed while focus was local") }
         try wait("pointer boundary handoff to B") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
         guard releaseCount >= 4 else { throw KVMError("Handoff did not release held input") }
         guard deliveries[beforeBoundary...].allSatisfy({ $0.0 == b.localID }) else {
@@ -360,6 +389,26 @@ import Darwin
         try wait("fresh readiness clears the status without starting") { inputA.problem == nil && inputB.problem == nil }
         guard !inputA.active && !inputB.active else { throw KVMError("Readiness recovery silently started capture") }
 
+        // A real desk link is Wi-Fi, not loopback: 400 ms each way and one lost
+        // heartbeat must not end a lease. The old one-second budget did.
+        var dropOneHeartbeat = true
+        switchesA.otherMessage = { peer, bytes in
+            if dropOneHeartbeat, String(decoding: bytes.suffix(from: KVMInputSession.wirePrefix.count).prefix(24), as: UTF8.self).contains("heartbeat\"") { dropOneHeartbeat = false; return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { _ = inputA.receive(bytes, peer: peer) }
+        }
+        switchesB.otherMessage = { peer, bytes in DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { _ = inputB.receive(bytes, peer: peer) } }
+        inputB.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
+        try wait("lease established over a slow link") { inputA.active && inputB.active }
+        RunLoop.main.run(until: Date().addingTimeInterval(3.5))
+        guard inputA.active, inputB.active, inputB.problem == nil, inputA.problem == nil else {
+            throw KVMError("Lease did not survive 400 ms latency and a dropped heartbeat: A=\(inputA.active) B=\(inputB.active) problems \(inputA.problem ?? "-") / \(inputB.problem ?? "-")")
+        }
+        guard !dropOneHeartbeat else { throw KVMError("Fixture never saw a heartbeat to drop") }
+        switchesA.otherMessage = { peer, bytes in _ = inputA.receive(bytes, peer: peer) }
+        switchesB.otherMessage = { peer, bytes in _ = inputB.receive(bytes, peer: peer) }
+        inputA.stop(); inputB.stop()
+        try wait("slow-link lease released") { !inputA.active && !inputB.active }
+        print("PASS: input lease survives 400 ms one-way latency and a lost heartbeat")
         for link in Array(b.transport.links.values) { b.transport.close(link, reason: .heartbeat) }
         guard let incident = b.connectionEvents.last(where: { $0.peer == a.localID && $0.unexpected && $0.detail == KVMCloseReason.heartbeat.rawValue }),
               incident.duration != nil else { throw KVMError("Lost active link omitted its cause, peer or duration") }
@@ -384,6 +433,26 @@ import Darwin
         guard inputA.problem == nil && inputB.problem == nil && inputA.readyComputers.isEmpty && inputB.readyComputers.isEmpty else { throw KVMError("Disabled sharing retained stale readiness") }
         print("PASS: named disconnection and automatic error clearance, read-only refresh, mouse/keyboard host following, kind-aware signed configuration")
         print("PASS: real TLS input routing in both directions, pointer handoff, release-before-focus, and lost visibility recovery; no native input capture or posting")
+        // A member on a different desk protocol is refused with a named reason on
+        // both sides and backs off instead of looping every five seconds.
+        for link in Array(b.transport.links.values) { b.transport.close(link, reason: .network) }
+        try wait("route gone before version check") { !a.online.contains(b.localID) && !b.online.contains(a.localID) }
+        b.announcedProtocolVersion = 1
+        b.retryConnections()
+        try wait("older peer refused") { a.peerProblems[b.localID]?.contains("older Perch") == true && a.peerVersions[b.localID] == 1 }
+        do { try wait("refused peer learns it is older") { b.peerProblems[a.localID]?.contains("newer Perch") == true } }
+        catch {
+            fputs("b.peerProblems: \(b.peerProblems)\nb.problem: \(b.problem ?? "nil")\nb events: \(b.connectionEvents.suffix(4).map(\.detail))\na events: \(a.connectionEvents.suffix(4).map(\.detail))\nb links: \(b.transport.links.count) online \(b.online.count)\n", stderr)
+            throw error
+        }
+        guard b.connectionEvents.contains(where: { $0.peer == a.localID && $0.detail.contains(KVMCloseReason.incompatible.rawValue) }) else { throw KVMError("Refusal reason was not delivered to the refused Mac") }
+        let refusals = a.connectionEvents.filter { $0.peer == b.localID && $0.detail.hasPrefix(KVMCloseReason.incompatible.rawValue) }.count
+        RunLoop.main.run(until: Date().addingTimeInterval(6))
+        guard a.connectionEvents.filter({ $0.peer == b.localID && $0.detail.hasPrefix(KVMCloseReason.incompatible.rawValue) }).count == refusals else { throw KVMError("Incompatible peer kept reconnecting inside the backoff window") }
+        b.announcedProtocolVersion = KVMDeskProtocol.version
+        b.retryConnections()
+        try wait("matching version reconnects") { a.online.contains(b.localID) && a.peerProblems[b.localID] == nil && a.peerVersions[b.localID] == KVMDeskProtocol.version }
+        print("PASS: desk protocol version refusal is named on both Macs, backs off, and recovers once versions match")
         try a.removePeer(b.localID)
         try wait("revocation") { a.online.count == 1 }
         b.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!), expected: a.localID)
@@ -447,8 +516,13 @@ import Darwin
         try wait("16 input participants ready", seconds: 10) { inputs[15].readyComputers.count == 16 && inputs[15].availableConnections.count == 16 && inputs[15].readinessIssue(preset: preset, monitor: first) == nil }
         inputs[15].start(preset: preset, monitor: first)
         try wait("16-party release and input grant") { inputs.allSatisfy { $0.active } }
-        for (index, service) in inputs.enumerated() { guard service.capture(.init(kind: .keyDown, code: UInt16(index))) else { throw KVMError("Input source unavailable in full group") } }
-        try wait("all 16 physical sources route to focus") { delivered[owner.localID, default: 0] == 16 }
+        // The focused Mac (the owner's own screen) keeps its key native; the
+        // other fifteen sources are captured and delivered to it.
+        for (index, service) in inputs.enumerated() {
+            let captured = service.capture(.init(kind: .keyDown, code: UInt16(index)))
+            guard captured == (index != 0) else { throw KVMError("Input source \(index) capture state wrong in full group") }
+        }
+        try wait("all 15 remote physical sources route to focus") { delivered[owner.localID, default: 0] == 15 }
         for index in 1...2 {
             guard inputs[15].capture(.init(kind: .motion, x: index == 1 ? 300 : 510)) else { throw KVMError("Pointer source lost full-group session") }
             do { try wait("three-computer pointer traversal \(index)") { inputs.allSatisfy { $0.active && $0.focus?.computer == nodes[index].localID } } }

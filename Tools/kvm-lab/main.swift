@@ -10,8 +10,9 @@ final class LabDelegate: NSObject, NSApplicationDelegate {
             guard Bundle.main.bundleIdentifier == "local.perch.desk-preview" else { fatalError("The lab requires isolated storage") }
             store = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Perch Desk Preview/demo-desk.json")
         }
-        let model = DeskModel(store: store)
-        let view = NSHostingView(rootView: DeskView(model: model))
+        let simulation = DeskSimulation(store: store)
+        let model = simulation.makeModel()
+        let view = NSHostingView(rootView: LabView(model: model, simulation: simulation))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 800), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Perch Desk Preview") — simulated KVM"; window.contentView = view
         window.minSize = NSSize(width: 960, height: 768); window.center()

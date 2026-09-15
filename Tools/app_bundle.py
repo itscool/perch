@@ -46,32 +46,70 @@ def verify(app):
     subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], check=True)
 
 
+def in_use(app):
+    """PIDs currently executing this bundle's main binary (path follows renames)."""
+    binary = app/'Contents/MacOS'/plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleExecutable']
+    result = subprocess.run(['/usr/sbin/lsof', '-t', str(binary)], capture_output=True, text=True)
+    return [int(pid) for pid in result.stdout.split()]
+
+
+def bundle_version(app):
+    try:
+        return plistlib.loads((app/'Contents/Info.plist').read_bytes()).get('CFBundleShortVersionString', 'unknown')
+    except (OSError, plistlib.InvalidFileException):
+        return 'unknown'
+
+
+def previous_bundles(destination):
+    prefix = f'{destination.stem}.previous-'
+    return sorted((p for p in destination.parent.glob(f'{prefix}*.app') if p.is_dir()),
+                  key=lambda p: p.stat().st_mtime)
+
+
+def prune_previous(destination, keep=2):
+    """Remove older recoverable bundles, never one a running process executes from."""
+    candidates = previous_bundles(destination)
+    for old in candidates[:-keep] if keep else candidates:
+        if in_use(old):
+            continue
+        shutil.rmtree(old)
+
+
 def finish(app, destination):
-    """Replace only after verification; restore the previous build on rename failure."""
+    """Replace only after verification; keep the previous build recoverable.
+
+    The bundle being replaced may be the one a running Perch executes from.
+    It is renamed beside the destination as <name>.previous-<version>.app and
+    never deleted while any process still runs from it, so the live process
+    keeps its code signature, resources and helper binaries on disk.
+    """
     verify(app)
     # Do not resolve the final component: following a destination symlink would
     # unexpectedly replace a different app, possibly the installed one.
     destination = destination.parent.resolve()/destination.name
     if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
         raise ValueError('Build destination must be an app directory, not a file or symlink')
-    temporary = Path(tempfile.mkdtemp(prefix='.perch-previous-', dir=destination.parent))
-    backup = temporary/destination.name
+    backup = None
+    if destination.exists():
+        backup = destination.parent/f'{destination.stem}.previous-{bundle_version(destination)}.app'
+        if backup.exists():
+            if in_use(backup):
+                backup = destination.parent/f'{destination.stem}.previous-{bundle_version(destination)}-{os.getpid()}.app'
+            else:
+                shutil.rmtree(backup)
+        os.replace(destination, backup)
     try:
-        if destination.exists():
-            os.replace(destination, backup)
-        try:
-            os.replace(app, destination)
-        except OSError:
-            if backup.exists():
-                try:
-                    os.replace(backup, destination)
-                except OSError as error:
-                    raise OSError(f'Could not restore the previous build; it is preserved at {backup}') from error
-            raise
-        shutil.rmtree(temporary)
-    finally:
-        if temporary.exists() and not backup.exists():
-            temporary.rmdir()
+        os.replace(app, destination)
+    except OSError:
+        if backup is not None and backup.exists() and not destination.exists():
+            try:
+                os.replace(backup, destination)
+            except OSError as error:
+                raise OSError(f'Could not restore the previous build; it is preserved at {backup}') from error
+        raise
+    prune_previous(destination)
+    if backup is not None:
+        print(f'Previous build kept at {backup}' + (' (still running)' if in_use(backup) else ''))
 
 
 def main():

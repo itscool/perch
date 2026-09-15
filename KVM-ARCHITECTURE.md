@@ -47,6 +47,7 @@ and unfinished drafts, where switching sidebar pages is not a substitute.
 | Concurrent edits | Preserve competing signed revisions. Show both choices and require an explicit resolution. | Do not select whichever packet arrived last. |
 | Reopen | Restore the saved desk, selection and valid changes. | Live readiness starts unknown; a saved “active” flag cannot authorize input. |
 
+The Desk views drive a `DeskBackend` protocol. In the app `DeskRuntimeBackend` adapts the live runtime; in the lab `DeskSimulation` (Tools/kvm-lab) supplies the simulated peers, switch outcomes and `KVMHandoff`, so no app view branches on simulation.
 The lab marks all computers, connections and switch outcomes as simulated. Its
 scenario controls are outside the proposed product interface. It must allow real
 native actions through these journeys, including leaving after completion/error,
@@ -113,3 +114,48 @@ References: [Apple networking API selection](https://developer.apple.com/documen
 - Physical acceptance: two and three Macs, different network paths, real
   visible-picture/input-recipient checks, held keys, sleep/disconnect and failure.
   Coordinate this separately with the user; never manufacture it on the live desk.
+
+## September 14, 2026 repairs (desk protocol 2)
+
+- **Compatibility.** The hello carries `protocolVersion`; a mismatch is refused with
+  a goodbye naming which Mac is older, backs off for a minute and shows the fix in
+  the peer's status. Wire fields added after a message shipped decode with defaults.
+  `./build.sh --no-bump` builds one version on every Mac from the same commit.
+- **Transport.** Deliberate closes send a goodbye (reason, detail) first, so peers
+  log "Perch stopped" or "Redundant connection replaced" instead of an unexpected
+  loss. Liveness is per link. A peer that dials while an old route exists is the
+  one whose route is gone: the new route wins unless both became ready within
+  two seconds, when the nonce tie-break decides. Only the member with the smaller
+  ID dials immediately; the other waits 15 s. Bonjour and the saved address
+  alternate. Link-local and interface-scoped addresses are never saved. TCP
+  keepalive fences a vanished peer in about ten seconds. Peer-to-peer (AWDL) is
+  used only while pairing or after repeated failures. Reconnect backoff caps at
+  15 s. The runtime stops on quit and flushes the activity log.
+- **Sync.** After trust the peers exchange heads; a peer sends only the revisions
+  the other lacks and acknowledges heads it already holds. A new revision goes to
+  every other route once. A revision this Mac cannot apply is reported, never a
+  reason to close the link. The owner checkpoints at 128 revisions without
+  waiting for every member to be online.
+- **Input.** The lease is 3 s with 0.5 s heartbeats; readiness and state windows
+  are 2.5 s. The Mac that has focus keeps its keys, clicks and cursor native and
+  reports its pointer position for edge detection; nothing is echoed back to it.
+  A focus request carries the requester's pointer position and whether it is
+  automatic; automatic requests are ignored while a handoff settles and never
+  follow the editing selection. Handoff buffers coalesce motion. The event tap is
+  re-enabled after a timeout; device scans never run in the callback. Perch's own
+  hotkeys act locally. Scroll phases, momentum and wheel notches are carried.
+- **Switching.** The initiator broadcasts a per-route `settled` outcome so every
+  Mac holds the same optimistic state and active preset, including after
+  failures. Cross-Mac verification runs for at most 1.5 s. Destinations reconnect
+  their display and answer `displayAwake` before the write (2 s bound). A release
+  for an executing lease takes effect when the write completes. Reads carry the
+  generation they were issued under. Recovery records from another boot, or for a
+  display that is back under another ID, are treated as restored. Display and
+  journal work runs on a serial queue; a monitor must be known to belong to
+  another Mac for 2 s before this Mac gives up its desktop on it.
+- **Presentation.** Facts, not verbs: the Desk header says what has control and
+  what could not be confirmed. "Active · unconfirmed" is neutral with one
+  "Picture didn't move" undo; a failed switch has one "Retry the switch". The
+  menu derives its hint from the same state. The Share row opens access setup
+  when access is missing. Recovery that Perch can decide itself is automatic; a
+  panel of speculative recovery buttons is not offered.

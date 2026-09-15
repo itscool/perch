@@ -29,60 +29,6 @@
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "MonitorGroupsUI.swift:show:page:1": {
-    "file": "MonitorGroupsUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorGroupsUI.swift:showResults:alert:1": {
-    "file": "MonitorGroupsUI.swift",
-    "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorGroupsUI.swift:button:page:1": {
-    "file": "MonitorGroupsUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorGroupsUI.swift:identify:panel:1": {
-    "file": "MonitorGroupsUI.swift",
-    "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorInputUI.swift:identifyInput:page:1": {
-    "file": "MonitorInputUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorInputUI.swift:editInputs:page:1": {
-    "file": "MonitorInputUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorInputUI.swift:ready:page:1": {
-    "file": "MonitorInputUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorInputUI.swift:show:page:1": {
-    "file": "MonitorInputUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "MonitorInputUI.swift:proposedConnection:page:1": {
-    "file": "MonitorInputUI.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
   "NavigationProbeUI.swift:show:page:1": {
     "file": "NavigationProbeUI.swift",
     "kind": "page",
@@ -213,7 +159,7 @@
     "review": "SPARKLE-REVIEW.md: Updates sidebar; autosaved checking preference; shared ownership handed to standard Sparkle UI.",
     "acceptance": "23/23 isolated suites passed including Updates unavailable-state/Back; real Sparkle signed fixture install and mock handoff failure/retry passed. Production helper/permission continuity and broader native acceptance remain release QA."
   },
-  "MenuAppearance.swift:appearanceSettings:page:1": {
+  "MenuAppearancePage.swift:appearanceSettings:page:1": {
     "review": "KVM-LIVE-REVIEW.md — independent System/rainbow controls and same-renderer preview; ordinary values save immediately.",
     "acceptance": "Source review in progress; native appearance, scroll, focus and sidebar return checks pending."
   },
@@ -223,11 +169,11 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "main.swift:about:about-panel:1": {
+  "AppDelegate+Menu.swift:about:about-panel:1": {
     "review": "RELEASE-DISTRIBUTION-REVIEW.md",
     "acceptance": "Standalone modeless AppKit About panel; independent Settings state, native close/reopen acceptance pending."
   },
-  "main.swift:showError:task-page:1": {
+  "AppDelegate+Menu.swift:showError:task-page:1": {
     "review": "SETUP-REVIEW-2.0.94.md: recovery findings; error stays inline or modeless with an actionable setup route; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
     "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
   },
@@ -318,5 +264,11 @@
     "kind": "page",
     "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
     "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "AppDelegate+Quit.swift:quit:alert:1": {
+    "file": "AppDelegate+Quit.swift",
+    "kind": "alert",
+    "review": "September 15 2026 manual Quit design with Scott: ask only when a feature is on, name what stops and what is kept in plain feature terms, keep an Agent Kill Switch block; native app-modal notice through SettingsWindow.presentStandaloneNotice",
+    "acceptance": "QuitPlanTests (effects wording, idle quit without asking, kept block, helper stop/allow sequence, bounded turn-off) pass headlessly; native click-through of the Quit notice not yet performed"
   }
 }

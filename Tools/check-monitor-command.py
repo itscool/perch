@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise production read-before-write policy without hardware or real waits."""
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import subprocess
 import tempfile
 repo = Path(__file__).resolve().parents[1]
@@ -37,5 +39,5 @@ let forced = try DeskMonitorCommand.run(input: 17, permitted: { true }, read: { 
 check(forced == .switched && forcedWrites == 1 && forcedWaits == 1)
 print("PASS: \(checks) monitor command checks; already-selected input sends no write and incurs no settle wait; unknown/read failures, cancelled lease, write failure and post-write expiry")
 ''')
-    subprocess.run(["xcrun", "swiftc", "-warnings-as-errors", str(repo/"Sources/DeskMonitorCommand.swift"), str(root/"main.swift"), "-o", str(root/"check")], check=True)
+    subprocess.run(["xcrun", "swiftc", "-warnings-as-errors", str(perch_source('DeskMonitorCommand.swift')), str(root/"main.swift"), "-o", str(root/"check")], check=True)
     subprocess.run([str(root/"check")], check=True)

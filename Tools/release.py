@@ -50,7 +50,7 @@ def source_snapshot():
     paths = run('git','ls-files','--cached','--others','--exclude-standard','-z',capture=True).split('\0')
     return {name: hashlib.sha256((REPO/name).read_bytes()).hexdigest()
             for name in sorted(set(paths)) if name and (REPO/name).is_file() and
-            (name.startswith(('Sources/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
+            (name.startswith(('Sources/','Tests/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
              name in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements','Release/dependencies.json','Release/notes.md','Release/history.md','SUPPORT.md','THIRD-PARTY-NOTICES.md'))}
 
 def release_commit(root, ref):
@@ -58,7 +58,7 @@ def release_commit(root, ref):
     commit = run('git','rev-parse','--verify',ref+'^{commit}',capture=True)
     snapshot = json.loads((root/'source-snapshot.json').read_text())
     names = run('git','ls-tree','-r','--name-only','-z',commit,capture=True).split('\0')
-    names = [n for n in names if n and (n.startswith(('Sources/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
+    names = [n for n in names if n and (n.startswith(('Sources/','Tests/','Vendor/','Resources/','Tools/','catalog/','Release/licenses/')) or
         n in ('build.sh','Info.plist','Release/config.json','Release/Perch.entitlements','Release/dependencies.json','Release/notes.md','Release/history.md','SUPPORT.md','THIRD-PARTY-NOTICES.md'))]
     if set(names) != set(snapshot):
         raise SystemExit('Release source file set does not match the requested commit.')

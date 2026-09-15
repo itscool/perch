@@ -8,6 +8,8 @@ fixture copy permits HTTP; Perch's production configuration requires HTTPS.
 import argparse
 import importlib.util
 from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from perch_sources import source as perch_source
 import plistlib
 import re
 import subprocess
@@ -34,7 +36,7 @@ try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: 
 print(key.publicKey.rawRepresentation.base64EncodedString())
 ''')
 public = subprocess.check_output(['xcrun','swift',str(generator),str(root/'fixture-private.txt')], text=True).strip()
-source = (repo / 'Sources/PerchUpdater.swift').read_text()
+source = (perch_source('PerchUpdater.swift')).read_text()
 source = source.replace('url.scheme == "https"', '(url.scheme == "https" || (url.scheme == "http" && url.host == "127.0.0.1"))')
 if a.headless: source = source.replace('SPUStandardUpdaterController', 'FixtureUpdaterController')
 (root / 'PerchUpdater.swift').write_text(source)
@@ -50,14 +52,14 @@ if a.headless:
 policy = 'prohibited' if a.headless else 'regular'
 (root / 'main.swift').write_text(fixture + f'\n_ = NSApplication.shared\nNSApp.setActivationPolicy(.{policy})\nlet delegate = AppDelegate()\nNSApp.delegate = delegate\nNSApp.run()\n')
 binary = root / 'Fixture'
-run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',repo/'Sources/UpdateIdentity.swift',repo/'Sources/LidRestartHandoff.swift',
+run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',perch_source('UpdateIdentity.swift'),perch_source('LidRestartHandoff.swift'),perch_source('SecureFile.swift'),perch_source('SettingsLogView.swift'),perch_source('TerminationReply.swift'),perch_source('CodeIdentity.swift'),
     '-F',sparkle,'-framework','Sparkle','-framework','AppKit','-framework','Security', '-Xlinker','-rpath','-Xlinker','@executable_path/../Frameworks','-o',binary)
 for build, directory in [('1','installed'),('2','candidate')]:
     app = root/directory/'Perch.app'; (app/'Contents/MacOS').mkdir(parents=True)
     run('cp',binary,app/'Contents/MacOS/Perch')
     info = {'CFBundleIdentifier':'local.perch.sparkle-fixture.'+root.name, 'CFBundleExecutable':'Perch','CFBundleName':'Perch Update Fixture',
             'CFBundlePackageType':'APPL','CFBundleVersion':build,'CFBundleShortVersionString':'1.2.'+build,'LSMinimumSystemVersion':'26.0',
-            'PerchLidProtocolVersion':int(re.search(r'static let protocolVersion = (\d+)', (repo/'Sources/LidRestartHandoff.swift').read_text())[1]),
+            'PerchLidProtocolVersion':int(re.search(r'static let protocolVersion = (\d+)', (perch_source('LidRestartHandoff.swift')).read_text())[1]),
             'LSUIElement': a.headless,'SUFeedURL':f'http://127.0.0.1:{a.port}/appcast.xml','SUPublicEDKey':public,
             'SUEnableAutomaticChecks':True,'SUAllowsAutomaticUpdates':False,'SUAutomaticallyUpdate':False,
             'SURequireSignedFeed':True,'SUVerifyUpdateBeforeExtraction':True,'FixtureRoot':str(root)}

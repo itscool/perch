@@ -9,6 +9,13 @@ An explicit request to publish authorizes completing the release publication flo
 Status/log checks for an existing submission and stapling its accepted ticket do
 not create a new submission. This preference does not cancel existing submissions.
 
+# Releases
+
+Follow `.claude/skills/release/SKILL.md` for every release. It verifies and
+prepares the release notes in the conversation, then runs notarization,
+publication and the Homebrew cask update in a background agent, so long Apple
+waits never block other work.
+
 # Live UI testing
 
 Before operating the live desktop, announce the app/flow and start the separate

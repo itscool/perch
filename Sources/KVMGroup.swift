@@ -247,6 +247,12 @@ struct KVMDisplayObservation: Equatable {
 
 enum KVMEdge {
     private static let alignmentToleranceMM = 0.1
+    // Canonical tenths-of-a-millimetre values can still differ by one ULP
+    // after addition/subtraction. Keep an exactly one-tenth edge aligned
+    // instead of rejecting it because of that representation noise.
+    private static func aligned(_ distance: Double) -> Bool {
+        abs(distance) <= alignmentToleranceMM + 0.000001
+    }
     enum Crossing: Equatable { case blocked, native, remote(monitor: UUID, computer: UUID, entry: KVMPoint) }
     static func crossing(group: KVMGroup, preset: KVMPreset, source: UUID, from: KVMPoint, to: KVMPoint) -> Crossing {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),
@@ -267,10 +273,10 @@ enum KVMEdge {
             guard other.id != source else { return false }
             let h = other.geometry
             switch exit.1 {
-            case 0: return abs(h.x - g.right) <= alignmentToleranceMM && p.y >= h.y && p.y <= h.bottom
-            case 1: return abs(h.right - g.x) <= alignmentToleranceMM && p.y >= h.y && p.y <= h.bottom
-            case 2: return abs(h.y - g.bottom) <= alignmentToleranceMM && p.x >= h.x && p.x <= h.right
-            default: return abs(h.bottom - g.y) <= alignmentToleranceMM && p.x >= h.x && p.x <= h.right
+            case 0: return aligned(h.x - g.right) && p.y >= h.y && p.y <= h.bottom
+            case 1: return aligned(h.right - g.x) && p.y >= h.y && p.y <= h.bottom
+            case 2: return aligned(h.y - g.bottom) && p.x >= h.x && p.x <= h.right
+            default: return aligned(h.bottom - g.y) && p.x >= h.x && p.x <= h.right
             }
         }
         guard targets.count == 1, let target = targets.first,

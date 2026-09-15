@@ -421,7 +421,7 @@ final class KVMInputSession: ObservableObject {
             guard node.isOwner, let pending, pending.id == id, pending.participants.contains(peer), now - pendingAt < 2 else { return }
             prepared.insert(peer)
             if prepared == pending.participants {
-                grant = pending; self.pending = nil; pointer = pending.focus; incoming = [:]; outputSequence = 0
+                grant = pending; self.pending = nil; pointer = pending.focus; focus = pending.focus; incoming = [:]; outputSequence = 0
                 installed = []
                 if pending.participants.contains(node.localID) {
                     lease.acceptLocally(pending, now: now)

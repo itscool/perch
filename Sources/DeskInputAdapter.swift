@@ -38,6 +38,7 @@ final class DeskInputAdapter: ObservableObject {
     private var lockObservers: [NSObjectProtocol] = []
     private var screenLocked = false
     private var cursorHidden = false
+    private var cursorAssociated = true
     private var shownFocus: UUID?
     private var subscription: AnyCancellable?
     init(session: KVMInputSession) {
@@ -235,11 +236,25 @@ final class DeskInputAdapter: ObservableObject {
         restoreCursor(); shownFocus = nil
     }
     private func restoreCursor() {
+        if !cursorAssociated {
+            // Reattach macOS's hardware cursor only after the remote lease has
+            // ended. Keeping it detached during remote control prevents local
+            // pointer motion from fighting the desk's remote coordinate.
+            _ = CGAssociateMouseAndMouseCursorPosition(1)
+            cursorAssociated = true
+        }
         if cursorHidden { CGDisplayShowCursor(CGMainDisplayID()); cursorHidden = false }
     }
     private func updateCursor() {
         guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else { restoreCursor(); shownFocus = nil; return }
         if focus.computer != session.node.localID {
+            if cursorAssociated {
+                // Hiding alone leaves the native cursor position live. Detach
+                // it for the duration of a remote lease so event deltas cannot
+                // pull the local cursor back or reset it at the edge.
+                _ = CGAssociateMouseAndMouseCursorPosition(0)
+                cursorAssociated = false
+            }
             if !cursorHidden { cursorHidden = CGDisplayHideCursor(CGMainDisplayID()) == .success }
             shownFocus = nil
         } else {

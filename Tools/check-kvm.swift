@@ -72,7 +72,11 @@ import CryptoKit
         var gap = group; gap.monitors[1].geometry.x = 601
         try check(KVMEdge.crossing(group: gap, preset: gap.presets[0], source: left.id, from: .init(x: 590, y: 170), to: .init(x: 650, y: 170)) == .blocked, "no teleport across physical gap")
         var roundedEdge = group; roundedEdge.monitors[1].geometry.x = 600.05
-        try check(KVMEdge.crossing(group: roundedEdge, preset: roundedEdge.presets[0], source: left.id, from: .init(x: 590, y: 170), to: .init(x: 620, y: 170)) == .remote(monitor: right.id, computer: bob.id, entry: .init(x: 600.05, y: 170)), "millimetre rounding noise does not block an aligned edge")
+        // Geometry is canonicalized to tenths of a millimetre at assignment
+        // time, so 600.05 becomes 600.1. The test checks the intended routing
+        // behavior without expecting discarded sub-tenth precision in the
+        // returned entry point.
+        try check(KVMEdge.crossing(group: roundedEdge, preset: roundedEdge.presets[0], source: left.id, from: .init(x: 590, y: 170), to: .init(x: 620, y: 170)) == .remote(monitor: right.id, computer: bob.id, entry: .init(x: 600.1, y: 170)), "millimetre rounding noise does not block an aligned edge")
         try check(KVMEdge.crossing(group: group, preset: group.presets[0], source: left.id, from: .init(x: 590, y: 330), to: .init(x: 610, y: 350)) == .blocked, "corner has no arbitrary target")
         var native = group; native.connections[1].computer = alice.id; native.connections[1].localDisplay = "2"
         try check(KVMEdge.crossing(group: native, preset: native.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .native, "same computer uses native traversal")

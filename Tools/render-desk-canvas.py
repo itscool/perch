@@ -135,6 +135,6 @@ precondition(NSApp.windows.isEmpty, "Renderer presented a window")
 print("PASS: production Desk canvas rendered without windows or live settings")
 }
 ''')
-    sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
+    sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'PannableSurface.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(repo/'Sources'/s) for s in sources], str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0)], check=True)

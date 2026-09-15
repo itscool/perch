@@ -460,7 +460,11 @@ struct DeskCanvas: View {
         let canvasPanOffset = DeskCanvasLayout.clampedPan(rawCanvasPanOffset,
                                                           content: CGSize(width: deskSurfaceWidth, height: deskSurfaceHeight),
                                                           viewport: available)
-        ScrollView([.horizontal, .vertical], showsIndicators: true) {
+        PannableSurface(documentSize: CGSize(width: deskSurfaceWidth, height: deskSurfaceHeight),
+                        viewportSize: available,
+                        coordinateSpace: "deskScreenCanvas",
+                        scrollerInset: 12,
+                        allowsDrag: false) {
         VStack(spacing: 16) {
             HStack {
                 Text("Screens").font(.headline).lineLimit(1)
@@ -549,7 +553,6 @@ struct DeskCanvas: View {
             .onDisappear { finishScreenDrag(); wire.cancel() }
             .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
             .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in deskWireLayer(anchors) }
-            .background(DeskScrollIndicatorConfigurator())
         }
         // The desk is one surface: its header, graph and computer row share a
         // bounded rounded container that fills the available dialog height.
@@ -568,51 +571,6 @@ struct DeskCanvas: View {
         }
         }
     }
-    /// SwiftUI's scroll view owns an AppKit NSScrollView internally. Replace
-    /// its platform-width knobs with a slim overlay treatment while retaining
-    /// native scrolling and accessibility.
-    private struct DeskScrollIndicatorConfigurator: NSViewRepresentable {
-        func makeNSView(context: Context) -> DeskScrollIndicatorProbe { DeskScrollIndicatorProbe() }
-        func updateNSView(_ nsView: DeskScrollIndicatorProbe, context: Context) { nsView.configureSoon() }
-    }
-
-    private final class DeskScrollIndicatorProbe: NSView {
-        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); configureSoon() }
-        func configureSoon() {
-            DispatchQueue.main.async { [weak self] in self?.configure() }
-        }
-        private func configure() {
-            var view: NSView? = self
-            while let current = view {
-                if let scroll = current as? NSScrollView {
-                    scroll.scrollerStyle = .overlay
-                    scroll.autohidesScrollers = true
-                    // Keep the slim indicators in the desk border’s padding,
-                    // outside the readable inner content.
-                    scroll.scrollerInsets = NSEdgeInsets(top: 3, left: 3, bottom: 3, right: 3)
-                    scroll.verticalScroller = DeskThinScroller()
-                    scroll.horizontalScroller = DeskThinScroller()
-                    return
-                }
-                view = current.superview
-            }
-        }
-    }
-
-    private final class DeskThinScroller: NSScroller {
-        override class var isCompatibleWithOverlayScrollers: Bool { true }
-        override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
-        override func drawKnob() {
-            let knob = rect(for: .knob)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.7).setFill()
-            if knob.width >= knob.height {
-                NSRect(x: knob.minX, y: knob.midY - 2, width: knob.width, height: 4).fill()
-            } else {
-                NSRect(x: knob.midX - 2, y: knob.minY, width: 4, height: knob.height).fill()
-            }
-        }
-    }
-
     private func finishScreenDrag() {
         drag = nil; snapBypassed = false
         if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }; modifierMonitor = nil

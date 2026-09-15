@@ -3,6 +3,7 @@ import AppKit
 func runSettingsTests() throws {
     try runAboutDialogTests()
     try runMenuAppearanceTests()
+    try runPannableSurfaceTests()
     try DesktopTestSession.check()
     try runDialogOwnershipTests()
     try runSettingsAccessibilityTests()

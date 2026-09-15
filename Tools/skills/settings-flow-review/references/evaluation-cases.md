@@ -507,6 +507,21 @@ Expected: visible direct preset choices, distinguishable cable gestures, route/e
 
 A native scroller hosts a declarative inspector with wrapped explanations. Its heading is clipped despite unused space below and a zero scroll offset. Check constrained-width intrinsic measurement and actual first/last child bounds before adding padding. Exercise narrower widths, expanded content and collapse while scrolled; preserve the user's reading position when content is unchanged. A genuinely scrolled-down long document may legitimately hide its heading.
 
+### One document for a pannable editor
+
+Scenario: a graph has a bordered outer frame, an independently offset inner
+canvas and a native scroll view. At some sizes the frame, wires and controls no
+longer share an origin; dragging jumps, scroll indicators cover content, or the
+last row is clipped. Narrowing can also change the scale anchor and hide the
+top of the document.
+
+Expected: one reusable surface owns the viewport, finite document size, pan,
+scale, border inset, indicators and coordinate space. Exercise wide/narrow and
+short/tall windows, fitting-to-overflow transitions, drag from empty space,
+native scrolling, content/status changes and the first/last child bounds. The
+border, wires and controls must move as one document; a second nested scroller
+or unsynchronized offset is a defect.
+
 ### Recovery reports that outlive their cause
 
 Two cooperating apps are healthy again, but one continues to show “reconnect or review changes.” Trace local and relayed error ownership, nil-success responses and expiry. Name the disconnected computer or actual conflicting edits and expose the corresponding action. A later readback may resolve a monitor failure without another write, but must belong to the current configuration and postdate the attempt. An active verified helper request may be setup-ready without promising that the OS can never interrupt it. Keep evidence limits explicit.

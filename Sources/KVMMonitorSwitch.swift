@@ -279,7 +279,7 @@ final class KVMMonitorSwitch: ObservableObject {
             node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.computer
         })
         for destination in destinations {
-            if destination == node.localID { DeskDisplayWake.request() }
+            if destination == node.localID { DeskDisplayWake.requestIfNeeded() }
             else if node.online.contains(destination) { send(.wakeDisplay, peer: destination) }
         }
         for peer in required { send(.prepare(request), peer: peer) }
@@ -293,7 +293,7 @@ final class KVMMonitorSwitch: ObservableObject {
         switch message {
         case .wakeDisplay:
             guard peer == node.ownerID || node.isOwner else { return }
-            DeskDisplayWake.request()
+            DeskDisplayWake.requestIfNeeded()
         case .desktopInvalidation(let request, let finished):
             guard request.epoch == node.graph.roster.epoch, request.revision == node.revision,
                   (try? request.validated(in: node.group)) == request else { return }

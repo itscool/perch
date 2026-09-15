@@ -70,6 +70,26 @@ enum DeskScreenPlacement {
         let docked = dock(proposed, among: others, scale: scale, tolerance: tolerance)
         var result = docked
         func valid(_ r: CGRect) -> Bool { !others.contains { let i = r.intersection($0); return !i.isNull && i.width > 0 && i.height > 0 } }
+        // Docking normally resolves a collision in one pass. Keep a final
+        // deterministic escape hatch for dense layouts and tenth-millimetre
+        // rounding: never hand the model a rectangle that still intersects a
+        // neighbour after the snap/alignment pass.
+        if !valid(result) {
+            for _ in 0..<others.count + 2 where !valid(result) {
+                var candidates: [(CGRect, CGFloat)] = []
+                for other in others {
+                    let overlap = result.intersection(other)
+                    guard !overlap.isNull, overlap.width > 0, overlap.height > 0 else { continue }
+                    let epsilon: CGFloat = 0.1
+                    candidates.append((result.offsetBy(dx: -(overlap.width + epsilon), dy: 0), overlap.width + epsilon))
+                    candidates.append((result.offsetBy(dx: overlap.width + epsilon, dy: 0), overlap.width + epsilon))
+                    candidates.append((result.offsetBy(dx: 0, dy: -(overlap.height + epsilon)), overlap.height + epsilon))
+                    candidates.append((result.offsetBy(dx: 0, dy: overlap.height + epsilon), overlap.height + epsilon))
+                }
+                guard let next = candidates.filter({ valid($0.0) }).min(by: { $0.1 < $1.1 })?.0 else { break }
+                result = next
+            }
+        }
         // Docking owns its perpendicular axis; align along the edge independently.
         for horizontal in [false, true] {
             if horizontal ? docked.minY != proposed.minY : docked.minX != proposed.minX { continue }
@@ -80,6 +100,22 @@ enum DeskScreenPlacement {
             }.filter { abs($0) <= threshold }.sorted { abs($0) < abs($1) }
             if let delta = candidates.first(where: { valid(result.offsetBy(dx: horizontal ? 0 : $0, dy: horizontal ? $0 : 0)) }) {
                 result = result.offsetBy(dx: horizontal ? 0 : delta, dy: horizontal ? delta : 0)
+            }
+        }
+        // Alignment can move a just-rescued rectangle back into a neighbour.
+        // Run the same finite escape once more after alignment.
+        if !valid(result) {
+            for other in others where !result.intersection(other).isNull {
+                let overlap = result.intersection(other)
+                guard overlap.width > 0, overlap.height > 0 else { continue }
+                let epsilon: CGFloat = 0.1
+                let options = [
+                    result.offsetBy(dx: -(overlap.width + epsilon), dy: 0),
+                    result.offsetBy(dx: overlap.width + epsilon, dy: 0),
+                    result.offsetBy(dx: 0, dy: -(overlap.height + epsilon)),
+                    result.offsetBy(dx: 0, dy: overlap.height + epsilon)
+                ]
+                if let safe = options.first(where: valid) { result = safe; break }
             }
         }
         var guides: [Guide] = []

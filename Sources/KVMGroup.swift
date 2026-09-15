@@ -178,7 +178,7 @@ struct KVMGroup: Codable, Equatable, Identifiable {
             let g = monitor.geometry
             try require([g.x, g.y, g.width, g.height].allSatisfy(\.isFinite) && abs(g.x) <= 100_000 && abs(g.y) <= 100_000 &&
                         (1...10_000).contains(g.width) && (1...10_000).contains(g.height), "Screen positions and physical sizes must be valid.")
-            try require(!monitors.contains { $0.id != monitor.id && $0.geometry.overlaps(g) }, "Screens overlap. Place them side by side or leave a gap.")
+            try require(!monitors.contains { $0.id != monitor.id && $0.geometry.overlaps(g) }, "Screens overlap. Auto-snap them edge to edge before saving.")
         }
         try require(monitors.allSatisfy { $0.inputProfile.map { !$0.isEmpty && $0.utf8.count <= 200 } ?? true }, "Monitor profile names must be valid.")
         for connection in connections {

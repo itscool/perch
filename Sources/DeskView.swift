@@ -448,10 +448,16 @@ struct DeskCanvas: View {
         // expose unbounded blank canvas or cut the lower nodes away.
         let surfaceSize = CGSize(width: canvasSize.width,
                                   height: canvasSize.height + (model.group.computers.isEmpty ? 58 : 154))
+        // Size the bordered desk from the complete inner layout, not from the
+        // visible viewport. Once the cards reach their readable minimum the
+        // outer ScrollView can pan this whole surface instead of clipping its
+        // right or bottom edge.
+        let deskSurfaceWidth = max(available.width, canvasSize.width)
+        let deskSurfaceHeight = max(available.height, surfaceSize.height + 72)
         let canvasPanOffset = DeskCanvasLayout.clampedPan(rawCanvasPanOffset,
                                                           content: surfaceSize,
                                                           viewport: available)
-        ScrollView([.horizontal, .vertical], showsIndicators: false) {
+        ScrollView([.horizontal, .vertical], showsIndicators: true) {
         VStack(spacing: 16) {
             HStack {
                 Text("Screens").font(.headline).lineLimit(1)
@@ -541,18 +547,62 @@ struct DeskCanvas: View {
             .onDisappear { finishScreenDrag(); wire.cancel() }
             .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
             .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in deskWireLayer(anchors) }
+            .background(DeskScrollIndicatorConfigurator())
         }
         // The desk is one surface: its header, graph and computer row share a
         // bounded rounded container that fills the available dialog height.
         // Nodes can move inside it; the surface itself does not grow or
         // disappear as content is rearranged.
         .padding(12)
+        .frame(minWidth: deskSurfaceWidth, minHeight: deskSurfaceHeight, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         }
     }
+    /// SwiftUI's scroll view owns an AppKit NSScrollView internally. Replace
+    /// its platform-width knobs with a slim overlay treatment while retaining
+    /// native scrolling and accessibility.
+    private struct DeskScrollIndicatorConfigurator: NSViewRepresentable {
+        func makeNSView(context: Context) -> DeskScrollIndicatorProbe { DeskScrollIndicatorProbe() }
+        func updateNSView(_ nsView: DeskScrollIndicatorProbe, context: Context) { nsView.configureSoon() }
+    }
+
+    private final class DeskScrollIndicatorProbe: NSView {
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); configureSoon() }
+        func configureSoon() {
+            DispatchQueue.main.async { [weak self] in self?.configure() }
+        }
+        private func configure() {
+            var view: NSView? = self
+            while let current = view {
+                if let scroll = current as? NSScrollView {
+                    scroll.scrollerStyle = .overlay
+                    scroll.autohidesScrollers = true
+                    scroll.verticalScroller = DeskThinScroller()
+                    scroll.horizontalScroller = DeskThinScroller()
+                    return
+                }
+                view = current.superview
+            }
+        }
+    }
+
+    private final class DeskThinScroller: NSScroller {
+        override class var isCompatibleWithOverlayScrollers: Bool { true }
+        override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
+        override func drawKnob() {
+            let knob = rect(for: .knob)
+            NSColor.secondaryLabelColor.withAlphaComponent(0.7).setFill()
+            if knob.width >= knob.height {
+                NSRect(x: knob.minX, y: knob.midY - 2, width: knob.width, height: 4).fill()
+            } else {
+                NSRect(x: knob.midX - 2, y: knob.minY, width: 4, height: knob.height).fill()
+            }
+        }
+    }
+
     private func finishScreenDrag() {
         drag = nil; snapBypassed = false
         if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }; modifierMonitor = nil
@@ -695,7 +745,7 @@ struct DeskCanvas: View {
         }.frame(width: width, height: height)
             .contentShape(Rectangle())
                 .onHover { hovering in hoveredScreen = hovering ? monitor.id : (hoveredScreen == monitor.id ? nil : hoveredScreen) }
-                .help("Drag to arrange this physical screen. Guides preview edge and center alignment. Hold Shift to bypass snapping; gaps are allowed. Right-click for exact size in millimetres.")
+                .help("Drag to arrange this physical screen. Perch snaps screens edge to edge so pointer crossing stays continuous. Hold Shift to bypass snapping. Right-click for exact size in millimetres.")
                 .contextMenu {
                     Button("Physical size…") { dimensions(monitor.id) }
                     Button("Rotate clockwise") { model.rotateScreen(monitor.id) }

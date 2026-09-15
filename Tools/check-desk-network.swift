@@ -158,7 +158,7 @@ import Darwin
               try direct.validated(in: directDesk) == direct,
               try JSONDecoder().decode(KVMMonitorRequest.self, from: JSONEncoder().encode(direct)) == direct else { throw KVMError("Direct port request lost its scope") }
         let forged = KVMMonitorRequest(id: direct.id, epoch: direct.epoch, revision: direct.revision, preset: nil,
-                                      routes: [.init(monitor: desk.monitors[0].id, control: desk.monitors[0].control!, input: 99)], connection: unusedPort.id)
+                                      routes: [.init(monitor: desk.monitors[0].id, control: desk.monitors[0].control!, input: 99, force: true)], connection: unusedPort.id)
         guard try forged.validated(in: directDesk) != forged else { throw KVMError("Direct port request accepted an arbitrary target") }
         writes = 0; switchesA.activateConnection(unusedPort.id)
         try wait("one-off remote port completes") { !switchesA.busy && switchesA.results.count == 1 }
@@ -166,10 +166,11 @@ import Darwin
               switchesA.results[desk.monitors[0].id] == nil,
               a.group == directDesk, b.group == directDesk else { throw KVMError("Direct port action changed a preset or another screen") }
         writes = 0; switchesA.activateConnection(unusedPort.id)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        guard writes == 0 && !switchesA.busy else { throw KVMError("Repeated accepted direct port sent another hardware switch") }
-        // Repeating the accepted target must be a no-op even when readback is
-        // unavailable. Use a different direct port for the stale-lease path.
+        try wait("repeated one-off port force switch") { !switchesA.busy && switchesA.results.count == 1 }
+        guard writes == 1 else { throw KVMError("Repeated direct port did not force a hardware switch") }
+        // Explicit direct-input actions are force switches, even when Perch
+        // already believes the target is selected. Use a different direct port
+        // for the stale-lease path below.
         hold = true; writes = 0; switchesA.activateConnection(holdPort.id)
         try wait("hold one-off command") { delayed.count == 1 }
         var editedPort = directDesk

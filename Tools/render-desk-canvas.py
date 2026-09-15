@@ -114,7 +114,7 @@ for presetIndex in 0..<3 {
 model.group = sample; model.presetIndex = 0
 if let active = Int(CommandLine.arguments[4]), (1...3).contains(active) { model.active = sample.presets[active - 1]; model.activeGroup = sample }
 print("PASS: occupied-input rewiring, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
-let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
+let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, identify: { _ in }, hardware: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {
     Text("Perch · Desk cables").font(.system(size: 26, weight: .semibold))
     Text("Production canvas · Simulated devices · No live desktop interaction").foregroundStyle(.secondary)
@@ -135,6 +135,6 @@ precondition(NSApp.windows.isEmpty, "Renderer presented a window")
 print("PASS: production Desk canvas rendered without windows or live settings")
 }
 ''')
-    sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
+    sources = ['KVMGroup.swift', 'KVMSync.swift', 'KVMHandoff.swift', 'DeskModel.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskCanvasLayout.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(repo/'Sources'/s) for s in sources], str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0)], check=True)

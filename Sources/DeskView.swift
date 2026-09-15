@@ -312,6 +312,8 @@ private struct DeskPresetAttention: View {
         Button { showing.toggle() } label: {
             Label(title, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11))
                 .foregroundStyle(.orange)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }.buttonStyle(DeskCanvasButtonStyle(padding: 0)).help(detail)
             .accessibilityLabel(title + ". " + detail)
             .popover(isPresented: $showing) { Text(detail).font(.callout).frame(width: 250, alignment: .leading).padding(14) }
@@ -419,7 +421,16 @@ struct DeskCanvas: View {
 
     var body: some View {
         GeometryReader { viewport in
-        let graphHeight = max(360, viewport.size.height - 160)
+        let graphHeight = max(320, viewport.size.height - 160)
+        let rectangles = model.group.monitors.map { rectangle($0.geometry) }
+        let minimumScale = DeskCanvasLayout.minimumScale(for: rectangles)
+        let available = CGSize(width: max(1, viewport.size.width - 24), height: graphHeight)
+        let fittingLayout = DeskCanvasLayout(rectangles: rectangles, viewport: available, minimumScale: minimumScale)
+        // Once cards reach their readable minimum, let the desk grow inside
+        // the outer scroller instead of shrinking labels and controls away.
+        let canvasSize = CGSize(width: max(available.width, fittingLayout.bounds.width * fittingLayout.scale + 32),
+                                height: max(available.height, fittingLayout.bounds.height * fittingLayout.scale + 32))
+        let liveLayout = DeskCanvasLayout(rectangles: rectangles, viewport: canvasSize, minimumScale: minimumScale)
         ScrollView([.horizontal, .vertical], showsIndicators: false) {
         VStack(spacing: 16) {
             HStack {
@@ -430,45 +441,39 @@ struct DeskCanvas: View {
                     .disabled(model.group.monitors.count >= 16)
                     .help("Add a physical screen to this desk. Up to 16 screens.")
             }
-            GeometryReader { area in
-                let canvasSize = CGSize(width: max(area.size.width, 760), height: max(area.size.height, 360))
-                let liveLayout = DeskCanvasLayout(rectangles: model.group.monitors.map { rectangle($0.geometry) }, viewport: canvasSize)
-                let layout = drag?.layout ?? liveLayout
-                ZStack(alignment: .topLeading) {
-                    if model.group.monitors.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "display.2").font(.system(size: 40, weight: .light))
-                            Text("Add a screen, then connect its ports to the computers below.").foregroundStyle(.secondary)
-                        }.frame(width: area.size.width, height: area.size.height)
-                    }
-                    ForEach(Array(model.group.monitors.enumerated()), id: \.element.id) { index, monitor in
-                        screen(monitor, index: index, layout: layout)
-                    }
-                    if let drag { snapPreview(drag) }
-
+            let layout = drag?.layout ?? liveLayout
+            ZStack(alignment: .topLeading) {
+                if model.group.monitors.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "display.2").font(.system(size: 40, weight: .light))
+                        Text("Add a screen, then connect its ports to the computers below.").foregroundStyle(.secondary)
+                    }.frame(width: available.width, height: available.height)
                 }
-                .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
-                .coordinateSpace(name: "deskScreenCanvas")
-                .contentShape(Rectangle())
-                .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("deskScreenCanvas"))
-                    .onChanged { value in
-                        guard drag == nil, wire.gesture.source == nil else { return }
-                        let p = value.startLocation
-                        let occupied = model.group.monitors.contains { monitor in
-                            let r = rectangle(monitor.geometry)
-                            let frame = CGRect(x: layout.origin.x + (r.minX - layout.bounds.minX) * layout.scale,
-                                               y: layout.origin.y + (r.minY - layout.bounds.minY) * layout.scale,
-                                               width: r.width * layout.scale, height: r.height * layout.scale)
-                            return frame.contains(p)
-                        }
-                        guard !occupied else { return }
-                        if canvasPanStart == nil { canvasPanStart = canvasPan }
-                        let start = canvasPanStart ?? .zero
-                        canvasPan = CGSize(width: start.width + value.translation.width,
-                                           height: start.height + value.translation.height)
+                ForEach(Array(model.group.monitors.enumerated()), id: \.element.id) { index, monitor in
+                    screen(monitor, index: index, layout: layout)
+                }
+                if let drag { snapPreview(drag) }
+            }
+            .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("deskScreenCanvas"))
+                .onChanged { value in
+                    guard drag == nil, wire.gesture.source == nil else { return }
+                    let p = value.startLocation
+                    let occupied = model.group.monitors.contains { monitor in
+                        let r = rectangle(monitor.geometry)
+                        let frame = CGRect(x: layout.origin.x + (r.minX - layout.bounds.minX) * layout.scale,
+                                           y: layout.origin.y + (r.minY - layout.bounds.minY) * layout.scale,
+                                           width: r.width * layout.scale, height: r.height * layout.scale)
+                        return frame.contains(p)
                     }
-                    .onEnded { _ in canvasPanStart = nil })
-            }.frame(minWidth: 760, minHeight: graphHeight)
+                    guard !occupied else { return }
+                    if canvasPanStart == nil { canvasPanStart = canvasPan }
+                    let start = canvasPanStart ?? .zero
+                    canvasPan = CGSize(width: start.width + value.translation.width,
+                                       height: start.height + value.translation.height)
+                }
+                .onEnded { _ in canvasPanStart = nil })
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Computers").font(.headline)
@@ -484,7 +489,8 @@ struct DeskCanvas: View {
                 Text("Teal routes are selected for preset \(model.presetIndex + 1); green routes are active now. Drag a numbered computer port to a monitor input to assign that preset. Play switches the displays.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-        }.padding(12).frame(minWidth: 760, alignment: .leading)
+        }.padding(12).frame(minWidth: available.width, alignment: .leading)
+            .coordinateSpace(name: "deskScreenCanvas")
             .offset(canvasPan)
             .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { finishScreenDrag() } }
             .onPreferenceChange(DeskControlFrames.self) { controlFrames = $0 }
@@ -630,7 +636,7 @@ struct DeskCanvas: View {
             }
             VStack { Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 6) {
-                    ForEach(model.group.connections.filter { $0.monitor == monitor.id }) { port in portSocket(port) }
+                    ForEach(model.group.connections.filter { $0.monitor == monitor.id }) { port in portSocket(port, labelHeight: portLabelHeight) }
                     Button { addPort(monitor.id) } label: { Text("+ Port").font(.system(size: 10, weight: .medium)) }
                         .buttonStyle(DeskCanvasButtonStyle()).help("Add a monitor port")
                         .deskControl("addPort:" + monitor.id.uuidString).padding(.bottom, 3)
@@ -678,11 +684,14 @@ struct DeskCanvas: View {
             .offset(x: layout.origin.x + (g.x - layout.bounds.minX) * scale + translation.width,
                     y: layout.origin.y + (g.y - layout.bounds.minY) * scale + translation.height)
     }
-    private func portSocket(_ port: KVMConnection) -> some View {
+    private func portSocket(_ port: KVMConnection, labelHeight: CGFloat) -> some View {
         VStack(spacing: 3) {
             Text(port.inputName).font(.system(size: 10, weight: .medium)).lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: labelHeight, height: 14, alignment: .leading)
+                .rotationEffect(.degrees(-90))
+                .frame(width: 14, height: labelHeight)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
                            label: model.connectionLabel(port), controller: wire,
                            presetNumbers: model.group.presets.enumerated().compactMap { index, preset in preset.assignments.contains { $0.connection == port.id } ? index + 1 : nil },
@@ -712,7 +721,7 @@ struct DeskCanvas: View {
             }.frame(width: 24, height: 20)
                 .deskControl("port:" + port.id.uuidString)
                 .anchorPreference(key: DeskCableAnchors.self, value: .bounds) { ["port:" + port.id.uuidString: $0] }
-        }.fixedSize(horizontal: true, vertical: false)
+        }.frame(width: 24, height: labelHeight + 23)
             .help("\(port.inputName) input. Click for connection and switch options; drag to rewire this input.")
     }
 

@@ -97,6 +97,9 @@ func runMenuAppearanceTests() throws {
         try require(layout.bounds.width * layout.scale <= size.width && layout.bounds.height * layout.scale <= size.height, "Desk layout does not fit all screens")
         let translation = 37.0
         try require(abs((translation / layout.scale) * layout.scale - translation) < 0.00001, "Drag coordinates lose inverse scale")
+        let readable = DeskCanvasLayout.minimumScale(for: rectangles)
+        let readableLayout = DeskCanvasLayout(rectangles: rectangles, viewport: size, minimumScale: readable)
+        try require(readableLayout.scale + 0.000001 >= readable, "Desk cards shrank below their readable minimum")
     }
     defaults.set(Data("broken".utf8), forKey: MenuAppearanceStore.key)
     let damaged = MenuAppearanceStore(defaults: defaults)

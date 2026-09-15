@@ -315,9 +315,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         back.isHidden = hasSidebar && !setupJourney && activeAlert == nil && page.backTitle == nil &&
             sidebar.destinations.contains { $0.pageTitles.contains(page.title) }
         back.title = page.backTitle ?? ((setupJourney && pages.count == 2) || (hasSidebar && pages.count <= 1) ? "Back to setup" : "Back")
-        back.frame = NSRect(x: sidebarWidth+20, y: height-47, width: max(75, ceil((back.title as NSString).size(withAttributes: [.font: back.font ?? NSFont.systemFont(ofSize: 13)]).width)+28), height: 28)
+        // Keep the page title and Back button clear of the content-view edge.
+        // A title drawn exactly against the top inset can lose its ascenders
+        // on displays with fractional backing scale factors.
+        let headerY = max(0, height - 56)
+        back.frame = NSRect(x: sidebarWidth+20, y: headerY, width: max(75, ceil((back.title as NSString).size(withAttributes: [.font: back.font ?? NSFont.systemFont(ofSize: 13)]).width)+28), height: 28)
         let headingInset: CGFloat = back.isHidden ? 24 : 20+back.frame.width+12
-        heading.frame = NSRect(x: sidebarWidth+headingInset, y: height-48, width: bodyWidth+24-headingInset, height: 30)
+        heading.frame = NSRect(x: sidebarWidth+headingInset, y: headerY-1, width: bodyWidth+24-headingInset, height: 34)
         detailScroll.isHidden = detail.stringValue.isEmpty
         detailScroll.frame = NSRect(x: sidebarWidth+24, y: 24+bodyHeight+18, width: bodyWidth, height: explanationHeight)
         contentScroll.frame = NSRect(x: sidebarWidth+14, y: 24, width: bodyWidth + 20, height: bodyHeight)

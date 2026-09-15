@@ -4,13 +4,33 @@ import CoreGraphics
 /// Fit the physical arrangement, including rotated/negative-coordinate screens,
 /// into the viewport. This transform never changes saved monitor geometry.
 struct DeskCanvasLayout {
+    /// The smallest card dimensions at which a screen's name, actions and
+    /// connector row remain usable.  Below this the desk scrolls instead of
+    /// shrinking the cards into an unlabeled pile.
+    static let minimumScreenWidth: CGFloat = 145
+    // Leaves room for the vertical input labels (including names such as
+    // DisplayPort) and the bottom connector row.
+    static let minimumScreenHeight: CGFloat = 170
+
     let bounds: CGRect
     let scale: Double
     let origin: CGPoint
-    init(rectangles: [CGRect], viewport: CGSize) {
+    init(rectangles: [CGRect], viewport: CGSize, minimumScale: Double = 0) {
         bounds = rectangles.reduce(CGRect.null) { $0.union($1) }.isNull ? CGRect(x: 0, y: 0, width: 700, height: 500) : rectangles.reduce(CGRect.null) { $0.union($1) }
-        scale = max(0.000001, min(max(1, viewport.width - 32) / max(1, bounds.width), max(1, viewport.height - 32) / max(1, bounds.height)))
+        let fit = min(max(1, viewport.width - 32) / max(1, bounds.width),
+                      max(1, viewport.height - 32) / max(1, bounds.height))
+        scale = max(0.000001, max(minimumScale, min(1, fit)))
         origin = CGPoint(x: (viewport.width - bounds.width * scale) / 2, y: (viewport.height - bounds.height * scale) / 2)
+    }
+
+    /// Returns the scale required for every card to retain its interactive
+    /// contents.  A caller can use this as a lower bound and let its scroll
+    /// container grow when the available viewport is smaller.
+    static func minimumScale(for rectangles: [CGRect]) -> Double {
+        rectangles.map { rectangle in
+            max(minimumScreenWidth / max(1, rectangle.width),
+                minimumScreenHeight / max(1, rectangle.height))
+        }.max() ?? 0
     }
 }
 

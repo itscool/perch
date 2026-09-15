@@ -64,10 +64,13 @@ struct LaunchdJob: Hashable {
     /// (bounded) until the old job is gone, then bootstrap, retrying briefly.
     func replace(with plist: URL, unloadDeadline: TimeInterval = 5, attempts: Int = 3,
                  run: ([String]) -> Outcome = { LaunchdJob.run($0) },
-                 pause: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }) -> Outcome {
+                 pause: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                 now: () -> Double = { MonotonicClock.now }) -> Outcome {
         _ = run(["bootout", target])
-        var waited: TimeInterval = 0
-        while waited < unloadDeadline, run(["print", target]) == .ok { pause(0.1); waited += 0.1 }
+        // Measure the deadline on a clock, not by counting pauses: each
+        // launchctl check can itself take up to its own timeout.
+        let deadline = now() + unloadDeadline
+        while now() < deadline, run(["print", target]) == .ok { pause(0.1) }
         var result = Outcome.error("bootstrap was not attempted")
         for attempt in 0..<max(1, attempts) {
             if attempt > 0 { pause(0.25) }

@@ -21,6 +21,7 @@ final class DeskInputAdapter: ObservableObject {
     /// A fact worth showing that does not stop sharing.
     @Published private(set) var note: String?
     private var tapDisables: [Double] = []
+    private var keyRouter = DeskKeyRouter()
     private var remoteCapture = false
     private var displayCache: [String: CGDirectDisplayID] = [:]
     private var displayCacheAt: Double = -1
@@ -202,13 +203,17 @@ final class DeskInputAdapter: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != KVMNativeEvent.eventTag else { return false }
         // Always leave the emergency shortcut available too. No network event
         // can invoke this path because injected events are tagged above.
-        if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53,
-           event.flags.contains([.maskControl, .maskAlternate]) { session.stopForLocalControl(); return false }
-        if type == .keyDown, session.enabled,
-           let preset = session.node.group.presets.first(where: {
-               $0.shortcut.local?.matches(keyCode: event.getIntegerValueField(.keyboardEventKeycode), flags: event.flags) == true
-           }) { if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { presetShortcut?(preset.id) }; return true }
-        if type == .keyDown, localShortcut?(event.getIntegerValueField(.keyboardEventKeycode), event.flags) == true { return false }
+        if type == .keyDown || type == .keyUp {
+            switch keyRouter.route(type: type, keyCode: event.getIntegerValueField(.keyboardEventKeycode), flags: event.flags,
+                                   autorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0, sharing: session.enabled,
+                                   presets: session.node.group.presets, localShortcut: localShortcut) {
+            case .emergencyStop: session.stopForLocalControl(); return false
+            case .activatePreset(let preset): presetShortcut?(preset); return true
+            case .consumed: return true
+            case .local: return false
+            case .forward: break
+            }
+        }
         guard session.capturing else { return false }
         if [.keyDown, .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel].contains(type),
            session.focus?.computer != session.node.localID,

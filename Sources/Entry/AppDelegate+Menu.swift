@@ -200,6 +200,9 @@ extension AppDelegate {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         // App-owned confirmations use the ordinary event loop now. Preserve
         // their exclusive action scope without a native modal window.
+        // Quit is never taken away: while a Settings alert is open it waits for
+        // that alert, and a Quit with nothing on proceeds immediately.
+        if item.action == #selector(quit) { return true }
         if SettingsWindow.shared.modal { return false }
         if item === replacementRestartItem { return appReplacement.state.available != nil && !RestartSettingsSnapshot.current.busy }
         if item === shareInputItem { return true }

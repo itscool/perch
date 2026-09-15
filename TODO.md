@@ -138,6 +138,25 @@ version 6 makes installed helpers update, which asks for admin approval once
 (`runLidSchedulingTests`). Native acceptance pending: a lid session that stays armed
 for an extended period after the helper update.
 
+September 15 (afternoon) focused blind-spot review of the cleanup, three parallel reviewers
+plus follow-ups; every fix has a fast headless test (self-test, dialog contract or suites).
+Core and entry: the command runner no longer spins the caller's run loop (72 re-entrant
+timer callbacks before, 0 after); the launchd unload wait keeps its 5 s deadline; helper
+repair retries after a failure (30 s doubling to 10 min, never re-prompting for admin);
+Quit stays available while a Settings dialog is open; update restarts and Reset defer
+terminate through the run loop (`AppTermination.request()`, the only allowed terminate);
+launch allows helpers before checking them. Desk and input: hotkey registration retries
+after a failure; preset and sharing shortcut problems show on their own shortcut; a Desk
+page without a running desk refuses visibly; Retry repeats the last port switch; Perch's
+shortcut releases never reach the other Mac; monitor switches cannot block on the main
+thread. Lid and Settings: saved closed-lid protection on external power retries an ended
+session after 30 s (at most 3 times, never on battery); lid restart handoff results
+arrive inside the terminate loop; failed saves no longer drop a pending sleep notice or
+leave a stale countdown. New source guards: every self-shown page is retained, and every
+setup stage and sidebar page resolves. Reported and left unchanged: in the worst case a
+lid session start can block the supervisor about 2.9 s, but only when both of its system
+commands time out, which already fails the start with a visible error.
+
 ## Known defects — fix before shipping; target zero
 
 - [x] **Renaming a keyboard discarded known navigation layouts.** Model/transport

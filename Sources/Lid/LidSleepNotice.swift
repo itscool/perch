@@ -91,7 +91,8 @@ final class LidSleepNotice {
     var pending: LidSleepIncident? {
         get { defaults.codable(LidSleepIncident.self, forKey: Self.key, maximumBytes: 4095) }
         set {
-            if let newValue, (try? defaults.setCodable(newValue, forKey: Self.key)) != nil { }
+            // A notice that cannot be saved must not erase the one already saved.
+            if let newValue { try? defaults.setCodable(newValue, forKey: Self.key) }
             else { defaults.removeObject(forKey: Self.key) }
             // Persist before the process can be suspended or restarted.
             defaults.synchronize()

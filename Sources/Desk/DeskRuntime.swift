@@ -125,8 +125,7 @@ final class DeskRuntime: ObservableObject {
     private var pendingInspections: [UUID: PendingInspection] = [:]
     private var presetHotKeys: [UUID: HotKey] = [:]
     private let sharingHotKey = HotKey()
-    private var registeredClaims: [ShortcutClaim] = []
-    private var registeredPresets: [KVMPreset] = []
+    private var shortcutMemory = DeskShortcutRegistrationMemory()
     private var identifyWindows: [String: (UUID, NSWindow)] = [:]
     private(set) var identifications = DeskIdentificationState()
     private var inputAfterSwitch: (UUID, UUID)?
@@ -195,7 +194,7 @@ final class DeskRuntime: ObservableObject {
         for (_, window) in identifyWindows.values { window.orderOut(nil) }; identifyWindows = [:]
         inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
-        presetHotKeys = [:]; sharingHotKey.unregister(); registeredClaims = []; registeredPresets = []
+        presetHotKeys = [:]; sharingHotKey.unregister(); shortcutMemory.reset()
         node.stop()
     }
     func start() throws {
@@ -654,7 +653,8 @@ final class DeskRuntime: ObservableObject {
             }
             let backend = MonitorDisplayBackend()
             let args = [route.control.localDisplay, route.control.mode]
-            func allowed() -> Bool { DispatchQueue.main.sync { valid() } }
+            // An unanswered check cancels the write rather than stalling the switch.
+            func allowed() -> Bool { DeskMainThreadGate.ask(timeout: 3) { valid() } ?? false }
             func read() throws -> UInt16? { try JSONDecoder().decode(MonitorInspection.self, from: backend.run(["read"] + args)).current }
             var state = KVMMonitorOutcome.State.failed, detail = "The switch was cancelled before its monitor command."
             do {
@@ -889,29 +889,29 @@ final class DeskRuntime: ObservableObject {
         let registry = ShortcutRegistry.perch
         let claims = registry.claims(excluding: ShortcutRegistry.Source.deskPresets)
         let presets = node.group.presets
-        guard claims != registeredClaims || presets != registeredPresets else { return }
-        registeredClaims = claims; registeredPresets = presets
-        let sharing = DeskSharingShortcut.load()
+        guard shortcutMemory.needsRegistration(claims: claims, presets: presets) else { return }
+        let plan = DeskShortcutPlan.make(presets: presets, sharing: DeskSharingShortcut.load()) { registry.problem(with: $0, excluding: $1) }
         presetHotKeys = presetHotKeys.filter { id, _ in presets.contains { $0.id == id } }
-        do {
-            var changes: [(hotKey: HotKey, shortcut: Shortcut)] = []
-            for preset in presets {
-                guard let shortcut = preset.shortcut.local else { throw KVMError("This Mac cannot register \(preset.shortcut.label). Change the shortcut in App settings → Hotkeys.") }
-                if let problem = registry.problem(with: shortcut, excluding: ShortcutRegistry.Source.deskPresets) { throw KVMError(problem) }
-                let hotKey = presetHotKeys[preset.id] ?? HotKey()
-                presetHotKeys[preset.id] = hotKey
-                hotKey.action = { [weak self] in self?.activatePreset(preset.id) }
-                changes.append((hotKey, shortcut))
+        var presetProblem = plan.presetProblem, sharingProblem = plan.sharingProblem
+        // Presets and sharing register separately so each problem is shown on
+        // its own shortcut; each set keeps its previous registration on failure.
+        if presetProblem == nil {
+            let changes = plan.presets.map { binding -> (hotKey: HotKey, shortcut: Shortcut) in
+                let hotKey = presetHotKeys[binding.preset] ?? HotKey()
+                presetHotKeys[binding.preset] = hotKey
+                let preset = binding.preset
+                hotKey.action = { [weak self] in self?.activatePreset(preset) }
+                return (hotKey, binding.shortcut)
             }
-            if sharing.enabled, let problem = registry.problem(with: sharing, excluding: ShortcutRegistry.Source.deskSharing) { throw KVMError(problem) }
-            sharingHotKey.action = { [weak self] in self?.toggleInputSharing() }
-            changes.append((sharingHotKey, sharing))
-            try HotKey.register(changes)
-            shortcutProblem = nil
-            sharingShortcutError = nil
-        } catch {
-            if sharing.enabled { sharingShortcutError = error.localizedDescription } else { shortcutProblem = error.localizedDescription }
+            do { try HotKey.register(changes) } catch { presetProblem = error.localizedDescription }
         }
+        if sharingProblem == nil {
+            sharingHotKey.action = { [weak self] in self?.toggleInputSharing() }
+            do { try HotKey.register([(sharingHotKey, plan.sharing)]) } catch { sharingProblem = error.localizedDescription }
+        }
+        shortcutProblem = presetProblem
+        sharingShortcutError = sharingProblem
+        shortcutMemory.finished(claims: claims, presets: presets, succeeded: presetProblem == nil && sharingProblem == nil)
     }
 }
 

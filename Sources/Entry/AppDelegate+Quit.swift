@@ -9,6 +9,10 @@ extension AppDelegate {
             guard let self else { return }
             let plan = QuitPlan(self.quitFeatures())
             guard plan.needsConfirmation else { self.quitTurningOff(plan); return }
+            let host = SettingsWindow.shared
+            // A pending Settings dialog must finish first; bring it forward so
+            // Quit visibly waits on it instead of appearing to do nothing.
+            if host.interactionBusy && !host.testing { host.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
             let alert = NSAlert()
             alert.messageText = plan.title
             alert.informativeText = plan.detail
@@ -36,7 +40,7 @@ extension AppDelegate {
         pendingQuit = plan
         // Terminate from the run loop rather than inside this main-queue block,
         // so the lid helper's reply can arrive while AppKit waits.
-        TerminationReply.schedule(after: 0) { NSApp.terminate(nil) }
+        AppTermination.request()
     }
 
     /// Runs inside the deferred termination: end the lid session, then stop

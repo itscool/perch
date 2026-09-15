@@ -114,8 +114,12 @@ enum MonitorDisplayTopology {
 }
 
 final class MonitorDisplayBackend: MonitorCommandBackend {
+    static let mainThreadRefusal = "Monitor commands never run on the main thread; they can take up to nine seconds."
     // Called on the controller's serial worker queue, never on a UI/input thread.
     func run(_ arguments: [String]) throws -> Data {
+        // A slow monitor would freeze menus, timers and input for up to nine
+        // seconds. Refuse at once so a misplaced call is found, not felt.
+        guard !Thread.isMainThread else { throw AppError(message: Self.mainThreadRefusal) }
         guard let url = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("PerchDisplay"), FileManager.default.isExecutableFile(atPath: url.path) else { throw AppError(message: "Perch’s monitor adapter is missing. Reinstall Perch.") }
         let output: Subprocess.Output
         do { output = try Subprocess.run(url.path, arguments, timeout: 9, capture: .collect(maximumBytes: 32768)) }

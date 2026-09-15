@@ -45,7 +45,8 @@ struct ResetChecklistPlan {
 
 /// Owns execution after leaving a page. Completed areas are never repeated by Retry.
 final class ResetBatchOperation {
-    static let shared = ResetBatchOperation(execute: ResetBatchExecutor.execute, quit: { NSApp.terminate(nil) })
+    /// Reset quits from inside its completion; terminate is deferred through the run loop.
+    static let shared = ResetBatchOperation(execute: ResetBatchExecutor.execute, quit: { AppTermination.request() })
     private(set) var running = false
     private(set) var results: [ResetArea: Result<String, Error>] = [:]
     private(set) var plan: ResetChecklistPlan?

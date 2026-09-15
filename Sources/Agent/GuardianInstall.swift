@@ -54,11 +54,16 @@ enum GuardianInstall {
               let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return nil }
         return inputPermissionApp(arguments: job["ProgramArguments"] as? [String])
     }
+    /// Whether reinstalling needs an administrator prompt: the protected,
+    /// root-owned helper copy is in use.
+    static var requiresAuthorization: Bool {
+        let existing = (try? Data(contentsOf: plist)).flatMap { try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any] }
+        return (existing?["ProgramArguments"] as? [String])?.first == protectedBinary.path
+    }
     /// Load the helpers from the installed copy when it is already this build,
     /// without copying the app again. False means a full install is needed.
     static func startIfCurrent() throws -> Bool {
-        let existing = (try? Data(contentsOf: plist)).flatMap { try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any] }
-        let executable = (existing?["ProgramArguments"] as? [String])?.first == protectedBinary.path ? protectedBinary : SafetyFiles.binary
+        let executable = requiresAuthorization ? protectedBinary : SafetyFiles.binary
         guard buildMatches(executable: executable, appInfo: Bundle.main.infoDictionary ?? [:]) else { return false }
         try writeJob(executable: executable)
         return true
@@ -74,8 +79,7 @@ enum GuardianInstall {
         } else { try FileManager.default.moveItem(at: stage, to: SafetyFiles.helperApp) }
         if !FileManager.default.fileExists(atPath: SafetyFiles.config.path) { try SafetyConfiguration().save() }
         if !FileManager.default.fileExists(atPath: AgentCatalog.installed.path), let catalog = Bundle.main.url(forResource: "agents", withExtension: "json") { try AgentCatalog.install(from: catalog) }
-        let existing = (try? Data(contentsOf: plist)).flatMap { try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any] }
-        let protected = (existing?["ProgramArguments"] as? [String])?.first == protectedBinary.path
+        let protected = requiresAuthorization
         if protected { try protectExecutable() } else { try writeJob(executable: SafetyFiles.binary) }
     }
     static func writeJob(executable: URL) throws {

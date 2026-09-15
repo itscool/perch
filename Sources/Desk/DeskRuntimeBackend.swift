@@ -5,18 +5,29 @@ import SwiftUI
 final class DeskRuntimeBackend: DeskBackend {
     weak var runtime: DeskRuntime?
     let wording = DeskWording.live
+    /// Shown when the page outlives its runtime, instead of edits that look
+    /// saved but are not, and buttons that silently do nothing.
+    static let stopped = "Desk is not running. Reopen Desk and try again."
 
-    func edit(_ group: KVMGroup) throws { try runtime?.node.edit(group) }
+    func edit(_ group: KVMGroup) throws {
+        guard let runtime else { throw KVMError(Self.stopped) }
+        try runtime.node.edit(group)
+    }
 
     func activate(preset: UUID) { runtime?.activatePreset(preset) }
     func readiness(preset: UUID) -> String? {
         // A switch in progress is a neutral state on its own card, not a warning on every card.
-        guard let runtime, !runtime.switching.busy else { return nil }
+        guard let runtime else { return Self.stopped }
+        guard !runtime.switching.busy else { return nil }
         return runtime.switching.readiness(preset)
     }
     func retryActive() {
-        guard let runtime, let preset = runtime.switching.activePreset ?? runtime.switching.request?.preset else { return }
-        runtime.activatePreset(preset)
+        guard let runtime else { return }
+        switch DeskRetryTarget.target(activePreset: runtime.switching.activePreset, request: runtime.switching.request) {
+        case .preset(let preset): runtime.activatePreset(preset)
+        case .connection(let connection): runtime.switchConnection(connection)
+        case nil: break
+        }
     }
     func revertSwitch() { runtime?.switching.revert() }
     func switchConnection(_ connection: UUID) { runtime?.switchConnection(connection) }
@@ -57,5 +68,17 @@ final class DeskRuntimeBackend: DeskBackend {
         }
         guard let runtime else { return AnyView(EmptyView()) }
         return AnyView(DeskLiveSheet(runtime: runtime, kind: kind, selection: sheet.subject ?? runtime.model.selected, close: close))
+    }
+}
+
+/// What "Retry the switch" repeats: the most recent switch, whether it was a
+/// preset or a single port. A failed port switch has no preset to fall back on.
+enum DeskRetryTarget: Equatable {
+    case preset(UUID)
+    case connection(UUID)
+    static func target(activePreset: UUID?, request: KVMMonitorRequest?) -> DeskRetryTarget? {
+        if let preset = request?.preset { return .preset(preset) }
+        if let connection = request?.connection { return .connection(connection) }
+        return activePreset.map { .preset($0) }
     }
 }

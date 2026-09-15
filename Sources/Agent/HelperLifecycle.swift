@@ -22,6 +22,18 @@ enum HelperLifecycle {
         }
     }
 
+    /// Launch-time helper start, in the only safe order: allow the jobs a manual
+    /// Quit told launchd to skip, then load the installed copy when it is this
+    /// build, and copy a fresh one only when it is not.
+    static func startForLaunch(allow: () -> Void = { HelperLifecycle.allowAtLaunch() },
+                               loaded: () -> Bool = { GuardianInstall.messagingInstalled },
+                               startIfCurrent: () throws -> Bool = { try GuardianInstall.startIfCurrent() },
+                               install: () throws -> Void = { try GuardianInstall.install() }) throws {
+        allow()
+        guard !loaded() else { return }
+        if try !startIfCurrent() { try install() }
+    }
+
     static func allowAtLaunch(uid: uid_t = getuid(), marker: URL = HelperLifecycle.closedMarker,
                               run: Run = { LaunchdJob.run($0) }) {
         try? FileManager.default.removeItem(at: marker)

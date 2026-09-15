@@ -17,3 +17,12 @@ enum TerminationReply {
         RunLoop.main.add(timer, forMode: .common)
     }
 }
+
+/// Requests application termination from the run loop. Called from inside a
+/// main-queue block, a direct terminate would wait there for replies (such as
+/// the lid restart handoff) that are themselves delivered on the main queue.
+enum AppTermination {
+    static func request(_ terminate: @escaping () -> Void = { NSApp.terminate(nil) }) {
+        TerminationReply.schedule(after: 0, terminate)
+    }
+}

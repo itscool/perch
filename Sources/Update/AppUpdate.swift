@@ -88,7 +88,7 @@ final class AppUpdate {
                             Thread.sleep(forTimeInterval: 0.05)
                         }
                         DispatchQueue.main.async {
-                            if ready { NSApp.terminate(nil) }
+                            if ready { AppTermination.request() }
                             else {
                                 try? Data().write(to: candidate.directory.appendingPathComponent("cancel-" + record.attempt))
                                 if let ticket { LidGuardClient.shared.cancelRestart(ticket.id) }

@@ -42,11 +42,11 @@ func runCoreServiceTests() throws {
         }, pause: { pauses.append($0) })
         try check(result == .ok && calls == ["bootout", "print", "print", "print", "bootstrap", "bootstrap"] && pauses == [0.1, 0.1, 0.25],
                   "Replacement did not wait for unload and retry bootstrap: \(calls) \(pauses)")
-        var attempts = 0
+        var attempts = 0, clock = 0.0
         let failed = job.replace(with: plist, unloadDeadline: 0.3, run: { arguments in
             if arguments[0] == "bootstrap" { attempts += 1; return .failed(37) }
             return arguments[0] == "print" ? .ok : .ok
-        }, pause: { _ in })
+        }, pause: { clock += $0 }, now: { clock })
         try check(failed == .failed(37) && attempts == 3, "Replacement did not bound its unload wait and bootstrap attempts")
     }
     // System Settings links stay well-formed deep links.

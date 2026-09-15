@@ -77,8 +77,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        // A manual Quit kept the helpers from loading at login; allow them again.
-        if !SettingsWindow.shared.testing { HelperLifecycle.allowAtLaunch() }
         installSettingsNavigation()
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")
@@ -108,13 +106,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                     self?.configureSettings(); self?.updateSettings()
                 }
                 PerchUpdater.shared.start()
-                if !GuardianInstall.messagingInstalled {
-                    do { if try !GuardianInstall.startIfCurrent() { try GuardianInstall.install() } }
-                    catch {
-                        self?.safetyError = error.localizedDescription
-                        BackgroundHelperRecovery.shared.recordFailure(error)
-                        self?.advancedSafetySettings()
-                    }
+                do { try HelperLifecycle.startForLaunch() }
+                catch {
+                    self?.safetyError = error.localizedDescription
+                    BackgroundHelperRecovery.shared.recordFailure(error)
+                    self?.advancedSafetySettings()
                 }
                 if CommandLine.arguments.contains("--complete-restart") || CommandLine.arguments.contains("--show-restart") {
                     self?.configureSettings(); self?.appSettings()
@@ -147,15 +143,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Release shared input, restore handed-away displays and tell desk
-        // peers this is a deliberate stop, not a lost connection.
-        let shutdown = { [weak self] in self?.inputs.stop(); DeskCoordinator.shared.shutdown() }
         let plan = pendingQuit; pendingQuit = nil
-        if let reply = PerchUpdater.shared.terminationReply(sender, willExit: shutdown) { return reply }
+        return Self.terminationReply(plan: plan,
+            updater: { PerchUpdater.shared.terminationReply(sender, willExit: $0) },
+            // Release shared input, restore handed-away displays and tell desk
+            // peers this is a deliberate stop, not a lost connection.
+            shutdown: { [weak self] in self?.inputs.stop(); DeskCoordinator.shared.shutdown() },
+            turnOff: { [weak self] plan, done in if let self { self.turnOffForQuit(plan, completion: done) } else { done() } },
+            // Let the desk's goodbye frames leave before the process exits.
+            reply: { TerminationReply.send(true, after: 0.3, to: sender) })
+    }
+    /// Only a confirmed manual Quit turns features off. A pending update owns
+    /// its reply and shutdown timing; any other termination shuts down and replies.
+    static func terminationReply(plan: QuitPlan?, updater: (@escaping () -> Void) -> NSApplication.TerminateReply?,
+                                 shutdown: @escaping () -> Void, turnOff: (QuitPlan, @escaping () -> Void) -> Void,
+                                 reply: @escaping () -> Void) -> NSApplication.TerminateReply {
+        if let answer = updater(shutdown) { return answer }
         shutdown()
-        // Let the desk's goodbye frames leave before the process exits.
-        if let plan { turnOffForQuit(plan) { TerminationReply.send(true, after: 0.3, to: sender) } }
-        else { TerminationReply.send(true, after: 0.3, to: sender) }
+        if let plan { turnOff(plan, reply) } else { reply() }
         return .terminateLater
     }
 }

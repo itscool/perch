@@ -47,7 +47,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     }
     func retryInstallation() {
         guard waitingToInstall else { return }
-        NSApp.terminate(nil)
+        AppTermination.request()
     }
     private func recover(_ explanation: String) {
         message = explanation + " The update is waiting. Retry installation when ready; quitting Perch will also retry it."

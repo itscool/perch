@@ -69,10 +69,13 @@ enum Subprocess {
         }
         if pipe != nil { reader.start() }
         if ended.wait(timeout: .now() + timeout) != .success {
-            reap(task)
+            reap(task, ended: ended)
             throw Timeout(executable: executable, seconds: timeout)
         }
-        task.waitUntilExit()
+        // The termination handler has run, so the child has exited. Never call
+        // waitUntilExit: it spins the caller's run loop, and on the main thread
+        // that re-enters timers and menu code in the middle of a command.
+        settle(task)
         if pipe != nil {
             // The child exited; its write end is closed, so the reader ends soon.
             let readerDeadline = Date().addingTimeInterval(1)
@@ -80,17 +83,25 @@ enum Subprocess {
             if !reader.isFinished { reader.cancel() }
         }
         if overflow { throw Oversized(executable: executable) }
-        return Output(status: task.terminationStatus, data: collected)
+        return Output(status: task.isRunning ? -1 : task.terminationStatus, data: collected)
     }
 
     /// Terminate politely, then kill, then reap. Safe on an already-exited task.
-    static func reap(_ task: Process, grace: TimeInterval = 0.2) {
-        guard task.isRunning else { return }
+    static func reap(_ task: Process, grace: TimeInterval = 0.2, ended: DispatchSemaphore? = nil) {
+        guard task.isRunning else { settle(task); return }
         task.terminate()
+        if let ended, ended.wait(timeout: .now() + grace) == .success { settle(task); return }
         let deadline = Date().addingTimeInterval(grace)
         while task.isRunning && Date() < deadline { usleep(10_000) }
         if task.isRunning { kill(task.processIdentifier, SIGKILL) }
-        task.waitUntilExit()
+        if let ended { _ = ended.wait(timeout: .now() + 2) }
+        settle(task)
+    }
+    /// Wait for Foundation to report the child gone without running the run
+    /// loop. Bounded so a wedged child can never hold the caller.
+    private static func settle(_ task: Process, limit: TimeInterval = 2) {
+        let deadline = Date().addingTimeInterval(limit)
+        while task.isRunning && Date() < deadline { usleep(1_000) }
     }
 
     /// Start a child that is not waited for. Foundation keeps a running task

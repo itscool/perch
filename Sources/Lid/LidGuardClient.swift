@@ -151,11 +151,16 @@ final class LidGuardClient {
     var changing: Bool { stateLock.withLock { publishedChanging } }
     var active: Bool { let current = status; return current?.fresh == true && current?.armed == true && current?.error == nil }
     var detail: String { let current = status; return current?.fresh == true ? current!.displayDetail : "Lid protection is not confirmed. Checking the helper connection…" }
+    /// Restart handoff results are consumed while AppKit waits in its
+    /// terminate loop, possibly inside a main-queue block. Deliver them from
+    /// the main run loop (common modes), which that loop services, instead of
+    /// the main dispatch queue, which it cannot re-enter.
+    static func deliver(_ body: @escaping () -> Void) { TerminationReply.schedule(after: 0, body) }
     func prepareForRestart(identity: String, completion: @escaping (Result<LidRestartTicket, Error>) -> Void) {
         guard !SettingsWindow.shared.testing || injectedRestart != nil else { completion(.failure(AppError(message: "Live updates are blocked in tests."))); return }
         queue.async {
             guard let token = self.session.activeToken else {
-                DispatchQueue.main.async { completion(.failure(AppError(message: "The active lid session is not owned by this app. Open the lid before updating."))) }; return
+                Self.deliver { completion(.failure(AppError(message: "The active lid session is not owned by this app. Open the lid before updating."))) }; return
             }
             var finished = false
             let finish: (Data?) -> Void = { data in
@@ -170,7 +175,7 @@ final class LidGuardClient {
                         self.sendRestart(.cancel(token, ""), reply: { _ in })
                         result = .failure(AppError(message: "Restart preparation was not confirmed. Perch is still running; review Keep awake because the lid session may end if the helper connection was lost."))
                     }
-                    DispatchQueue.main.async { completion(result) }
+                    Self.deliver { completion(result) }
                 }
             }
             self.sendRestart(.prepare(token, identity), reply: finish)
@@ -181,7 +186,7 @@ final class LidGuardClient {
         guard !SettingsWindow.shared.testing || injectedRestart != nil else { completion(.failure(AppError(message: "Live updates are blocked in tests."))); return }
         queue.async {
             guard !self.claimingRestart else {
-                DispatchQueue.main.async { completion(.failure(AppError(message: "The lid restart handoff is already in progress."))) }
+                Self.deliver { completion(.failure(AppError(message: "The lid restart handoff is already in progress."))) }
                 return
             }
             self.claimingRestart = true
@@ -201,7 +206,7 @@ final class LidGuardClient {
                     // Move immediately to the normal heartbeat endpoint.
                     // A claim-only connection is never reused for polling.
                     self.session.refresh()
-                    DispatchQueue.main.async { completion(result) }
+                    Self.deliver { completion(result) }
                 }
             }
             self.sendRestart(.resume(ticket), reply: finish)

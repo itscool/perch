@@ -92,8 +92,12 @@ final class LidCountdownController: ObservableObject {
             if dismissed != value.id && panel?.isVisible != true { show() }
         }
     }
-    private func persist() {
-        if let value = countdown, let data = try? JSONEncoder().encode(value) { UserDefaults.standard.set(data, forKey: Self.storageKey) }
+    private func persist() { Self.save(countdown, to: .standard) }
+    /// Save the countdown so a relaunch can restore it. A countdown that cannot
+    /// be encoded clears the saved one instead of leaving stale state to restore.
+    static func save(_ value: LidCountdown?, to defaults: UserDefaults) {
+        guard let value else { return }
+        do { try defaults.setCodable(value, forKey: storageKey) } catch { defaults.removeObject(forKey: storageKey) }
     }
     func adjust(_ direction: Int) {
         if busy { queuedAdjustments.append(direction); return }

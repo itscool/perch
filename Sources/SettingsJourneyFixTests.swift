@@ -9,6 +9,10 @@ func runSettingsJourneyFixTests() throws {
     host.testing = true; host.pages = []
     defer { host.modalTestDriver = nil; host.windowWillClose(Notification(name: NSWindow.willCloseNotification)); host.pages = [] }
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    try check(SettingsWindow.boundedScrollFromTop(900, contentHeight: 700, viewportHeight: 500) == 200,
+               "Saved settings scroll offset was not bounded after shrinking")
+    try check(SettingsWindow.boundedScrollFromTop(-5, contentHeight: 700, viewportHeight: 500) == 0,
+               "Saved settings scroll offset accepted a negative value")
     func flush() { RunLoop.main.run(until: Date().addingTimeInterval(0.3)) }
     func button(_ title: String) -> NSButton? {
         let result = host.pages.last?.view.subviews.compactMap { $0 as? NSButton }.first { $0.title == title }

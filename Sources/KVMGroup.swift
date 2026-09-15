@@ -36,15 +36,29 @@ enum KVMRotation: Int, Codable, CaseIterable {
 
 struct KVMGeometry: Codable, Equatable {
     // Top-left origin, y down. Native panel dimensions before rotation, in mm.
-    var x: Double
-    var y: Double
-    var width: Double
-    var height: Double
+    var x: Double { didSet { x = Self.millimetres(x) } }
+    var y: Double { didSet { y = Self.millimetres(y) } }
+    var width: Double { didSet { width = Self.millimetres(width) } }
+    var height: Double { didSet { height = Self.millimetres(height) } }
     var rotation: KVMRotation = .normal
     var displayedWidth: Double { rotation == .clockwise || rotation == .counterclockwise ? height : width }
     var displayedHeight: Double { rotation == .clockwise || rotation == .counterclockwise ? width : height }
     var right: Double { x + displayedWidth }
     var bottom: Double { y + displayedHeight }
+    private enum CodingKeys: String, CodingKey { case x, y, width, height, rotation }
+    init(x: Double, y: Double, width: Double, height: Double, rotation: KVMRotation = .normal) {
+        self.x = Self.millimetres(x); self.y = Self.millimetres(y)
+        self.width = Self.millimetres(width); self.height = Self.millimetres(height)
+        self.rotation = rotation
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.x = Self.millimetres(try values.decode(Double.self, forKey: .x))
+        self.y = Self.millimetres(try values.decode(Double.self, forKey: .y))
+        self.width = Self.millimetres(try values.decode(Double.self, forKey: .width))
+        self.height = Self.millimetres(try values.decode(Double.self, forKey: .height))
+        self.rotation = try values.decodeIfPresent(KVMRotation.self, forKey: .rotation) ?? .normal
+    }
     func contains(_ p: KVMPoint) -> Bool { p.x >= x && p.x <= right && p.y >= y && p.y <= bottom }
     func overlaps(_ other: Self) -> Bool {
         // Geometry is stored in millimetres but edited through scaled pixel

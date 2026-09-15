@@ -34,6 +34,12 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         weak var focusView: NSView? = nil
         var selection: NSRange? = nil
     }
+    /// Keep a saved "distance from top" valid when a page or window is
+    /// resized. Without this bound, AppKit clamps an oversized offset to the
+    /// document's bottom and hides the page heading after a resize.
+    static func boundedScrollFromTop(_ value: CGFloat, contentHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
+        min(max(0, value), max(0, contentHeight - viewportHeight))
+    }
     var pages: [Page] = []
     private(set) var announcedPage: String?
     var feedback: String?
@@ -348,7 +354,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         container.frame = NSRect(x: 0, y: 0, width: max(contentScroll.contentSize.width, page.view.frame.width), height: max(contentScroll.contentSize.height, page.view.frame.height))
         page.view.setFrameOrigin(NSPoint(x: max(0,(container.bounds.width-page.view.frame.width)/2), y: max(0,container.bounds.height-page.view.frame.height)))
         if page.view.superview !== container { container.addSubview(page.view) }
-        contentScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, container.frame.height-contentScroll.contentSize.height-page.scrollFromTop)))
+        let maxScroll = max(0, container.frame.height - contentScroll.contentSize.height)
+        let scrollFromTop = Self.boundedScrollFromTop(page.scrollFromTop,
+                                                       contentHeight: container.frame.height,
+                                                       viewportHeight: contentScroll.contentSize.height)
+        contentScroll.contentView.scroll(to: NSPoint(x: 0, y: maxScroll - scrollFromTop))
         contentScroll.reflectScrolledClipView(contentScroll.contentView)
         func find(_ view: NSView, identifier: NSUserInterfaceItemIdentifier) -> NSView? {
             if view.identifier == identifier { return view }

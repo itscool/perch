@@ -295,6 +295,9 @@ final class DeskRuntime: ObservableObject {
     }
     func activatePreset(_ preset: UUID) {
         if switching.busy && switching.request?.preset == preset { return }
+        // Replaying the preset that is already active is an explicit request
+        // to resend every input, even when cached state says nothing changed.
+        let force = switching.activePreset == preset
         let included = node.group.presets.first { $0.id == preset }?.assignments.map(\.monitor) ?? []
         let preferred = input.focus?.monitor ?? model.selected
         // Release any current lease even when the new preset is not ready;
@@ -302,9 +305,9 @@ final class DeskRuntime: ObservableObject {
         automaticInputStart = nil
         input.allowAutomaticStart()
         input.stop()
-        guard switching.readiness(preset) == nil else { switching.activate(preset); return }
+        guard switching.readiness(preset) == nil else { switching.activate(preset, force: force); return }
         let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
-        switching.activate(preset)
+        switching.activate(preset, force: force)
         if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
     }
     func toggleInputSharing() {
@@ -652,7 +655,7 @@ final class DeskRuntime: ObservableObject {
                 let outcome = try DeskMonitorCommand.run(input: route.input, permitted: allowed, read: read, write: {
                     let data = try backend.run(["switch"] + args + [String(route.input)])
                     guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any], reply["sent"] as? Bool == true else { throw KVMError("The monitor did not accept the input command.") }
-                }, settle: { Thread.sleep(forTimeInterval: 0.2) })
+                }, settle: { Thread.sleep(forTimeInterval: 0.2) }, force: route.force)
                 switch outcome {
                 case .alreadySelected: state = .confirmed; detail = "Already on this input; confirmed without sending a switch command."
                 case .switched: state = .confirmed; detail = "Monitor reports the requested input."

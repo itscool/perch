@@ -5,6 +5,7 @@ struct KVMMonitorRoute: Codable, Equatable {
     let monitor: UUID
     let control: KVMMonitorControl
     let input: UInt16
+    let force: Bool
 }
 struct KVMMonitorRequest: Codable, Equatable {
     let id: UUID
@@ -13,7 +14,11 @@ struct KVMMonitorRequest: Codable, Equatable {
     let preset: UUID?
     let routes: [KVMMonitorRoute]
     var connection: UUID? = nil
-    static func make(group: KVMGroup, preset: UUID, epoch: UUID, revision: String, id: UUID = UUID()) throws -> Self {
+    /// Reissue every monitor write even when a read says the requested input
+    /// is already selected. This is used by explicit force actions and when
+    /// replaying the active preset.
+    var force: Bool = false
+    static func make(group: KVMGroup, preset: UUID, epoch: UUID, revision: String, id: UUID = UUID(), force: Bool = false) throws -> Self {
         _ = try group.validated()
         guard let preset = group.presets.first(where: { $0.id == preset }), !group.monitors.isEmpty,
               !preset.assignments.isEmpty else { throw KVMError("Click a monitor input to include a screen in this preset.") }
@@ -22,25 +27,25 @@ struct KVMMonitorRequest: Codable, Equatable {
             guard let control = monitor.control else { throw KVMError("Choose a control connection for \(monitor.name).") }
             guard let assignment = preset.assignments.first(where: { $0.monitor == monitor.id }),
                   let input = group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { throw KVMError("Choose the actual input code for \(monitor.name)’s connection.") }
-            return .init(monitor: monitor.id, control: control, input: input)
+            return .init(monitor: monitor.id, control: control, input: input, force: force)
         }
-        return Self(id: id, epoch: epoch, revision: revision, preset: preset.id, routes: routes)
+        return Self(id: id, epoch: epoch, revision: revision, preset: preset.id, routes: routes, force: force)
     }
-    static func makeConnection(group: KVMGroup, connection: UUID, epoch: UUID, revision: String, id: UUID = UUID()) throws -> Self {
+    static func makeConnection(group: KVMGroup, connection: UUID, epoch: UUID, revision: String, id: UUID = UUID(), force: Bool = false) throws -> Self {
         _ = try group.validated()
         guard let port = group.connections.first(where: { $0.id == connection }),
               let monitor = group.monitors.first(where: { $0.id == port.monitor }),
               let control = monitor.control else { throw KVMError("Choose this monitor’s control connection in Monitor setup first.") }
         guard let input = port.inputCode else { throw KVMError("Set this port’s input code in Monitor setup first.") }
         return Self(id: id, epoch: epoch, revision: revision, preset: nil,
-                    routes: [.init(monitor: monitor.id, control: control, input: input)], connection: connection)
+                    routes: [.init(monitor: monitor.id, control: control, input: input, force: force)], connection: connection, force: force)
     }
     func validated(in group: KVMGroup) throws -> Self {
         if let connection, preset == nil {
-            return try Self.makeConnection(group: group, connection: connection, epoch: epoch, revision: revision, id: id)
+            return try Self.makeConnection(group: group, connection: connection, epoch: epoch, revision: revision, id: id, force: force)
         }
         guard let preset, connection == nil else { throw KVMError("The monitor request has no single valid target.") }
-        return try Self.make(group: group, preset: preset, epoch: epoch, revision: revision, id: id)
+        return try Self.make(group: group, preset: preset, epoch: epoch, revision: revision, id: id, force: force)
     }
 }
 struct KVMMonitorOutcome: Codable, Equatable {
@@ -153,10 +158,10 @@ final class KVMMonitorSwitch: ObservableObject {
             return nil
         } catch { return error.localizedDescription }
     }
-    func activate(_ preset: UUID) {
+    func activate(_ preset: UUID, force: Bool = false) {
         if let problem = readiness(preset) { self.problem = problem; return }
         do {
-            let request = try KVMMonitorRequest.make(group: node.group, preset: preset, epoch: node.graph.roster.epoch, revision: node.revision!)
+            let request = try KVMMonitorRequest.make(group: node.group, preset: preset, epoch: node.graph.roster.epoch, revision: node.revision!, force: force)
             begin(request)
         } catch { problem = error.localizedDescription }
     }
@@ -174,12 +179,12 @@ final class KVMMonitorSwitch: ObservableObject {
     func activateConnection(_ connection: UUID) {
         if let problem = connectionReadiness(connection) { self.problem = problem; return }
         do {
-            let request = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!)
+            let request = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection, epoch: node.graph.roster.epoch, revision: node.revision!, force: true)
             // A monitor that cannot report its input is still safe to use after
             // Perch has accepted a prior write: the accepted target is our
             // explicit software-known state. Do not send the same hardware
             // command again just because LG readback is unavailable.
-            if request.routes.allSatisfy({ knownInput(for: $0.monitor) == $0.input }) {
+            if !request.force && request.routes.allSatisfy({ knownInput(for: $0.monitor) == $0.input }) {
                 results = [:]
                 problem = nil
                 deriveActive()
@@ -206,7 +211,7 @@ final class KVMMonitorSwitch: ObservableObject {
         guard node.canEdit, let revision = node.revision else { problem = "Review the desk changes before switching."; return }
         do {
             let next = try KVMMonitorRequest.makeConnection(group: node.group, connection: connection,
-                                                            epoch: node.graph.roster.epoch, revision: revision)
+                                                            epoch: node.graph.roster.epoch, revision: revision, force: true)
             let monitors = Set(next.routes.map(\.monitor))
             let relevant = leases.filter { monitors.contains($0.key) }
             let stale = relevant.filter { now - $0.value.created >= Self.leaseRecoveryTimeout }
@@ -294,7 +299,7 @@ final class KVMMonitorSwitch: ObservableObject {
                   leases[monitor] == nil, let execute else { return }
             let lease = Lease(peer: peer, request: request, created: now, executing: true)
             leases[monitor] = lease
-            let localRoute = KVMMonitorRoute(monitor: monitor, control: .init(computer: node.localID, localDisplay: display, mode: route.control.mode), input: route.input)
+            let localRoute = KVMMonitorRoute(monitor: monitor, control: .init(computer: node.localID, localDisplay: display, mode: route.control.mode), input: route.input, force: route.force)
             execute(localRoute, { [weak self] in
                 guard let self, let current = self.leases[monitor] else { return false }
                 return current.request.id == request.id && current.peer == peer && self.now-current.created < 30 && self.node.online.contains(peer) && self.node.revision == request.revision

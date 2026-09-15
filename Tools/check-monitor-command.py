@@ -32,6 +32,9 @@ check(failed)
 valid = true
 let expired = try DeskMonitorCommand.run(input: 17, permitted: { valid }, read: { 18 }, write: { valid = false }, settle: {})
 check(expired == .unverified)
+var forcedWrites = 0, forcedWaits = 0
+let forced = try DeskMonitorCommand.run(input: 17, permitted: { true }, read: { 17 }, write: { forcedWrites += 1 }, settle: { forcedWaits += 1 }, force: true)
+check(forced == .switched && forcedWrites == 1 && forcedWaits == 1)
 print("PASS: \(checks) monitor command checks; already-selected input sends no write and incurs no settle wait; unknown/read failures, cancelled lease, write failure and post-write expiry")
 ''')
     subprocess.run(["xcrun", "swiftc", "-warnings-as-errors", str(repo/"Sources/DeskMonitorCommand.swift"), str(root/"main.swift"), "-o", str(root/"check")], check=True)

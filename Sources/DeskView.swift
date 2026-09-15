@@ -272,8 +272,8 @@ struct DeskView: View {
             TextField("Desk name", text: $draftName).textFieldStyle(.roundedBorder)
             Button("Create empty demo desk") { model.newDesk(draftName); if model.problem == nil { sheet = nil } }.buttonStyle(.borderedProminent)
         case "dimensions":
-            Text("Physical size & position").font(.title2.bold())
-            Text("Use the visible panel’s physical width and height in millimetres, before rotation. These proportions are independent of screen resolution.").foregroundStyle(.secondary)
+            Text("Physical size").font(.title2.bold())
+            Text("Use the visible panel’s physical width and height in millimetres, before rotation. Position is set directly in the Desk graph.").foregroundStyle(.secondary)
             if let monitor = model.selectedMonitor {
                 let detectedAspect = model.live?.panelAspect?(monitor.id) ?? monitor.panelAspect
                 let aspect = detectedAspect ?? fallbackAspect
@@ -291,10 +291,6 @@ struct DeskView: View {
                         Text("16:9").tag(16.0 / 9.0); Text("16:10").tag(1.6); Text("21:9").tag(21.0 / 9.0); Text("32:9").tag(32.0 / 9.0); Text("4:3").tag(4.0 / 3.0)
                     }
                     Text("No display capabilities are available yet. Choose a ratio only to estimate from a diagonal; exact millimetres remain editable.").font(.caption).foregroundStyle(.secondary)
-                }
-                HStack {
-                    Text("X"); TextField("X", value: Binding(get: { monitor.geometry.x }, set: { model.move(monitor.id, x: $0, y: monitor.geometry.y) }), format: .number).textFieldStyle(.roundedBorder)
-                    Text("Y"); TextField("Y", value: Binding(get: { monitor.geometry.y }, set: { model.move(monitor.id, x: monitor.geometry.x, y: $0) }), format: .number).textFieldStyle(.roundedBorder)
                 }
                 HStack {
                     Text("Width (mm)"); TextField("Width in millimetres", value: Binding(get: { monitor.geometry.width }, set: { model.resize(width: $0, height: monitor.geometry.height) }), format: .number).textFieldStyle(.roundedBorder)
@@ -677,18 +673,18 @@ struct DeskCanvas: View {
                     Button { addPort(monitor.id) } label: { Text("+ Port").font(.system(size: 10, weight: .medium)) }
                         .buttonStyle(DeskCanvasButtonStyle()).help("Add a monitor port")
                         .deskControl("addPort:" + monitor.id.uuidString).padding(.bottom, 3)
-                }.padding(.horizontal, 7)
+                }.padding(.leading, 7).padding(.trailing, 7)
                     // Keep every input beside its neighbours and pin the
                     // socket row to the physical screen edge. The Desk canvas
                     // owns scrolling when the row or canvas is too wide.
-                    .frame(maxWidth: .infinity, minHeight: portLabelHeight + 35, alignment: .bottom)
+                    .frame(maxWidth: .infinity, minHeight: portLabelHeight + 35, alignment: .bottomLeading)
             }.frame(width: width, height: height)
         }.frame(width: width, height: height)
             .contentShape(Rectangle())
                 .onHover { hovering in hoveredScreen = hovering ? monitor.id : (hoveredScreen == monitor.id ? nil : hoveredScreen) }
                 .help("Drag to arrange this physical screen. Guides preview edge and center alignment. Hold Shift to bypass snapping; gaps are allowed. Right-click for exact size in millimetres.")
                 .contextMenu {
-                    Button("Position & physical size…") { dimensions(monitor.id) }
+                    Button("Physical size…") { dimensions(monitor.id) }
                     Button("Rotate clockwise") { model.rotateScreen(monitor.id) }
                     Button("Add port…") { addPort(monitor.id) }
                     Button("Remove screen…", role: .destructive) { remove(monitor.id) }
@@ -735,18 +731,10 @@ struct DeskCanvas: View {
                            highlighted: model.preset.assignments.contains { $0.connection == port.id },
                            activeRouting: model.active?.assignments.contains { $0.connection == port.id } == true) {
                 let menu = DeskSocketMenu()
-                if let change = model.live?.switchConnection {
-                    let issue = model.live?.connectionReadiness?(port.id)
-                    menu.action("Switch to this input", enabled: issue == nil,
-                                help: issue ?? "Show \(port.inputName) on this monitor now. Presets stay unchanged; shared input returns locally.") {
-                        model.selected = port.monitor; change(port.id)
-                    }
-                    if let force = model.live?.forceSwitchConnection,
-                       let issue, issue.localizedCaseInsensitiveContains("switch") {
-                        menu.action("Switch to this input anyway", enabled: true,
-                                    help: "Take over after the current monitor switch can be safely released. This does not change any preset.") {
-                            model.selected = port.monitor; force(port.id)
-                        }
+                if let force = model.live?.forceSwitchConnection ?? model.live?.switchConnection {
+                    menu.action("Force switch to this input", enabled: true,
+                                help: "Send the monitor command again, even if Perch thinks this input is already selected. Presets stay unchanged.") {
+                        model.selected = port.monitor; force(port.id)
                     }
                     menu.addItem(.separator())
                 }

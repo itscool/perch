@@ -535,41 +535,49 @@ struct DeskCanvas: View {
             }
             .onDisappear { finishScreenDrag(); wire.cancel() }
             .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
-            .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in
-                GeometryReader { area in
-                    ForEach(model.group.connections.filter { wire.detachedPort != $0.id }) { connection in
-                        ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
-                            if preset.assignments.contains(where: { $0.connection == connection.id }),
-                               let computer = connection.computer,
-                               let start = anchors["preset:\(computer.uuidString):\(slot + 1)"], let end = anchors["port:" + connection.id.uuidString] {
-                                let source = area[start], target = area[end]
-                                let chosen = slot == model.presetIndex
-                                let activeRoute = model.active?.id == preset.id
-                                let focused = chosen && model.selected == connection.monitor
-                                let startPoint = CGPoint(x: source.midX, y: source.minY)
-                                let endPoint = CGPoint(x: target.midX, y: target.maxY)
-                                let middleY = (startPoint.y + endPoint.y) / 2
-                                let control1 = CGPoint(x: startPoint.x, y: middleY)
-                                let control2 = CGPoint(x: endPoint.x, y: middleY)
-                                let strokeColor: Color = activeRoute && chosen ? .purple : (activeRoute ? .green : (chosen ? .teal.opacity(focused ? 1 : 0.78) : .secondary.opacity(0.48)))
-                                let lineWidth: CGFloat = activeRoute && chosen ? 3.8 : (activeRoute || focused ? 3 : (chosen ? 2.5 : 1.5))
-                                Path { path in
-                                    path.move(to: startPoint)
-                                    path.addCurve(to: endPoint, control1: control1, control2: control2)
-                                }.stroke(strokeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                            }
-                        }
-                    }
-                }.allowsHitTesting(false)
-            }
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
+            .backgroundPreferenceValue(DeskCableAnchors.self) { anchors in deskWireLayer(anchors) }
         }
+        // The desk is one surface: its header, graph and computer row share a
+        // bounded rounded container that fills the available dialog height.
+        // Nodes can move inside it; the surface itself does not grow or
+        // disappear as content is rearranged.
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         }
     }
     private func finishScreenDrag() {
         drag = nil; snapBypassed = false
         if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }; modifierMonitor = nil
+    }
+    private func deskWireLayer(_ anchors: [String: Anchor<CGRect>]) -> some View {
+        GeometryReader { area in
+            ForEach(model.group.connections.filter { wire.detachedPort != $0.id }) { connection in
+                ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
+                    if preset.assignments.contains(where: { $0.connection == connection.id }),
+                       let computer = connection.computer,
+                       let start = anchors["preset:\(computer.uuidString):\(slot + 1)"], let end = anchors["port:" + connection.id.uuidString] {
+                        let source = area[start], target = area[end]
+                        let chosen = slot == model.presetIndex
+                        let activeRoute = model.active?.id == preset.id
+                        let focused = chosen && model.selected == connection.monitor
+                        let startPoint = CGPoint(x: source.midX, y: source.minY)
+                        let endPoint = CGPoint(x: target.midX, y: target.maxY)
+                        let middleY = (startPoint.y + endPoint.y) / 2
+                        let control1 = CGPoint(x: startPoint.x, y: middleY)
+                        let control2 = CGPoint(x: endPoint.x, y: middleY)
+                        let strokeColor: Color = activeRoute && chosen ? .purple : (activeRoute ? .green : (chosen ? .teal.opacity(focused ? 1 : 0.78) : .secondary.opacity(0.48)))
+                        let lineWidth: CGFloat = activeRoute && chosen ? 3.8 : (activeRoute || focused ? 3 : (chosen ? 2.5 : 1.5))
+                        Path { path in
+                            path.move(to: startPoint)
+                            path.addCurve(to: endPoint, control1: control1, control2: control2)
+                        }.stroke(strokeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    }
+                }
+            }
+        }.allowsHitTesting(false)
     }
     private func snapPreview(_ drag: DeskScreenDrag) -> some View {
         let layout = drag.layout

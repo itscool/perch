@@ -3,6 +3,7 @@ import Combine
 
 enum KVMInputMessage: Codable {
     case poll(UUID, Bool)
+    case wakeDisplay
     case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?)
     case focus(UUID, UUID)
     case prepare(KVMInputGrant)
@@ -48,6 +49,8 @@ final class KVMInputSession: ObservableObject {
     var emit: (KVMInputEvent, KVMInputFocus) -> Void = { _, _ in }
     var release: () -> Void = {}
     var readMonitor: ((UUID, @escaping (UInt16?) -> Void) -> Void)?
+    /// Best-effort request sent before a remote focus lease. It wakes the
+    /// destination Mac’s display while leaving lock-screen/access checks intact.
     /// Accepted write-only monitor routes can permit a KVM lease while their
     /// current input remains unconfirmed. A contradictory read removes it.
     var optimisticMonitorInput: ((UUID) -> UInt16?)?
@@ -201,7 +204,14 @@ final class KVMInputSession: ObservableObject {
             blockedTarget = (preset, monitor); return
         }
         blockedTarget = nil
+        requestDisplayWake(preset: preset, monitor: monitor)
         send(.focus(preset, monitor), to: node.ownerID)
+    }
+    private func requestDisplayWake(preset: UUID, monitor: UUID) {
+        guard let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
+              let computer = node.group.connections.first(where: { $0.id == assignment.connection })?.computer else { return }
+        if computer == node.localID { DeskDisplayWake.request() }
+        else if node.online.contains(computer) { send(.wakeDisplay, to: computer) }
     }
     /// Recheck existing sharing consent and monitor visibility; never start capture.
     func refreshReadiness() {
@@ -307,6 +317,9 @@ final class KVMInputSession: ObservableObject {
         guard node.isMember, node.online.contains(peer) else { return }
         let now = clock()
         switch message {
+        case .wakeDisplay:
+            guard peer == node.ownerID || node.isOwner else { return }
+            DeskDisplayWake.request()
         case .heartbeat(let nonce, let grantID):
             guard node.isOwner, enabled, ready(), let grant,
                   grant.id == grantID, grant.participants.contains(peer), fresh(peer) else { return }

@@ -58,6 +58,7 @@ struct KVMMonitorOutcome: Codable, Equatable {
 }
 enum KVMMonitorMessage: Codable {
     case refresh
+    case wakeDisplay
     case desktopInvalidation(KVMMonitorRequest, Bool)
     case desktopObserved(UUID, UInt16?, String, String?)
     case prepare(KVMMonitorRequest)
@@ -271,6 +272,16 @@ final class KVMMonitorSwitch: ObservableObject {
         busy = true; problem = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
         invalidateDesktop(request)
         for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, false), peer: peer) }
+        // Wake the computer that owns each selected input before the monitor
+        // command runs. A switched picture on a sleeping/locked Mac otherwise
+        // looks like a failed KVM handoff even though the monitor changed.
+        let destinations = Set(request.routes.compactMap { route in
+            node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.computer
+        })
+        for destination in destinations {
+            if destination == node.localID { DeskDisplayWake.request() }
+            else if node.online.contains(destination) { send(.wakeDisplay, peer: destination) }
+        }
         for peer in required { send(.prepare(request), peer: peer) }
     }
     private func send(_ message: KVMMonitorMessage, peer: UUID) {
@@ -280,6 +291,9 @@ final class KVMMonitorSwitch: ObservableObject {
     private func receive(_ message: KVMMonitorMessage, peer: UUID) {
         guard node.online.contains(peer) else { return }
         switch message {
+        case .wakeDisplay:
+            guard peer == node.ownerID || node.isOwner else { return }
+            DeskDisplayWake.request()
         case .desktopInvalidation(let request, let finished):
             guard request.epoch == node.graph.roster.epoch, request.revision == node.revision,
                   (try? request.validated(in: node.group)) == request else { return }

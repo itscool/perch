@@ -416,7 +416,10 @@ struct DeskMemberRoot: View {
     @ObservedObject var node: KVMDeskNode
     @ObservedObject var coordinator = DeskCoordinator.shared
     var body: some View {
-        if node.isMember { DeskView(model: runtime.model) }
+        if node.isMember {
+            DeskView(model: runtime.model)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
         else {
             VStack(alignment: .leading, spacing: 16) {
                 Text("This Mac was removed from the desk").font(.title2.bold())
@@ -446,7 +449,11 @@ extension AppDelegate {
     @objc func deskSettings() {
         let view = NSHostingView(rootView: DeskSettingsRoot())
         view.frame = NSRect(x: 0, y: 0, width: 720, height: 640)
-        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange screens and edit presets. Play switches monitor inputs. Enable keyboard and mouse sharing on each Mac; an active preset with a remote screen starts control automatically.", view: view, preferredBodyWidth: 720))
+        SettingsWindow.shared.show(.init(title: "Desk", detail: "Arrange screens and edit presets. Play switches monitor inputs. Enable keyboard and mouse sharing on each Mac; an active preset with a remote screen starts control automatically.", view: view, preferredBodyWidth: 720, layout: { [weak view] size in
+            // Desk has its own graph scroller. Give the host the full body
+            // rectangle so the bordered desk surface can fill taller dialogs.
+            view?.setFrameSize(size)
+        }))
     }
 }
 

@@ -458,7 +458,7 @@ struct DeskCanvas: View {
         let deskSurfaceWidth = max(available.width, canvasSize.width + 24)
         let deskSurfaceHeight = max(available.height, surfaceSize.height + 96)
         let canvasPanOffset = DeskCanvasLayout.clampedPan(rawCanvasPanOffset,
-                                                          content: surfaceSize,
+                                                          content: CGSize(width: deskSurfaceWidth, height: deskSurfaceHeight),
                                                           viewport: available)
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
         VStack(spacing: 16) {
@@ -470,8 +470,9 @@ struct DeskCanvas: View {
                     .disabled(model.group.monitors.count >= 16)
                     .help("Add a physical screen to this desk. Up to 16 screens.")
             }
-            // Keep the graph (screens, wires and computers) pannable as one
-            // unit while leaving the Screens header in the viewport.
+            // Keep the header, graph, wires and computers in one pannable desk
+            // image; the border moves with them instead of exposing a second
+            // clipped viewport.
             VStack(spacing: 16) {
             let layout = drag?.layout ?? liveLayout
             ZStack(alignment: .topLeading) {
@@ -491,7 +492,7 @@ struct DeskCanvas: View {
                             let rendered = CGSize(width: proposed.width * scale,
                                                   height: proposed.height * scale)
                             let bounded = DeskCanvasLayout.clampedPan(rendered,
-                                                                       content: surfaceSize,
+                                                                       content: CGSize(width: deskSurfaceWidth, height: deskSurfaceHeight),
                                                                        viewport: available)
                             canvasPan = CGSize(width: bounded.width / scale,
                                                height: bounded.height / scale)
@@ -525,17 +526,15 @@ struct DeskCanvas: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }.padding(12).frame(minWidth: available.width, alignment: .leading)
-            // Establish coordinates before applying the surface offset. This
-            // keeps socket/control hit testing stable while the graph moves.
-            .coordinateSpace(name: "deskScreenCanvas")
-            .offset(canvasPanOffset)
             .onChange(of: canvasSize) { _, _ in
                 // A resize can make the old world-space pan invalid. Fold it
                 // back into the new finite surface before the next gesture,
                 // so the first drag never jumps from a stale anchor.
                 let scale = max(0.000001, liveLayout.scale)
                 let rendered = CGSize(width: canvasPan.width * scale, height: canvasPan.height * scale)
-                let bounded = DeskCanvasLayout.clampedPan(rendered, content: surfaceSize, viewport: available)
+                let bounded = DeskCanvasLayout.clampedPan(rendered,
+                                                           content: CGSize(width: deskSurfaceWidth, height: deskSurfaceHeight),
+                                                           viewport: available)
                 canvasPan = CGSize(width: bounded.width / scale, height: bounded.height / scale)
             }
             .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { finishScreenDrag() } }
@@ -561,6 +560,11 @@ struct DeskCanvas: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        // The border and everything inside it are one pannable desk image.
+        // Keep the named coordinate space on that image so cables and controls
+        // move together when the user drags or scrolls the surface.
+        .coordinateSpace(name: "deskScreenCanvas")
+        .offset(canvasPanOffset)
         }
         }
     }

@@ -35,7 +35,11 @@ struct DeskView: View {
                     Button("First-use desk…") { draftName = "My new desk"; sheet = "newDesk" }
                 } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
-            }.padding(24)
+            // Leave the existing separation below the page explanation room
+            // for a third wrapped line without moving the desk identity down.
+            // The settings host owns the explanation height; this smaller top
+            // inset absorbs that extra line in the space already above here.
+            }.padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 24)
             // Presets are one equal-width row. Let each card get narrower as
             // the dialog narrows; its status text truncates instead of making
             // the grid reflow into uneven rows.

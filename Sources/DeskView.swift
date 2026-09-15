@@ -36,7 +36,10 @@ struct DeskView: View {
                 } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
             }.padding(24)
-            HStack(alignment: .top, spacing: 12) {
+            // Keep each card wide enough for its title, status and shortcut.
+            // The adaptive grid stacks cards once the dialog is too narrow
+            // instead of letting a word wrap into a tall, broken card.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), spacing: 12)], alignment: .leading, spacing: 12) {
                 ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { index, preset in
                     HStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -421,7 +424,10 @@ struct DeskCanvas: View {
 
     var body: some View {
         GeometryReader { viewport in
-        let graphHeight = max(320, viewport.size.height - 160)
+        // Reserve room for the computer row and its legend. The old
+        // `height - 160` proposal let the screen canvas consume nearly the
+        // entire window, leaving the computers below the visible viewport.
+        let graphHeight = max(210, viewport.size.height - 320)
         let rectangles = model.group.monitors.map { rectangle($0.geometry) }
         let minimumScale = DeskCanvasLayout.minimumScale(for: rectangles)
         let available = CGSize(width: max(1, viewport.size.width - 24), height: graphHeight)
@@ -431,6 +437,19 @@ struct DeskCanvas: View {
         let canvasSize = CGSize(width: max(available.width, fittingLayout.bounds.width * fittingLayout.scale + 32),
                                 height: max(available.height, fittingLayout.bounds.height * fittingLayout.scale + 32))
         let liveLayout = DeskCanvasLayout(rectangles: rectangles, viewport: canvasSize, minimumScale: minimumScale)
+        // Store panning in physical canvas units. A resize can change the
+        // zoom, but it must not reinterpret an existing pan as a different
+        // physical location.
+        let rawCanvasPanOffset = CGSize(width: canvasPan.width * liveLayout.scale,
+                                        height: canvasPan.height * liveLayout.scale)
+        // The computer row is part of the pannable desk surface. Keep the
+        // surface's rendered bounds finite so resizing or dragging cannot
+        // expose unbounded blank canvas or cut the lower nodes away.
+        let surfaceSize = CGSize(width: canvasSize.width,
+                                  height: canvasSize.height + (model.group.computers.isEmpty ? 58 : 154))
+        let canvasPanOffset = DeskCanvasLayout.clampedPan(rawCanvasPanOffset,
+                                                          content: surfaceSize,
+                                                          viewport: available)
         ScrollView([.horizontal, .vertical], showsIndicators: false) {
         VStack(spacing: 16) {
             HStack {
@@ -441,8 +460,33 @@ struct DeskCanvas: View {
                     .disabled(model.group.monitors.count >= 16)
                     .help("Add a physical screen to this desk. Up to 16 screens.")
             }
+            // Keep the graph (screens, wires and computers) pannable as one
+            // unit while leaving the Screens header in the viewport.
+            VStack(spacing: 16) {
             let layout = drag?.layout ?? liveLayout
             ZStack(alignment: .topLeading) {
+                // The empty surface owns panning. It sits behind every
+                // screen and socket, so node controls keep their hit targets
+                // and a drag can start anywhere that is genuinely empty.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .local)
+                        .onChanged { value in
+                            guard drag == nil, wire.gesture.source == nil else { return }
+                            if canvasPanStart == nil { canvasPanStart = canvasPan }
+                            let start = canvasPanStart ?? .zero
+                            let scale = max(0.000001, layout.scale)
+                            let proposed = CGSize(width: start.width + value.translation.width / scale,
+                                                  height: start.height + value.translation.height / scale)
+                            let rendered = CGSize(width: proposed.width * scale,
+                                                  height: proposed.height * scale)
+                            let bounded = DeskCanvasLayout.clampedPan(rendered,
+                                                                       content: surfaceSize,
+                                                                       viewport: available)
+                            canvasPan = CGSize(width: bounded.width / scale,
+                                               height: bounded.height / scale)
+                        }
+                        .onEnded { _ in canvasPanStart = nil })
                 if model.group.monitors.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "display.2").font(.system(size: 40, weight: .light))
@@ -455,25 +499,6 @@ struct DeskCanvas: View {
                 if let drag { snapPreview(drag) }
             }
             .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
-            .contentShape(Rectangle())
-            .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("deskScreenCanvas"))
-                .onChanged { value in
-                    guard drag == nil, wire.gesture.source == nil else { return }
-                    let p = value.startLocation
-                    let occupied = model.group.monitors.contains { monitor in
-                        let r = rectangle(monitor.geometry)
-                        let frame = CGRect(x: layout.origin.x + (r.minX - layout.bounds.minX) * layout.scale,
-                                           y: layout.origin.y + (r.minY - layout.bounds.minY) * layout.scale,
-                                           width: r.width * layout.scale, height: r.height * layout.scale)
-                        return frame.contains(p)
-                    }
-                    guard !occupied else { return }
-                    if canvasPanStart == nil { canvasPanStart = canvasPan }
-                    let start = canvasPanStart ?? .zero
-                    canvasPan = CGSize(width: start.width + value.translation.width,
-                                       height: start.height + value.translation.height)
-                }
-                .onEnded { _ in canvasPanStart = nil })
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Computers").font(.headline)
@@ -490,8 +515,19 @@ struct DeskCanvas: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }.padding(12).frame(minWidth: available.width, alignment: .leading)
+            // Establish coordinates before applying the surface offset. This
+            // keeps socket/control hit testing stable while the graph moves.
             .coordinateSpace(name: "deskScreenCanvas")
-            .offset(canvasPan)
+            .offset(canvasPanOffset)
+            .onChange(of: canvasSize) { _, _ in
+                // A resize can make the old world-space pan invalid. Fold it
+                // back into the new finite surface before the next gesture,
+                // so the first drag never jumps from a stale anchor.
+                let scale = max(0.000001, liveLayout.scale)
+                let rendered = CGSize(width: canvasPan.width * scale, height: canvasPan.height * scale)
+                let bounded = DeskCanvasLayout.clampedPan(rendered, content: surfaceSize, viewport: available)
+                canvasPan = CGSize(width: bounded.width / scale, height: bounded.height / scale)
+            }
             .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { finishScreenDrag() } }
             .onPreferenceChange(DeskControlFrames.self) { controlFrames = $0 }
             .onChange(of: model.group.connections) { _, _ in wire.move(to: wire.gesture.point) }
@@ -531,6 +567,7 @@ struct DeskCanvas: View {
                 }.allowsHitTesting(false)
             }
             .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
+        }
         }
         }
     }

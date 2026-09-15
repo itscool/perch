@@ -100,7 +100,12 @@ func runMenuAppearanceTests() throws {
         let readable = DeskCanvasLayout.minimumScale(for: rectangles)
         let readableLayout = DeskCanvasLayout(rectangles: rectangles, viewport: size, minimumScale: readable)
         try require(readableLayout.scale + 0.000001 >= readable, "Desk cards shrank below their readable minimum")
+        try require(readableLayout.origin.x >= 16 && readableLayout.origin.y >= 16, "Desk layout kept a stable inset")
     }
+    let panContent = CGSize(width: 1200, height: 900), panViewport = CGSize(width: 800, height: 700)
+    try require(DeskCanvasLayout.clampedPan(.zero, content: panContent, viewport: panViewport) == .zero, "Desk pan starts at the visible origin")
+    try require(DeskCanvasLayout.clampedPan(CGSize(width: -999, height: -999), content: panContent, viewport: panViewport) == CGSize(width: -400, height: -200), "Desk pan clamps to content bounds")
+    try require(DeskCanvasLayout.clampedPan(CGSize(width: -500, height: -500), content: panContent, viewport: CGSize(width: 1400, height: 1000)) == .zero, "Desk pan recenters when the viewport grows")
     defaults.set(Data("broken".utf8), forKey: MenuAppearanceStore.key)
     let damaged = MenuAppearanceStore(defaults: defaults)
     damaged.save(changed)

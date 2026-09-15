@@ -20,7 +20,12 @@ struct DeskCanvasLayout {
         let fit = min(max(1, viewport.width - 32) / max(1, bounds.width),
                       max(1, viewport.height - 32) / max(1, bounds.height))
         scale = max(0.000001, max(minimumScale, min(1, fit)))
-        origin = CGPoint(x: (viewport.width - bounds.width * scale) / 2, y: (viewport.height - bounds.height * scale) / 2)
+        // Center content while it fits. Once it is wider/taller than the
+        // viewport, keep a small, stable inset instead of centering it in an
+        // oversized scroll region. That keeps resizing from moving the
+        // visible group to a different anchor point.
+        origin = CGPoint(x: max(16, (viewport.width - bounds.width * scale) / 2),
+                         y: max(16, (viewport.height - bounds.height * scale) / 2))
     }
 
     /// Returns the scale required for every card to retain its interactive
@@ -31,6 +36,17 @@ struct DeskCanvasLayout {
             max(minimumScreenWidth / max(1, rectangle.width),
                 minimumScreenHeight / max(1, rectangle.height))
         }.max() ?? 0
+    }
+
+    /// Constrain a rendered pan to the actual content bounds.  SwiftUI's
+    /// `offset` does not participate in scroll measurements, so leaving this
+    /// unconstrained creates an apparently infinite desk and lets a drag
+    /// reveal blank space or clip the computer row.
+    static func clampedPan(_ offset: CGSize, content: CGSize, viewport: CGSize) -> CGSize {
+        let horizontal = max(0, content.width - viewport.width)
+        let vertical = max(0, content.height - viewport.height)
+        return CGSize(width: min(0, max(-horizontal, offset.width)),
+                      height: min(0, max(-vertical, offset.height)))
     }
 }
 

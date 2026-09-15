@@ -625,6 +625,11 @@ historical evidence, not additional open release requirements.
    this release on September 14, including notarization, GitHub publication and
    the Homebrew tap. Future releases still require their own explicit approval.
 
+Perch 2.0.204 was published on September 15, 2026. Apple accepted the app and
+the DMG; the GitHub release, stable Sparkle feed and SHA256SUMS checksums were
+verified, and the `itscool/tap` Homebrew cask was updated and verified with
+`brew info`. Native acceptance remains open.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

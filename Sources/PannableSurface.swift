@@ -121,9 +121,10 @@ struct PannableSurface<Content: View>: View {
     }
 }
 
-/// SwiftUI's ScrollView is backed by NSScrollView on macOS.  Keep native
-/// scrolling and accessibility while using a small overlay scroller that can
-/// sit inside the surface's border inset instead of covering its content.
+/// SwiftUI's ScrollView is backed by NSScrollView on macOS. Keep native
+/// scrolling and accessibility while reserving a slim outside gutter for the
+/// indicators. Overlay scrollers sit on top of the pannable document, which
+/// makes a narrow graph's controls harder to reach.
 struct PannableSurfaceScrollIndicatorConfigurator: NSViewRepresentable {
     let inset: CGFloat
 
@@ -160,11 +161,12 @@ final class PannableSurfaceScrollIndicatorProbe: NSView {
         var view: NSView? = self
         while let current = view {
             if let scroll = current as? NSScrollView {
-                scroll.scrollerStyle = .overlay
+                scroll.scrollerStyle = .legacy
                 scroll.autohidesScrollers = true
-                // Positive insets place the knobs in the rounded surface's
-                // border area, leaving the readable document unobscured.
-                scroll.scrollerInsets = NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+                // Legacy style reserves the gutter outside the document. The
+                // custom scroller keeps that reserved area only six points
+                // wide, independent of the host's default control size.
+                scroll.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
                 scroll.verticalScroller = PannableSurfaceThinScroller()
                 scroll.horizontalScroller = PannableSurfaceThinScroller()
                 return
@@ -175,7 +177,10 @@ final class PannableSurfaceScrollIndicatorProbe: NSView {
 }
 
 final class PannableSurfaceThinScroller: NSScroller {
-    override class var isCompatibleWithOverlayScrollers: Bool { true }
+    override class var isCompatibleWithOverlayScrollers: Bool { false }
+
+    override class func scrollerWidth(for controlSize: NSControl.ControlSize,
+                                      scrollerStyle: NSScroller.Style) -> CGFloat { 6 }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 

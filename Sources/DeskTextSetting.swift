@@ -60,8 +60,8 @@ struct DeskInlineName: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                if let select { Button(saved, action: select).buttonStyle(DeskCanvasButtonStyle()) }
-                else { Text(saved) }
+                if let select { Button(saved, action: select).buttonStyle(DeskCanvasButtonStyle()).lineLimit(1).truncationMode(.tail) }
+                else { Text(saved).lineLimit(1).truncationMode(.tail) }
                 Button { editing.toggle() } label: {
                     Image(systemName: editing ? "chevron.up" : "pencil").font(.system(size: 11))
                 }.buttonStyle(DeskCanvasButtonStyle()).accessibilityLabel(editing ? "Collapse \(title) editor" : "Rename \(title)")

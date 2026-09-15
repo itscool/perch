@@ -36,10 +36,11 @@ struct DeskView: View {
                 } label: { Text("DESK LAB · SIMULATION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(.secondary) }.fixedSize() }
                 if model.conflict != nil { Button("Review conflicting changes") { sheet = "conflict" } }
             }.padding(24)
-            // Keep each card wide enough for its title, status and shortcut.
-            // The adaptive grid stacks cards once the dialog is too narrow
-            // instead of letting a word wrap into a tall, broken card.
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), spacing: 12)], alignment: .leading, spacing: 12) {
+            // Presets are one equal-width row. Let each card get narrower as
+            // the dialog narrows; its status text truncates instead of making
+            // the grid reflow into uneven rows.
+            let presetColumns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: max(1, model.group.presets.count))
+            LazyVGrid(columns: presetColumns, alignment: .leading, spacing: 12) {
                 ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { index, preset in
                     HStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -55,7 +56,6 @@ struct DeskView: View {
                                     .foregroundStyle(model.presetIndex == index ? .teal : .secondary)
                                     .padding(.horizontal, 6).padding(.vertical, 2)
                                     .background((model.presetIndex == index ? Color.teal : Color.secondary).opacity(0.11), in: Capsule())
-                                    .fixedSize()
                                     .help(model.presetIndex == index ? "This is the preset whose connections are shown below." : "Select this card to edit its connections.")
                                 if let issue = model.readinessIssue(for: index) {
                                     DeskPresetAttention(title: preset.assignments.isEmpty ? "Not mapped" : "Needs attention", detail: issue)
@@ -69,10 +69,10 @@ struct DeskView: View {
                                     Text(model.changedSinceUse ? "Active now · edited" : "Active now")
                                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
                                         .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(Color.green.opacity(0.12), in: Capsule()).fixedSize()
+                                        .background(Color.green.opacity(0.12), in: Capsule())
                                         .help(model.changedSinceUse ? "This preset is still active on the displays, but its saved connections were edited. Play it again to apply those edits." : "This is the preset currently active on the displays. Selecting another card only changes what you edit.")
                                 }
-                            }
+                            }.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 6) {
                             Button { model.activatePreset(index) } label: { Image(systemName: "play.fill").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 23) }
@@ -81,7 +81,7 @@ struct DeskView: View {
                                 .help(model.readinessIssue(for: index) ?? (model.live == nil ? "Switch to this preset now. The Desk Lab simulates the switch." : DeskModel.presetActivationHelp))
                             Text(preset.shortcut.label).font(.system(size: 10)).foregroundStyle(.secondary)
                         }
-                    }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    }.padding(14).frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: 12).fill(model.presetIndex == index ? Color.teal.opacity(hoveredPreset == preset.id ? 0.16 : 0.10) : (hoveredPreset == preset.id ? Color.teal.opacity(0.06) : Color(nsColor: .controlBackgroundColor))))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(model.presetIndex == index ? Color.teal : Color(nsColor: .separatorColor), lineWidth: model.presetIndex == index ? 2 : 1))
                         .contentShape(RoundedRectangle(cornerRadius: 12))
@@ -312,7 +312,7 @@ private struct DeskPresetAttention: View {
             Label(title, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11))
                 .foregroundStyle(.orange)
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .truncationMode(.tail)
         }.buttonStyle(DeskCanvasButtonStyle(padding: 0)).help(detail)
             .accessibilityLabel(title + ". " + detail)
             .popover(isPresented: $showing) { Text(detail).font(.callout).frame(width: 250, alignment: .leading).padding(14) }

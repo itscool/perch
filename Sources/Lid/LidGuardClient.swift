@@ -47,11 +47,19 @@ enum LidGuardInstall {
         return "/usr/bin/find " + quote(staged) + " -type l -print | while IFS= read -r link; do\ncase \"$link\" in\n" + cases + "\n" +
             quote(framework + "Versions/Current") + ") expected=B;;\n*) exit 1;;\nesac\ntest \"$(/usr/bin/readlink \"$link\")\" = \"$expected\" || exit 1\ndone"
     }
+    /// The supervisor's launchd job. It must answer its watchdog within two
+    /// seconds, so it runs Interactive: a Background job's timers can be
+    /// delayed by seconds, which the watchdog correctly treats as a hang and
+    /// ends the lid session. The recovery and update-guard jobs have no such
+    /// deadline and stay Background.
+    static func serviceJob(owner: uid_t) -> [String: Any] {
+        ["Label": LidGuardService.name, "ProgramArguments": [binary, "--lid-guard", String(owner)], "MachServices": [LidGuardService.name: true, LidGuardService.restartName: true], "RunAtLoad": true, "KeepAlive": true, "ThrottleInterval": 2, "ProcessType": "Interactive"]
+    }
     static func installationCommand(source: URL, requirement: String, owner: uid_t, requireOpenLid: Bool = false, protectedUpdate: Bool = false) throws -> String {
         guard source.pathExtension == "app", owner >= 501 else { throw AppError(message: "Use the signed Perch app to install lid protection.") }
         let plist = "/Library/LaunchDaemons/\(LidGuardService.name).plist"
         let recoveryPlist = "/Library/LaunchDaemons/\(recoveryName).plist"
-        let job: [String: Any] = ["Label": LidGuardService.name, "ProgramArguments": [binary, "--lid-guard", String(owner)], "MachServices": [LidGuardService.name: true, LidGuardService.restartName: true], "RunAtLoad": true, "KeepAlive": true, "ThrottleInterval": 2, "ProcessType": "Background"]
+        let job = serviceJob(owner: owner)
         let encoded = try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0).base64EncodedString()
         let recovery: [String: Any] = ["Label": recoveryName, "ProgramArguments": [binary, "--lid-recover"], "RunAtLoad": true, "StartInterval": 5, "ThrottleInterval": 1, "ProcessType": "Background", "ExitTimeOut": 5]
         let recoveryEncoded = try PropertyListSerialization.data(fromPropertyList: recovery, format: .xml, options: 0).base64EncodedString()

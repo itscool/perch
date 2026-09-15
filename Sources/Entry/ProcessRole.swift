@@ -236,6 +236,8 @@ enum ProcessRole: Equatable {
             try runHotKeyTests()
             try runTerminationReplyTests()
             try runQuitPlanTests()
+            try runSettingsPageLifetimeTests()
+            try runLidSchedulingTests()
             try runInputTests()
             try runKeyboardModeTests()
             try runNavigationKeyTests()

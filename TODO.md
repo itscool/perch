@@ -122,6 +122,22 @@ Native click-through of the Quit notice is pending. The Quit build is installed 
 the running Perch still executes the earlier 2.0.203 build from
 `Perch.previous-2.0.203.app`, so the next Quit and reopen loads it.
 
+September 15 (late morning) regressions and fixes, each pinned by a fast self-test.
+Setup & status buttons did nothing and Reset Settings and task pages stopped refreshing:
+the window-owned polling change removed the closure that had kept those page objects
+alive, so they were freed as soon as they opened. `SettingsWindow.Page.owner` now holds
+the page object while it is shown (dialog-ownership suite and
+`runSettingsPageLifetimeTests`). Keep awake showed Needs attention because every lid
+session ended within seconds to minutes with "Independent watchdog confirmation was
+lost": the lid supervisor and its watchdog ran at thread priority 4 (launchd
+ProcessType Background), where macOS delays timers by seconds, while they must exchange
+leases within two to three seconds. Logs ruled out the clock, file checks, powerd
+latency, trust evaluation, the recovery job and child processes. The supervisor job is
+now Interactive and both processes leave background throttling at startup; lid helper
+version 6 makes installed helpers update, which asks for admin approval once
+(`runLidSchedulingTests`). Native acceptance pending: a lid session that stays armed
+for an extended period after the helper update.
+
 ## Known defects — fix before shipping; target zero
 
 - [x] **Renaming a keyboard discarded known navigation layouts.** Model/transport

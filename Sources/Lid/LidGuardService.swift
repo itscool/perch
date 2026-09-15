@@ -81,6 +81,7 @@ final class LidGuardPipe {
 /// and can only release our session and request sleep if the supervisor hangs.
 func runLidGuardWatchdog() -> Never {
     guard geteuid() == 0 else { exit(1) }
+    let responsiveness = LidGuardScheduling.makeResponsive(reason: "Lid watchdog acknowledges supervisor leases on time")
     let channel = LidGuardPipe(input: STDIN_FILENO, output: STDOUT_FILENO)
     let activity = LidActivityRecorder(source: "Watchdog")
     let hardware = MacLidGuardHardware(), enforcer = LidGuardEnforcer(MacLidGuardHardware(), log: { activity.record($0, coalesce: true) })
@@ -101,6 +102,7 @@ func runLidGuardWatchdog() -> Never {
             catch { activity.record("Watchdog cleanup failed: \(error.localizedDescription)", coalesce: true) }
         }
         _ = channel.send(LidGuardAck(token: lease.token, time: now, allowed: lease.token == nil ? fresh : decision.preventLidSleep))
+        withExtendedLifetime(responsiveness) {}
         if channel.ended && (!LidGuardOwnership.exists || LidGuardOwnership.token != lease.token) { activity.record("Watchdog finished recovery after its supervisor connection ended."); activity.finish(); exit(0) }
         usleep(250_000)
     }
@@ -138,6 +140,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
     init(owner: uid_t) { self.owner = owner; super.init(); listener.delegate = self; restartListener.delegate = self }
     func run() -> Never {
         guard geteuid() == 0 else { exit(1) }
+        let responsiveness = LidGuardScheduling.makeResponsive(reason: "Lid supervisor renews watchdog leases on time")
         activity.record("Lid helper started (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")). Previous gaps in observation cannot be reconstructed.")
         powerObserver = LidPowerNotifications(activity: activity, observe: { [weak self] in
             guard let self else { return }
@@ -161,7 +164,7 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
         } catch { snapshot.detail = error.localizedDescription; snapshot.error = error.localizedDescription; activity.record("Helper startup failed: \(error.localizedDescription)") }
         listener.resume(); restartListener.resume()
         let timer = MainTimer.every(0.25) { [weak self] in self?.tick() }
-        withExtendedLifetime(self) { RunLoop.main.run() }; exit(0)
+        withExtendedLifetime((self, timer, responsiveness)) { RunLoop.main.run() }; exit(0)
     }
     private func systemSleepBegan() {
         guard token != nil, snapshot.armed, !policy.stopped else { return }

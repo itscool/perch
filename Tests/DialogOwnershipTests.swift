@@ -101,7 +101,28 @@ func runDialogOwnershipTests() throws {
     host.show(.init(title: "Polling", detail: "", view: polling, poll: .init(every: 60) { polled += 1 }))
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     try check(host.pollTimer(for: polling) == nil, "Closing the window kept a page poll timer")
+    // A page object created in a local scope stays alive while shown, so its
+    // weak button callbacks still work, and is released when the page leaves.
+    final class PageOwnerFixture { var clicks = 0; let view = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 80)) }
+    weak var owned: PageOwnerFixture?
+    var ownedButton: SettingsActionButton?
+    do {
+        let fixture = PageOwnerFixture(); owned = fixture
+        let button = SettingsActionButton(title: "Owned action") { [weak fixture] in fixture?.clicks += 1 }
+        fixture.view.addSubview(button); ownedButton = button
+        host.show(.init(title: "Owned page", detail: "", view: fixture.view, owner: fixture))
+    }
+    ownedButton?.performClick(nil)
+    try check(owned != nil && owned?.clicks == 1, "A shown page's owner was released while its page was visible")
+    host.goBack()
+    try check(owned == nil, "Leaving a page kept its owner alive")
+    do {
+        let fixture = PageOwnerFixture(); owned = fixture
+        host.show(.init(title: "Owned page", detail: "", view: fixture.view, owner: fixture))
+    }
+    host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
+    try check(owned == nil, "Closing Settings kept a page owner alive")
     host.show(.init(title: "Reopened", detail: "", view: parent))
     try check(!host.window.isVisible && NSApp.modalWindow == nil, "Headless dialog fixture presented native UI")
-    print("PASS: hidden dialog hit testing and button dispatch; confirmation/Back/X; stale controls/timers; window-owned page polling; refresh exclusion; exactly-once completion; bounded cleanup; picker cancellation; close/reopen after external handoff. No native window shown.")
+    print("PASS: hidden dialog hit testing and button dispatch; confirmation/Back/X; stale controls/timers; window-owned page polling and page owners; refresh exclusion; exactly-once completion; bounded cleanup; picker cancellation; close/reopen after external handoff. No native window shown.")
 }

@@ -79,7 +79,7 @@ final class SettingsTaskPage {
     }
     func show(delegate: AppDelegate? = nil) {
         SettingsWindow.shared.show(.init(title: title, detail: detail, view: view, refresh: { [weak self] in self?.refresh() },
-                                         poll: .init(every: 1) { [weak self] in self?.refresh() }))
+                                         poll: .init(every: 1) { [weak self] in self?.refresh() }, owner: self))
         delegate?.settingsRefresh = { [weak self] in self?.refresh() }
         refresh()
     }

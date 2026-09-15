@@ -230,7 +230,7 @@ final class ResetChecklistPage {
                                              guard let self else { return }
                                              let before = self.status.stringValue; self.refresh()
                                              if before != self.status.stringValue { self.relayout() }
-                                         }))
+                                         }, owner: self))
         if let highlight, let row = rows[highlight], !highlightedOnShow { row.scrollToVisible(row.bounds); highlightedOnShow = true }
     }
     private func relayout() {

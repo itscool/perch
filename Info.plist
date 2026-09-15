@@ -31,7 +31,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Perch finds and connects to computers you approve for your shared Desk and monitor presets.</string>
 	<key>PerchLidHelperVersion</key>
-	<integer>5</integer>
+	<integer>6</integer>
 	<key>PerchLidProtocolVersion</key>
 	<integer>3</integer>
 	<key>SUAllowsAutomaticUpdates</key>

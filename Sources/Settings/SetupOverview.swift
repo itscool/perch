@@ -187,7 +187,7 @@ final class SetupOverviewPage {
     }
     func show() {
         let host = SettingsWindow.shared
-        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Complete the items marked Needs attention for the features you choose before relying on them. Optional features can wait. Lid protection has its own setup step below. Return here whenever access or setup changes." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574, layout: { [weak self] size in self?.resize(to: size) }, poll: .init(every: 1) { [weak self] in self?.refresh() }))
+        host.show(.init(title: "Setup & status", detail: firstVisit ? "Welcome to Perch. Complete the items marked Needs attention for the features you choose before relying on them. Optional features can wait. Lid protection has its own setup step below. Return here whenever access or setup changes." : "See what is ready and what needs attention. Open any item to adjust or repair it, then return here for the next check. Optional items can wait. Nothing is reset or enabled by visiting this page.", view: view, refresh: { [weak self] in self?.refresh() }, preferredBodyHeight: 574, layout: { [weak self] size in self?.resize(to: size) }, poll: .init(every: 1) { [weak self] in self?.refresh() }, owner: self))
         refresh()
     }
     func resize(to size: NSSize) {

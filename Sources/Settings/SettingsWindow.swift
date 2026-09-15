@@ -34,6 +34,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         weak var focusView: NSView? = nil
         var selection: NSRange? = nil
         var poll: Poll? = nil
+        /// The object that drives this page. The window holds it while the page
+        /// is on the stack, so controls with weak callbacks stay live, and drops
+        /// it when the page leaves. A page created in a local scope needs this.
+        var owner: AnyObject? = nil
     }
     /// Observed state a page polls while it is the visible page. The window
     /// owns the timer, so leaving, replacing or closing the page always stops

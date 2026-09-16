@@ -157,6 +157,19 @@ setup stage and sidebar page resolves. Reported and left unchanged: in the worst
 lid session start can block the supervisor about 2.9 s, but only when both of its system
 commands time out, which already fails the start with a visible error.
 
+September 15 (evening) stale permission entries after a publisher change. Perch now
+records the publisher it ran under and, when that changes (or is unknown) while
+Accessibility or Input Monitoring fails, removes exactly those dead entries for its own
+bundle id with `tccutil reset <Service> local.scott.perch`: never All, never global,
+never another app, so Local Network, Screen Recording and Full Disk Access grants are
+untouched. It runs once per publisher off the main thread at launch; a refused or timed
+out removal keeps the retry. Setup & status then explains that macOS needs those
+permissions granted again and disappears once they are, since only the person can grant
+them. `Sources/Core/PublisherChange.swift`, `Sources/Agent/PermissionRecovery.swift` and
+`Tests/PublisherChangeTests.swift` (self-test). Not covered: agent tracking's Full Disk
+Access, a separate identity in the system database with its own Setup step. This ships in
+the next release; 2.0.204 is already public.
+
 ## Known defects — fix before shipping; target zero
 
 - [x] **Renaming a keyboard discarded known navigation layouts.** Model/transport

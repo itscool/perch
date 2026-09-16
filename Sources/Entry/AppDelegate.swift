@@ -78,6 +78,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         installSettingsNavigation()
+        // Permission entries an earlier, differently signed Perch left behind look
+        // granted but do nothing. Remove them before anything asks for access.
+        if !SettingsWindow.shared.testing {
+            PermissionRecovery.startAtLaunch { [weak self] in self?.settingsRefresh?(); self?.refreshSafety() }
+        }
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")
         status.button?.toolTip = "Perch — your Mac, ready for AI work"

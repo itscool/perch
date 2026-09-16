@@ -238,6 +238,7 @@ enum ProcessRole: Equatable {
             try runQuitPlanTests()
             try runSettingsPageLifetimeTests()
             try runLidSchedulingTests()
+            try runPublisherChangeTests()
             try runCoreEntryReviewTests()
             try runDeskInputReviewTests()
             try runLidSettingsReviewTests()

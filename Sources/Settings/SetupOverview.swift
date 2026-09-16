@@ -47,6 +47,8 @@ struct SetupSnapshot {
     var lidHelperInstalled = false
     var loginNeedsApproval = false
     var helperRecoveryFailure: String?
+    /// Permissions Perch removed for this publisher that are still missing.
+    var accessRestoreNeeded: [PermissionService] = []
     var collectorChecking = false
     var lidHelperBusy = false
 
@@ -67,6 +69,12 @@ struct SetupSnapshot {
         add("helpers", "Background controls", helpersReady ? .ready : helperRecoveryFailure != nil ? .attention : helperWanted ? .checking : .optional,
             helpersReady ? "Perch’s background controls are responding and up to date." : helperRecoveryFailure ?? (helperWanted ? "Perch is checking or restoring a required helper automatically." : "Needed for scrolling, keep-awake requests and agent protection."),
             "Background helpers…", .maintenance)
+
+        if !accessRestoreNeeded.isEmpty {
+            add("access", "Perch’s access", .attention,
+                "Perch removed permission entries that no longer work for this copy. macOS needs \(PermissionService.list(accessRestoreNeeded)) granted again for Perch.",
+                "Restore access…", .inputAccess)
+        }
 
         if inputReady && input?.trusted == true && (!inputWanted || input?.active == true) {
             add("scrolling", "Scrolling & navigation access", .ready, inputWanted ? "Perch Helper has Accessibility access and the enabled input controls are running." : "Perch Helper has Accessibility access. Choose scrolling in the main menu or navigation behavior in Keyboards.", "View access…", .inputAccess)
@@ -276,6 +284,7 @@ extension AppDelegate {
         result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
         result.collectorChecking = EventCollectorSetup.shared.checking
         result.helperRecoveryFailure = BackgroundHelperRecovery.shared.failure
+        result.accessRestoreNeeded = PermissionRecovery.restoreNeeded()
         result.lidDisabled = observedLidDisabled
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
         result.lidGuard = LidGuardClient.shared.status

@@ -116,6 +116,11 @@ trap cleanup EXIT
 echo 'Preparing build dependencies (the first run downloads Sparkle and pinned Swift packages)…'
 SPARKLE=$(python3 Tools/sparkle-dependency.py)
 CERTIFICATES=$(python3 Tools/certificate-dependency.py)
+# SwiftPM's newer build system puts the module directly in the bin path;
+# the older one nests it under Modules/. Prefer whichever exists so the
+# build works across toolchain updates.
+CERTIFICATE_MODULES="$CERTIFICATES/Modules"
+[ -d "$CERTIFICATE_MODULES" ] || CERTIFICATE_MODULES="$CERTIFICATES"
 python3 Tools/build-preflight.py --verify-resolved
 if [[ "$CHECK_DEPENDENCIES" == 1 ]]; then
     echo 'Dependencies ready. Run ./build.sh to build Perch.'
@@ -142,7 +147,7 @@ xcrun clang -std=c11 -O2 -Wall -Wextra -Werror Sources/Native/PerchEventLauncher
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/Native/EventParser.c -o build/EventParser.o
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/Native/DDCWire.c -o build/DDCWire.o
 xcrun clang -fmodules -fmodules-cache-path="$PWD/build/ClangModuleCache" -O2 -DMAX_DISPLAYS=16 -I Vendor/m1ddc -I Sources/Native Sources/Native/PerchDisplay.m Sources/Native/MonitorTransport.m Vendor/m1ddc/ioregistry.m build/DDCWire.o -framework CoreDisplay -framework IOKit -framework Foundation -framework CoreGraphics -o "$APP/Contents/MacOS/PerchDisplay"
-xcrun swiftc -I "$CERTIFICATES/Modules" -L "$CERTIFICATES" -lPerchCertificates -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/Native/EventParser.h $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) build/EventParser.o build/DDCWire.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -F "$SPARKLE" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -O -whole-module-optimization
+xcrun swiftc -I "$CERTIFICATE_MODULES" -L "$CERTIFICATES" -lPerchCertificates -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/Native/EventParser.h $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) build/EventParser.o build/DDCWire.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -F "$SPARKLE" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -O -whole-module-optimization
 xcrun swift Tools/render-branding.swift "$PWD/build/branding"
 mkdir -p "$APP/Contents/Resources"
 cp build/branding/Perch.icns "$APP/Contents/Resources/Perch.icns"

@@ -739,6 +739,43 @@ launch, existing-install replacement and uninstall/recovery as one journey.
    routing. Preserve native guest input ownership and handle stopped/locked guests
    explicitly. Deferred by the user; not part of this release.
 
+## Checkpoint: desk input diagnostics and the two-VM verdict (September 16, 2026)
+
+The two-VM lab reached its limit. With a preset genuinely active on both guests
+(each display adapter switched to input 17), 200 pointer crossings were attempted
+in both directions at four speeds and none arrived; the cursor probe showed the
+driving Mac still tracking its own input every time. Typing, chords and repeats
+pass, but only ever on one machine, because control never changed hands. The run
+cannot say why, and two readings survive it: the lab never granted
+`kTCCServicePostEvent`, which alone would keep Perch's tap unhealthy and block
+sharing silently; against that, perch-b posted 54 Perch-tagged modifier events in
+pairs one session tick apart, which only happens when remote capture changes.
+The earlier claim that those 54 events crossed the link is not supported.
+
+Done in response:
+
+- `PerchLog` (Core) records the access-health verdict, every named reason the
+  automatic start declines, and each change of which Mac holds control, under
+  unified-log subsystem `local.scott.perch`. `note` de-duplicates polled
+  verdicts; `record` keeps repeated events, so a collapsing lease is visible.
+- `Tools/desk-lab/prepare.py` now grants `kTCCServicePostEvent`, and the lab
+  collects Perch's decisions by subsystem predicate instead of grepping for
+  "perch", which previously matched Apple's own subsystems.
+- `Tests/DeskDiagnosticsTests.swift` pins the flood-prevention and bounding
+  behaviour; registered in `--self-test`.
+
+Verification is partial and the reason is environmental. Xcode 27 arrived today
+with its licence unaccepted, and the documented Command Line Tools fallback no
+longer builds the app because it ships no SwiftUI macro plugin. Verified:
+`Tools/check-desk-network.py` passes in full (it compiles `KVMInputSession`),
+both edited SwiftUI-adjacent files parse clean, and the new suite builds and
+passes standalone. Not yet verified: the full `./build.sh --no-bump` and the
+complete `--self-test`. Both need `sudo xcodebuild -license accept` first, which
+only a person at this Mac can run.
+
+Sharing coverage should now return to the physical two-Mac desk; the lab keeps
+what it genuinely earned (link, restart, toggle, install and permission paths).
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

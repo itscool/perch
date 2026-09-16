@@ -28,7 +28,14 @@ final class KVMInputSession: ObservableObject {
     static let wirePrefix = Data("Perch input v1\0".utf8)
     let node: KVMDeskNode
     @Published private(set) var enabled = false
-    @Published private(set) var focus: KVMInputFocus?
+    @Published private(set) var focus: KVMInputFocus? {
+        // Where control actually is, each time it moves. A lease that is
+        // taken and dropped again leaves both lines here, which is what
+        // tells a collapsed handoff apart from one that never started.
+        didSet {
+            PerchLog.note("input.focus", focus.map { "control on computer \($0.computer) screen \($0.monitor)" } ?? "control on this Mac")
+        }
+    }
     @Published private var localProblem: String?
     @Published private var coordinatorProblem: String?
     @Published private var blockedTarget: (preset: UUID, monitor: UUID)?

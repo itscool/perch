@@ -10,6 +10,7 @@ import base64
 import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import lab
@@ -18,7 +19,7 @@ import seed as seeder
 APP_ID = 'local.scott.perch'
 IDENTITY_SERVICE = 'local.scott.perch.desk.identity'
 DESK_PATH = 'Library/Application Support/Perch/Desk/desk.json'
-SERVICES = ('kTCCServiceAccessibility', 'kTCCServiceListenEvent')
+SERVICES = ('kTCCServiceAccessibility', 'kTCCServiceListenEvent', 'kTCCServicePostEvent')
 GUEST_TOOL = '/tmp/desk-lab-guest'
 TEAM_ID = 'S42F8BV6J2'
 
@@ -49,6 +50,11 @@ def grant(address: str) -> str:
     Perch is granted by bundle id; the lab's input tool is a bare binary, so it
     is granted by path. Without that second grant the recorder cannot open an
     event tap and the driver cannot post anything.
+
+    PostEvent is granted too, and separately: Perch only calls its input tap
+    healthy when CGPreflightPostEventAccess() passes as well as Accessibility,
+    and a guest missing that row refuses to start sharing while looking
+    correctly configured everywhere else.
     """
     if not sip_disabled(address):
         return ('manual: in this guest open System Settings -> Privacy & Security and enable Perch under '
@@ -115,6 +121,70 @@ def build_guest_tool(output: Path) -> Path:
     return tool
 
 
+DISPLAY_STATE = '/tmp/desk-lab-display.json'
+DISPLAY_LOG = '/tmp/desk-lab-display.log'
+
+
+def build_display_stub(output: Path) -> Path:
+    """Compile the lab's monitor adapter stub."""
+    stub = output / 'PerchDisplay'
+    subprocess.run(['xcrun', 'swiftc', '-O', str(Path(__file__).with_name('display-stub') / 'main.swift'), '-o', str(stub)],
+                   check=True, env=lab.toolchain_env())
+    return stub
+
+
+def install_display_stub(address: str, stub: Path, display: str) -> None:
+    """Fake the monitor edge in this guest, and nothing else.
+
+    Perch resolves its monitor adapter beside its own executable and checks
+    only that the file is executable. Replacing it lets a virtual display
+    answer the DDC read and write that gate input sharing, while the desk
+    link, the input session and the real event taps stay untouched. This is
+    not monitor coverage and must never be reported as any.
+    """
+    sudo = f'echo {lab.quote(lab.GUEST_PASSWORD)} | sudo -S'
+    adapter = '/Applications/Perch.app/Contents/MacOS/PerchDisplay'
+    lab.copy_to(address, stub, '/tmp/PerchDisplay')
+    # Keep the real adapter beside it, so the guest can be put back.
+    lab.run_in(address, f'{sudo} cp -f {adapter} /tmp/PerchDisplay.real 2>/dev/null || true', check=False)
+    lab.run_in(address, f'{sudo} cp -f /tmp/PerchDisplay {adapter} && {sudo} chmod +x {adapter}')
+    # An arm64 binary must carry at least an ad-hoc signature to run.
+    lab.run_in(address, f'{sudo} codesign --force --sign - {adapter}', check=False)
+    # Start on a different input from the one the preset selects, so a real
+    # activation has to issue a switch and cannot be answered "already there".
+    state = json.dumps({'id': display, 'current': 15})
+    lab.run_in(address, f'printf %s {lab.quote(state)} > {DISPLAY_STATE}')
+    lab.run_in(address, f'rm -f {DISPLAY_LOG}', check=False)
+    reported = lab.run_in(address, f'{adapter} list', check=False)
+    if display not in reported:
+        raise lab.LabError(f'the monitor adapter stub did not report {display}: {reported[:200]}')
+
+
+def resign_app(address: str) -> None:
+    """Re-sign the guest's copy ad hoc, inside the guest, if it will not launch."""
+    sudo = f'echo {lab.quote(lab.GUEST_PASSWORD)} | sudo -S'
+    lab.run_in(address, f'{sudo} codesign --force --deep --sign - /Applications/Perch.app', check=False)
+
+
+def display_size(address: str) -> tuple[float, float]:
+    """This guest's screen size in millimetres, as CoreGraphics reports it.
+
+    The desk scales pointer motion by physical size over point size, so the
+    seeded arrangement has to use the guest's real measurements rather than
+    invented ones.
+    """
+    raw = gui(address, '/tmp/desk-lab-guest displays', check=False)
+    start = raw.find('{')
+    if start < 0:
+        raise lab.LabError(f'could not read the screens of {address}: {raw[:200]}')
+    report = json.loads(raw[start:])
+    screens = report.get('displays') or []
+    main = next((screen for screen in screens if screen.get('main')), screens[0] if screens else None)
+    if not main or not main.get('mmWidth') or not main.get('mmHeight'):
+        raise lab.LabError(f'{address} reports no usable screen: {raw[:200]}')
+    return float(main['mmWidth']), float(main['mmHeight'])
+
+
 def pinned_peers(desk: str) -> list[dict]:
     """The peer cards a desk pins, read from its signed membership payload."""
     archive = json.loads(desk)
@@ -161,11 +231,11 @@ def prepare(addresses: dict[str, str], app: Path, output: Path,
     """Install and seed both guests. `dial` gives each guest the address it
     should use to reach the other, for the relayed link used when the guests
     cannot reach each other directly."""
-    seeds = seeder.seed(output / 'seed', names=tuple(addresses), dial=dial)
+    screens = {guest: str(uuid.uuid5(uuid.NAMESPACE_DNS, f'perch-desk-lab.screen.{guest}')) for guest in addresses}
     tool = build_guest_tool(output)
-    report = {}
-    for index, (guest, address) in enumerate(addresses.items()):
-        label = 'a' if index == 0 else 'b'
+    stub = build_display_stub(output)
+    sizes = {}
+    for guest, address in addresses.items():
         # The base image gives both guests the same name; Perch shows computer
         # names and discovery uses them, so make them distinct.
         sudo = f'echo {lab.quote(lab.GUEST_PASSWORD)} | sudo -S'
@@ -177,10 +247,22 @@ def prepare(addresses: dict[str, str], app: Path, output: Path,
         # and an unpaired computer. Stop it; the matrix starts it when ready.
         lab.run_in(address, 'pkill -x Perch || true', check=False)
         install_app(address, app)
+        install_display_stub(address, stub, screens[guest])
         install_tool(address, tool)
+        sizes[guest] = display_size(address)
+    described = []
+    for index, guest in enumerate(addresses):
+        width, height = sizes[guest]
+        described.append({'name': guest, 'display': screens[guest], 'widthMM': width, 'heightMM': height,
+                          'dial': dial[index] if dial else None})
+    seeds = seeder.seed(output / 'seed', guests=described)
+    report = {}
+    for index, (guest, address) in enumerate(addresses.items()):
+        label = 'a' if index == 0 else 'b'
         seed_guest(address, seeds / f'identity-{label}.json', seeds / f'desk-{label}.json')
         report[guest] = {
             'address': address,
+            'screen_mm': sizes[guest],
             'sip': lab.run_in(address, 'csrutil status', check=False),
             'permissions': grant(address),
             'screen': lab.run_in(address, '/tmp/desk-lab-guest screen', check=False),

@@ -159,6 +159,9 @@ final class DeskInputAdapter: ObservableObject {
         else { issue = nil }
         if accessProblem != issue { accessProblem = issue }
         healthy = issue == nil
+        // The reason sharing cannot start is shown in Desk, but nothing
+        // outside the app could see it. Record it once per change.
+        PerchLog.note("input.access", issue ?? "this Mac can share input")
         // Secure keyboard entry (a password field, Terminal's Secure Keyboard
         // Entry) hides keystrokes from every event tap system-wide. That is a
         // fact to show, not a reason to drop the pointer or the lease.

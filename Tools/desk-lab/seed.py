@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import lab
@@ -16,7 +18,8 @@ SOURCES = ['PerchError.swift', 'SecureFile.swift', 'Subprocess.swift', 'KVMGroup
            'KVMMembership.swift', 'KVMPeerIdentity.swift']
 
 
-def seed(output: Path, names=('perch-a', 'perch-b'), dial: tuple[str, str] | None = None) -> Path:
+def seed(output: Path, guests: list[dict] | None = None) -> Path:
+    """Build a paired desk for these guests, at the size their screens really are."""
     certificates = subprocess.run([sys.executable, str(REPO / 'Tools/certificate-dependency.py')],
                                   env=lab.toolchain_env(),
                                   capture_output=True, text=True, check=True).stdout.strip()
@@ -28,9 +31,14 @@ def seed(output: Path, names=('perch-a', 'perch-b'), dial: tuple[str, str] | Non
     subprocess.run(['xcrun', 'swiftc', *includes, '-L', certificates, '-lPerchCertificates',
                     *[str(perch_source(name)) for name in SOURCES], str(Path(__file__).with_name('seed') / 'main.swift'),
                     '-o', str(binary)], check=True, env=lab.toolchain_env())
-    subprocess.run([str(binary), str(output), *names, *(dial or ())], check=True)
+    described = guests or [
+        {'name': name,
+         # The desk validates a screen's control identity as a UUID.
+         'display': str(uuid.uuid5(uuid.NAMESPACE_DNS, f'perch-desk-lab.screen.{name}')),
+         'widthMM': 368.9, 'heightMM': 280.7}
+        for name in ('perch-a', 'perch-b')]
+    subprocess.run([str(binary), str(output), json.dumps(described)], check=True)
     return output
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

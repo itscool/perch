@@ -129,9 +129,50 @@ def linked(address: str) -> bool:
     return lab.run_in(address, socket_check, check=False, timeout=90).strip().endswith('linked')
 
 
+# The preset's own shortcut, as seeded: control, option and command with F1.
+PRESET_KEY = 122
+PRESET_FLAGS = (1 << 18) | (1 << 19) | (1 << 20)
+
+
+def ensure_active_preset(ctx) -> str | None:
+    """Activate the desk's preset the way a person would, with its shortcut.
+
+    Perch starts input sharing only for an active preset. A preset becomes
+    active when someone activates it, or when the screens already report the
+    inputs it assigns. The lab seeds the adapter on a different input, so
+    nothing activates by observation, and without this step every crossing is
+    blocked before Perch ever looks at the screen edges.
+    """
+    # A preset shortcut is a session-wide hot key, so press it inside the
+    # guest's own login session rather than from an SSH shell.
+    for address in ctx['addresses'].values():
+        preparation.gui(address, f'/tmp/desk-lab-guest drive type {PRESET_KEY} {PRESET_FLAGS} 1 0.05', check=False)
+    end = time.time() + 90
+    while time.time() < end:
+        for guest, address in ctx['addresses'].items():
+            # Activation has to show both ways: a switch was issued, and the
+            # adapter now holds the input the preset assigns rather than the
+            # mismatched one it was seeded with.
+            switched = lab.run_in(address, f'grep -c " switch " {preparation.DISPLAY_LOG} 2>/dev/null || echo 0',
+                                  check=False, timeout=60).strip().splitlines()
+            state = lab.run_in(address, f'cat {preparation.DISPLAY_STATE} 2>/dev/null', check=False, timeout=60)
+            issued = bool(switched) and switched[-1].isdigit() and int(switched[-1]) > 0
+            moved = '"current": 17' in state or '"current":17' in state
+            if issued and moved:
+                ctx['timeline'].add('lab', 'preset-activated', guest=guest, detail=state.strip()[:80])
+                return None
+        time.sleep(5)
+    tails = []
+    for guest, address in ctx['addresses'].items():
+        log = lab.run_in(address, f'tail -5 {preparation.DISPLAY_LOG} 2>/dev/null', check=False, timeout=60)
+        tails.append(f'{guest}: {log.strip()[:120] or "no adapter calls"}')
+    return 'the preset never activated, so input sharing cannot start; ' + '; '.join(tails)
+
+
 def guest_evidence(ctx, guest: str, address: str, label: str) -> str:
     """Save why a guest was not ready and return a short reason."""
-    logs = lab.run_in(address, '/usr/bin/log show --last 10m --style compact 2>/dev/null | grep -i perch | tail -40',
+    logs = lab.run_in(address, '/usr/bin/log show --last 10m --style compact --predicate '
+                      + lab.quote('subsystem == "local.scott.perch"') + ' 2>/dev/null | tail -40',
                       check=False, timeout=300)
     events = lab.run_in(address, 'tail -c 600 "$HOME/Library/Application Support/Perch/Desk/desk.connections.json" 2>/dev/null',
                         check=False, timeout=90)
@@ -291,7 +332,7 @@ def permutation_return_to_local(ctx) -> tuple[bool, str]:
 
 
 def permutation_sharing_crossings(ctx) -> tuple[bool, str]:
-    problem = require_ready(ctx, link=True)
+    problem = require_ready(ctx, link=True) or ensure_active_preset(ctx)
     if problem:
         return False, problem
     result = sharing.crossings(ctx['addresses'], ctx['out'], rounds=ctx['rounds'])
@@ -305,13 +346,12 @@ def permutation_sharing_crossings(ctx) -> tuple[bool, str]:
 
 
 def permutation_sharing_typing(ctx) -> tuple[bool, str]:
-    problem = require_ready(ctx, link=True)
+    problem = require_ready(ctx, link=True) or ensure_active_preset(ctx)
     if problem:
         return False, problem
     result = sharing.typing(ctx['addresses'], ctx['out'])
     ctx['results']['typing'] = result
-    unbalanced = {name: value['unbalanced'] for name, value in result['per_guest'].items() if value['unbalanced']}
-    return not unbalanced, 'no stuck keys or modifiers' if not unbalanced else f'unbalanced key events: {unbalanced}'
+    return sharing.judge_typing(result)
 
 
 MATRIX = [
@@ -334,15 +374,12 @@ NEEDS_REAL_NETWORK = ['pairing through discovery', 'link-local addressing and in
 # Permutations that only mean something over a real guest-to-guest network.
 NETWORK_ONLY = {'network-drop', 'version-skew'}
 # Input sharing starts only for an active preset, and a preset becomes active
-# only when a monitor's input is switched and observed over DDC: building the
-# request refuses a screen with no control path, executing it performs a real
-# DDC write, and the fallback compares observed input codes. These guests have
-# a virtual display that answers none of that, so the pointer can never leave
-# the driving guest. Driving crossings anyway reports a failure that says
-# nothing about Perch.
-NEEDS_MONITOR_CONTROL = {'sharing-crossings', 'sharing-typing', 'return-to-local'}
-MONITOR_REASON = ('needs a monitor Perch can switch over DDC: input sharing starts only for an '
-                  'active preset, and these guests have a virtual display')
+# only when a monitor's input is switched and observed over DDC. A virtual
+# display answers none of that, so the lab installs a stub adapter in each
+# guest that fakes the monitor edge only. Sharing then runs for real: the desk
+# link, the input session and the event taps are Perch's own.
+FAKED_MONITOR_EDGE = ('MONITOR EDGE FAKED: these guests run a stub monitor adapter so input sharing can start. '
+                      'The desk link, input session and event taps are real. This is NOT monitor coverage.')
 
 
 def collect(ctx) -> None:
@@ -351,6 +388,18 @@ def collect(ctx) -> None:
         logs = lab.run_in(address, '/usr/bin/log show --last 30m --style compact 2>/dev/null | grep -i perch | tail -2000',
                           check=False, timeout=600)
         (ctx['out'] / f'unified-log-{guest}.txt').write_text(logs or '(no Perch log lines captured)\n')
+        # What Perch actually asked the monitor adapter for, and when.
+        # Perch's own account of why sharing did or did not start. A grep for
+        # "perch" also matches Apple's subsystems, which produced false
+        # matches before; the subsystem predicate cannot.
+        decisions = lab.run_in(address, '/usr/bin/log show --last 30m --style compact --predicate '
+                               + lab.quote('subsystem == "local.scott.perch"') + ' 2>/dev/null | tail -2000',
+                               check=False, timeout=600)
+        (ctx['out'] / f'perch-decisions-{guest}.txt').write_text(decisions or '(Perch recorded no sharing decisions)\n')
+        adapter = lab.run_in(address, f'cat {preparation.DISPLAY_LOG} 2>/dev/null', check=False, timeout=90)
+        (ctx['out'] / f'display-adapter-{guest}.log').write_text(adapter or '(the adapter was never called)\n')
+        state = lab.run_in(address, f'cat {preparation.DISPLAY_STATE} 2>/dev/null', check=False, timeout=90)
+        (ctx['out'] / f'display-state-{guest}.json').write_text(state or '{}')
         crashes = lab.run_in(address, 'ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i perch | head -5',
                              check=False, timeout=90)
         if crashes.strip():
@@ -371,6 +420,7 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     timeline = Timeline(out / 'timeline.txt')
     addresses = provision.up(arguments.recreate)
+    print(FAKED_MONITOR_EDGE)
     ctx = {'addresses': addresses, 'out': out, 'timeline': timeline, 'app': arguments.app,
            'rounds': arguments.rounds, 'results': {}, 'relayed': arguments.relay}
     relay = None
@@ -401,11 +451,6 @@ def main() -> int:
     for name, runner in MATRIX:
         if arguments.only and arguments.only != name:
             continue
-        if name in NEEDS_MONITOR_CONTROL:
-            timeline.add(name, 'skipped', MONITOR_REASON)
-            summary.append((name, None, f'skipped: {MONITOR_REASON}'))
-            print(f'SKIP  {name}: {MONITOR_REASON}')
-            continue
         if ctx['relayed'] and name in NETWORK_ONLY:
             timeline.add(name, 'skipped', 'needs real guest-to-guest networking')
             summary.append((name, None, 'skipped: needs real guest-to-guest networking'))
@@ -428,7 +473,7 @@ def main() -> int:
         {'summary': [{'permutation': n, 'passed': p, 'skipped': p is None, 'detail': d} for n, p, d in summary],
          'sharing': ctx['results'], 'not_covered': NOT_COVERED,
          'relayed': ctx['relayed'], 'needs_real_network': NEEDS_REAL_NETWORK if ctx['relayed'] else [],
-         'needs_monitor_control': sorted(NEEDS_MONITOR_CONTROL), 'monitor_reason': MONITOR_REASON}, indent=2))
+         'monitor_edge_faked': True, 'monitor_edge_note': FAKED_MONITOR_EDGE}, indent=2))
     print('\nNot covered here (needs the physical desk):')
     for item in NOT_COVERED:
         print(' -', item)
@@ -436,6 +481,7 @@ def main() -> int:
         print('\nRan over a RELAYED link through this Mac, so these still need real guest-to-guest networking:')
         for item in NEEDS_REAL_NETWORK:
             print(' -', item)
+    print(FAKED_MONITOR_EDGE)
     print('evidence:', out)
     return 0 if all(passed for _, passed, _ in summary if passed is not None) else 1
 

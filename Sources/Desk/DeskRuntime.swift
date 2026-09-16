@@ -308,14 +308,22 @@ final class DeskRuntime: ObservableObject {
         startInputForActivePresetIfNeeded(force: true)
     }
     private func startInputForActivePresetIfNeeded(force: Bool = false) {
-        guard input.enabled, !input.automaticStartSuppressed, !switching.busy, let preset = switching.activePreset,
-              let saved = node.group.presets.first(where: { $0.id == preset }) else { return }
+        // Each refusal is named: silence here is what made a two-VM run
+        // impossible to diagnose. PerchLog.note repeats nothing, so this
+        // stays quiet until the answer actually changes.
+        guard input.enabled else { PerchLog.note("input.start", "keyboard and mouse sharing is off on this Mac"); return }
+        guard !input.automaticStartSuppressed else { PerchLog.note("input.start", "automatic start is suppressed after a local-control exit"); return }
+        guard !switching.busy else { PerchLog.note("input.start", "a monitor switch is still running"); return }
+        guard let preset = switching.activePreset else { PerchLog.note("input.start", "no preset is active"); return }
+        guard let saved = node.group.presets.first(where: { $0.id == preset }) else { PerchLog.note("input.start", "the active preset is not part of this desk"); return }
         let assignments = saved.assignments.compactMap { assignment -> (KVMAssignment, KVMConnection)? in
             guard let connection = node.group.connections.first(where: { $0.id == assignment.connection }) else { return nil }
             return (assignment, connection)
         }
         // Local-only presets should not capture and re-inject every event.
-        guard assignments.contains(where: { $0.1.computer != nil && $0.1.computer != node.localID }) else { return }
+        guard assignments.contains(where: { $0.1.computer != nil && $0.1.computer != node.localID }) else {
+            PerchLog.note("input.start", "the active preset has no other Mac in it"); return
+        }
         // An automatic start never follows the editing selection: the screen
         // being edited is not where the user's hands are. Start on this Mac's
         // own screen, or wherever focus already is.
@@ -323,13 +331,19 @@ final class DeskRuntime: ObservableObject {
         let candidates = [input.focus?.monitor, local] + assignments.map { $0.0.monitor }
         // A handoff that is still settling is not "no focus"; requesting focus
         // again during it is what pulled the pointer back to a screen centre.
-        guard input.focus == nil || !input.active, !input.settling,
-              let monitor = candidates.compactMap({ $0 }).first(where: { inputReadiness(preset: preset, monitor: $0) == nil }) else { return }
+        guard input.focus == nil || !input.active else { PerchLog.note("input.start", "control is already active"); return }
+        guard !input.settling else { PerchLog.note("input.start", "a handoff is still settling"); return }
+        let offered = candidates.compactMap { $0 }
+        guard let monitor = offered.first(where: { inputReadiness(preset: preset, monitor: $0) == nil }) else {
+            let reason = offered.first.flatMap { inputReadiness(preset: preset, monitor: $0) } ?? "this preset has no screen to start on"
+            PerchLog.note("input.start", "no screen is ready: " + reason); return
+        }
         if let automaticInputStart,
            automaticInputStart.preset == preset,
            !force,
            ProcessInfo.processInfo.systemUptime - automaticInputStart.at < 2 { return }
         automaticInputStart = (preset, monitor, ProcessInfo.processInfo.systemUptime)
+        PerchLog.note("input.start", "starting control on screen \(monitor)")
         input.start(preset: preset, monitor: monitor, automatic: !force)
     }
     func inputReadiness(preset: UUID, monitor: UUID) -> String? {

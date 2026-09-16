@@ -5,9 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CERTIFICATES=$(python3 Tools/certificate-dependency.py)
+CERTIFICATE_MODULES="$CERTIFICATES/Modules"
+[ -d "$CERTIFICATE_MODULES" ] || CERTIFICATE_MODULES="$CERTIFICATES"
 SPARKLE=$(python3 Tools/sparkle-dependency.py)
 mkdir -p build
-xcrun swiftc -typecheck -I "$CERTIFICATES/Modules" -module-cache-path "$PWD/build/ModuleCache" \
+xcrun swiftc -typecheck -I "$CERTIFICATE_MODULES" -module-cache-path "$PWD/build/ModuleCache" \
     -import-objc-header Sources/Native/EventParser.h \
     $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) \
     -F "$SPARKLE" "$@"

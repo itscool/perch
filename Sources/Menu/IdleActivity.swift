@@ -52,6 +52,10 @@ final class IdleActivitySignal {
 /// Mac awake by itself; Keep awake owns that.
 final class IdleLockPreventer {
     static let interval: TimeInterval = 30
+    /// What the menu row says beside the title. People want to know how long
+    /// their Mac stays unlocked, not how often Perch signals: there is no time
+    /// limit, so it lasts until they turn it off.
+    static func rowHint(enabled: Bool) -> String { enabled ? "Until you turn it off" : "" }
     private var timer: Timer?
     private let signal = IdleActivitySignal()
     private(set) var lastSignalled: Date?

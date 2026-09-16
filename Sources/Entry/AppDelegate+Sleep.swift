@@ -42,7 +42,7 @@ extension AppDelegate {
         guard idleLockItem != nil else { return }
         let on = idleLock.enabled
         idleLockItem.state = on ? .on : .off
-        label(idleLockItem, "Prevent idle lock", hint: on ? "Every 30 s" : "")
+        label(idleLockItem, "Prevent idle lock", hint: IdleLockPreventer.rowHint(enabled: on))
         idleLockItem.menuHelp = ControlHelp.idleLock
     }
     @objc func toggleAwake() {

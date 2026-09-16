@@ -16,7 +16,7 @@ enum ControlHelp {
     static let pageKeys = "Move the text cursor by a page with Page Up/Down on external keyboards, instead of only scrolling the view. Built-in Fn+arrows and apps in your exceptions are unchanged."
     static let keyboardSetup = "Open keyboard settings to review access and learn or manage navigation keys. Completed layouts are saved automatically."
     static let awake = "Prevent idle sleep while allowing displays to turn off. Turning this off also ends lid protection and stops your active caffeinate sessions."
-    static let idleLock = "Tell macOS every 30 seconds that you are present, so an idle screen saver or lock does not start, including one set by an MDM inactivity policy. Perch sends a null input event: no cursor movement, click or key. This does not keep the Mac awake by itself, prevent an explicit lock, or unlock a locked screen."
+    static let idleLock = "Keep your Mac from locking or starting its screen saver while you are away from it. It stays unlocked until you turn this off. Closing the lid, locking it yourself and your organization’s own lock still work, and this does not keep the Mac awake: Keep awake does that."
     static let lid = "Keep working with the lid closed. While active, this blocks manual Sleep too. On battery, open the lid or reconnect power within 60 seconds. Turn off before putting the Mac in a bag."
     static let lidSaved = "The checkmark is your saved choice, not proof of active protection. Protection resumes automatically when ready. After a closed-lid battery timeout, open the lid or connect power. Setup → Lid protection explains any setup failure."
     static let login = "Open the Perch menu app when you sign in to macOS. Background controls have their own startup behavior."

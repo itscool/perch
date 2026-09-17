@@ -764,14 +764,14 @@ Done in response:
 - `Tests/DeskDiagnosticsTests.swift` pins the flood-prevention and bounding
   behaviour; registered in `--self-test`.
 
-Verification is partial and the reason is environmental. Xcode 27 arrived today
-with its licence unaccepted, and the documented Command Line Tools fallback no
-longer builds the app because it ships no SwiftUI macro plugin. Verified:
-`Tools/check-desk-network.py` passes in full (it compiles `KVMInputSession`),
-both edited SwiftUI-adjacent files parse clean, and the new suite builds and
-passes standalone. Not yet verified: the full `./build.sh --no-bump` and the
-complete `--self-test`. Both need `sudo xcodebuild -license accept` first, which
-only a person at this Mac can run.
+Verification is complete. Xcode 27 arrived that day with its licence unaccepted,
+which blocked every build, and the documented Command Line Tools fallback could
+not stand in because it ships no SwiftUI macro plugin, so all `@State` failed to
+expand. Once the licence was accepted and the active developer directory pointed
+back at Xcode, `./build.sh --no-bump` succeeded and `--self-test` passed with 40
+PASS lines and no failures, one more suite than before this work.
+`Tools/typecheck.sh` and `Tools/check-desk-network.py` both pass. Eight warnings
+remain, all in files this work did not touch.
 
 Sharing coverage should now return to the physical two-Mac desk; the lab keeps
 what it genuinely earned (link, restart, toggle, install and permission paths).

@@ -243,6 +243,7 @@ enum ProcessRole: Equatable {
             try runCoreEntryReviewTests()
             try runDeskInputReviewTests()
             try runDeskDiagnosticsTests()
+            try runDeskSharedSpaceTests()
             try runLidSettingsReviewTests()
             try runInputTests()
             try runKeyboardModeTests()

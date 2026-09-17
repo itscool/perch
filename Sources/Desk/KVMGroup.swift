@@ -248,6 +248,39 @@ enum KVMEdge {
         abs(distance) <= alignmentToleranceMM + 0.000001
     }
     enum Crossing: Equatable { case blocked, native, remote(monitor: UUID, computer: UUID, entry: KVMPoint) }
+
+    /// Whether this preset actually places two computers' screens against each
+    /// other. With no shared edge there is nowhere for the pointer to cross, so
+    /// Perch must not take virtual control of the mouse at all. This is decided
+    /// from the monitor arrangement, never from whether a preset merely names
+    /// another Mac.
+    static func sharesDeskSpace(group: KVMGroup, preset: KVMPreset) -> Bool {
+        let placed = preset.assignments.compactMap { assignment -> (KVMGeometry, UUID)? in
+            guard let monitor = group.monitors.first(where: { $0.id == assignment.monitor }),
+                  let connection = group.connections.first(where: { $0.id == assignment.connection }),
+                  connection.localDisplay != nil, let computer = connection.computer else { return nil }
+            return (monitor.geometry, computer)
+        }
+        for (index, one) in placed.enumerated() {
+            for other in placed.dropFirst(index + 1) where other.1 != one.1 {
+                if touching(one.0, other.0) { return true }
+            }
+        }
+        return false
+    }
+
+    /// Two screens share desk space when an edge of one meets an edge of the
+    /// other and they overlap along it by more than the alignment tolerance,
+    /// so a pointer has somewhere to pass through rather than a single corner.
+    static func touching(_ a: KVMGeometry, _ b: KVMGeometry) -> Bool {
+        if aligned(b.x - a.right) || aligned(a.x - b.right) {
+            return min(a.bottom, b.bottom) - max(a.y, b.y) > alignmentToleranceMM
+        }
+        if aligned(b.y - a.bottom) || aligned(a.y - b.bottom) {
+            return min(a.right, b.right) - max(a.x, b.x) > alignmentToleranceMM
+        }
+        return false
+    }
     static func crossing(group: KVMGroup, preset: KVMPreset, source: UUID, from: KVMPoint, to: KVMPoint) -> Crossing {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),
               screen.geometry.contains(from), !screen.geometry.contains(to),

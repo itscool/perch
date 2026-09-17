@@ -50,8 +50,11 @@ final class DeskInputAdapter: ObservableObject {
     private var lockObservers: [NSObjectProtocol] = []
     private var screenLocked = false
     private var cursorHidden = false
+    private var hiddenDisplays: [CGDirectDisplayID] = []
     private var cursorAssociated = true
     private var shownFocus: UUID?
+    /// Whether control was already on this Mac at the last cursor update.
+    private var controlWasLocal = false
     private var subscription: AnyCancellable?
     init(session: KVMInputSession) {
         self.session = session
@@ -313,10 +316,35 @@ final class DeskInputAdapter: ObservableObject {
             _ = CGAssociateMouseAndMouseCursorPosition(1)
             cursorAssociated = true
         }
-        if cursorHidden { CGDisplayShowCursor(CGMainDisplayID()); cursorHidden = false }
+        setCursorHidden(false)
     }
+    /// Hiding only the main display leaves the pointer drawn on every other
+    /// screen, which is why the cursor stayed behind on the Mac that had just
+    /// handed control away. Hide and show are reference counted per display,
+    /// so show exactly the displays that were hidden, even if the screen
+    /// arrangement changed while control was remote.
+    private func setCursorHidden(_ hide: Bool) {
+        guard hide != cursorHidden else { return }
+        if hide {
+            hiddenDisplays = activeDisplays()
+            for display in hiddenDisplays { CGDisplayHideCursor(display) }
+        } else {
+            for display in hiddenDisplays { CGDisplayShowCursor(display) }
+            hiddenDisplays = []
+        }
+        cursorHidden = hide
+    }
+
+    private func activeDisplays() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [CGMainDisplayID()] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [CGMainDisplayID()] }
+        return Array(ids.prefix(Int(count)))
+    }
+
     private func updateCursor() {
-        guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else { restoreCursor(); shownFocus = nil; setRemoteCapture(false); return }
+        guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else { restoreCursor(); shownFocus = nil; controlWasLocal = false; setRemoteCapture(false); return }
         setRemoteCapture(focus.computer != session.node.localID)
         if focus.computer != session.node.localID {
             if cursorAssociated {
@@ -326,11 +354,18 @@ final class DeskInputAdapter: ObservableObject {
                 _ = CGAssociateMouseAndMouseCursorPosition(0)
                 cursorAssociated = false
             }
-            if !cursorHidden { cursorHidden = CGDisplayHideCursor(CGMainDisplayID()) == .success }
-            shownFocus = nil
+            setCursorHidden(true)
+            shownFocus = nil; controlWasLocal = false
         } else {
             restoreCursor()
-            if shownFocus != focus.monitor { shownFocus = focus.monitor; post(.init(kind: .motion), focus: focus) }
+            // Place the pointer once, when control actually arrives from the
+            // other Mac, and then leave it alone. Re-placing it whenever the
+            // focused screen changes dragged the cursor back while this Mac
+            // still had control, including when macOS moved it natively
+            // between this Mac's own screens. The desk position is the single
+            // baseline for a handover; the hardware cursor owns itself after.
+            if !controlWasLocal { post(.init(kind: .motion), focus: focus) }
+            shownFocus = focus.monitor; controlWasLocal = true
         }
     }
     private let activity = IdleActivitySignal()

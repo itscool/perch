@@ -256,6 +256,12 @@ final class KVMInputSession: ObservableObject {
         }
         guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there; Perch will update this status automatically." }
         guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", turn on Share on this Mac from the Perch menu. The desk coordinator must allow sharing too." }
+        // No shared desk space means no edge to cross, so the pointer must
+        // stay under this Mac's own control rather than being taken over
+        // with nowhere to go. Decided from the monitor arrangement.
+        if let saved = node.group.presets.first(where: { $0.id == preset }), !KVMEdge.sharesDeskSpace(group: node.group, preset: saved) {
+            return "These screens do not sit next to each other in Desk, so there is no edge to move the pointer across. Place them side by side to share the keyboard and mouse."
+        }
         guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
         let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
         guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }

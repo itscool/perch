@@ -776,6 +776,39 @@ remain, all in files this work did not touch.
 Sharing coverage should now return to the physical two-Mac desk; the lab keeps
 what it genuinely earned (link, restart, toggle, install and permission paths).
 
+## Checkpoint: desk cursor handover (September 16, 2026)
+
+Scott reported this from the real two-Mac desk, repeatedly and over a long
+period, before it was acted on. Three symptoms: the cursor stayed visible on
+the Mac that had just handed control away; it reset rather than continuing
+from where it already was, growing more unstable starting with the Mac that
+owned it; and control went virtual even when the two Macs shared no desk
+space. Three separate causes, all now fixed.
+
+- **Left behind.** The cursor was hidden with
+  `CGDisplayHideCursor(CGMainDisplayID())`, which covers only the main
+  display, so it stayed drawn on every other screen. Hide and show now cover
+  every active display, with the reference counts balanced against the exact
+  list hidden, since the arrangement can change while control is remote.
+- **Resetting.** The hardware cursor was re-placed whenever the focused screen
+  changed. That dragged it back while this Mac still had control, including
+  when macOS moved it natively between that Mac's own screens. The desk
+  position is now the single baseline for a handover: the pointer is placed
+  once, when control arrives from the other Mac, and the hardware cursor owns
+  itself from then on.
+- **No shared desk space.** Readiness only required the active preset to name
+  another Mac, never that two screens actually meet. `KVMEdge.sharesDeskSpace`
+  now decides from the monitor arrangement, and `KVMEdge.touching` requires an
+  overlapping edge rather than a shared corner. Without one, Perch says so in
+  plain terms and leaves the pointer alone.
+
+Verified: `./build.sh --no-bump` clean, `--self-test` 41 PASS and no failures,
+`Tools/check-desk-network.py` still passes in full including pointer boundary
+handoff and the sixteen-member traversal, and the KVM, native input and
+monitor command checks pass. `runDeskSharedSpaceTests` pins the arrangement
+rules. The cursor behaviour itself still needs acceptance on the physical
+two-Mac desk, since no headless test can observe a hardware cursor.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

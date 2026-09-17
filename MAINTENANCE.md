@@ -10,6 +10,17 @@ Local releases use the persistent **Perch Local Code Signing** certificate. Comp
 
 Run `bash Tools/check-release.sh` for the safe regression and app-owned UI workflow checks. Add `--cpu` to check the live CPU sampler. The GUI tests use isolated shortcut requests and render Perch's views directly; they do not synthesize global keys or change permissions. Desktop interaction and physical hotkey delivery are separate from these tests.
 
+Replacing the installed bundle: stage the new build, compare designated
+requirements, then swap by rename so the running executable is never
+overwritten in place. Never delete a stashed bundle without first resolving,
+by process id, which bundle each running Perch actually executes from:
+`lsof -p <pid> | awk '$4=="txt"'`. On September 16, 2026 a cleanup guarded with
+`lsof -c Perch` returned nothing, so it deleted the stash the running Perch was
+executing from. The process survived, because macOS keeps the inode, but its
+bundle resources were gone until the next restart. A deleted bundle under a
+running Perch is the same condition that caused the live KVM breakage earlier
+that week, so prefer leaving old stashes in place over any automatic removal.
+
 ## Source layout and shared services
 
 `Sources/` is grouped by concern: `Core` (process-wide building blocks with no UI: `PerchError`, `Subprocess`, `SecureFile`, `JSONStore`, `MainTimer`, `MonotonicClock`, `PerchLog`, `Awake`, `Shortcut`/`HotKey`/`ShortcutRegistry`, `AccessCheck`, `AdminShell`, `CodeIdentity`, `DisplayIdentity`, `HIDDevices`, `LaunchdJob`), `Entry` (`main.swift`, the `ProcessRole` command-line dispatcher and the `AppDelegate` files), `Menu`, `Settings`, `Desk` (KVM), `Input`, `Lid`, `Agent`, `Update` and `Native` (C/Objective-C). Tests live in `Tests/` and are compiled into the app for `--self-test`. When a problem is already solved in `Core`, use that type instead of adding a local copy: one shell quoter, one launchctl wrapper, one permission probe, one hotkey registrar, one display and HID enumerator. Settings pages that poll observed state pass a `poll:` to `SettingsWindow.show`; the window owns the timer and stops it when the page leaves, so pages never keep their own repeating timers. Read-only logs and reports use `SettingsLogView`/`SettingsLogPage`. A page object created in a local scope passes `owner:` to `SettingsWindow.show`; the window holds it only while the page is on the stack. Helpers with liveness deadlines (the lid supervisor and watchdog) must never run in the Background process type.

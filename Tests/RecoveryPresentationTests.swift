@@ -28,16 +28,6 @@ func runRecoveryPresentationTests() throws {
     try check(sharing.state == .ready && sharing.detail.contains("active for this session"), "Recovered sharing still reports the old issue")
     snapshot.deskInputEnabled = false
     try check(snapshot.checks.first { $0.id == "desk-input" }!.state == .optional, "Disabled sharing requires repair")
-    let picture = NSHostingView(rootView: VStack(alignment: .leading, spacing: 12) {
-        DeskDeviceSwitchExample(kind: .keyboard)
-        DeskDeviceSwitchExample(kind: .mouse)
-    }.padding(16).background(Color.white).environment(\.colorScheme, .light))
-    picture.frame = NSRect(x: 0, y: 0, width: 600, height: 220)
-    picture.layoutSubtreeIfNeeded()
-    if CommandLine.arguments.count > 2, let bitmap = picture.bitmapImageRepForCachingDisplay(in: picture.bounds) {
-        picture.cacheDisplay(in: picture.bounds, to: bitmap)
-        try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
-    }
     try check(NSApp.windows.isEmpty, "Offscreen presentation test opened a window")
-    print("PASS: active/failed/stale/stopped/update-pending lid and idle/failed/recovered/off sharing statuses; illustrated device examples rendered without windows")
+    print("PASS: active/failed/stale/stopped/update-pending lid and idle/failed/recovered/off sharing statuses; no windows opened")
 }

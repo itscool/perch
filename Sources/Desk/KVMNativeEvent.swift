@@ -20,6 +20,10 @@ struct KVMNativeEvent {
             let button = pressedButtons.sorted().first
             let type: CGEventType = button == nil ? .mouseMoved : button == 0 ? .leftMouseDragged : button == 1 ? .rightMouseDragged : .otherMouseDragged
             event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: CGMouseButton(rawValue: UInt32(button ?? 0))!)
+            // Apps and games that read relative movement see the values the
+            // hardware produced, not only a new position.
+            event?.setIntegerValueField(.mouseEventDeltaX, value: Int64(value.x.rounded()))
+            event?.setIntegerValueField(.mouseEventDeltaY, value: Int64(value.y.rounded()))
         case .buttonDown, .buttonUp:
             let down = value.kind == .buttonDown
             if down { pressedButtons.insert(value.code) } else { pressedButtons.remove(value.code) }

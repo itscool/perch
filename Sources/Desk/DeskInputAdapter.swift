@@ -25,17 +25,10 @@ final class DeskInputAdapter: ObservableObject {
     private var remoteCapture = false
     private var displayCache: [String: CGDirectDisplayID] = [:]
     private var displayCacheAt: Double = -1
-    @Published private(set) var keyboards: [NativeKeyboard] = []
-    @Published private(set) var mice: [NativePointingDevice] = []
     @Published var pointerSpeed: Double = {
         let saved = UserDefaults.standard.double(forKey: "desk.inputPointerSpeed")
         return (0.25...4).contains(saved) ? saved : 1
     }() { didSet { UserDefaults.standard.set(pointerSpeed, forKey: "desk.inputPointerSpeed") } }
-    private let attachmentObserver = HIDAttachmentObserver()
-    private var attachmentChanged = true
-    private var keyboardScanAt: Double = 0
-    private var scanningKeyboards = false
-    private var keyboardGeneration = 0
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var healthTimer: Timer?
@@ -49,12 +42,13 @@ final class DeskInputAdapter: ObservableObject {
     private var observers: [NSObjectProtocol] = []
     private var lockObservers: [NSObjectProtocol] = []
     private var screenLocked = false
-    private var cursorHidden = false
-    private var hiddenDisplays: [CGDirectDisplayID] = []
-    private var cursorAssociated = true
-    private var shownFocus: UUID?
     /// Whether control was already on this Mac at the last cursor update.
     private var controlWasLocal = false
+    /// The real cursor. Parking and movement from other Macs go through it alone.
+    private let cursor: DeskCursorSystem = NativeDeskCursor()
+    private var parking = DeskCursorParking()
+    private var smoothness = DeskMotionSmoothness()
+    private var nextParkingSummary: Double = 0
     private var subscription: AnyCancellable?
     init(session: KVMInputSession) {
         self.session = session
@@ -62,20 +56,6 @@ final class DeskInputAdapter: ObservableObject {
         session.ready = { [weak self] in self?.healthy == true }
         session.emit = { [weak self] event, location in self?.post(event, focus: location) }
         session.release = { [weak self] in self?.releasePosted() }
-        session.attachedKeyboards = { [weak self] in
-            guard let self else { return [] }
-            let keyboardCounts = Dictionary(grouping: self.keyboards, by: \.preferenceKey).mapValues(\.count)
-            let mouseCounts = Dictionary(grouping: self.mice, by: \.preferenceKey).mapValues(\.count)
-            return Set((self.session.node.group.sharedKeyboards ?? []).filter { device in
-                let counts = device.deviceKind == .mouse ? mouseCounts : keyboardCounts
-                return device.bindings[self.session.node.localID].map { counts[$0] == 1 } == true
-            }.map(\.id))
-        }
-        attachmentObserver.changed = { [weak self] in
-            guard let self else { return }
-            self.attachmentChanged = true; self.keyboardScanAt = 0
-            self.refreshKeyboards()
-        }
         session.keepAwake = { [weak self] in self?.declareActivity() }
         session.localPointerPosition = { [weak self] _ in
             // Report where this Mac's cursor actually is, on whichever desk
@@ -92,7 +72,6 @@ final class DeskInputAdapter: ObservableObject {
         guard !SettingsWindow.shared.testing else { return }
         UserDefaults.standard.set(enabled, forKey: Self.sharingEnabledKey)
         if !enabled { stop(); return }
-        attachmentObserver.start()
         tapStartFailed = false
         session.setEnabled(true)
         if healthTimer == nil {
@@ -140,7 +119,6 @@ final class DeskInputAdapter: ObservableObject {
     }
     func stop() {
         session.setEnabled(false)
-        attachmentObserver.stop()
         activity.close()
         healthy = false; healthTimer?.invalidate(); healthTimer = nil
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
@@ -148,13 +126,12 @@ final class DeskInputAdapter: ObservableObject {
         tap = nil; source = nil
         observers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }; observers = []
         lockObservers.forEach { DistributedNotificationCenter.default().removeObserver($0) }; lockObservers = []
-        restoreCursor(); tapStartFailed = false; accessProblem = nil
+        parking.end(); tapStartFailed = false; accessProblem = nil
     }
     var needsPermissionSetup: Bool {
         !AccessCheck.sharing
     }
     private func checkAccess() {
-        refreshKeyboards()
         let console = CGSessionCopyCurrentDictionary() as? [String: Any]
         let issue: String?
         if !AccessCheck.accessibilityWithPosting { issue = "Allow Perch in System Settings → Privacy & Security → Accessibility. This is the Perch app’s access; Perch Helper’s existing access is separate." }
@@ -185,26 +162,6 @@ final class DeskInputAdapter: ObservableObject {
         CGEvent.tapEnable(tap: tap, enable: true)
         return CGEvent.tapIsEnabled(tap: tap)
     }
-    func refreshKeyboards() {
-        guard !SettingsWindow.shared.testing, !scanningKeyboards, ProcessInfo.processInfo.systemUptime >= keyboardScanAt else { return }
-        scanningKeyboards = true; keyboardScanAt = ProcessInfo.processInfo.systemUptime + 1
-        keyboardGeneration += 1
-        let generation = keyboardGeneration
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let keyboards = NativeModifierKeys.keyboards().filter { !$0.builtIn && !$0.preferenceKey.isEmpty }
-            let mice = NativeModifierKeys.mice()
-            DispatchQueue.main.async {
-                guard let self else { return }; self.scanningKeyboards = false
-                if self.keyboardGeneration == generation { self.updateKeyboards(keyboards); self.updateMice(mice); self.attachmentChanged = false }
-            }
-        }
-    }
-    private func updateMice(_ values: [NativePointingDevice]) {
-        if values.map({ $0.preferenceKey + "\0" + $0.name }).sorted() != mice.map({ $0.preferenceKey + "\0" + $0.name }).sorted() { mice = values }
-    }
-    private func updateKeyboards(_ values: [NativeKeyboard]) {
-        if values.map({ $0.preferenceKey + "\0" + $0.name }).sorted() != keyboards.map({ $0.preferenceKey + "\0" + $0.name }).sorted() { keyboards = values }
-    }
     private func receive(_ event: CGEvent, type: CGEventType) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if !reenableTap() { healthy = false; session.stop() }
@@ -225,16 +182,6 @@ final class DeskInputAdapter: ObservableObject {
             }
         }
         guard session.capturing else { return false }
-        if [.keyDown, .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel].contains(type),
-           session.focus?.computer != session.node.localID,
-           session.node.group.sharedKeyboards?.contains(where: { $0.follow && $0.bindings[session.node.localID] != nil }) == true {
-            // Device enumeration never runs inside the tap callback: a slow
-            // IOKit scan here is what makes macOS disable the tap. The
-            // attachment observer already invalidated the cache; the throttled
-            // background scan refreshes it.
-            if attachmentChanged { attachmentChanged = false; keyboardScanAt = 0; refreshKeyboards() }
-            session.publishKeyboardAttachments()
-        }
         let flags = event.flags.rawValue & KVMInputEvent.flagMask
         var value: KVMInputEvent
         switch type {
@@ -263,7 +210,13 @@ final class DeskInputAdapter: ObservableObject {
             if session.focusComputer == session.node.localID { value.absolute = deskPosition(event.location)?.1 }
         default: return false
         }
-        return session.capture(value)
+        let captured = session.capture(value)
+        // A parked cursor goes straight back to the centre after every read.
+        if captured, value.kind == .motion, parking.parked {
+            parking.reset(from: event.location, cursor)
+            summarizeParking()
+        }
+        return captured
     }
     private func displayID(for localDisplay: String?) -> CGDirectDisplayID? {
         guard let localDisplay else { return nil }
@@ -302,75 +255,66 @@ final class DeskInputAdapter: ObservableObject {
         }
         return nil
     }
+    /// Movement from another Mac is added to the live cursor, exactly like this
+    /// Mac's own mouse, and keys, clicks and scrolling land where the cursor really
+    /// is. Placing them at a position converted from desk millimetres is what let a
+    /// click land somewhere the cursor was not.
     private func post(_ value: KVMInputEvent, focus: KVMInputFocus) {
-        guard healthy, let point = point(focus), !SettingsWindow.shared.testing else { session.stop(); return }
+        guard healthy, !SettingsWindow.shared.testing else { session.stop(); return }
+        let here = cursor.location
+        let point = value.kind == .motion
+            ? DeskCursorParking.moved(from: here, dx: value.x, dy: value.y, displays: cursor.displays)
+            : here
         lastLocation = point
         _ = posted.apply(value, source: postedSource)
         emitNative(value, point: point)
+        guard value.kind == .motion else { return }
+        if let summary = smoothness.arrived(at: ProcessInfo.processInfo.systemUptime) {
+            PerchLog.record("input.smoothness", "Pointer on this Mac: " + summary)
+        }
+        if let position = deskPosition(point)?.1 { session.reportPointer(position) }
+    }
+    /// Put the cursor where control arrives, once, just inside the edge it crossed.
+    private func place(at focus: KVMInputFocus) {
+        guard healthy, !SettingsWindow.shared.testing, let point = point(focus) else { session.stop(); return }
+        lastLocation = point
+        emitNative(.init(kind: .motion), point: point)
     }
     private func releasePosted() {
         for event in posted.releaseAll() { emitNative(event, point: lastLocation) }
-        restoreCursor(); shownFocus = nil
+        parking.end()
     }
-    private func restoreCursor() {
-        if !cursorAssociated {
-            // Reattach macOS's hardware cursor only after the remote lease has
-            // ended. Keeping it detached during remote control prevents local
-            // pointer motion from fighting the desk's remote coordinate.
-            _ = CGAssociateMouseAndMouseCursorPosition(1)
-            cursorAssociated = true
-        }
-        setCursorHidden(false)
-    }
-    /// Hiding only the main display leaves the pointer drawn on every other
-    /// screen, which is why the cursor stayed behind on the Mac that had just
-    /// handed control away. Hide and show are reference counted per display,
-    /// so show exactly the displays that were hidden, even if the screen
-    /// arrangement changed while control was remote.
-    private func setCursorHidden(_ hide: Bool) {
-        guard hide != cursorHidden else { return }
-        if hide {
-            hiddenDisplays = activeDisplays()
-            for display in hiddenDisplays { CGDisplayHideCursor(display) }
-        } else {
-            for display in hiddenDisplays { CGDisplayShowCursor(display) }
-            hiddenDisplays = []
-        }
-        cursorHidden = hide
-    }
-
-    private func activeDisplays() -> [CGDirectDisplayID] {
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [CGMainDisplayID()] }
-        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [CGMainDisplayID()] }
-        return Array(ids.prefix(Int(count)))
-    }
-
     private func updateCursor() {
-        guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else { restoreCursor(); shownFocus = nil; controlWasLocal = false; setRemoteCapture(false); return }
+        guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else {
+            parking.end(); controlWasLocal = false; setRemoteCapture(false); return
+        }
         setRemoteCapture(focus.computer != session.node.localID)
         if focus.computer != session.node.localID {
-            if cursorAssociated {
-                // Hiding alone leaves the native cursor position live. Detach
-                // it for the duration of a remote lease so event deltas cannot
-                // pull the local cursor back or reset it at the edge.
-                _ = CGAssociateMouseAndMouseCursorPosition(0)
-                cursorAssociated = false
-            }
-            setCursorHidden(true)
-            shownFocus = nil; controlWasLocal = false
+            // The pointer is on another Mac: park this Mac's cursor at the centre of
+            // the screen it left. Version 1 leaves it visible, so a cursor drifting
+            // away from the centre shows the reset is failing.
+            if !parking.parked { nextParkingSummary = 0 }
+            parking.begin(cursor)
+            controlWasLocal = false
         } else {
-            restoreCursor()
-            // Place the pointer once, when control actually arrives from the
-            // other Mac, and then leave it alone. Re-placing it whenever the
-            // focused screen changes dragged the cursor back while this Mac
-            // still had control, including when macOS moved it natively
-            // between this Mac's own screens. The desk position is the single
-            // baseline for a handover; the hardware cursor owns itself after.
-            if !controlWasLocal { post(.init(kind: .motion), focus: focus) }
-            shownFocus = focus.monitor; controlWasLocal = true
+            parking.end()
+            // Place the pointer once, when control arrives from the other Mac, and
+            // then leave it alone. Re-placing it whenever the focused screen changed
+            // dragged the cursor back while this Mac still had control.
+            if !controlWasLocal { place(at: focus) }
+            controlWasLocal = true
         }
+    }
+    /// Every few seconds while parked, record how many resets ran and how far the
+    /// cursor got before each. Near-zero drift means the reset is holding.
+    private func summarizeParking() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now >= nextParkingSummary else { return }
+        let first = nextParkingSummary == 0
+        nextParkingSummary = now + DeskMotionSmoothness.window
+        guard !first else { return }
+        let summary = parking.takeSummary()
+        PerchLog.record("input.parking", String(format: "Pointer on another Mac: parked cursor reset %d times, drifting at most %.0f points before a reset", summary.resets, summary.worstDrift))
     }
     private let activity = IdleActivitySignal()
     /// Both Macs in an active lease must count as "in use"; see IdleActivitySignal.

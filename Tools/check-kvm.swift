@@ -283,18 +283,16 @@ import CryptoKit
         try check(!invalidEvent.valid, "unbounded mouse button rejected")
         invalidEvent = .init(kind: .keyDown, flags: UInt64.max)
         try check(!invalidEvent.valid, "unknown native flags cannot be injected")
-        let keyboard = UUID(); var follow = KVMKeyboardFollow()
-        try check(follow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id]) == nil, "initial discovery is not a keyboard handoff")
-        _ = follow.observe(keyboard: keyboard, computer: alice.id, attached: false, online: [alice.id,bob.id])
-        try check(follow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [alice.id,bob.id]) == bob.id, "confirmed detach then arrival follows keyboard")
-        try check(follow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id]) == nil, "ambiguous dual attachment does not switch focus")
-        var reversedFollow = KVMKeyboardFollow()
-        _ = reversedFollow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id])
-        try check(reversedFollow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [alice.id,bob.id]) == nil, "new arrival waits for old attachment to leave")
-        try check(reversedFollow.observe(keyboard: keyboard, computer: alice.id, attached: false, online: [alice.id,bob.id]) == bob.id, "arrival-before-detach network order still follows once")
-        var offlineFollow = KVMKeyboardFollow()
-        _ = offlineFollow.observe(keyboard: keyboard, computer: alice.id, attached: true, online: [alice.id,bob.id])
-        try check(offlineFollow.observe(keyboard: keyboard, computer: bob.id, attached: true, online: [bob.id]) == nil, "offline computer is not a confirmed keyboard detachment")
-        print("PASS: \(count) KVM checks — limits, identity, geometry, signed sync, 16 peers, framing, fenced input, held-key cleanup and keyboard host following. No UI, network or hardware used.")
+        // Answered polls must not fill the small challenge table, or a grant riding on
+        // a later poll fails to install and every crossing stalls.
+        let fixtureGrant = KVMInputGrant(id: UUID(), epoch: UUID(), revision: "fixture", preset: UUID(), participants: [alice.id],
+                                         focus: .init(monitor: UUID(), computer: alice.id, position: .init(x: 1, y: 1)))
+        var saturated = KVMInputLease()
+        for index in 0..<32 { _ = saturated.challenge(now: Double(index) * 0.01) }
+        try check(!saturated.accept(fixtureGrant, challenge: saturated.challenge(now: 0.5), now: 0.6), "unanswered challenges fill the table")
+        var answered = KVMInputLease()
+        for index in 0..<32 { let nonce = answered.challenge(now: Double(index) * 0.01); answered.discard(challenge: nonce) }
+        try check(answered.accept(fixtureGrant, challenge: answered.challenge(now: 0.5), now: 0.6), "discarded answered challenges leave room for the next grant")
+        print("PASS: \(count) KVM checks — limits, identity, geometry, signed sync, 16 peers, framing, fenced input, held-key cleanup and poll challenges that cannot fill up. No UI, network or hardware used.")
     }
 }

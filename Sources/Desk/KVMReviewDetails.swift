@@ -37,7 +37,7 @@ extension KVMGroup {
         }
         if (sharedKeyboards ?? []).isEmpty { lines.append("Shared keyboards: none") }
         for keyboard in sharedKeyboards ?? [] {
-            lines.append("Keyboard: \(keyboard.name) [\(keyboard.id.uuidString.prefix(8))] · Follow \(keyboard.follow ? "on" : "off")")
+            lines.append("Keyboard: \(keyboard.name) [\(keyboard.id.uuidString.prefix(8))]")
             for host in computers {
                 lines.append("\(computer(host.id)) → \(keyboard.bindings[host.id] ?? "No attachment confirmed")")
             }

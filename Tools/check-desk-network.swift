@@ -289,7 +289,16 @@ import Darwin
         // capture/posting are never constructed: every event sink is injected.
         let inputA = KVMInputSession(node: a), inputB = KVMInputSession(node: b)
         switchesA.otherMessage = { peer, bytes in _ = inputA.receive(bytes, peer: peer) }
-        switchesB.otherMessage = { peer, bytes in _ = inputB.receive(bytes, peer: peer) }
+        // Handoffs now finish within a round trip, too fast to observe. To prove input
+        // typed during one is held and delivered, not leaked, the coordinator's
+        // answers to B can be held back briefly, keeping B in the handoff barrier.
+        var holdStateToB = false, heldStateToB: [(UUID, Data)] = []
+        switchesB.otherMessage = { peer, bytes in
+            if holdStateToB, String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"state\"") {
+                heldStateToB.append((peer, bytes)); return
+            }
+            _ = inputB.receive(bytes, peer: peer)
+        }
         inputA.ready = { true }; inputB.ready = { true }
         var deliveries: [(UUID, KVMInputEvent)] = [], releaseCount = 0
         inputA.emit = { event, _ in deliveries.append((a.localID, event)) }
@@ -309,11 +318,8 @@ import Darwin
         inputA.localPointerPosition = centreOf; inputB.localPointerPosition = centreOf
         let keyboard = KVMSharedKeyboard(name: "Test keyboard", bindings: [a.localID: "fixture-a", b.localID: "fixture-b"], follow: true)
         arranged.sharedKeyboards = [keyboard]
-        var keyboardA: Set<UUID> = [keyboard.id], keyboardB: Set<UUID> = []
-        inputA.attachedKeyboards = { keyboardA }; inputB.attachedKeyboards = { keyboardB }
         let mouse = KVMSharedKeyboard(name: "Fixture switching mouse", bindings: [a.localID: "mouse-a", b.localID: "mouse-b"], follow: true, kind: .mouse)
         arranged.sharedKeyboards?.append(mouse)
-        keyboardA.insert(mouse.id)
         var wrongKind = arranged
         wrongKind.sharedKeyboards![wrongKind.sharedKeyboards!.count - 1].kind = nil
         guard KVMInputConfiguration.revision(wrongKind) != KVMInputConfiguration.revision(arranged) else { throw KVMError("Changing device kind did not fence input state") }
@@ -333,9 +339,13 @@ import Darwin
         inputA.refreshReadiness()
         try wait("fresh healthy coordinator response clears prior failure") { inputA.problem == nil && inputB.problem == nil }
         guard !inputA.active && !inputB.active else { throw KVMError("Refreshing status started input capture") }
+        holdStateToB = true
         inputB.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
         try wait("source enters handoff barrier") { inputB.preparing }
         guard inputB.capture(.init(kind: .keyDown, code: 11)), inputB.capture(.init(kind: .keyUp, code: 11)) else { throw KVMError("Preparing input leaked locally") }
+        holdStateToB = false
+        let released = heldStateToB; heldStateToB = []
+        for (peer, bytes) in released { _ = inputB.receive(bytes, peer: peer) }
         try wait("buffered handoff input reaches only A") { deliveries.contains { $0.0 == a.localID && $0.1.kind == .keyDown && $0.1.code == 11 } }
         try wait("release and grant on both peers") { inputA.active && inputB.active }
         guard inputB.capture(.init(kind: .keyDown, code: 12)) else { throw KVMError("Remote keyboard could not send") }
@@ -368,25 +378,28 @@ import Darwin
         guard deliveries[beforeRemoteKey...].allSatisfy({ $0.0 == b.localID }) else {
             throw KVMError("A remote keyboard event was also emitted on the source Mac")
         }
-        // Re-focus A, then simulate the same confirmed physical keyboard moving
-        // to B. This is a device observation, never inferred from idle keys.
+        // Every keyboard and mouse feeds the one pointer, whichever Mac shows it.
+        // Using a device on another Mac never moves control there.
+        let beforeFromA = deliveries.count
+        guard inputA.capture(.init(kind: .keyDown, code: 15)), inputA.capture(.init(kind: .motion, x: -4, y: 2)) else {
+            throw KVMError("A device on the Mac without the pointer stayed local")
+        }
+        try wait("the other Mac's devices reach the pointer's Mac") { deliveries[beforeFromA...].contains { $0.0 == b.localID && $0.1.code == 15 } }
+        guard inputA.focus?.computer == b.localID, inputB.focus?.computer == b.localID else { throw KVMError("Using a device on another Mac moved control") }
         inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
         try wait("return focus to A") { inputA.active && inputB.active && inputA.focus?.computer == a.localID }
-        keyboardA = [mouse.id]; inputA.tick()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        keyboardB = [keyboard.id]; inputB.publishKeyboardAttachments()
-        guard inputB.capture(.init(kind: .keyDown, code: 15)) else { throw KVMError("Arriving keyboard event leaked locally") }
-        inputB.tick()
-        try wait("confirmed keyboard host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
-        // Let the queued first key arrive before deliberately replacing that session.
-        try wait("first arriving-keyboard key reaches B") { deliveries.contains { $0.0 == b.localID && $0.1.code == 15 } }
-        guard !deliveries.contains(where: { $0.0 == a.localID && $0.1.code == 15 }) else { throw KVMError("Arriving keyboard typed on the previous computer") }
-        inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
-        try wait("return focus before mouse follow") { inputA.active && inputB.active && inputA.focus?.computer == a.localID }
-        keyboardA = []; inputA.tick()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        keyboardB.insert(mouse.id); inputB.publishKeyboardAttachments(); inputB.tick()
-        try wait("confirmed mouse host following") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
+        let beforeFromB = deliveries.count
+        guard inputB.capture(.init(kind: .keyDown, code: 16)) else { throw KVMError("B's keyboard stayed on B while the pointer was on A") }
+        try wait("B's keyboard reaches A") { deliveries[beforeFromB...].contains { $0.0 == a.localID && $0.1.code == 16 } }
+        guard inputA.focus?.computer == a.localID, inputB.focus?.computer == a.localID else { throw KVMError("Using B's keyboard moved control to B") }
+        // A handoff completes within a round trip or two, not on the next scheduled
+        // poll, whose wait was a visible hitch at every crossing.
+        let handoffStarted = Date()
+        inputA.start(preset: arranged.presets[0].id, monitor: arranged.monitors[1].id)
+        try wait("control moves back to B") { inputA.active && inputB.active && inputA.focus?.computer == b.localID && inputB.focus?.computer == b.localID }
+        let handoff = Date().timeIntervalSince(handoffStarted)
+        guard handoff < 0.2 else { throw KVMError("A handoff took \(Int(handoff * 1000)) ms; it waited for a scheduled poll") }
+        fputs("Handoff measured at \(Int(handoff * 1000)) ms\n", stderr)
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false

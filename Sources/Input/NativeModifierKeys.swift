@@ -30,11 +30,6 @@ struct NativeKeyboard {
     var swapped: Bool? { ModifierKeyMap.swapped(mapping) }
 }
 
-struct NativePointingDevice {
-    let name: String
-    let preferenceKey: String
-}
-
 enum NativeModifierKeys {
     static let property = "HIDKeyboardModifierMappingPairs"
     // The formatter also handles older Apple keyboards' alt_handler_id keys.
@@ -67,29 +62,6 @@ enum NativeModifierKeys {
             let saved = CFPreferencesCopyValue(key as CFString, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) as? [[String:UInt64]] ?? []
             let current = value(property) as? [[String:UInt64]] ?? saved
             return NativeKeyboard(connection: client, service: service, name: value("Product") as? String ?? "Keyboard", builtIn: (value("Built-In") as? NSNumber)?.boolValue == true, vendor: (value("VendorID") as? NSNumber)?.intValue ?? 0, preferenceKey: key, mapping: current)
-        }
-    }
-    /// Passive property enumeration only; no device opening or event access.
-    static func mice() -> [NativePointingDevice] {
-        guard let client = createPassive?(kCFAllocatorDefault, 2, nil)?.takeRetainedValue() else { return [] }
-        let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] ?? []
-        return services.compactMap { service in
-            guard IOHIDServiceClientConformsTo(service, 1, 2) != 0 else { return nil }
-            func value(_ key: String) -> AnyObject? { IOHIDServiceClientCopyProperty(service, key as CFString) }
-            let name = value("Product") as? String ?? "Mouse"
-            guard (value("Built-In") as? NSNumber)?.boolValue != true,
-                  (value("Transport") as? String) != "Virtual", !name.localizedCaseInsensitiveContains("trackpad") else { return nil }
-            // These identities are confirmed independently on each Mac. Never
-            // use a live registry entry ID, which changes on reattachment.
-            let identity = (value("SerialNumber") as? String).flatMap { $0.isEmpty ? nil : $0 }
-                ?? (value("PhysicalDeviceUniqueID") as? String)
-                ?? (value("LocationID") as? NSNumber)?.stringValue
-            guard let identity, !identity.isEmpty else { return nil }
-            let fields = [String((value("VendorID") as? NSNumber)?.uint32Value ?? 0),
-                          String((value("ProductID") as? NSNumber)?.uint32Value ?? 0),
-                          value("Transport") as? String ?? "", identity]
-            guard let bytes = try? JSONEncoder().encode(fields) else { return nil }
-            return NativePointingDevice(name: name, preferenceKey: "perch.mouse." + bytes.base64EncodedString())
         }
     }
     static func set(_ swapped: Bool, on keyboard: NativeKeyboard) throws {

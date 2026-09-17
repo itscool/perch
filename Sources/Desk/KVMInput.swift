@@ -154,6 +154,10 @@ struct KVMInputLease {
         receivedSequence[source] = sequence; return true
     }
     mutating func release() { grant = nil; expires = 0; challenges = [:]; receivedSequence = [:] }
+    /// A poll answered without a grant can never be accepted, so its challenge is
+    /// dropped at once. Left in place, answered challenges fill this small table
+    /// and a grant arriving on a later poll fails to install.
+    mutating func discard(challenge: UUID) { challenges.removeValue(forKey: challenge) }
 }
 
 /// Per-source held state prevents one keyboard's release from releasing another
@@ -202,27 +206,5 @@ struct KVMInputHeld {
             (modifiers.values.contains(where: { $0 != 0 }) ? [54,55,56,57,58,59,60,61,62,63].map { KVMInputEvent(kind: .modifiers, code: UInt16($0)) } : [])
         keys = [:]; buttons = [:]; modifiers = [:]
         return releases
-    }
-}
-
-struct KVMKeyboardFollow {
-    private(set) var hosts: [UUID: Set<UUID>] = [:]
-    private var lastHost: [UUID: UUID] = [:]
-    private var detachedFrom: [UUID: UUID] = [:]
-    /// Requires explicit detach and one unique arrival; either message order is
-    /// allowed. A peer disappearing is not evidence of a hardware host switch.
-    mutating func observe(keyboard: UUID, computer: UUID, attached: Bool, online: Set<UUID>) -> UUID? {
-        guard online.contains(computer) else { return nil }
-        if attached {
-            hosts[keyboard, default: []].insert(computer)
-            if lastHost[keyboard] == nil { lastHost[keyboard] = computer }
-        } else {
-            guard hosts[keyboard]?.remove(computer) != nil else { return nil }
-            if lastHost[keyboard] == computer { detachedFrom[keyboard] = computer }
-        }
-        guard hosts[keyboard]?.count == 1, let destination = hosts[keyboard]?.first,
-              online.contains(destination), let previous = detachedFrom[keyboard], previous != destination else { return nil }
-        detachedFrom[keyboard] = nil; lastHost[keyboard] = destination
-        return destination
     }
 }

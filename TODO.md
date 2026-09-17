@@ -792,11 +792,11 @@ from where it already was, growing more unstable starting with the Mac that
 owned it; and control went virtual even when the two Macs shared no desk
 space. Three separate causes, all now fixed.
 
-- **Left behind.** The cursor was hidden with
-  `CGDisplayHideCursor(CGMainDisplayID())`, which covers only the main
-  display, so it stayed drawn on every other screen. Hide and show now cover
-  every active display, with the reference counts balanced against the exact
-  list hidden, since the arrangement can change while control is remote.
+- **Left behind, corrected.** This first fix hid the cursor on every display,
+  but Apple's header says the hide call ignores its display argument, so it
+  changed nothing. The likely cause is that macOS ignores a background app's
+  hide request unless a private window-server setting is set first. Version 1
+  below leaves the cursor visible; version 2 adds hiding properly.
 - **Resetting.** The hardware cursor was re-placed whenever the focused screen
   changed. That dragged it back while this Mac still had control, including
   when macOS moved it natively between that Mac's own screens. The desk
@@ -847,6 +847,38 @@ local build 206 with Info.plist untouched and update settings present;
 `--self-test` 42 PASS. Running: Perch 2.0.205, the release. On disk: 2.0.206, the
 local build, which takes effect on the next restart. Native acceptance still open:
 the next release being offered in-app on this Mac.
+
+## Checkpoint: desk input version 1 (September 16, 2026)
+
+Rebuilt on the design agreed with Scott and the macOS technique Deskflow and Lan
+Mouse use: one pointer, owned by the desk coordinator, fed by every keyboard and
+mouse in the desk. Version 1 keeps the cursor visible.
+
+- The Mac without the pointer parks its cursor at the centre of the screen it
+  left and puts it back after every movement read (`DeskCursorParking`), with
+  macOS's post-warp pause shortened. Nothing is detached or hidden. Centre, not
+  edge: at an edge macOS clamps movement and every nudge risks bouncing back.
+- The Mac showing the pointer adds movement from another Mac to its live cursor,
+  and keys, clicks and scrolling land where the cursor really is. Posted movement
+  carries its movement values. It reports its live position, so the coordinator
+  follows the real cursor.
+- Using a device on another Mac never moves control. The follow-device section
+  of Desk settings, `KVMKeyboardFollow` and attachment buffering are removed.
+- Handoffs finish within a round trip: a peer polls straight after preparing and
+  briefly polls fast until the grant arrives, and answered poll challenges are
+  discarded so they cannot fill the lease's table. The crossing cooldown now
+  ignores only a bounce back into the screen just left, because fast handoffs let
+  a quick swipe reach the next edge inside it.
+- Smoothness is logged every five seconds while in use: `input.smoothness` on the
+  Mac showing the pointer and `input.parking` on the parked Mac.
+
+Verified: `./build.sh` local build 208 with no warnings in changed files;
+`--self-test` 43 PASS including `runDeskCursorTests`;
+`Tools/check-desk-network.py` 13 PASS, with devices on either Mac feeding the
+pointer and a handoff measured at 28 ms on loopback; `Tools/check-kvm.py` pins
+the challenge discard; native input, monitor command and app bundle checks pass.
+Running: 2.0.206. On disk: 2.0.208, taking effect on the next restart. Still open:
+native acceptance on the physical two-Mac desk, and version 2, hiding.
 
 ## Completed evidence and ongoing maintenance
 

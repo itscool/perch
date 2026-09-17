@@ -45,7 +45,7 @@ struct DeskLiveSheet: View {
         case "computer": pairing
         case "screen": addScreen
         case "hotkeys": shortcutSettings
-        case "input": DeskInputSettings(runtime: runtime, input: runtime.input, adapter: runtime.inputAdapter)
+        case "input": DeskInputSettings(adapter: runtime.inputAdapter)
         case "computerDetails", "removeComputer": computerDetails
         case "conflict": conflict
         case "connections":

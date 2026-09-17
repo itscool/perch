@@ -223,4 +223,62 @@ func runDeskPresetGraphTests() throws {
               resetting.group.computers == sample.computers && resetting.group.presets.map(\.name) == sample.presets.map(\.name),
               "Resetting the desk did not start the layout over while keeping paired Macs: \(resetting.problem ?? "")")
     print("PASS: desk wiring rules: computer drags always connect and claim the input, free inputs draw to a computer, connected inputs detach to move, detached ends dropped in space disappear; clear preset and reset desk")
+    try runDeskInputListTests()
+}
+
+/// Changing a screen's input list replaces it rather than stacking ports. This
+/// replays Scott's Home LG New: set up with the LG profile, then switched to the
+/// monitor's reported inputs, which left two DisplayPorts and a USB-C input
+/// still carrying its LG code under the standard protocol.
+func runDeskInputListTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
+    let lg: [DeskPortDefinition] = [.init(name: "HDMI 1", code: 144), .init(name: "HDMI 2", code: 145), .init(name: "DisplayPort", code: 208), .init(name: "USB-C", code: 209)]
+    let reported: [DeskPortDefinition] = [.init(name: "HDMI 1", code: 17), .init(name: "HDMI 2", code: 18), .init(name: "DisplayPort 1", code: 15)]
+    var group = KVMGroup.sample()
+    let mac = group.computers[0].id, studio = group.computers[1].id, screen = group.monitors[0].id
+    let usb = group.connections.first { $0.monitor == screen && $0.computer == mac }!
+    let displayPort = group.connections.first { $0.monitor == screen && $0.computer == studio }!
+    group.monitors[0].control = .init(computer: mac, localDisplay: usb.localDisplay!)
+    func inputs(_ g: KVMGroup) -> [String: UInt16?] {
+        Dictionary(uniqueKeysWithValues: g.connections.filter { $0.monitor == screen }.map { ($0.inputName, $0.inputCode) })
+    }
+
+    try DeskMonitorConfiguration.apply(monitor: screen, profile: "LG", ports: lg, mode: "lg", to: &group)
+    try check(inputs(group) == ["HDMI 1": 144, "HDMI 2": 145, "DisplayPort": 208, "USB-C": 209] && group.connections.first { $0.id == usb.id }?.computer == mac,
+              "The LG profile did not become the screen's inputs while keeping its cables: \(inputs(group))")
+
+    // Reported inputs have no USB-C and use the other protocol, so the Mac's cable would stop switching.
+    let lgSetup = group
+    do {
+        try DeskMonitorConfiguration.apply(monitor: screen, profile: "Reported", ports: reported, mode: "standard", to: &group)
+        throw KVMError("Switching protocol stranded the USB-C input the MacBook uses")
+    } catch let error as KVMError where error.localizedDescription.contains("USB-C") && error.localizedDescription.contains("MacBook Pro") {}
+    try check(group == lgSetup, "A refused input list partly changed the screen")
+
+    // Without that cable, the change goes through: DisplayPort carries over to DisplayPort 1 with its cable and routes, and nothing is left behind.
+    for p in group.presets.indices { group.presets[p].assignments.removeAll { $0.connection == usb.id } }
+    try DeskCableBinding.apply(connection: usb.id, computer: nil, display: nil, to: &group)
+    let routesBefore = group.presets.map { $0.assignments.filter { $0.connection == displayPort.id } }
+    try DeskMonitorConfiguration.apply(monitor: screen, profile: "Reported", ports: reported, mode: "standard", to: &group)
+    let carried = group.connections.first { $0.id == displayPort.id }
+    try check(inputs(group) == ["HDMI 1": 17, "HDMI 2": 18, "DisplayPort 1": 15], "Changing the input list stacked or kept old inputs: \(inputs(group))")
+    try check(carried?.computer == studio && carried?.localDisplay == displayPort.localDisplay && group.presets.map { $0.assignments.filter { $0.connection == displayPort.id } } == routesBefore,
+              "DisplayPort did not carry its cable and preset routes over to DisplayPort 1")
+
+    // Scott's saved state repairs by choosing the LG profile again.
+    var saved = lgSetup
+    saved.monitors[0].control?.mode = "standard"; saved.monitors[0].defaultControlMode = "standard"
+    saved.connections.removeAll { $0.monitor == screen }
+    saved.connections += [.init(monitor: screen, computer: nil, localDisplay: nil, inputName: "HDMI 1", inputCode: 17),
+                          .init(monitor: screen, computer: nil, localDisplay: nil, inputName: "HDMI 2", inputCode: 18),
+                          .init(monitor: screen, computer: nil, localDisplay: nil, inputName: "DisplayPort", inputCode: 208),
+                          .init(id: usb.id, monitor: screen, computer: mac, localDisplay: usb.localDisplay, inputName: "USB-C", inputCode: 209),
+                          .init(monitor: screen, computer: nil, localDisplay: nil, inputName: "DisplayPort 1", inputCode: 15)]
+    for p in saved.presets.indices { saved.presets[p].assignments.removeAll { $0.monitor == screen } }
+    saved.presets[1].assignments.append(.init(monitor: screen, connection: usb.id))
+    try DeskMonitorConfiguration.apply(monitor: screen, profile: "LG", ports: lg, mode: "lg", to: &saved)
+    try check(inputs(saved) == ["HDMI 1": 144, "HDMI 2": 145, "DisplayPort": 208, "USB-C": 209] && saved.monitors[0].control?.mode == "lg" &&
+              saved.connections.first { $0.id == usb.id }?.computer == mac && saved.presets[1].assignments.contains { $0.connection == usb.id },
+              "Choosing the LG profile again did not repair the stacked inputs: \(inputs(saved))")
+    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change")
 }

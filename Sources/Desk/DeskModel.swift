@@ -89,18 +89,47 @@ enum DeskPendingCableResolver {
 }
 struct DeskPortDefinition { let name: String; let code: UInt16 }
 enum DeskMonitorConfiguration {
+    /// Replace a screen's input list. Each existing input carries over to the
+    /// new input with the same name, or the same kind when each list has only
+    /// one of that kind ("DisplayPort" and "DisplayPort 1"), keeping its cable
+    /// and preset routes. Leftover inputs nothing uses are removed, so changing
+    /// profile never stacks a second copy of a port. A leftover input in use
+    /// stays only while the switching protocol is unchanged, because its code
+    /// means nothing under the other protocol.
     static func apply(monitor: UUID, profile: String, ports: [DeskPortDefinition], mode: String, to group: inout KVMGroup) throws {
         guard let index = group.monitors.firstIndex(where: { $0.id == monitor }), group.monitors[index].control != nil else { throw KVMError("Choose a monitor control path first.") }
         func key(_ name: String) -> String { name.lowercased().filter { !$0.isWhitespace && $0 != "-" } }
+        func kind(_ name: String) -> String { key(name).filter { !$0.isNumber } }
         var draft = group
         guard ports.count <= 16, Set(ports.map { key($0.name) }).count == ports.count else { throw KVMError("The profile has duplicate or too many ports.") }
-        for port in ports {
-            if let i = draft.connections.firstIndex(where: { $0.monitor == monitor && key($0.inputName) == key(port.name) }) {
-                draft.connections[i].inputCode = port.code
+        let existing = draft.connections.indices.filter { draft.connections[$0].monitor == monitor }
+        var carried: [Int: Int] = [:]  // port index → connection index
+        for (p, port) in ports.enumerated() {
+            if let i = existing.first(where: { !carried.values.contains($0) && key(draft.connections[$0].inputName) == key(port.name) }) { carried[p] = i }
+        }
+        for (p, port) in ports.enumerated() where carried[p] == nil {
+            let newOfKind = ports.indices.filter { carried[$0] == nil && kind(ports[$0].name) == kind(port.name) }
+            let oldOfKind = existing.filter { !carried.values.contains($0) && kind(draft.connections[$0].inputName) == kind(port.name) }
+            if newOfKind.count == 1, oldOfKind.count == 1 { carried[p] = oldOfKind[0] }
+        }
+        for (p, port) in ports.enumerated() {
+            if let i = carried[p] {
+                draft.connections[i].inputName = port.name; draft.connections[i].inputCode = port.code
             } else {
                 draft.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
             }
         }
+        let protocolChanged = group.monitors[index].control?.mode != mode
+        var removed = Set<UUID>()
+        for i in existing where !carried.values.contains(i) {
+            let leftover = draft.connections[i]
+            let inUse = leftover.computer != nil || draft.presets.contains { $0.assignments.contains { $0.connection == leftover.id } }
+            if !inUse { removed.insert(leftover.id); continue }
+            guard protocolChanged else { continue }
+            let user = draft.computers.first { $0.id == leftover.computer }?.name
+            throw KVMError("This input list has no \(leftover.inputName)" + (user.map { ", which \($0) uses" } ?? ", which a preset uses") + ". Keep the current profile, or remove that connection first.")
+        }
+        draft.connections.removeAll { removed.contains($0.id) }
         draft.monitors[index].control?.mode = mode; draft.monitors[index].defaultControlMode = mode; draft.monitors[index].inputProfile = profile
         _ = try draft.validated(); group = draft
     }

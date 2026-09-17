@@ -911,6 +911,21 @@ On disk: 2.0.215, taking effect on the next restart. Still open: native
 acceptance of the wiring on the live Desk page, and MX Keys for Business and MX
 Keys Mini profiles, which need each keyboard's product ID from the device.
 
+Follow-up the same day: the extra DisplayPort was a bug. Desk history shows Home
+LG New set up with LG codes (HDMI 144/145, DisplayPort 208, USB-C 209), then at
+revision 69 switched to the monitor's reported inputs (HDMI 17/18, DisplayPort 1
+15, no USB-C) and the standard protocol. Changing a screen's input list only
+added and recoded same-name inputs, so it kept `DisplayPort` 208 beside
+`DisplayPort 1` 15, and kept the MacBook Pro's USB-C at LG code 209 under the
+standard protocol. `DeskMonitorConfiguration.apply` now replaces the list: inputs
+carry over by name, or by kind when each side has one ("DisplayPort" to
+"DisplayPort 1"), with cables and routes; unused leftovers are removed; a change
+of protocol that would strand an input in use is refused, naming it. Pinned by
+`runDeskInputListTests`, which replays that history. Build 217: `--self-test` 47
+PASS, lab 268, render and `check-kvm.py` pass; on disk 2.0.217, running 2.0.208.
+Scott's desk repairs once he chooses Home LG New's LG profile again (all of
+27UN850, 27UP850, 40WP95C, 38BR85QC and 45GX950A use those codes).
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

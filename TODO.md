@@ -643,6 +643,13 @@ the DMG; the GitHub release, stable Sparkle feed and SHA256SUMS checksums were
 verified, and the `itscool/tap` Homebrew cask was updated and verified with
 `brew info`. Native acceptance remains open.
 
+Perch 2.0.205 was published on September 16, 2026. Apple accepted the app
+(643e64b3-1eaf-4988-9a7c-218320f32858) and the DMG
+(f34ceee0-aaae-4824-ab1d-5fa8deefe64a); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. Native acceptance of the Desk pointer fixes on
+the physical two-Mac desk is still open.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

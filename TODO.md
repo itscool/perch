@@ -796,17 +796,23 @@ space. Three separate causes, all now fixed.
   position is now the single baseline for a handover: the pointer is placed
   once, when control arrives from the other Mac, and the hardware cursor owns
   itself from then on.
+- **Switching mice teleported to the screen centre.** Picking up the mouse
+  attached to the other Mac sends a focus request carrying no position, and the
+  handler turned a missing position straight into the middle of the target
+  screen. Control now continues from where the pointer already is, moved only
+  as far as it must to land on the new screen. The centre survives as a last
+  resort, for a first focus with nothing to carry over.
 - **No shared desk space.** Readiness only required the active preset to name
   another Mac, never that two screens actually meet. `KVMEdge.sharesDeskSpace`
   now decides from the monitor arrangement, and `KVMEdge.touching` requires an
   overlapping edge rather than a shared corner. Without one, Perch says so in
   plain terms and leaves the pointer alone.
 
-Verified: `./build.sh --no-bump` clean, `--self-test` 41 PASS and no failures,
+Verified: `./build.sh --no-bump` clean, `--self-test` 42 PASS and no failures,
 `Tools/check-desk-network.py` still passes in full including pointer boundary
 handoff and the sixteen-member traversal, and the KVM, native input and
 monitor command checks pass. `runDeskSharedSpaceTests` pins the arrangement
-rules. The cursor behaviour itself still needs acceptance on the physical
+rules and `runDeskHandoverTests` pins where control lands on a switch. The cursor behaviour itself still needs acceptance on the physical
 two-Mac desk, since no headless test can observe a hardware cursor.
 
 ## Completed evidence and ongoing maintenance

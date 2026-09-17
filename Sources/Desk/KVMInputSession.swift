@@ -472,8 +472,7 @@ final class KVMInputSession: ObservableObject {
                 if automatic, now - grantedAt < 1, peer != grant.focus.computer { return }
                 if pointer?.monitor == monitor, pointer?.computer == owner { return }
             }
-            let centre = KVMPoint(x: screen.geometry.x + screen.geometry.displayedWidth/2, y: screen.geometry.y + screen.geometry.displayedHeight/2)
-            let entry = position.flatMap { screen.geometry.contains($0) ? $0 : nil } ?? centre
+            let entry = Self.entryPoint(requested: position, carried: pointer?.position, screen: screen.geometry)
             let participants = Set(readiness.keys.filter(fresh)).union([node.localID])
             prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
                           participants: participants, focus: .init(monitor: monitor, computer: owner, position: entry)))
@@ -638,6 +637,22 @@ final class KVMInputSession: ObservableObject {
             }
         }
     }
+    /// Where control resumes on the screen it is moving to.
+    ///
+    /// Picking up the mouse attached to the other Mac carries no position, and
+    /// teleporting to the middle of that screen is what made the pointer jump
+    /// on every switch. Continue from where the pointer already is, moved the
+    /// shortest distance needed to land on the new screen. The centre is a
+    /// last resort, used only when there is no pointer yet to carry over.
+    static func entryPoint(requested: KVMPoint?, carried: KVMPoint?, screen: KVMGeometry) -> KVMPoint {
+        if let requested, screen.contains(requested) { return requested }
+        if let carried {
+            return KVMPoint(x: min(screen.right, max(screen.x, carried.x)),
+                            y: min(screen.bottom, max(screen.y, carried.y)))
+        }
+        return KVMPoint(x: screen.x + screen.displayedWidth / 2, y: screen.y + screen.displayedHeight / 2)
+    }
+
     /// Start a hair inside the destination so the entry itself cannot read as
     /// an immediate crossing back.
     static func nudge(_ entry: KVMPoint, into g: KVMGeometry) -> KVMPoint {

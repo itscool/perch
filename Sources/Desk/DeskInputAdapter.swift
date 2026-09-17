@@ -77,9 +77,13 @@ final class DeskInputAdapter: ObservableObject {
             self.refreshKeyboards()
         }
         session.keepAwake = { [weak self] in self?.declareActivity() }
-        session.localPointerPosition = { [weak self] monitor in
-            guard let self, let location = CGEvent(source: nil)?.location, let (found, position) = self.deskPosition(location) else { return nil }
-            return found == monitor ? position : nil
+        session.localPointerPosition = { [weak self] _ in
+            // Report where this Mac's cursor actually is, on whichever desk
+            // screen it sits. Returning nothing unless it happened to be on
+            // the target screen is what left a first focus with no position
+            // to use, and that is what fell back to a screen centre.
+            guard let self, let location = CGEvent(source: nil)?.location else { return nil }
+            return self.deskPosition(location)?.1
         }
         subscription = session.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateCursor() } }
     }

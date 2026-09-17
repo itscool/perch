@@ -299,6 +299,14 @@ import Darwin
         arranged.presets[0].assignments = arranged.monitors.enumerated().map { index, screen in
             .init(monitor: screen.id, connection: arranged.connections.first { $0.monitor == screen.id && $0.computer == (index == 0 ? a.localID : b.localID) }!.id)
         }
+        // The real app reports where this Mac's cursor is through its native
+        // adapter. Perch no longer invents a position when none is known, so
+        // the harness supplies one exactly as the adapter would.
+        let centreOf: (UUID) -> KVMPoint? = { monitor in
+            guard let g = arranged.monitors.first(where: { $0.id == monitor })?.geometry else { return nil }
+            return KVMPoint(x: g.x + g.displayedWidth / 2, y: g.y + g.displayedHeight / 2)
+        }
+        inputA.localPointerPosition = centreOf; inputB.localPointerPosition = centreOf
         let keyboard = KVMSharedKeyboard(name: "Test keyboard", bindings: [a.localID: "fixture-a", b.localID: "fixture-b"], follow: true)
         arranged.sharedKeyboards = [keyboard]
         var keyboardA: Set<UUID> = [keyboard.id], keyboardB: Set<UUID> = []
@@ -509,6 +517,10 @@ import Darwin
             nodes[index].application = { [weak service] peer, bytes in _ = service?.receive(bytes, peer: peer) }
             service.ready = { true }
             service.readMonitor = { _, complete in complete(15) }
+            service.localPointerPosition = { monitor in
+                guard let g = arrangement.monitors.first(where: { $0.id == monitor })?.geometry else { return nil }
+                return KVMPoint(x: g.x + g.displayedWidth / 2, y: g.y + g.displayedHeight / 2)
+            }
             service.emit = { _, _ in delivered[local, default: 0] += 1 }
             service.setEnabled(true)
         }

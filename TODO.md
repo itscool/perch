@@ -800,8 +800,14 @@ space. Three separate causes, all now fixed.
   attached to the other Mac sends a focus request carrying no position, and the
   handler turned a missing position straight into the middle of the target
   screen. Control now continues from where the pointer already is, moved only
-  as far as it must to land on the new screen. The centre survives as a last
-  resort, for a first focus with nothing to carry over.
+  as far as it must to land on the new screen.
+- **Perch no longer invents a pointer position at all.** The screen centre is
+  gone as a fallback. A first focus uses the asking Mac's own cursor wherever
+  it sits on the desk, rather than only when it happened to be on the target
+  screen. With no pointer known anywhere, control waits and says so in plain
+  terms instead of teleporting the cursor somewhere the person never put it.
+  The desk-network harness now supplies a pointer the way the native adapter
+  does, because the product no longer makes one up on its behalf.
 - **No shared desk space.** Readiness only required the active preset to name
   another Mac, never that two screens actually meet. `KVMEdge.sharesDeskSpace`
   now decides from the monitor arrangement, and `KVMEdge.touching` requires an

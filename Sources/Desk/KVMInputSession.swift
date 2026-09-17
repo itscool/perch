@@ -472,7 +472,11 @@ final class KVMInputSession: ObservableObject {
                 if automatic, now - grantedAt < 1, peer != grant.focus.computer { return }
                 if pointer?.monitor == monitor, pointer?.computer == owner { return }
             }
-            let entry = Self.entryPoint(requested: position, carried: pointer?.position, screen: screen.geometry)
+            guard let entry = Self.entryPoint(requested: position, carried: pointer?.position, screen: screen.geometry) else {
+                blockedTarget = (preset, monitor)
+                localProblem = "Move the pointer onto one of the desk's screens to start sharing. Perch will not jump it somewhere you did not put it."
+                return
+            }
             let participants = Set(readiness.keys.filter(fresh)).union([node.localID])
             prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
                           participants: participants, focus: .init(monitor: monitor, computer: owner, position: entry)))
@@ -644,13 +648,16 @@ final class KVMInputSession: ObservableObject {
     /// on every switch. Continue from where the pointer already is, moved the
     /// shortest distance needed to land on the new screen. The centre is a
     /// last resort, used only when there is no pointer yet to carry over.
-    static func entryPoint(requested: KVMPoint?, carried: KVMPoint?, screen: KVMGeometry) -> KVMPoint {
+    /// Nil means there is no real pointer to continue from, and Perch does not
+    /// invent one: control waits rather than teleporting the cursor somewhere
+    /// the person never put it.
+    static func entryPoint(requested: KVMPoint?, carried: KVMPoint?, screen: KVMGeometry) -> KVMPoint? {
         if let requested, screen.contains(requested) { return requested }
-        if let carried {
-            return KVMPoint(x: min(screen.right, max(screen.x, carried.x)),
-                            y: min(screen.bottom, max(screen.y, carried.y)))
-        }
-        return KVMPoint(x: screen.x + screen.displayedWidth / 2, y: screen.y + screen.displayedHeight / 2)
+        // The shared pointer wins, then the asking Mac's own cursor, each moved
+        // the shortest distance needed to land on this screen.
+        guard let nearest = carried ?? requested else { return nil }
+        return KVMPoint(x: min(screen.right, max(screen.x, nearest.x)),
+                        y: min(screen.bottom, max(screen.y, nearest.y)))
     }
 
     /// Start a hair inside the destination so the entry itself cannot read as

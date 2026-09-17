@@ -1,6 +1,14 @@
 # Perch release history
 
-## 2.0.205 — Current
+## 2.0.218 — Current
+
+- One shared Desk pointer that any keyboard or mouse on any Mac moves; control moves over faster, and using another Mac’s mouse no longer pulls control away.
+- Desk wires draw from either end; a connected input moves by dragging it or disappears when dropped in empty space.
+- Clear a preset, or start the whole desk over with Reset desk.
+- Changing a screen’s input profile replaces its inputs instead of duplicating ports.
+- Screen outlines on the Desk canvas no longer get cut off.
+
+## 2.0.205
 
 - The Desk pointer no longer stays behind on the Mac you left and carries on from where it was when control moves, including when you pick up the other Mac’s mouse.
 - Keyboard and mouse sharing only takes over when screens sit next to each other in Desk.

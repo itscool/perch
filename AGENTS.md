@@ -61,6 +61,13 @@ Do not quit or restart the user's app merely to update the files: the next user
 restart should pick up the new version. Report running and on-disk versions
 separately. This does not authorize helper changes, notarization or publication.
 
+Local `./build.sh` builds carry no `SUFeedURL` or `SUPublicEDKey`; only the
+release pipeline adds them, and without both Perch's updater never starts. So
+never let a local build replace an installed bundle that has them: that silently
+stops update checks. After a release, install the published, notarized app from
+`build/releases/<version>/Perch.app` instead, and check both keys before and
+after any replacement, alongside the designated requirement.
+
 # Appearance options and built-in presets
 
 Whenever appearance options are added, removed or changed, review every built-in

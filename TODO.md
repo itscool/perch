@@ -650,6 +650,14 @@ and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
 and verified with `brew info`. Native acceptance of the Desk pointer fixes on
 the physical two-Mac desk is still open.
 
+Perch 2.0.218 was published on September 17, 2026. Apple accepted the app
+(4f61cef9-323b-4882-b473-a9402652e6f6) and the DMG
+(ed77773e-19e1-47e8-a950-bd37eb1c6da5); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. Native acceptance is still open: the one-pointer
+desk input and the wiring rules on the live Desk page, on the physical two-Mac
+desk.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

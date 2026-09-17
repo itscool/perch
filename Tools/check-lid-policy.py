@@ -30,6 +30,9 @@ main = '''import Foundation
 do { try runLidPolicyTests(); try runLidCountdownTests() }
 catch { fputs("FAIL: \\(error.localizedDescription)\\n", stderr); exit(1) }
 '''
+# Resolved only to identify the toolchain in the cache key. The compile runs
+# through xcrun so the SDK is set; invoking this path directly leaves
+# Xcode's swiftc unable to load a standard library.
 compiler = subprocess.check_output(['xcrun', '--find', 'swiftc'], text=True).strip()
 version = subprocess.check_output([compiler, '--version'])
 digest = hashlib.sha256(version + main.encode() + Path(__file__).read_bytes())
@@ -41,7 +44,7 @@ if not binary.exists() or not stamp.exists() or stamp.read_text() != key:
     print('Compiling headless lid-policy tests…', flush=True)
     entry = output / 'main.swift'
     entry.write_text(main)
-    subprocess.run([compiler, '-O', '-whole-module-optimization',
+    subprocess.run(['xcrun', 'swiftc', '-O', '-whole-module-optimization',
                     *map(str, sources), str(entry), '-o', str(binary)], check=True)
     stamp.write_text(key)
 started = time.perf_counter()

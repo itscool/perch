@@ -27,10 +27,12 @@ Keep this part short. The slow work belongs to the agent.
    - `python3 Tools/check-kvm.py`, `Tools/check-desk-network.py`, `Tools/check-lid-policy.py`,
      `Tools/check-dialog-contract.py`, `Tools/check-dialog-ownership.py --output DIR`,
      `Tools/check-release-all.py`, `Tools/check-release-pipeline.py`,
-     `Tools/check-release-assets.py`, `Tools/check-release-launcher.py`
+     `Tools/check-release-assets.py`, `Tools/check-release-launcher.py`,
+     `Tools/check-build-number.py`, `Tools/check-install-candidate.py`
    - `xcrun notarytool history --keychain-profile Perch` succeeds, so credentials exist.
-4. Work out the version: the pipeline bumps the build, so the release is
-   `2.0.<CFBundleVersion + 1>` from Info.plist.
+4. Work out the version: `python3 Tools/build_number.py next` prints the build
+   number the release will reserve, the next above the last release, the last
+   local build and the installed app. The release is `2.0.<that number>`.
 5. Write the notes people will read, in plain feature terms, with no internals:
    - `Release/notes.md`: `# Perch 2.0.N — What’s new`, three to six short bullets
      about what changed for the person. Keep the requirements line.
@@ -43,7 +45,8 @@ Keep this part short. The slow work belongs to the agent.
    is running and what they can do once it finishes.
 7. When the agent's completion notice arrives, relay the outcome: the published
    version, whether `brew upgrade --cask perch` now installs it, and anything that
-   needs the user.
+   needs the user. On this Mac, Perch's own updater offers the release; never copy
+   a release into /Applications by hand.
 
 ## Release agent
 

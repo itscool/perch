@@ -12,7 +12,8 @@ With no options, prepare dependencies and build build/Perch.app.
 
 Options:
   --output PATH          Build a separate candidate at PATH (must end in .app).
-  --no-bump              Keep the version in Info.plist instead of incrementing
+  --no-bump              Use the last release's build number, for checks. Default
+                         builds take the next number from a private counter.
                          the build number. Use this to build the same version on
                          every Mac of a desk from the same commit.
 
@@ -132,15 +133,20 @@ OUTPUT_APP="$APP"
 mkdir -p "$(dirname "$OUTPUT_APP")"
 STAGING=$(mktemp -d "$(dirname "$OUTPUT_APP")/.perch-build.XXXXXX")
 APP="$STAGING/$(basename "$OUTPUT_APP")"
+# Local builds and releases share one always-increasing build number, so
+# Perch's updater always offers a newer release (Tools/build_number.py). A local
+# build records its number privately and leaves the tracked Info.plist alone; a
+# release writes its reserved number there for the pipeline to commit.
 BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)
 [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "CFBundleVersion must be an integer" >&2; exit 1; }
-if [[ "$BUMP_VERSION" == 1 ]]; then
-    BUILD_NUMBER=$((10#$BUILD_NUMBER + 1))
-    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
-    RELEASE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist | cut -d. -f1-2)
-    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $RELEASE_VERSION.$BUILD_NUMBER" Info.plist
+if [[ "$BUMP_VERSION" == 0 ]]; then
+    echo "Building version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist) with the last release's number (--no-bump), for checks."
+elif [[ "${PERCH_RELEASE_BUILD:-0}" == 1 ]]; then
+    BUILD_NUMBER=$(python3 Tools/build_number.py reserve-release)
+    echo "Reserved release build $BUILD_NUMBER in Info.plist."
 else
-    echo "Building version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist) without changing Info.plist (--no-bump)."
+    BUILD_NUMBER=$(python3 Tools/build_number.py allocate-local)
+    echo "Building local build $BUILD_NUMBER; the tracked Info.plist is unchanged."
 fi
 mkdir -p "$APP/Contents/MacOS"
 xcrun clang -std=c11 -O2 -Wall -Wextra -Werror Sources/Native/PerchEventLauncher.c -o "$APP/Contents/MacOS/PerchEventLauncher"
@@ -152,6 +158,7 @@ xcrun swift Tools/render-branding.swift "$PWD/build/branding"
 mkdir -p "$APP/Contents/Resources"
 cp build/branding/Perch.icns "$APP/Contents/Resources/Perch.icns"
 cp Info.plist "$APP/Contents/Info.plist"
+python3 Tools/build_number.py stamp "$APP" "$BUILD_NUMBER"
 python3 Tools/configure-updates.py "$APP"
 mkdir -p "$APP/Contents/Resources"
 cp Tools/install-event-collector.sh "$APP/Contents/Resources/install-event-collector.sh"

@@ -16,9 +16,9 @@ sidebar, uses native Sparkle dialogs, saves checking preferences immediately and
 requires the user to choose installation. See SPARKLE-REVIEW.md for handoff design,
 actual signed-fixture installation/retry evidence and remaining acceptance.
 
-Builds without update configuration remain usable and explain that release
-checking is not configured. They do not contact a placeholder server. To prepare
-a configured build, set both public values before running build.sh --output APP:
+Every build carries the production feed and public key from Release/config.json,
+so a Mac testing a local build is still offered the next release. To point a
+build at another feed, such as a test fixture, set both public values first:
 
 - PERCH_UPDATE_FEED_URL: the intended HTTPS appcast URL.
 - PERCH_UPDATE_PUBLIC_KEY: the base64 32-byte public Ed25519 key.

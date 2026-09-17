@@ -61,12 +61,17 @@ Do not quit or restart the user's app merely to update the files: the next user
 restart should pick up the new version. Report running and on-disk versions
 separately. This does not authorize helper changes, notarization or publication.
 
-Local `./build.sh` builds carry no `SUFeedURL` or `SUPublicEDKey`; only the
-release pipeline adds them, and without both Perch's updater never starts. So
-never let a local build replace an installed bundle that has them: that silently
-stops update checks. After a release, install the published, notarized app from
-`build/releases/<version>/Perch.app` instead, and check both keys before and
-after any replacement, alongside the designated requirement.
+Install with `python3 Tools/install-candidate.py`, never by hand. It refuses a
+build without update settings, signed with a different designated requirement,
+or whose build number does not move forward; it swaps by rename, keeps previous
+copies, and never removes a copy a running Perch still uses. Every build carries
+the update feed and public key from Release/config.json, and local builds and
+releases share one always-increasing build number (`Tools/build_number.py`):
+`./build.sh` takes the next number privately and leaves the tracked Info.plist
+alone, and a release reserves the next number above the last release, the last
+local build and the installed app. So a Mac testing a local build is still
+offered each release by Perch's own updater. `--no-bump` builds reuse the last
+release's number and are for checks only.
 
 # Appearance options and built-in presets
 

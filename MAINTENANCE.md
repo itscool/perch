@@ -10,16 +10,19 @@ Local releases use the persistent **Perch Local Code Signing** certificate. Comp
 
 Run `bash Tools/check-release.sh` for the safe regression and app-owned UI workflow checks. Add `--cpu` to check the live CPU sampler. The GUI tests use isolated shortcut requests and render Perch's views directly; they do not synthesize global keys or change permissions. Desktop interaction and physical hotkey delivery are separate from these tests.
 
-Replacing the installed bundle: stage the new build, compare designated
-requirements, then swap by rename so the running executable is never
-overwritten in place. Never delete a stashed bundle without first resolving,
-by process id, which bundle each running Perch actually executes from:
-`lsof -p <pid> | awk '$4=="txt"'`. On September 16, 2026 a cleanup guarded with
-`lsof -c Perch` returned nothing, so it deleted the stash the running Perch was
-executing from. The process survived, because macOS keeps the inode, but its
-bundle resources were gone until the next restart. A deleted bundle under a
-running Perch is the same condition that caused the live KVM breakage earlier
-that week, so prefer leaving old stashes in place over any automatic removal.
+Replacing the installed bundle: use `python3 Tools/install-candidate.py`, which
+encodes these rules and is pinned by `Tools/check-install-candidate.py`. It checks
+the build's update settings, designated requirement and build number, stages a
+copy, swaps by rename so a running executable is never overwritten, and removes an
+older copy only after locating, by process id, where every Perch launched from the
+install folder now executes. Helpers launched elsewhere, such as the root lid
+helper that lsof cannot inspect, cannot be running from those copies and are
+skipped. On September 16, 2026 hand-typed steps broke both rules: a cleanup
+guarded with `lsof -c Perch` returned nothing and deleted the copy the running
+Perch still used, and local builds without update settings switched off update
+checks. Local builds and releases share one increasing build number through
+`Tools/build_number.py`, so each release is offered even to a Mac running a newer
+local build.
 
 ## Source layout and shared services
 

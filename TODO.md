@@ -828,6 +828,26 @@ monitor command checks pass. `runDeskSharedSpaceTests` pins the arrangement
 rules and `runDeskHandoverTests` pins where control lands on a switch. The cursor behaviour itself still needs acceptance on the physical
 two-Mac desk, since no headless test can observe a hardware cursor.
 
+## Checkpoint: local builds keep receiving releases (September 16, 2026)
+
+A Mac testing local builds is now still offered each release. Every build carries
+the update feed and public key from Release/config.json. Local builds and releases
+share one always-increasing build number through `Tools/build_number.py`:
+`./build.sh` records its number in an untracked counter and leaves Info.plist
+alone, and a release reserves the next number above the last release, the last
+local build and the installed app. `Tools/install-candidate.py` replaces hand-typed
+installs; it refuses a build without update settings, signed differently or not
+moving forward, and never removes a copy a running Perch uses. The Homebrew cask
+is marked `auto_updates`, so a plain `brew upgrade` leaves Perch to its own updater
+while `brew upgrade --cask perch` still upgrades it.
+
+Verified: `Tools/check-build-number.py`, `Tools/check-install-candidate.py`,
+`Tools/check-app-bundle.py` and the four release checks pass; `./build.sh` made
+local build 206 with Info.plist untouched and update settings present;
+`--self-test` 42 PASS. Running: Perch 2.0.205, the release. On disk: 2.0.206, the
+local build, which takes effect on the next restart. Native acceptance still open:
+the next release being offered in-app on this Mac.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

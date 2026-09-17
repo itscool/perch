@@ -1,6 +1,13 @@
 # Perch release history
 
-## 2.0.204 — Current
+## 2.0.205 — Current
+
+- The Desk pointer no longer stays behind on the Mac you left and carries on from where it was when control moves, including when you pick up the other Mac’s mouse.
+- Keyboard and mouse sharing only takes over when screens sit next to each other in Desk.
+- Old Accessibility and Input Monitoring entries from a differently signed Perch are removed automatically.
+- Prevent idle lock says how long the Mac stays unlocked.
+
+## 2.0.204
 
 - Redesigned Desk page, steadier Desk connections and keyboard and mouse sharing that follows the pointer; every Mac on a desk needs this version.
 - Quit turns Perch off and first lists what stops; an Agent Kill Switch block stays in place.

@@ -38,6 +38,7 @@ struct DeskPresetCard: View {
     let index: Int
     let preset: KVMPreset
     @State private var hovered = false
+    @State private var confirmingClear = false
 
     private var editing: Bool { model.presetIndex == index }
     private var readiness: String? { model.readinessIssue(for: index) }
@@ -59,13 +60,21 @@ struct DeskPresetCard: View {
                     .disabled(readiness != nil || model.switchingPreset != nil)
                     .accessibilityLabel("Switch to \(preset.name)")
                     .help(readiness ?? model.backend.wording.presetActivationHelp)
+                Button { confirmingClear = true } label: { Image(systemName: "eraser").font(.system(size: 11, weight: .semibold)).frame(width: 26, height: 20) }
+                    .buttonStyle(DeskCanvasButtonStyle()).foregroundStyle(.secondary)
+                    .disabled(preset.assignments.isEmpty)
+                    .accessibilityLabel("Clear \(preset.name)")
+                    .help(preset.assignments.isEmpty ? "This preset has no connections to clear." : "Clear this preset’s connections. Screens, inputs and cables stay.")
+                    .confirmationDialog("Clear \(preset.name)?", isPresented: $confirmingClear) {
+                        Button("Clear preset", role: .destructive) { model.clearPreset(index) }
+                    } message: { Text("It stops switching any screen. Your screens, inputs and cables stay as they are.") }
                 Text(preset.shortcut.label).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
             }
         }
         .padding(12)
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12).fill(editing ? Color.teal.opacity(hovered ? 0.16 : 0.10) : (hovered ? Color.teal.opacity(0.06) : Color(nsColor: .controlBackgroundColor))))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(editing ? Color.teal : Color(nsColor: .separatorColor), lineWidth: editing ? 2 : 1))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(editing ? Color.teal : Color(nsColor: .separatorColor), lineWidth: editing ? 2 : 1))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture { select() }
         .onHover { hovered = $0 }

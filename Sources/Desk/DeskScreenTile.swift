@@ -21,8 +21,12 @@ struct DeskScreenTile: View {
     @State private var hovered = false
 
     private var geometry: KVMGeometry { monitor.geometry }
-    private var width: CGFloat { max(1, geometry.displayedWidth * layout.scale) }
-    private var height: CGFloat { max(1, geometry.displayedHeight * layout.scale) }
+    // Edges land on whole points, so screens that touch share a crisp boundary
+    // instead of anti-aliasing and clipping each other's outline.
+    private var left: CGFloat { (layout.origin.x + (geometry.x - layout.bounds.minX) * layout.scale).rounded() }
+    private var top: CGFloat { (layout.origin.y + (geometry.y - layout.bounds.minY) * layout.scale).rounded() }
+    private var width: CGFloat { max(1, (layout.origin.x + (geometry.x + geometry.displayedWidth - layout.bounds.minX) * layout.scale).rounded() - left) }
+    private var height: CGFloat { max(1, (layout.origin.y + (geometry.y + geometry.displayedHeight - layout.bounds.minY) * layout.scale).rounded() - top) }
     private var compact: Bool { width < 150 || height < 130 }
     private var identifying: Bool { model.backend.isIdentifying(monitor: monitor.id) }
     private var selected: Bool { model.selected == monitor.id }
@@ -38,7 +42,7 @@ struct DeskScreenTile: View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 9)
                 .fill(selected ? Color.teal.opacity(0.14) : (hovered ? Color.teal.opacity(0.06) : Color(nsColor: .controlBackgroundColor)))
-                .overlay(RoundedRectangle(cornerRadius: 9).stroke(selected ? Color.teal : (hovered ? Color.teal.opacity(0.7) : Color.gray.opacity(0.65)), lineWidth: selected ? 2.5 : (hovered ? 2 : 1.5)))
+                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? Color.teal : (hovered ? Color.teal.opacity(0.7) : Color.gray.opacity(0.65)), lineWidth: selected ? 2.5 : (hovered ? 2 : 1.5)))
                 .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 5) {
                 titleRow
@@ -77,8 +81,7 @@ struct DeskScreenTile: View {
                 dragEnd(value.translation)
             })
         .deskControl("region:screen:" + monitor.id.uuidString)
-        .offset(x: layout.origin.x + (geometry.x - layout.bounds.minX) * layout.scale + translation.width,
-                y: layout.origin.y + (geometry.y - layout.bounds.minY) * layout.scale + translation.height)
+        .offset(x: left + translation.width, y: top + translation.height)
     }
     @State private var isDragging = false
 

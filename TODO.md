@@ -880,6 +880,37 @@ the challenge discard; native input, monitor command and app bundle checks pass.
 Running: 2.0.206. On disk: 2.0.208, taking effect on the next restart. Still open:
 native acceptance on the physical two-Mac desk, and version 2, hiding.
 
+## Checkpoint: desk wiring, clear preset and reset desk (September 17, 2026)
+
+Scott reported new wires not connecting. Cause: a wire drawn to an input no
+computer owned saved the preset route, but nothing claimed the input, and wires
+only draw for claimed inputs, so it stayed invisible. Rebuilt on his rules
+(`DeskWireOutcome`): an unconnected input draws a new wire from either side; a
+connected input detaches when dragged and moves to the input it is dropped on;
+a drag from a computer always makes a new connection, claiming the input and
+replacing another computer's connection and routes on it; either end dropped in
+empty space removes the wire. Neither reset existed: each preset now has a
+Clear button and the Desk toolbar has Reset desk, both confirmed first. Reset
+removes screens, inputs and routes on every Mac, keeps paired Macs and preset
+names. Canvas polish: outlines draw inside their frames and screen edges land on
+whole points, so selection and touching screens no longer clip outlines.
+
+His extra DisplayPort input is left over from an older setup: adding a screen
+with a monitor profile only adds inputs, so a mix of LG and standard input codes
+leaves duplicates. Reset desk, or remove the extra input in its port menu.
+
+The Desk profile, control path and wiring suite was never run by any tool; it
+is now in `--self-test`, and its desktop ownership test was repaired (the sample
+desk's USB-C inputs carry no input code).
+
+Verified: `./build.sh` local build 215; `--self-test` 46 PASS including
+`desk wiring rules`; `Tools/kvm-lab/check.py` 268 checks; `render-desk-canvas.py`
+native dispatch for drawing, moving and removing wires; `check-kvm.py`,
+`check-desk-network.py` and `check-dialog-contract.py` pass. Running: 2.0.208.
+On disk: 2.0.215, taking effect on the next restart. Still open: native
+acceptance of the wiring on the live Desk page, and MX Keys for Business and MX
+Keys Mini profiles, which need each keyboard's product ID from the device.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

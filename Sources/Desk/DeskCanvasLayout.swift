@@ -194,7 +194,6 @@ enum DeskScreenPlacement {
 /// A click stays a click only while it never leaves the drag deadzone.
 struct DeskWireGesture {
     static let threshold: CGFloat = 3
-    enum Result: Equatable { case cancel, click, connect(String, String) }
     private(set) var source: String?
     private(set) var start = CGPoint.zero
     private(set) var point = CGPoint.zero
@@ -208,12 +207,40 @@ struct DeskWireGesture {
         (a.hasPrefix("port:") && (b.hasPrefix("computer:") || b.hasPrefix("preset:"))) ||
         (b.hasPrefix("port:") && (a.hasPrefix("computer:") || a.hasPrefix("preset:")))
     }
-    mutating func finish(insideSource: Bool, target: String?) -> Result {
-        defer { self = Self() }
-        guard let source else { return .cancel }
-        if !dragging { return insideSource ? .click : .cancel }
-        guard let target, Self.compatible(source, target) else { return .cancel }
-        return .connect(source, target)
+}
+
+/// What letting go of a wire does. The rules, as Scott set them:
+/// - An unconnected input can draw a new wire from either side.
+/// - A connected input detaches when dragged, so it can be rewired.
+/// - A drag from a computer always creates a new connection.
+/// - Either end dropped in empty space disappears.
+enum DeskWireOutcome: Equatable {
+    case nothing, click
+    /// This computer uses the input in this preset, claiming the input for it.
+    case draw(slot: Int, computer: UUID, port: UUID)
+    /// A detached connection's monitor end moves to another input.
+    case move(from: UUID, to: UUID)
+    /// A detached connection dropped in empty space.
+    case remove(port: UUID)
+
+    static func resolve(source: String, target: String?, dragging: Bool, insideSource: Bool, detached: UUID?) -> Self {
+        guard dragging else { return insideSource ? .click : .nothing }
+        if let detached {
+            guard let target else { return .remove(port: detached) }
+            guard let port = portID(target), port != detached else { return .nothing }
+            return .move(from: detached, to: port)
+        }
+        guard let target else { return .nothing }
+        if let port = portID(source), let socket = presetSocket(target) { return .draw(slot: socket.slot, computer: socket.computer, port: port) }
+        if let port = portID(target), let socket = presetSocket(source) { return .draw(slot: socket.slot, computer: socket.computer, port: port) }
+        return .nothing
+    }
+    static func portID(_ id: String) -> UUID? { id.hasPrefix("port:") ? UUID(uuidString: String(id.dropFirst(5))) : nil }
+    static func presetSocket(_ id: String) -> (computer: UUID, slot: Int)? {
+        let parts = id.split(separator: ":")
+        guard parts.count == 3, parts[0] == "preset", let computer = UUID(uuidString: String(parts[1])),
+              let slot = Int(parts[2]), (1...3).contains(slot) else { return nil }
+        return (computer, slot)
     }
 }
 

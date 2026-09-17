@@ -144,20 +144,29 @@ import Foundation
         let aligned = DeskScreenPlacement.preview(CGRect(x: 605, y: 2, width: 600, height: 340), among: [fixed], scale: 1)
         try check(Set(aligned.guides.filter(\.horizontal).map(\.label)) == ["Top", "Center", "Bottom"], "show simultaneous alignment guides")
         var wire = DeskWireGesture()
-        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 2, y: 0))
-        try check(wire.finish(insideSource: true, target: nil) == .click, "a small movement remains a release-triggered click")
-        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 3, y: 0)); wire.move(to: .zero)
-        try check(wire.finish(insideSource: true, target: nil) == .cancel, "returning to the source after dragging never opens its menu")
-        for (source, target) in [("port:a", "computer:b"), ("computer:b", "port:a")] {
-            wire.begin(source, at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
-            try check(wire.finish(insideSource: false, target: target) == .connect(source, target), "wire connects in either direction")
+        let wirePortID = UUID(), wireOtherPort = UUID(), wireComputerID = UUID()
+        let wirePort = "port:" + wirePortID.uuidString, wireOther = "port:" + wireOtherPort.uuidString, wireConnector = "preset:\(wireComputerID.uuidString):1"
+        func release(_ gesture: DeskWireGesture, inside: Bool, target: String?) -> DeskWireOutcome {
+            DeskWireOutcome.resolve(source: gesture.source ?? "", target: target, dragging: gesture.dragging, insideSource: inside, detached: nil)
         }
-        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
-        try check(wire.finish(insideSource: false, target: "port:b") == .cancel, "same-side targets do not connect")
-        wire.begin("port:a", at: .zero); wire.move(to: CGPoint(x: 20, y: 0)); wire = DeskWireGesture()
-        try check(wire.finish(insideSource: true, target: "computer:b") == .cancel, "Esc cancellation consumes the later mouse-up")
+        wire.begin(wirePort, at: .zero); wire.move(to: CGPoint(x: 2, y: 0))
+        try check(release(wire, inside: true, target: nil) == .click, "a small movement remains a release-triggered click")
+        wire.begin(wirePort, at: .zero); wire.move(to: CGPoint(x: 3, y: 0)); wire.move(to: .zero)
+        try check(release(wire, inside: true, target: nil) == .nothing, "returning to the source after dragging never opens its menu")
+        for (source, target) in [(wirePort, wireConnector), (wireConnector, wirePort)] {
+            wire.begin(source, at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
+            try check(release(wire, inside: false, target: target) == .draw(slot: 1, computer: wireComputerID, port: wirePortID), "wire connects in either direction")
+        }
+        wire.begin(wirePort, at: .zero); wire.move(to: CGPoint(x: 20, y: 0))
+        try check(release(wire, inside: false, target: wireOther) == .nothing, "same-side targets do not connect")
+        wire.begin(wirePort, at: .zero); wire.move(to: CGPoint(x: 20, y: 0)); wire = DeskWireGesture()
+        try check(wire.source == nil, "Esc cancellation consumes the later mouse-up")
         wire.begin("port:a", at: .zero)
-        try check(wire.finish(insideSource: false, target: nil) == .cancel, "release outside the source cancels even before the threshold")
+        try check(release(wire, inside: false, target: nil) == .nothing, "release outside the source does nothing before the threshold")
+        let lifted = UUID(), lifting = "port:" + lifted.uuidString
+        try check(DeskWireOutcome.resolve(source: lifting, target: nil, dragging: true, insideSource: false, detached: lifted) == .remove(port: lifted), "a detached end dropped in space removes the wire")
+        try check(DeskWireOutcome.resolve(source: lifting, target: wireOther, dragging: true, insideSource: false, detached: lifted) == .move(from: lifted, to: wireOtherPort), "a detached end dropped on another input moves the wire")
+        try check(DeskWireOutcome.resolve(source: lifting, target: lifting, dragging: true, insideSource: true, detached: lifted) == .nothing, "a detached end dropped back on its own input stays")
         var pending = KVMGroup.sample()
         let pendingIndex = pending.connections.firstIndex { $0.computer != nil }!
         let pendingCable = pending.connections[pendingIndex], pendingComputer = pendingCable.computer!

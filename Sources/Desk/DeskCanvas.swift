@@ -106,16 +106,21 @@ struct DeskCanvas: View {
         .padding(DeskCanvasGeometry.padding)
         .frame(width: geometry.documentSize.width, height: geometry.documentSize.height, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5)))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .onChange(of: model.group.monitors.map(\.id)) { _, ids in if let current = drag, !ids.contains(current.id) { finishDrag() } }
         .onPreferenceChange(DeskControlFrames.self) { controlFrames = $0 }
         .onChange(of: model.group.connections) { _, _ in wire.move(to: wire.gesture.point) }
         .onAppear {
-            wire.connect = actions.cable
             wire.connection = { id in model.group.connections.first { "port:" + $0.id.uuidString == id } }
-            wire.rewire = { source, target in model.rewireCable(source, to: target) }
-            wire.presetConnect = { slot, computer, port in model.assignPresetPort(slot: slot, computer: computer, connection: port) }
+            // A wire from a computer claims the input for that computer, then
+            // matches its display: automatically when unambiguous, else the cable step.
+            wire.draw = { slot, computer, port in
+                model.drawWire(slot: slot, computer: computer, port: port)
+                if model.problem == nil { actions.cable(port, computer) }
+            }
+            wire.moveWire = { from, to in model.moveWire(from: from, to: to) }
+            wire.removeWire = { port in model.removeWire(port) }
         }
         .onDisappear { finishDrag(); wire.cancel() }
         .overlay { DeskWireOverlay(controller: wire).allowsHitTesting(false) }
@@ -133,7 +138,7 @@ struct DeskCanvas: View {
                     DeskComputerCard(model: model, computer: computer, wire: wire, details: actions.computerDetails)
                 }
             }
-            Text("Teal: chosen for the preset you are editing. Green: active on the displays now. Purple: both. Drag a computer’s numbered connector to a monitor input, or pick an input in a screen, to set that preset. Play switches the displays.")
+            Text("Teal: chosen for the preset you are editing. Green: active on the displays now. Purple: both. Drag between a computer’s numbered connector and a monitor input to connect them. Drag a connected input to another input to move it, or into empty space to remove it. Play switches the displays.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .background(GeometryReader { area in Color.clear.preference(key: DeskRowHeight.self, value: area.size.height) })
@@ -169,6 +174,7 @@ struct DeskSurfaceToolbar: View {
     @ObservedObject var model: DeskModel
     let addScreen: () -> Void
     let addComputer: () -> Void
+    @State private var confirmingReset = false
     var body: some View {
         HStack(spacing: 12) {
             Text("Editing \(model.preset.name)").font(.headline).foregroundStyle(.teal).lineLimit(1)
@@ -180,6 +186,14 @@ struct DeskSurfaceToolbar: View {
             Button(action: addComputer) { Label("Add computer", systemImage: "plus") }
                 .disabled(model.group.computers.count >= 16)
                 .help(model.backend.wording.addComputerHelp)
+            Button { confirmingReset = true } label: { Label("Reset desk…", systemImage: "arrow.counterclockwise") }
+                .disabled(model.group.monitors.isEmpty && model.group.presets.allSatisfy { $0.assignments.isEmpty })
+                .help("Start this desk’s screens, inputs and presets over. Your paired Macs stay paired.")
+                .confirmationDialog("Reset this desk?", isPresented: $confirmingReset) {
+                    Button("Reset desk", role: .destructive) { model.resetLayout() }
+                } message: {
+                    Text("Every screen, input and connection is removed on all Macs in this desk. Your Macs stay paired and preset names stay. Add your screens again afterwards.")
+                }
         }.fixedSize(horizontal: false, vertical: true)
     }
 }

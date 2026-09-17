@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 func runDeskInspectionTests() throws {
     func check(_ condition: Bool, _ message: String) throws {
@@ -119,26 +120,107 @@ func runDeskProfilePolicyTests() throws {
     try runDeskPresetGraphTests()
 }
 
-/// The Desk graph is the single preset-editing path: numbered computer sockets
-/// assign monitor ports, while physical cable ownership remains independent.
+/// Records what the page asks of the desk, so claiming an input after a drawn
+/// wire is proven to reach the backend.
+private final class WiringBackend: DeskBackend {
+    let wording = DeskWording.live
+    var claimed: [(UUID, UUID)] = []
+    func edit(_ group: KVMGroup) throws {}
+    func activate(preset: UUID) {}
+    func readiness(preset: UUID) -> String? { nil }
+    func retryActive() {}
+    func revertSwitch() {}
+    func switchConnection(_ connection: UUID) {}
+    func mappingOptions() -> [DeskMappingOption] { [] }
+    func map(port: UUID, option: String) {}
+    func mapComputer(port: UUID, computer: UUID) { claimed.append((port, computer)) }
+    func displayStatus(computer: UUID) -> String? { nil }
+    func refreshScreens() {}
+    func panelAspect(monitor: UUID) -> Double? { nil }
+    func identify(monitor: UUID?) {}
+    func identifyDisplay(_ display: String, computer: UUID) {}
+    func identifyComputer(_ computer: UUID) {}
+    func isIdentifying(monitor: UUID) -> Bool { false }
+    func isIdentifying(display: String, computer: UUID) -> Bool { false }
+    func isIdentifying(computer: UUID) -> Bool { false }
+    func peerActionReadiness(computer: UUID, action: String) -> String? { nil }
+    func sheet(_ sheet: DeskSheet, close: @escaping () -> Void) -> AnyView? { nil }
+}
+
+/// The Desk graph's wiring rules, as Scott set them: a drag from a computer always
+/// creates a connection and claims the input; an unconnected input draws toward a
+/// computer; a connected input detaches to be rewired; a detached end dropped in
+/// empty space disappears. Also clearing one preset and resetting the desk.
 func runDeskPresetGraphTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
-    let model = DeskModel(backend: DeskFixtureBackend(), group: .sample())
-    let first = model.group.computers[0], second = model.group.computers[1]
-    let unassigned = model.group.connections.first { $0.computer == nil }!
-    model.assignPresetPort(slot: 2, computer: first.id, connection: unassigned.id)
-    try check(model.group.presets[1].assignments.contains { $0.monitor == unassigned.monitor && $0.connection == unassigned.id },
-              "Numbered preset socket did not assign an unassigned monitor input")
-    let before = model.group.presets[0].assignments
-    let foreign = model.group.connections.first { $0.computer == second.id }!
-    model.assignPresetPort(slot: 1, computer: first.id, connection: foreign.id)
-    try check(model.problem?.contains("belongs to another computer") == true && model.group.presets[0].assignments == before,
-              "Preset graph allowed a computer to claim another computer's physical input")
-    var gesture = DeskWireGesture()
-    gesture.begin("preset:\(first.id.uuidString):3", at: .zero)
-    gesture.move(to: CGPoint(x: 8, y: 0))
-    let result = gesture.finish(insideSource: false, target: "port:\(unassigned.id.uuidString)")
-    try check(result == .connect("preset:\(first.id.uuidString):3", "port:\(unassigned.id.uuidString)"),
-              "Preset socket drag did not produce a compatible graph connection")
-    print("PASS: numbered preset graph assignment, ownership guard and preset wire gesture")
+    let portID = UUID(), otherID = UUID(), computerID = UUID()
+    let connector = "preset:\(computerID.uuidString):2", socket = "port:\(portID.uuidString)", otherSocket = "port:\(otherID.uuidString)"
+    func outcome(_ source: String, _ target: String?, dragging: Bool = true, inside: Bool = false, detached: UUID? = nil) -> DeskWireOutcome {
+        DeskWireOutcome.resolve(source: source, target: target, dragging: dragging, insideSource: inside, detached: detached)
+    }
+    try check(outcome(connector, socket) == .draw(slot: 2, computer: computerID, port: portID), "A drag from a computer did not create a connection")
+    try check(outcome(socket, connector) == .draw(slot: 2, computer: computerID, port: portID), "An unconnected input could not draw a wire to a computer")
+    try check(outcome(connector, nil) == .nothing && outcome(socket, nil) == .nothing, "A new wire dropped in empty space was kept")
+    try check(outcome(socket, otherSocket, detached: portID) == .move(from: portID, to: otherID), "A detached connection did not move to another input")
+    try check(outcome(socket, nil, detached: portID) == .remove(port: portID), "A detached connection dropped in empty space did not disappear")
+    try check(outcome(socket, socket, inside: true, detached: portID) == .nothing, "Dropping a connection back on its own input changed it")
+    try check(outcome(socket, nil, dragging: false, inside: true, detached: portID) == .click && outcome(connector, nil, dragging: false, inside: true) == .click,
+              "A click on a connector or input did not open its menu")
+    try check(outcome("preset:\(computerID.uuidString):4", socket) == .nothing, "A connector outside the three preset slots drew a wire")
+
+    let sample = KVMGroup.sample()
+    let mac = sample.computers[0].id, studio = sample.computers[1].id
+    let left = sample.monitors[0].id, main = sample.monitors[1].id, side = sample.monitors[2].id
+    func port(_ group: KVMGroup, _ monitor: UUID, _ computer: UUID?) -> KVMConnection {
+        group.connections.first { $0.monitor == monitor && $0.computer == computer }!
+    }
+    func routes(_ group: KVMGroup, to id: UUID) -> [Int] {
+        group.presets.indices.filter { index in group.presets[index].assignments.contains { $0.connection == id } }
+    }
+
+    // Drawing onto a free input routes it; the page then claims it for that computer.
+    let backend = WiringBackend(), model = DeskModel(backend: backend, group: sample)
+    let free = port(sample, left, nil)
+    model.drawWire(slot: 2, computer: mac, port: free.id)
+    try check(model.problem == nil && model.group.presets[1].assignments.contains { $0.monitor == left && $0.connection == free.id } && routes(model.group, to: free.id) == [1],
+              "A wire onto a free input did not route it in that preset: \(model.problem ?? "")")
+    DeskPageState().beginCable(free.id, mac, model: model)
+    try check(backend.claimed.count == 1 && backend.claimed[0] == (free.id, mac), "The drawn input was not claimed for its computer, so the wire would stay invisible")
+
+    // Drawing onto another computer's input replaces that connection and its routes.
+    let taken = port(sample, main, studio)
+    try check(routes(sample, to: taken.id) == [0, 2], "Fixture changed: the Studio's main input should be in presets 1 and 3")
+    model.drawWire(slot: 2, computer: mac, port: taken.id)
+    let replaced = model.group.connections.first { $0.id == taken.id }!
+    try check(replaced.computer == nil && replaced.localDisplay == nil && routes(model.group, to: taken.id) == [1],
+              "A new connection did not replace the other computer's connection and routes")
+
+    // A detached connection moves with its computer and every preset route.
+    let moving = DeskModel(backend: WiringBackend(), group: sample)
+    let from = port(sample, left, studio), to = port(sample, left, nil)
+    moving.moveWire(from: from.id, to: to.id)
+    let moved = moving.group.connections.first { $0.id == to.id }!, emptied = moving.group.connections.first { $0.id == from.id }!
+    try check(moving.problem == nil && moved.computer == studio && emptied.computer == nil && routes(moving.group, to: to.id) == [0, 2] && routes(moving.group, to: from.id).isEmpty,
+              "A moved connection did not carry its computer and preset routes: \(moving.problem ?? "")")
+
+    // A detached connection dropped in empty space disappears.
+    let removing = DeskModel(backend: WiringBackend(), group: sample)
+    let gone = port(sample, side, mac)
+    removing.removeWire(gone.id)
+    try check(removing.group.connections.first { $0.id == gone.id }?.computer == nil && routes(removing.group, to: gone.id).isEmpty,
+              "A removed connection kept its computer or preset routes")
+
+    // Clearing one preset leaves the others and every input alone.
+    let clearing = DeskModel(backend: WiringBackend(), group: sample)
+    clearing.clearPreset(1)
+    try check(clearing.group.presets[1].assignments.isEmpty && clearing.group.presets[0] == sample.presets[0] && clearing.group.presets[2] == sample.presets[2] && clearing.group.connections == sample.connections,
+              "Clearing a preset changed something other than that preset")
+
+    // Resetting the desk starts screens, inputs and routes over but keeps the paired Macs.
+    let resetting = DeskModel(backend: WiringBackend(), group: sample)
+    resetting.resetLayout()
+    try check(resetting.problem == nil && resetting.group.monitors.isEmpty && resetting.group.connections.isEmpty && resetting.group.presets.allSatisfy { $0.assignments.isEmpty } &&
+              resetting.group.computers == sample.computers && resetting.group.presets.map(\.name) == sample.presets.map(\.name),
+              "Resetting the desk did not start the layout over while keeping paired Macs: \(resetting.problem ?? "")")
+    print("PASS: desk wiring rules: computer drags always connect and claim the input, free inputs draw to a computer, connected inputs detach to move, detached ends dropped in space disappear; clear preset and reset desk")
 }

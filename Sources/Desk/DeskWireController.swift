@@ -47,10 +47,13 @@ extension View {
     }
     private(set) var gesture = DeskWireGesture()
     private(set) var target: String?
-    var connect: ((UUID, UUID) -> Void)?
-    var presetConnect: ((Int, UUID, UUID) -> Void)?
+    /// A new wire: this computer uses the input in this preset.
+    var draw: ((Int, UUID, UUID) -> Void)?
+    /// A detached connection's monitor end moved to another input.
+    var moveWire: ((UUID, UUID) -> Void)?
+    /// A detached connection dropped in empty space.
+    var removeWire: ((UUID) -> Void)?
     var connection: ((String) -> KVMConnection?)?
-    var rewire: ((KVMConnection, KVMConnection) -> Void)?
     private var pickedUp: KVMConnection?
     var detachedPort: UUID? { gesture.dragging ? pickedUp?.id : nil }
     var cableSource: String? {
@@ -115,29 +118,16 @@ extension View {
         move(to: point)
         // A geometry refresh may cancel a cable changed by another peer.
         guard gesture.source == id else { return false }
-        let destination = target
-        if gesture.dragging, let pickedUp {
-            let targetCable = destination.flatMap { connection?($0) }
-            cancel()
-            if let targetCable, targetCable.id != pickedUp.id { rewire?(pickedUp, targetCable) }
-            return false
-        }
         let inside = socket(id).map { $0.bounds.contains($0.convert(point, from: nil)) } ?? false
-        let result = gesture.finish(insideSource: inside, target: destination)
+        let outcome = DeskWireOutcome.resolve(source: id, target: target, dragging: gesture.dragging, insideSource: inside, detached: pickedUp?.id)
         cancel()
-        if case let .connect(source, target) = result {
-            let port = source.hasPrefix("port:") ? source : target
-            if let p = UUID(uuidString: String(port.dropFirst(5))) {
-                let computer = source.hasPrefix("computer:") ? source : target
-                if computer.hasPrefix("computer:"), let c = UUID(uuidString: String(computer.dropFirst(9))) { connect?(p, c) }
-                let preset = source.hasPrefix("preset:") ? source : target
-                if preset.hasPrefix("preset:") {
-                    let parts = preset.split(separator: ":")
-                    if parts.count == 3, let c = UUID(uuidString: String(parts[1])), let slot = Int(parts[2]) { presetConnect?(slot, c, p) }
-                }
-            }
+        switch outcome {
+        case .draw(let slot, let computer, let port): draw?(slot, computer, port)
+        case .move(let from, let to): moveWire?(from, to)
+        case .remove(let port): removeWire?(port)
+        case .click, .nothing: break
         }
-        return result == .click
+        return outcome == .click
     }
     func cancel() {
         gesture = DeskWireGesture(); target = nil; pickedUp = nil
@@ -183,7 +173,7 @@ struct DeskWireSocket: NSViewRepresentable {
         view.setAccessibilityLabel(label)
         let routeState = (highlighted ? "; selected in editing preset" : "") + (activeRouting ? "; active now" : "")
         view.setAccessibilityValue(presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState)
-        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to assign this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to move this cable to another input; Esc cancels. Click for the port menu." : ". Drag to another connector to draw a wire. Click for connections."))
+        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to move this connection to another input, or into empty space to remove it; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire. Click for connections."))
         controller.register(view); view.needsDisplay = true
     }
     static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }

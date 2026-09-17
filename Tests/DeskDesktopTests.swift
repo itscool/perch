@@ -7,9 +7,12 @@ func runDeskDesktopTests() throws {
     legacy.removeValue(forKey: "desktopRecoverySupported")
     let oldHelper = try JSONDecoder().decode(SafetyStatus.self, from: JSONSerialization.data(withJSONObject: legacy))
     try check(status.desktopRecoverySupported == true && oldHelper.desktopRecoverySupported == nil, "A helper without recovery support was treated as capable")
-    let group = KVMGroup.sample(), local = group.computers[0].id
+    var group = KVMGroup.sample()
+    let local = group.computers[0].id
     let all = Set(group.computers.map(\.id))
     let monitor = group.monitors[0].id
+    // The fixture's USB-C inputs carry no code; ownership needs one on both sides.
+    group.connections[group.connections.firstIndex { $0.monitor == monitor && $0.computer == local }!].inputCode = 27
     let own = group.connections.first { $0.monitor == monitor && $0.computer == local }!
     let other = group.connections.first { $0.monitor == monitor && $0.computer != nil && $0.computer != local }!
     try check(DeskDesktopHandoff.effectiveInputs(reported: [:], optimistic: [monitor: other.inputCode!])[monitor] == other.inputCode!, "Accepted command was not used when readback was unavailable")

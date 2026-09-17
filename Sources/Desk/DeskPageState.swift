@@ -50,10 +50,16 @@ final class DeskPageState: ObservableObject {
         model.selected = connection.monitor
         if connection.computer == computer && connection.localDisplay != nil { return }
         model.backend.refreshScreens()
+        // An input already claimed for this computer but still waiting for its
+        // display resolves exactly like a free one.
+        let free = connection.computer == nil || connection.computer == computer
         let options = model.cableOptions(for: computer).filter { model.cableConflict($0, port: port) == nil }
-        if options.isEmpty, connection.computer == nil { model.backend.mapComputer(port: port, computer: computer); return }
+        if options.isEmpty, free {
+            if connection.computer == nil { model.backend.mapComputer(port: port, computer: computer) }
+            return
+        }
         let alreadyWired = options.contains { option in model.group.connections.contains { $0.computer == computer && $0.localDisplay == option.display } }
-        if let only = options.first, options.count == 1, connection.computer == nil, !alreadyWired {
+        if let only = options.first, options.count == 1, free, !alreadyWired {
             model.backend.map(port: port, option: only.id)
             if model.problem == nil { return }
         }

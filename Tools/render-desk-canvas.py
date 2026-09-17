@@ -30,10 +30,12 @@ let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
 let port = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 22))
 let computer = DeskWireSocketView(frame: NSRect(x: 110, y: 10, width: 24, height: 22))
 let portID = UUID(), computerID = UUID()
-port.socketID = "port:" + portID.uuidString; computer.socketID = "computer:" + computerID.uuidString
+port.socketID = "port:" + portID.uuidString; computer.socketID = "preset:" + computerID.uuidString + ":2"
 for socket in [port, computer] { socket.controller = interaction; container.addSubview(socket); interaction.register(socket) }
 var connections = 0
-interaction.connect = { p, c in precondition(p == portID && c == computerID); connections += 1 }
+interaction.draw = { slot, c, p in precondition(slot == 2 && p == portID && c == computerID); connections += 1 }
+interaction.moveWire = { _, _ in preconditionFailure("A free input has no wire to move") }
+interaction.removeWire = { _ in preconditionFailure("A free input has no wire to remove") }
 func mouse(_ type: NSEvent.EventType, _ x: CGFloat) -> NSEvent {
     NSEvent.mouseEvent(with: type, location: CGPoint(x: x, y: 21), modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
 }
@@ -45,18 +47,19 @@ computer.setFrameOrigin(CGPoint(x: 110, y: 10)); container.layoutSubtreeIfNeeded
 precondition(interaction.target == computer.socketID, "Layout returning beneath the pointer did not restore target")
 port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 1)
 port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 250)); port.mouseUp(with: mouse(.leftMouseUp, 250))
-precondition(connections == 1 && interaction.gesture.source == nil, "Release over empty canvas must cancel")
+precondition(connections == 1 && interaction.gesture.source == nil, "A new wire released over empty canvas draws nothing")
 port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
 let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
 port.keyDown(with: escape); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 1)
 computer.mouseDown(with: mouse(.leftMouseDown, 122)); computer.mouseDragged(with: mouse(.leftMouseDragged, 22)); computer.mouseUp(with: mouse(.leftMouseUp, 22)); precondition(connections == 2)
 port.mouseDown(with: mouse(.leftMouseDown, 22)); interaction.remove(port); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 2)
 interaction.cancel()
-print("PASS: native socket dispatch previews and commits both directions, cancels invalid drops/Esc/source removal; no event posting or windows")
+print("PASS: native socket dispatch draws new wires in both directions, previews before committing, draws nothing on empty drops/Esc/source removal; no event posting or windows")
 let simulation = DeskSimulation(store: URL(fileURLWithPath: CommandLine.arguments[2]))
 let model = simulation.makeModel()
-// Occupied inputs lift the existing computer end without changing storage
-// until a valid drop. Exercise native dispatch rather than only assigning state.
+// A connected input detaches its monitor end when dragged, without changing
+// storage until release: onto another input it moves, into space it goes.
+// Exercise native dispatch rather than only assigning state.
 let rewireController = DeskWireController()
 let rewires = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
 let oldPort = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 22))
@@ -66,29 +69,34 @@ var desk = KVMGroup.sample()
 let original = desk.connections[0], targetCable = desk.connections[1]
 oldPort.socketID = "port:" + original.id.uuidString
 newPort.socketID = "port:" + targetCable.id.uuidString
-hostSocket.socketID = "computer:" + original.computer!.uuidString
+hostSocket.socketID = "preset:" + original.computer!.uuidString + ":1"
 for socket in [oldPort, newPort, hostSocket] { socket.controller = rewireController; rewires.addSubview(socket); rewireController.register(socket) }
 rewireController.connection = { id in desk.connections.first { "port:" + $0.id.uuidString == id } }
-var rewired = 0
-rewireController.rewire = { from, to in try! DeskCableBinding.rewire(from, to: to, in: &desk); rewired += 1 }
+var rewired = 0, removed = 0
+rewireController.draw = { _, _, _ in preconditionFailure("Dragging a connected input must move it, not draw another wire") }
+rewireController.moveWire = { from, to in
+    try! DeskCableBinding.rewire(desk.connections.first { $0.id == from }!, to: desk.connections.first { $0.id == to }!, in: &desk); rewired += 1
+}
+rewireController.removeWire = { port in try! DeskCableBinding.apply(connection: port, computer: nil, display: nil, to: &desk); removed += 1 }
 let before = desk
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22))
 precondition(rewireController.end(oldPort.socketID, at: CGPoint(x: 23, y: 21)), "An occupied input still clicks without rewiring")
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
-precondition(rewireController.cableSource == hostSocket.socketID && rewireController.target == newPort.socketID && rewireController.detachedPort == original.id && desk == before)
+precondition(rewireController.cableSource == "computer:" + original.computer!.uuidString && rewireController.target == newPort.socketID && rewireController.detachedPort == original.id && desk == before)
 oldPort.keyDown(with: escape); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
-precondition(desk == before && rewired == 0, "Esc must restore the picked-up cable")
+precondition(desk == before && rewired == 0 && removed == 0, "Esc must restore the picked-up cable")
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 350)); oldPort.mouseUp(with: mouse(.leftMouseUp, 350))
-precondition(desk == before && rewired == 0, "Invalid drop must preserve the source and destination")
+precondition(removed == 1 && rewired == 0 && desk.connections[0].computer == nil && desk.connections[1] == before.connections[1], "A detached end dropped in space removes that wire only")
+desk = before
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122)); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
 precondition(rewired == 1 && desk.connections[0].computer == nil && desk.connections[1].computer == original.computer && desk.connections[1].localDisplay == original.localDisplay)
-precondition(desk.presets == before.presets && desk.monitors == before.monitors, "Rewiring must not change presets or physical screens")
+precondition(desk.monitors == before.monitors, "Rewiring must not change physical screens")
 desk = before
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
 desk.connections[0].computer = nil; desk.connections[0].localDisplay = nil
 let concurrent = desk
 oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
-precondition(desk == concurrent && rewired == 1, "Concurrent cable edits must cancel a stale gesture")
+precondition(desk == concurrent && rewired == 1 && removed == 1, "Concurrent cable edits must cancel a stale gesture")
 var failed = before; failed.connections[1].computer = nil; failed.connections[1].localDisplay = nil
 let failedBefore = failed
 var rejected = false
@@ -131,7 +139,7 @@ case "empty":
     simulation.newDesk("New desk")
 default: break
 }
-print("PASS: occupied-input rewiring, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
+print("PASS: connected inputs move or disappear when dropped, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
 let canvas = DeskCanvas(model: model, remove: { _ in }, dimensions: { _ in }, identify: { _ in }, hardware: { _ in }, cable: { _, _ in }, editPort: { _ in }, addPort: { _ in }, computerDetails: { _ in }, removeComputer: { _ in }, addComputer: {})
 let content = VStack(alignment: .leading, spacing: 14) {
     Text("Perch · Desk cables").font(.system(size: 26, weight: .semibold))

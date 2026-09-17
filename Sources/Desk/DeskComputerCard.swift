@@ -21,7 +21,7 @@ struct DeskComputerCard: View {
         }.padding(.horizontal, 10).padding(.bottom, 8).padding(.top, 21)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 8).fill(focused ? Color.blue.opacity(0.14) : Color(nsColor: .controlBackgroundColor)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.blue.opacity(0.75), lineWidth: focused ? 2.5 : 1))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(routes.isEmpty ? Color.secondary.opacity(0.5) : Color.blue.opacity(0.75), lineWidth: focused ? 2.5 : 1))
             .overlay(alignment: .topLeading) {
                 HStack(spacing: 5) {
                     ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
@@ -33,9 +33,10 @@ struct DeskComputerCard: View {
                                        presetNumbers: [slot + 1], highlighted: model.presetIndex == slot && assigned,
                                        activeRouting: model.active?.id == preset.id) {
                             let menu = DeskSocketMenu()
-                            for port in model.group.connections where port.computer == computer.id || port.computer == nil {
+                            for port in model.group.connections {
                                 let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
-                                menu.action(monitor + " · " + port.inputName) { model.assignPresetPort(slot: slot + 1, computer: computer.id, connection: port.id) }
+                                let replaces = port.computer.flatMap { owner in owner == computer.id ? nil : model.group.computers.first { $0.id == owner }?.name }
+                                menu.action(monitor + " · " + port.inputName + (replaces.map { " · replaces " + $0 } ?? "")) { wire.draw?(slot + 1, computer.id, port.id) }
                             }
                             return menu
                         }.frame(width: 24, height: 20)

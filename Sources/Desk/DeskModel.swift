@@ -191,9 +191,31 @@ final class DeskModel: ObservableObject {
               let existing = group.connections.first(where: { $0.computer == option.computer && $0.localDisplay == option.display && $0.monitor != target.monitor }) else { return nil }
         return "Already connected to " + (group.monitors.first { $0.id == existing.monitor }?.name ?? "another screen")
     }
-    func rewireCable(_ source: KVMConnection, to target: KVMConnection) {
-        edit { try DeskCableBinding.rewire(source, to: target, in: &$0) }
+    /// Move a detached connection's monitor end to another input. Its computer
+    /// and every preset route go with it; a different computer already on the
+    /// target input is replaced, taking that input's routes with it.
+    func moveWire(from sourceID: UUID, to targetID: UUID) {
+        guard let source = group.connections.first(where: { $0.id == sourceID }),
+              let target = group.connections.first(where: { $0.id == targetID }), sourceID != targetID else { return }
+        edit { g in
+            if let owner = target.computer, owner != source.computer {
+                for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == targetID } }
+            }
+            try DeskCableBinding.rewire(source, to: target, in: &g)
+            for p in g.presets.indices where g.presets[p].assignments.contains(where: { $0.connection == sourceID }) {
+                g.presets[p].assignments.removeAll { $0.connection == sourceID || $0.monitor == target.monitor }
+                g.presets[p].assignments.append(.init(monitor: target.monitor, connection: targetID))
+            }
+        }
         if problem == nil { selected = target.monitor }
+    }
+    /// A detached connection dropped in empty space disappears: the input loses
+    /// its computer and no preset uses it any more.
+    func removeWire(_ portID: UUID) {
+        edit { g in
+            for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == portID } }
+            try DeskCableBinding.apply(connection: portID, computer: nil, display: nil, to: &g)
+        }
     }
     func disconnectCable(_ port: UUID) {
         edit { try DeskCableBinding.apply(connection: port, computer: nil, display: nil, to: &$0) }
@@ -246,13 +268,23 @@ final class DeskModel: ObservableObject {
         let index = index ?? presetIndex
         edit { g in g.presets[index].assignments.removeAll { $0.monitor == monitor }; if let connection { g.presets[index].assignments.append(.init(monitor: monitor, connection: connection)) } }
     }
-    func assignPresetPort(slot: Int, computer: UUID, connection: UUID) {
-        guard (1...3).contains(slot), let port = group.connections.first(where: { $0.id == connection }) else { return }
-        guard port.computer == nil || port.computer == computer else {
-            problem = "This monitor input belongs to another computer. Choose that computer’s preset port or change the cable first."
-            return
+    /// A wire from a computer's numbered connector to a monitor input: that preset
+    /// uses the input. A different computer already on the input is replaced,
+    /// taking its routes with it. Claiming the input for this computer and
+    /// matching its display is the page's next step, so a drawn wire never ends
+    /// up saved but invisible on an input that belongs to no computer.
+    func drawWire(slot: Int, computer: UUID, port portID: UUID) {
+        guard (1...3).contains(slot), let port = group.connections.first(where: { $0.id == portID }),
+              group.computers.contains(where: { $0.id == computer }) else { return }
+        edit { g in
+            if let owner = port.computer, owner != computer {
+                for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == portID } }
+                try DeskCableBinding.apply(connection: portID, computer: nil, display: nil, to: &g)
+            }
+            g.presets[slot - 1].assignments.removeAll { $0.monitor == port.monitor }
+            g.presets[slot - 1].assignments.append(.init(monitor: port.monitor, connection: portID))
         }
-        assign(connection, preset: slot - 1, monitor: port.monitor)
+        if problem == nil { selected = port.monitor }
     }
     func changeConnection(_ id: UUID, input: String) {
         edit { g in if let i = g.connections.firstIndex(where: { $0.id == id }) { g.connections[i].inputName = input } }
@@ -280,6 +312,22 @@ final class DeskModel: ObservableObject {
         guard problem == nil else { return }
         selected = group.monitors.first?.id
         if active?.assignments.contains(where: { $0.monitor == id }) == true { active = nil; activeGroup = nil; activeFocus = nil; notice = "Screen removed. Control returned locally." }
+    }
+    /// Clear a preset: it stops switching any screen. Screens, inputs and cables stay.
+    func clearPreset(_ index: Int) {
+        guard group.presets.indices.contains(index) else { return }
+        edit { $0.presets[index].assignments = [] }
+    }
+    /// Start the desk layout over on every Mac in the desk: all screens, inputs,
+    /// cables and preset routes go. Paired Macs stay paired and preset names stay.
+    func resetLayout() {
+        edit { g in
+            g.monitors = []; g.connections = []; g.sharedKeyboards = nil
+            for p in g.presets.indices { g.presets[p].assignments = [] }
+        }
+        guard problem == nil else { return }
+        selected = nil; active = nil; activeGroup = nil; activeFocus = nil
+        notice = "Desk reset. Add your screens again to set it up."
     }
     func removeComputer(_ id: UUID) {
         edit { try $0.removeComputer(id) }

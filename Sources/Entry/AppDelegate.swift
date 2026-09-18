@@ -59,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var lidItem: NSMenuItem!
     var idleLockItem: NSMenuItem!
     let idleLock = IdleLockPreventer()
+    /// Why the screen locked, recorded next to Perch's own idle signalling.
+    let screenLockLog = ScreenLockLog()
     var observedSleep: SleepStatus?
     var observedLidDisabled: Bool?
     var automaticLidResume = LidAutomaticResume()
@@ -97,6 +99,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         keyboardModes.start()
         DeskCoordinator.shared.resumeIfConfigured()
         idleLock.set(UserDefaults.standard.bool(forKey: SleepPreferences.preventIdleLockKey))
+        screenLockLog.preventing = { [weak self] in self?.idleLock.enabled == true }
+        screenLockLog.lastSignal = { [weak self] in self?.idleLock.lastSignalled }
+        screenLockLog.signalRefused = { [weak self] in self?.idleLock.lastSignalRefused == true }
+        screenLockLog.sharing = { DeskCoordinator.shared.runtime?.input.active == true }
+        screenLockLog.start()
         observeHelperPresentation()
         LidGuardClient.shared.start()
         lidSleepNotice.show = { [weak self] _, detail, acknowledge in

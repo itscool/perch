@@ -1015,6 +1015,27 @@ Verified: build 224, `--self-test` 47 PASS, lab 268, render, `check-kvm.py`,
 `check-desk-network.py`, `check-dialog-contract.py`. Running: 2.0.221. On disk:
 2.0.224. Native acceptance on the live two-Mac desk still open.
 
+## Checkpoint: screen lock reporting (September 18, 2026)
+
+Scott: the other Mac still locks when idle. Measured on this Mac, read-only:
+the HID idle clock climbed steadily while untouched and Perch's null-event
+signal returned it to zero, so the technique works on macOS 26. On the other Mac
+the clock stays under 30 s with Prevent idle lock on, and no configuration
+profile carries maxInactivity, idleTime, askForPassword or loginWindowIdleTime,
+so its locks are not idle timeouts Perch can hold off and not a profile we can
+read. Rather than guess again, `ScreenLockLog` records every lock and unlock with
+the facts: how long the Mac had actually been idle, whether that is even long
+enough to be an idle lock (under 55 s it is not), whether Prevent idle lock is on
+and when it last reported activity or was refused, whether a desk session was
+interrupted, and how long the screen stayed locked. `IdleClock` reads the idle
+time read-only. Pinned in `runIdleLockWordingTests`. Read it with
+`log show --last 2h --info --predicate 'subsystem == "local.scott.perch"'`,
+filtering on `screen.`.
+
+Verified: build 226, `--self-test` 47 PASS, `check-dialog-contract.py`,
+`check-lid-policy.py`. Running: 2.0.221. On disk: 2.0.226. Open: read the log on
+the Mac that locks and name the cause.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

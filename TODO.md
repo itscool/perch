@@ -1127,6 +1127,34 @@ command (`MonitorInput.command`), which setting a screen up applies to that
 connection, so a fresh setup of this model needs no hand editing. Recorded in
 `catalog/HARDWARE-SUPPORT.md` and re-digested in `Release/dependencies.json`.
 
+## Checkpoint: both LG screens proven, lock fix, repeat for unconfirmable monitors (September 18, 2026)
+
+Hardware tests on this desk with `PerchDisplay`, run from the MacBook with Scott
+watching: LG's own command switches both screens with LG's documented codes.
+Home Screen 1 (UP850K, EDID 23741): DisplayPort 208 moves it off USB-C, after
+which the MacBook loses the display entirely and only the Studio can switch it
+back. Home screen 2 (UL850, EDID 30471, previously mistaken for a 27UN850):
+HDMI 2 145 and USB-C 209 both work from the MacBook, which keeps its USB-C link
+while HDMI 2 shows. Neither reports its current input. Both catalog profiles are
+now confirmed LG-command profiles matched by EDID product; my earlier "standard
+codes" theory was wrong and is gone. Public sources: ddcutil's LG page and
+BetterDisplay discussion 2270.
+
+The new write logging found two causes of flaky switching. The desktop recovery
+lock was taken non-blocking, so a switch arriving during the once-a-second
+display bookkeeping was refused as "busy" and handed to the other Mac; background
+callers now wait up to 2 s. And the Studio's hand-off for screen 1 reports
+"Command sent" while the panel often ignores it, so a monitor that cannot report
+its input now gets the command once more after 1.2 s (never after the lease
+ends, never when the monitor reports a different input). Shortcut presses,
+refusals and registrations are logged; the preset shortcuts work from the
+MacBook's keyboard.
+
+Verified: build 250, `--self-test` 47, `check-monitor-command.py` 16,
+`check-kvm.py`, `check-desk-network.py`, kvm-lab 268, `check-dialog-contract.py`.
+Running: 2.0.249. On disk: 2.0.250. Open: the Studio needs this build; then 3 → 1
+must bring screen 1 back to USB-C, and sharing gets its first fair test.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

@@ -679,7 +679,7 @@ final class DeskRuntime: ObservableObject {
                 let outcome = try DeskMonitorCommand.run(input: route.input, permitted: allowed, read: read, write: {
                     let data = try backend.run(["switch"] + args + [String(route.input)])
                     guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any], reply["sent"] as? Bool == true else { throw KVMError("The monitor did not accept the input command.") }
-                }, settle: { Thread.sleep(forTimeInterval: 0.2) }, force: route.force)
+                }, settle: { Thread.sleep(forTimeInterval: 0.2) }, pause: { Thread.sleep(forTimeInterval: 1.2) }, force: route.force)
                 switch outcome {
                 case .alreadySelected: state = .confirmed; detail = "Already on this input; confirmed without sending a switch command."
                 case .switched: state = .confirmed; detail = "Monitor reports the requested input."

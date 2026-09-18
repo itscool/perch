@@ -683,6 +683,14 @@ and verified with `brew info`. Native acceptance is still open: screen 1
 returning from DisplayPort to USB-C through the Studio's hand-off, and keyboard
 and mouse sharing across the two Macs.
 
+Perch 2.0.262 was published on September 18, 2026. Apple accepted the app
+(27d0dc15-042a-4726-bb06-1502ebc0b7e1) and the DMG
+(d61eaa25-dcf1-4c07-a5c0-1ac1856ba15d); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. Native acceptance is still open: the pointer
+crossing into the Studio and landing where it crossed, and the hidden cursor
+that never flickers, both on the live two-Mac desk.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

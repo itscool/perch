@@ -1,6 +1,14 @@
 # Perch release history
 
-## 2.0.225 — Current
+## 2.0.251 — Current
+
+- LG 27UP850-W and 27UL850-W screens are recognised by hardware identity and set up with codes tested on real monitors.
+- Switches no longer fail while Perch updates its display records, and unconfirmable monitors get the command twice.
+- Perch says when no Mac can reach a screen, instead of reporting a failed switch.
+- Sharing finds each cable's display by itself, names what is stopping it, and names a sharing version mismatch.
+- Screen locks are logged with the idle time and what Perch was doing.
+
+## 2.0.225
 
 - Preset switches no longer stay on Switching when one Mac cannot switch a screen and another cannot take it over.
 - The pointer lands where you crossed in both directions.

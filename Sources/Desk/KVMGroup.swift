@@ -104,11 +104,14 @@ struct KVMScreenIdentity: Codable, Equatable {
     var model: UInt32
     /// Zero when the monitor reports none.
     var serial: UInt32 = 0
-    /// The same physical monitor: maker and model agree, and the serials agree
-    /// whenever both monitors report one.
+    /// The same physical monitor. When both report a serial, the serial decides:
+    /// an LG screen reports a different model number on each input (30471 over
+    /// USB-C, 30470 over HDMI on this desk) with the same serial. Without a serial
+    /// on both sides, maker and model must agree.
     func matches(vendor: UInt32, model: UInt32, serial: UInt32) -> Bool {
-        guard self.vendor == vendor, self.model == model, vendor != 0, model != 0 else { return false }
-        return self.serial == 0 || serial == 0 || self.serial == serial
+        guard self.vendor == vendor, vendor != 0 else { return false }
+        if self.serial != 0 && serial != 0 { return self.serial == serial }
+        return self.model == model && model != 0
     }
 }
 

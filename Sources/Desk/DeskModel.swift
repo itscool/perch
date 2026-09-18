@@ -107,9 +107,26 @@ enum DeskIdentityCableResolver {
                 guard connection.monitor == monitor, let computer = connection.computer, let local = connection.localDisplay else { return nil }
                 return displays[computer]?.first { $0.id == local && $0.vendor != 0 && $0.model != 0 }
             }
-            if let first = seen.first, seen.allSatisfy({ $0.vendor == first.vendor && $0.model == first.model }) {
-                draft.monitors[index].identity = .init(vendor: first.vendor, model: first.model, serial: first.serial)
+            // Learn only from evidence that agrees: a record already attached to
+            // the wrong screen must not teach that screen the wrong identity.
+            if let first = seen.first {
+                let learned = KVMScreenIdentity(vendor: first.vendor, model: first.model, serial: first.serial)
+                if seen.allSatisfy({ learned.matches(vendor: $0.vendor, model: $0.model, serial: $0.serial) }) {
+                    draft.monitors[index].identity = learned
+                }
             }
+        }
+        // A record that Mac still has, but for a monitor that is clearly not this
+        // screen, is wrong: a serial that differs proves it. On this desk the
+        // Studio's view of screen 2 had been recorded against screen 1, so the
+        // pointer was placed on the wrong screen's record.
+        for index in draft.connections.indices {
+            let connection = draft.connections[index]
+            guard let computer = connection.computer, let local = connection.localDisplay,
+                  let shown = displays[computer]?.first(where: { $0.id == local }), shown.vendor != 0,
+                  let identity = draft.monitors.first(where: { $0.id == connection.monitor })?.identity,
+                  !identity.matches(vendor: shown.vendor, model: shown.model, serial: shown.serial) else { continue }
+            draft.connections[index].localDisplay = nil
         }
         // Re-find a screen whose recorded ID a Mac no longer has, or never had.
         for index in draft.connections.indices {

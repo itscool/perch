@@ -391,6 +391,24 @@ func runDeskInputListTests() throws {
     // A screen that Mac cannot see right now keeps its record; absence is not evidence.
     try check(healed.connections.first { $0.id == oneDP.id }?.localDisplay == "studio-one",
               "A screen the Studio could not currently see lost its record")
+    // This desk as the Studio saw it: its one display, through a USB-C-to-HDMI
+    // adapter, is screen 2 (serial 353740, model 30470 over HDMI where USB-C says
+    // 30471), but it was recorded against screen 1's DisplayPort, and screen 2's
+    // HDMI record had gone stale. The serial proves the first record wrong and
+    // finds the right one.
+    var crossed = drifted
+    crossed.monitors[crossed.monitors.firstIndex { $0.id == homeOne.id }!].identity = .init(vendor: 7789, model: 23741, serial: 175682)
+    crossed.monitors[crossed.monitors.firstIndex { $0.id == homeTwo.id }!].identity = .init(vendor: 7789, model: 30471, serial: 353740)
+    crossed.connections[crossed.connections.firstIndex { $0.id == oneDP.id }!].localDisplay = "1DAE75B3"
+    crossed.connections[crossed.connections.firstIndex { $0.id == twoHDMI.id }!].localDisplay = "CD3AF695"
+    let studioView: [UUID: [Seen]] = [macStudio.id: [.init(id: "1DAE75B3", vendor: 7789, model: 30470, serial: 353740)]]
+    let uncrossed = DeskIdentityCableResolver.resolve(crossed, displays: studioView)
+    try check(uncrossed.connections.first { $0.id == twoHDMI.id }?.localDisplay == "1DAE75B3",
+              "The Studio's view of screen 2 was not moved to screen 2's HDMI input")
+    try check(uncrossed.connections.first { $0.id == oneDP.id }?.localDisplay == nil,
+              "Screen 1 kept a record the serial proves belongs to screen 2")
+    try check(KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740).matches(vendor: 7789, model: 30470, serial: 353740),
+              "The same monitor reporting another model number on another input was not recognised")
     // Learning what a screen is must not change the sharing fingerprint: an older
     // Perch cannot see that field, and a difference refuses every handoff.
     try check(KVMInputConfiguration.revision(healed) == KVMInputConfiguration.revision({ var g = healed; for i in g.monitors.indices { g.monitors[i].identity = nil }; return g }()),

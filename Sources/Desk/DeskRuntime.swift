@@ -464,6 +464,7 @@ final class DeskRuntime: ObservableObject {
                         return detected
                     }
                     self.displays[self.node.localID, default: []].append(contentsOf: retained)
+                    self.logDisplays(self.node.localID, self.displays[self.node.localID] ?? [])
                     self.resolvePendingDisplays(); self.publishDisplays()
                 case .failure(let error):
                     self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
@@ -579,6 +580,17 @@ final class DeskRuntime: ObservableObject {
         guard resolved != node.group else { return }
         do { try node.edit(resolved) } catch { model.problem = error.localizedDescription }
     }
+    /// What each Mac sees, written to the log whenever it changes. Every Mac
+    /// already sends the others its display list; this makes it readable from
+    /// any one Mac, so diagnosing a screen never needs a command run on another.
+    private func logDisplays(_ computer: UUID, _ values: [DeskDetectedDisplay]) {
+        let name = computer == node.localID ? "This Mac" : (node.group.computers.first { $0.id == computer }?.name ?? String(computer.uuidString.prefix(8)))
+        let seen = values.isEmpty ? "no external displays" : values.map { display in
+            "\(display.id.prefix(8)) \(display.name) (maker \(display.vendor), model \(display.model), serial \(display.serial), " +
+            (display.canControl ? "takes monitor commands)" : "cannot take monitor commands)")
+        }.joined(separator: "; ")
+        PerchLog.note("desk.displays." + computer.uuidString.prefix(8), name + " sees: " + seen)
+    }
     private func publishDisplays() {
         guard let data = DeskDeviceMessage.displays(displays[node.localID] ?? []).wire else { return }
         for peer in node.online where peer != node.localID { node.sendApplication(data, peer: peer) }
@@ -597,7 +609,7 @@ final class DeskRuntime: ObservableObject {
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
             guard values.allSatisfy({ $0.panelAspect.map { $0.isFinite && (0.1...10).contains($0) } ?? true }) else { return }
             guard values.allSatisfy({ value in [value.pointWidth, value.pointHeight].allSatisfy { $0.map { $0.isFinite && (1...100_000).contains($0) } ?? true } }) else { return }
-            displays[peer] = values; remoteDisplayProblems[peer] = nil; resolvePendingDisplays(); updateModel()
+            displays[peer] = values; remoteDisplayProblems[peer] = nil; logDisplays(peer, values); resolvePendingDisplays(); updateModel()
         case .displayProblem(let problem):
             remoteDisplayProblems[peer] = String(problem.prefix(800)); updateModel()
         case .refresh: refreshDisplays()

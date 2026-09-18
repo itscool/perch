@@ -157,8 +157,8 @@
   {
    "source": "catalog/monitor-profiles.json",
    "resource": "monitor-profiles.json",
-   "sha256": "5c1f0a4c88e97e79dd72ac9ea1058b52d9f497bd2ad078f15e07db81b56539f3",
-   "records": 94
+   "sha256": "2bfc7ca7d70fc7292aaf3bb87de96901121fae5ab5674a9fb65f9564d7a271fb",
+   "records": 95
   },
   {
    "source": "catalog/msi-input-profiles.json",

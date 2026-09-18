@@ -546,11 +546,11 @@ final class KVMMonitorSwitch: ObservableObject {
     }
     private func complete(_ route: KVMMonitorRoute, lease: Lease, state: KVMMonitorOutcome.State, detail: String) {
         guard leases[route.monitor]?.request.id == lease.request.id else { return }
+        // Only a Mac whose cable to that monitor is matched can switch it;
+        // handing it to one that cannot is a round trip that changes nothing.
+        let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.localDisplay != nil && $0.computer.map(node.online.contains) == true }
         if state == .failed, delegates[route.monitor] == nil, ["standard", "lg"].contains(route.control.mode), now-lease.created < 18,
            node.canEdit, node.revision == lease.request.revision, node.graph.roster.epoch == lease.request.epoch {
-            // Only a Mac whose cable to that monitor is matched can switch it;
-            // handing it to one that cannot is a round trip that changes nothing.
-            let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.localDisplay != nil && $0.computer.map(node.online.contains) == true }
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first
             if let peer = candidate?.computer {
                 delegates[route.monitor] = peer; delegateDeadline[route.monitor] = now + Self.delegateTimeout
@@ -558,7 +558,15 @@ final class KVMMonitorSwitch: ObservableObject {
                 send(.delegate(lease.request, route.monitor), peer: peer); return
             }
         }
-        let outcome = KVMMonitorOutcome(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(detail.prefix(500)))
+        // A failed write that no other Mac can take over means no Mac has a live
+        // picture on that screen, so nothing can command it. Say that, instead of
+        // reporting a write failure the person can do nothing with.
+        var reason = detail
+        if state == .failed, delegates[route.monitor] == nil, candidates.isEmpty {
+            let name = node.group.monitors.first { $0.id == route.monitor }?.name ?? "That screen"
+            reason = "\(name) cannot be reached by any Mac: a monitor only takes commands from a Mac it is showing. Choose an input on the monitor itself, then try again. (\(detail))"
+        }
+        let outcome = KVMMonitorOutcome(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(reason.prefix(500)))
         leases[route.monitor]?.completed = true
         leases[route.monitor]?.outcome = outcome
         send(.result(outcome), peer: lease.peer)

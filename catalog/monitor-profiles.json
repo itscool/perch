@@ -367,6 +367,45 @@
    ]
   },
   {
+   "name": "LG 27UL850-W · UL850 firmware",
+   "vendor": 7789,
+   "model": 30471,
+   "automatic": true,
+   "retailModels": [
+    "UL850",
+    "27UL850-W (UL850)"
+   ],
+   "alternate": false,
+   "confidence": "locally-tested",
+   "readbackUnavailable": true,
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C",
+     "command": "lg"
+    }
+   ],
+   "evidence": [
+    "Tested on this desk, September 18 2026: reports (prot(monitor)type(lcd)UL850cmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)) with LG firmware identity 0x5124 and no extended identity, so HDMI 1, HDMI 2 and DisplayPort answer the standard input command and USB-C does not appear in it.",
+    "Tested on this desk: the LG command with 144, 145 and 208 did not move this screen, and left it on an input neither Mac could see, which is what the standard codes above replace.",
+    "Reports no current input for either command, so switches to this screen are accepted without readback.",
+    "USB-C 209 is LG's documented value for this family and is the code this desk already used successfully for the same maker's USB-C input; it is not separately confirmed on this unit."
+   ],
+   "notes": "Sold as a 27UL850-W; its EDID names it LG HDR 4K with product 30471. Standard command for HDMI and DisplayPort, LG's own command for USB-C."
+  },
+  {
    "name": "LG 27UN850-W / 27UN850-WY",
    "vendor": 7789,
    "model": 30470,

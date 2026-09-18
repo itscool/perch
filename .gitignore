@@ -17,3 +17,6 @@ Vendor/PerchCertificates/.swiftpm/
 
 # Task session artifacts (AGENT MODE sessions, audits) stay outside tracked source.
 work/
+
+# Agent tooling copies its skills here; the tracked copies live in .claude/skills.
+.agents/

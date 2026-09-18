@@ -1,9 +1,7 @@
-# Perch 2.0.218 — What’s new
+# Perch 2.0.221 — What’s new
 
-- **Desk pointer:** every Mac on your desk now moves one shared pointer. Any keyboard or mouse on any Mac moves it, control moves over faster, and using a mouse on another Mac no longer pulls control away. Update every Mac on your desk.
-- **Desk wires:** drag from either end to draw a wire. Drag a connected input onto another input to move its wire, or into empty space to remove it.
-- **Start over:** clear a single preset with its Clear button, or start the whole desk over with Reset desk. Paired Macs stay paired.
-- **Screen inputs:** changing a screen’s input profile replaces its inputs instead of adding a second copy of a port, and Perch won’t make a change that breaks an input you’re using.
-- **Desk canvas:** screen outlines no longer get cut off.
+- **Desk pointer:** crossing to another Mac’s screen no longer jumps the pointer to the middle of that screen first. It carries on from the edge you crossed. Update every Mac on your desk.
+- **Desk wires:** dragging a connected input now changes the preset you are editing. The cable moves, and the presets that used it follow, only when that computer is not already connected to the input you drop it on.
+- **Desk canvas:** the preset you are editing is the drawn teal line, and what is on your displays now is a green glow behind it, so you can see both at once.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

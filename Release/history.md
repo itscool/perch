@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.218 — Current
+## 2.0.221 — Current
+
+- Crossing to another Mac’s screen carries the pointer on from the edge you crossed instead of jumping to the middle of that screen.
+- Dragging a connected input changes the preset you are editing; the cable moves only when it has to.
+- The preset being edited is the drawn teal line and what is on the displays now is a green glow behind it.
+
+## 2.0.218
 
 - One shared Desk pointer that any keyboard or mouse on any Mac moves; control moves over faster, and using another Mac’s mouse no longer pulls control away.
 - Desk wires draw from either end; a connected input moves by dragging it or disappears when dropped in empty space.

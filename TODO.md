@@ -1243,11 +1243,27 @@ As of revision 121 all four records are right, repaired by Perch itself: screen 
 DisplayPort = Studio `CD3AF695`, USB-C = MacBook `0A7A7FD4`; screen 2 HDMI 2 =
 Studio `1DAE75B3`, USB-C = MacBook `9B219105`.
 
+Later the same evening, Scott: preset 3 → 2 does move screen 1 from DisplayPort
+back to USB-C, yet Perch still records it as failed. The log explains it: the
+Studio reports screen 1 over DisplayPort correctly (`CD3AF695`, model 23740,
+serial 175682), but the Studio's desktop handoff lets go of that display before
+the command, believing screen 1 is about to show the MacBook. With the display
+gone the Studio cannot command the monitor, and its lookup at command time finds
+nothing ("Invalid monitor identity": an empty display reached the monitor tool).
+The monitor then loses its DisplayPort signal and LG's automatic input switching
+moves it to USB-C about 14 s later (this Mac saw screen 1 return at 16:06:57
+after the 16:06:43 command). The command fails, the screen still switches.
+
 Next session, in order:
-1. Try preset 3 → 2 once; with correct records the Studio's hand-off may work.
-2. Never pass an empty display to the monitor tool: a hand-off with no display
-   found must decline with what the Mac saw, and log the live list it searched.
-3. Then sharing in preset 2, and the version-aware update check so the Studio
+1. A command for a monitor must first take back any display of that monitor
+   this Mac's desktop handoff let go of, found by identity through the recovery
+   journal, then look the display up; never after.
+2. Never pass an empty display to the monitor tool: decline with what the Mac
+   saw, and log the live list it searched.
+3. For monitors that cannot report their input, count the destination Mac
+   seeing the screen again as confirmation, so a switch finished by the
+   monitor's own input switching is not recorded as failed.
+4. Then sharing in preset 2, and the version-aware update check so the Studio
    stops needing manual updates.
 
 Running: 2.0.265 on both Macs (this Mac confirmed; the Studio announces sharing

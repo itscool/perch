@@ -666,6 +666,15 @@ and verified with `brew info`. Native acceptance is still open: the pointer
 arriving at the edge it crossed, and the preset-scoped wire gestures, on the
 live two-Mac desk.
 
+Perch 2.0.225 was published on September 18, 2026. Apple accepted the app
+(6a3b0077-2a65-4c21-865e-08d185371807) and the DMG
+(a48b8dd3-9a39-462e-a9dc-dae2a6ec834b); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. Native acceptance is still open: preset switching
+no longer sticking, the pointer arriving at the edge it crossed in both
+directions, the hidden parked cursor, and the wire drag, all on the live two-Mac
+desk.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

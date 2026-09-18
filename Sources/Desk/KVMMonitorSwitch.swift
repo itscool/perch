@@ -156,6 +156,12 @@ final class KVMMonitorSwitch: ObservableObject {
         guard node.canEdit else { return [:] }
         return desktopObservations.filter { desktopGenerations[$0.key]?.hasSuffix("-pending") != true && $0.value.revision == node.revision && now - $0.value.time <= 45 && node.online.contains($0.value.peer) }.mapValues(\.input)
     }
+    /// What each screen is showing, as far as Perch knows: a fresh readback
+    /// where there is one, otherwise the input Perch's own accepted command
+    /// selected. Used to match a cable no other Mac can see at the same time.
+    var effectiveInputs: [UUID: UInt16] {
+        KVMShowingInput.effective(reported: desktopInputs, optimistic: optimisticInputs)
+    }
     private func invalidateDesktop(_ request: KVMMonitorRequest, finished: Bool = false) {
         for route in request.routes {
             let pending = request.id.uuidString + "-pending"

@@ -49,6 +49,16 @@ struct DeskPortSocket: View {
                            label: model.connectionLabel(port), controller: wire,
                            presetNumbers: presetNumbers, highlighted: chosen, activeRouting: active, drawsNumbers: false) {
                 let menu = DeskSocketMenu()
+                // A cable whose display is not matched cannot take part in
+                // pointer sharing, and only the person can say which display it
+                // is. Offer that here, where the unmatched cable is.
+                if let owner = port.computer, port.localDisplay == nil {
+                    let name = model.group.computers.first { $0.id == owner }?.name ?? "that Mac"
+                    menu.action("Match this cable’s display on \(name)…", help: "Perch does not know which of \(name)'s displays this input shows, so it cannot share the keyboard and mouse across this screen.") {
+                        model.selected = port.monitor; cable(port.id, owner)
+                    }
+                    menu.addItem(.separator())
+                }
                 menu.action("Switch this monitor to \(port.inputName)", help: "Send the monitor command now, even if Perch thinks this input is already selected. Presets stay unchanged.") {
                     model.selected = port.monitor; model.backend.switchConnection(port.id)
                 }

@@ -304,5 +304,32 @@ func runDeskInputListTests() throws {
     try check(inputs(saved) == ["HDMI 1": 144, "HDMI 2": 145, "DisplayPort": 208, "USB-C": 209] && saved.monitors[0].control?.mode == "lg" &&
               saved.connections.first { $0.id == usb.id }?.computer == mac && saved.presets[1].assignments.contains { $0.connection == usb.id },
               "Choosing the LG profile again did not repair the stacked inputs: \(inputs(saved))")
-    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change")
+    // Matching the cable Perch can see showing. Scott's desk: the Studio feeds
+    // Home screen 2 on HDMI 2, the MacBook cannot see that monitor while it is
+    // showing the Studio, so no cross-Mac comparison can ever match it.
+    var desk = KVMGroup.sample()
+    let studioMac = desk.computers[1].id, showingScreen = desk.monitors[1].id
+    let studioPort = desk.connections.first { $0.monitor == showingScreen && $0.computer == studioMac }!
+    let portIndex = desk.connections.firstIndex { $0.id == studioPort.id }!
+    desk.connections[portIndex].localDisplay = nil
+    desk.connections[portIndex].inputCode = 145
+    let showing = [showingScreen: UInt16(145)]
+    let matchedDesk = DeskShowingCableResolver.resolve(desk, showing: showing, displays: [studioMac: ["studio-hdmi-2"]])
+    try check(matchedDesk.connections.first { $0.id == studioPort.id }?.localDisplay == "studio-hdmi-2",
+              "The one display the showing computer reports was not matched to the input it is showing")
+    // Perch never guesses between two unused displays, and never steals one
+    // that another input on that Mac already uses.
+    let ambiguous = DeskShowingCableResolver.resolve(desk, showing: showing, displays: [studioMac: ["one", "two"]])
+    try check(ambiguous == desk, "Two possible displays were guessed between")
+    var taken = desk
+    let otherIndex = taken.connections.firstIndex { $0.computer == studioMac && $0.id != studioPort.id }!
+    taken.connections[otherIndex].localDisplay = "studio-hdmi-2"
+    try check(DeskShowingCableResolver.resolve(taken, showing: showing, displays: [studioMac: ["studio-hdmi-2"]]) == taken,
+              "A display another input already uses was matched again")
+    // A screen showing an input with no computer stays as it is.
+    let unassigned = desk.connections.first { $0.computer == nil }!
+    try check(DeskShowingCableResolver.resolve(desk, showing: [unassigned.monitor: unassigned.inputCode ?? 0], displays: [studioMac: ["studio-hdmi-2"]]) == desk,
+              "An input with no computer was given a display")
+
+    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change; the input a screen is showing matches that cable's display")
 }

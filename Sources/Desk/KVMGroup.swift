@@ -239,6 +239,18 @@ struct KVMDisplayObservation: Equatable {
     }
 }
 
+/// What a screen is showing, as far as Perch knows: a fresh monitor readback
+/// where there is one, and otherwise the input Perch's own accepted command
+/// selected. Used for desktop reconciliation and for matching a cable whose
+/// display no other Mac can see while that input is the one showing.
+enum KVMShowingInput {
+    static func effective(reported: [UUID: UInt16], optimistic: [UUID: UInt16]) -> [UUID: UInt16] {
+        var result = optimistic
+        for (monitor, input) in reported { result[monitor] = input }
+        return result
+    }
+}
+
 enum KVMEdge {
     private static let alignmentToleranceMM = 0.1
     // Canonical tenths-of-a-millimetre values can still differ by one ULP

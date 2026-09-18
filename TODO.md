@@ -1062,6 +1062,29 @@ does.
 Verified: build 228, `--self-test` 47 PASS, `check-kvm.py`,
 `check-desk-network.py`, kvm-lab 268. Running: 2.0.221. On disk: 2.0.228.
 
+## Checkpoint: matching the cable that is showing (September 18, 2026)
+
+Scott, on his live desk: the Studio really is on Home screen 2's HDMI 2, the
+preset switch works and the picture moves, yet Perch kept that cable at "display
+matching pending" and refused to share the pointer. Cause: matching compared
+what both Macs see (`DeskPendingCableResolver` needs another Mac reporting the
+same vendor/model/serial), and two Macs can never see one monitor at the same
+time — while it shows HDMI 2 the MacBook's output is gone. So that cable could
+never match, whatever he did. `DeskShowingCableResolver` matches from the input
+the screen is showing instead: the computer on that input is the one feeding the
+screen, so the single display it reports that nothing else uses is that screen.
+It never guesses between two, never takes a display another input uses, and
+validates before saving. `KVMShowingInput.effective` is now the one rule for
+"what is this screen showing", shared by desktop reconciliation and matching.
+The port menu also gained "Match this cable's display on <Mac>…", because until
+now a connected-but-unmatched cable had no action at all. Pinned in
+`runDeskInputListTests`.
+
+Verified: build 230, `--self-test` 47 PASS, `check-kvm.py`,
+`check-desk-network.py`, kvm-lab 268, `check-dialog-contract.py`. Running:
+2.0.228. On disk: 2.0.230. Next: version the input session and name a mismatch,
+as Scott asked, and his preset 3 DisplayPort switch.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

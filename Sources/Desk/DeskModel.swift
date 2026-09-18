@@ -87,6 +87,39 @@ enum DeskPendingCableResolver {
         return (try? draft.validated()) == nil ? group : draft
     }
 }
+/// Two Macs cannot see one monitor at the same time: while the screen shows one
+/// input, the other Mac's video output is gone. So a cable can never be matched
+/// by comparing what both Macs see, and it stayed "display matching pending"
+/// for ever, which is what stopped keyboard and mouse sharing on a desk whose
+/// screens were perfectly set up.
+///
+/// The showing input is the evidence instead. When Perch knows a monitor is
+/// showing a particular input, the computer on that input is the one feeding
+/// that screen, so the one display it reports that nothing else is using is
+/// that screen.
+enum DeskShowingCableResolver {
+    /// - Parameters:
+    ///   - showing: the input code each monitor is showing, as far as Perch knows.
+    ///   - displays: the display identifiers each computer currently reports.
+    static func resolve(_ group: KVMGroup, showing: [UUID: UInt16], displays: [UUID: [String]]) -> KVMGroup {
+        var draft = group
+        for (monitor, input) in showing.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            guard let index = draft.connections.firstIndex(where: { $0.monitor == monitor && $0.inputCode == input }),
+                  let computer = draft.connections[index].computer, draft.connections[index].localDisplay == nil else { continue }
+            let used = Set(draft.connections.filter { $0.computer == computer }.compactMap(\.localDisplay))
+            let free = (displays[computer] ?? []).filter { !used.contains($0) }
+            // One unused display is this screen. More than one is a guess, and
+            // Perch does not guess which screen a person is looking at.
+            guard free.count == 1 else { continue }
+            var candidate = draft
+            candidate.connections[index].localDisplay = free[0]
+            guard (try? candidate.validated()) != nil else { continue }
+            draft = candidate
+        }
+        return draft
+    }
+}
+
 struct DeskPortDefinition { let name: String; let code: UInt16 }
 enum DeskMonitorConfiguration {
     /// Replace a screen's input list. Each existing input carries over to the

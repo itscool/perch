@@ -47,9 +47,7 @@ final class DeskDesktopHandoff {
         return away
     }
     static func effectiveInputs(reported: [UUID: UInt16], optimistic: [UUID: UInt16]) -> [UUID: UInt16] {
-        var result = optimistic
-        for (monitor, input) in reported { result[monitor] = input }
-        return result
+        KVMShowingInput.effective(reported: reported, optimistic: optimistic)
     }
     /// Main thread: decide what should be away, then do the slow work off main.
     func reconcile() {

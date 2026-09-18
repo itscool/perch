@@ -281,6 +281,29 @@ enum KVMEdge {
         }
         return false
     }
+    /// Why the pointer cannot cross in this preset, in the person's terms, or
+    /// nil when it can. A screen whose cable has no matched display is left out
+    /// of the arrangement, so saying the screens are not side by side would be
+    /// wrong: name the screen Perch cannot place yet instead.
+    static func sharedSpaceIssue(group: KVMGroup, preset: KVMPreset) -> String? {
+        guard !sharesDeskSpace(group: group, preset: preset) else { return nil }
+        let unmatched = preset.assignments.compactMap { assignment -> (screen: String, mac: String)? in
+            guard let connection = group.connections.first(where: { $0.id == assignment.connection }),
+                  let computer = connection.computer, connection.localDisplay == nil,
+                  let screen = group.monitors.first(where: { $0.id == assignment.monitor }) else { return nil }
+            return (screen.name, group.computers.first { $0.id == computer }?.name ?? "that Mac")
+        }.sorted { $0.screen < $1.screen }
+        if let first = unmatched.first {
+            return "Perch does not know which display on \(first.mac) shows \(first.screen) yet, so it cannot place that screen. Switch to that input once so Perch can match it, or choose its display in Desk. The picture still switches."
+        }
+        let computers = Set(preset.assignments.compactMap { assignment in
+            group.connections.first { $0.id == assignment.connection }?.computer
+        })
+        if computers.count < 2 {
+            return "This preset shows one Mac on every screen, so there is nowhere to move the pointer across to."
+        }
+        return "These screens do not sit next to each other in Desk, so there is no edge to move the pointer across. Place them side by side to share the keyboard and mouse."
+    }
     static func crossing(group: KVMGroup, preset: KVMPreset, source: UUID, from: KVMPoint, to: KVMPoint) -> Crossing {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),
               screen.geometry.contains(from), !screen.geometry.contains(to),

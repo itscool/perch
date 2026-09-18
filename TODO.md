@@ -1036,6 +1036,32 @@ Verified: build 226, `--self-test` 47 PASS, `check-dialog-contract.py`,
 `check-lid-policy.py`. Running: 2.0.221. On disk: 2.0.226. Open: read the log on
 the Mac that locks and name the cause.
 
+## Checkpoint: why sharing will not start (September 18, 2026)
+
+Scott: "kvm not working", and asked whether the desk should carry its own
+protocol version instead of forcing app versions to match. It already does:
+`KVMDeskProtocol.version` is 2 and is checked in the hello, independently of the
+app version, so 2.0.221 and 2.0.225 pair. His block was different, and the log
+named it wrongly: with his rebuilt two-screen desk (Home Screen 1 on the MacBook
+via USB-C, Home screen 2 on the Studio via HDMI 2, side by side and touching),
+the Studio's HDMI 2 cable has no matched display, so that screen is left out of
+the arrangement and `sharesDeskSpace` returned false, which reported "these
+screens do not sit next to each other" about two screens that are. `KVMEdge`
+now returns the actual reason: the screen and Mac whose display is not matched,
+a preset that shows one Mac everywhere, or a genuine gap. Pinned in
+`runDeskSharedSpaceTests` with his exact desk. Share on this Mac is also off
+(`desk.shareOnThisMac` 0), which the log states separately.
+
+Still open, and worth doing: the input session is fenced by
+`KVMInputConfiguration.revision`, a hash of the desk configuration, not by a
+version. Any change to what goes into that hash between releases stops sharing
+silently instead of naming a version mismatch. Give the input session its own
+version, carried with the grant, and name a mismatch the way the desk protocol
+does.
+
+Verified: build 228, `--self-test` 47 PASS, `check-kvm.py`,
+`check-desk-network.py`, kvm-lab 268. Running: 2.0.221. On disk: 2.0.228.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

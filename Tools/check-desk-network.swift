@@ -215,6 +215,26 @@ import Darwin
         switchesA.activate(desk.presets[1].id)
         try wait("DDC source-path fallback") { !switchesA.busy && switchesA.results.count == 2 }
         guard switchesA.activePreset == desk.presets[1].id && writes == 2 else { throw KVMError("Paired control delegation failed") }
+        // A screen whose only other Mac cannot switch it must fail quickly. A
+        // write handed to a Mac whose cable is not matched used to be answered
+        // by silence, leaving the preset on Switching until the whole request
+        // timed out, with nothing the person could do about it.
+        var noCable = desk
+        // B is cabled to that screen, but its display is not matched yet, so it
+        // cannot actually switch it.
+        let pendingIndex = noCable.connections.firstIndex { $0.monitor == desk.monitors[0].id && $0.computer == b.localID }!
+        noCable.connections[pendingIndex].localDisplay = nil
+        try a.edit(noCable); try wait("unmatched delegate configuration sync") { b.group == noCable }
+        writes = 0
+        let declineStarted = Date()
+        switchesA.activate(noCable.presets[0].id)
+        try wait("a screen no other Mac can switch finishes") { !switchesA.busy }
+        guard Date().timeIntervalSince(declineStarted) < 5 else { throw KVMError("An impossible handover held the switch open") }
+        guard switchesA.results.count == 2, switchesA.results[noCable.monitors[0].id]?.state == .failed else {
+            throw KVMError("A switch whose handover could not be taken did not finish every screen: \(switchesA.results.count) results")
+        }
+        try a.edit(desk); try wait("restore after declined delegation") { b.group == desk }
+        print("PASS: a failed write is handed only to a Mac whose cable is matched, and a screen no Mac can switch finishes instead of waiting on silence")
         fallback = false; hold = true; writes = 0
         switchesA.activate(desk.presets[0].id)
         try wait("held monitor work") { delayed.count == 2 }

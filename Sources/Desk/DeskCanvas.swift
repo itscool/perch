@@ -119,6 +119,7 @@ struct DeskCanvas: View {
                 model.drawWire(slot: slot, computer: computer, port: port)
                 if model.problem == nil { actions.cable(port, computer) }
             }
+            wire.editingSlot = { model.presetIndex + 1 }
             wire.moveWire = { from, to in model.moveWire(from: from, to: to) }
             wire.removeWire = { port in model.removeWire(port) }
         }
@@ -206,9 +207,13 @@ struct DeskWireLayer: View {
     let anchors: [String: Anchor<CGRect>]
     var body: some View {
         GeometryReader { area in
-            ForEach(model.group.connections.filter { wire.detachedPort != $0.id }) { connection in
+            ForEach(model.group.connections) { connection in
                 ForEach(Array(model.group.presets.enumerated()), id: \.element.id) { slot, preset in
+                    // Only the wire in hand leaves the canvas while it is being
+                    // dragged. The same input's wires in other presets are not
+                    // being moved, so they stay where they are.
                     if preset.assignments.contains(where: { $0.connection == connection.id }),
+                       wire.detachedPort != connection.id || slot != model.presetIndex,
                        let computer = connection.computer,
                        let start = anchors["preset:\(computer.uuidString):\(slot + 1)"], let end = anchors["port:" + connection.id.uuidString] {
                         let source = area[start], target = area[end]

@@ -56,8 +56,16 @@ extension View {
     var connection: ((String) -> KVMConnection?)?
     private var pickedUp: KVMConnection?
     var detachedPort: UUID? { gesture.dragging ? pickedUp?.id : nil }
+    /// Which numbered connector a picked-up wire hangs from: the one for the
+    /// preset being edited, because that is the preset the drag changes.
+    var editingSlot: () -> Int = { 1 }
     var cableSource: String? {
-        if gesture.dragging, let computer = pickedUp?.computer { return "computer:" + computer.uuidString }
+        if gesture.dragging, let computer = pickedUp?.computer {
+            let prefix = "preset:" + computer.uuidString + ":"
+            let editing = prefix + String(editingSlot())
+            if sockets[editing]?.view != nil { return editing }
+            return sockets.keys.sorted().first { $0.hasPrefix(prefix) && sockets[$0]?.view != nil } ?? "computer:" + computer.uuidString
+        }
         return gesture.source
     }
     func register(_ view: DeskWireSocketView) {

@@ -969,6 +969,43 @@ Verified: build 220, `--self-test` 47 PASS, lab 268, render, `check-kvm.py`,
 `check-desk-network.py`, `check-dialog-contract.py`. Running: 2.0.218. On disk:
 2.0.220. Native acceptance of all three on the live two-Mac desk still open.
 
+## Checkpoint: stuck switching, both-direction arrival, hidden parked cursor (September 18, 2026)
+
+Scott on 2.0.221: about half of preset switches stuck on Switching with nothing
+he could do. Cause found in the decision log and the code: when a monitor write
+fails, the control Mac hands that monitor to another Mac cabled to it and sends
+no result of its own; the receiving Mac's handler returned silently whenever it
+could not take it (most often an unmatched display, which his desk has), so the
+request waited for the 45 s timeout. Repairs: a handover goes only to a Mac whose
+cable to that monitor is matched; a Mac that cannot take one always answers with
+a named refusal; a handover that is not answered within 20 s fails that screen;
+an unanswered request fails after 12 s naming the Macs that did not answer, which
+is before anything has been written; the 45 s timeout names the screens it waited
+for. `switch.begin`, `switch.finish`, `switch.failed` and `switch.delegate` now
+go to the decision log. Pinned in `check-desk-network.swift`.
+
+Pointer arrival was fixed in one direction only, because the Mac whose own
+hardware drives the pointer never goes through the delivered-event path. The
+session now reports a focus change the instant it happens, so the pointer is
+placed before either a delivered event or local hardware moves the parked cursor.
+
+Version 2 of the cursor, as Scott asked: the parked cursor is hidden while the
+pointer is on another Mac (`SetsCursorInBackground` then `CGDisplayHideCursor`,
+shown again on unpark, balanced and restored if Perch exits), so it no longer
+looks like it is hovering over that Mac's controls.
+
+Canvas: a picked-up wire now hangs from the connector of the preset being edited,
+so the drag shows the cable in hand instead of disappearing, and the same input's
+wires in other presets stay on screen while one is being moved.
+
+Switching to a preset this Mac has no input in was already allowed, and the
+two-node harness covers it; readiness only requires the control Macs and the
+destinations to be online.
+
+Verified: build 224, `--self-test` 47 PASS, lab 268, render, `check-kvm.py`,
+`check-desk-network.py`, `check-dialog-contract.py`. Running: 2.0.221. On disk:
+2.0.224. Native acceptance on the live two-Mac desk still open.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

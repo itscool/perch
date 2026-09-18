@@ -82,7 +82,9 @@ let before = desk
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22))
 precondition(rewireController.end(oldPort.socketID, at: CGPoint(x: 23, y: 21)), "An occupied input still clicks without rewiring")
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
-precondition(rewireController.cableSource == "computer:" + original.computer!.uuidString && rewireController.target == newPort.socketID && rewireController.detachedPort == original.id && desk == before)
+// The wire in hand hangs from that computer's connector for the preset being
+// edited, so the drag looks like the cable it picked up.
+precondition(rewireController.cableSource == hostSocket.socketID && rewireController.target == newPort.socketID && rewireController.detachedPort == original.id && desk == before)
 oldPort.keyDown(with: escape); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
 precondition(desk == before && rewired == 0 && removed == 0, "Esc must restore the picked-up cable")
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 350)); oldPort.mouseUp(with: mouse(.leftMouseUp, 350))

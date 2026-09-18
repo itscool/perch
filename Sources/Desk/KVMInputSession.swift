@@ -33,8 +33,14 @@ final class KVMInputSession: ObservableObject {
         // tells a collapsed handoff apart from one that never started.
         didSet {
             PerchLog.note("input.focus", focus.map { "control on computer \($0.computer) screen \($0.monitor)" } ?? "control on this Mac")
+            // Straight away, not on the next run loop pass: the Mac taking the
+            // pointer must place it before its own hardware or a delivered
+            // event moves the cursor on from where it was parked.
+            focusChanged()
         }
     }
+    /// Control moved. Called the instant focus changes, in both directions.
+    var focusChanged: () -> Void = {}
     @Published private var localProblem: String?
     @Published private var coordinatorProblem: String?
     @Published private var blockedTarget: (preset: UUID, monitor: UUID)?

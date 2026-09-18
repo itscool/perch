@@ -9,9 +9,13 @@ private final class RecordingCursor: DeskCursorSystem {
     var displays: [CGRect]
     var warps: [CGPoint] = []
     var pauseShortened = 0
+    var visible = true
+    var hides = 0, shows = 0
     init(location: CGPoint, displays: [CGRect]) { self.location = location; self.displays = displays }
     func warp(to point: CGPoint) { warps.append(point); location = point }
     func shortenWarpPause() { pauseShortened += 1 }
+    func hide() { hides += 1; visible = false }
+    func show() { shows += 1; visible = true }
 }
 
 func runDeskCursorTests() throws {
@@ -89,5 +93,20 @@ func runDeskCursorTests() throws {
     quiet.placedPointer()
     try check(quiet.base(entry: entry, live: live) == live, "The pointer was placed twice, dragging it back to the edge")
 
-    print("PASS: desk cursor parks at the centre of the screen left and returns there after every read; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
+    // Parking hides this Mac's cursor so it stops looking like it is hovering
+    // over what is under it, and unparking shows it again.
+    var hiding = DeskCursorParking()
+    let hidingCursor = RecordingCursor(location: CGPoint(x: 2000, y: 300), displays: [main, side])
+    hiding.begin(hidingCursor)
+    try check(!hidingCursor.visible && hidingCursor.hides == 1, "Parking left this Mac's cursor on screen")
+    hiding.begin(hidingCursor)
+    try check(hidingCursor.hides == 1, "Parking again hid the cursor twice")
+    hiding.reset(from: CGPoint(x: 2010, y: 300), hidingCursor)
+    try check(!hidingCursor.visible, "A reset showed the parked cursor again")
+    hiding.end(hidingCursor)
+    try check(hidingCursor.visible && hidingCursor.shows == 1, "The cursor stayed hidden after the pointer came back")
+    hiding.end(hidingCursor)
+    try check(hidingCursor.shows == 1, "Ending twice showed the cursor twice")
+
+    print("PASS: desk cursor parks hidden at the centre of the screen left and returns there after every read; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
 }

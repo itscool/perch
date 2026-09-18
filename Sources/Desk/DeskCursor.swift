@@ -4,9 +4,9 @@ import Foundation
 /// Everything that reads or moves this Mac's real cursor for desk sharing, behind
 /// one small interface so the recipe is pinned by fast tests.
 ///
-/// The desk has one pointer, owned by one Mac. Version 1 keeps the cursor visible:
-/// - While the pointer is on another Mac, this Mac's cursor is parked at the centre
-///   of the screen it left and put straight back after every movement read. The
+/// The desk has one pointer, owned by one Mac:
+/// - While the pointer is on another Mac, this Mac's cursor is hidden and parked at
+///   the centre of the screen it left, and put straight back after every read. The
 ///   centre leaves room in every direction, so movement is never clamped at an edge
 ///   or mistaken for another crossing. Deskflow re-centres the same way on Windows
 ///   and Linux; Lan Mouse re-warps after every motion on macOS.
@@ -22,6 +22,10 @@ protocol DeskCursorSystem: AnyObject {
     /// Shorten the pause macOS applies to real mouse input after a warp, so a
     /// parked cursor never drops movement.
     func shortenWarpPause()
+    /// Hide this Mac's cursor while the pointer is on another Mac, and show it
+    /// again when it comes back. Both are safe to call twice.
+    func hide()
+    func show()
 }
 
 /// The real cursor.
@@ -41,6 +45,40 @@ final class NativeDeskCursor: DeskCursorSystem {
     }
     func warp(to point: CGPoint) { CGWarpMouseCursorPosition(point) }
     func shortenWarpPause() { combined?.localEventsSuppressionInterval = Self.warpPause }
+    /// macOS only hides the cursor for the app in front unless a connection
+    /// asks to set it in the background, which is how Deskflow and Lan Mouse
+    /// hide it from a menu bar app. Hiding is counted, so this stays balanced:
+    /// one hide, one show. If Perch ever exits while hidden, macOS restores the
+    /// cursor with the connection.
+    private var hidden = false
+    private var backgroundCursorRequested = false
+    func hide() {
+        guard !hidden else { return }
+        if !backgroundCursorRequested {
+            backgroundCursorRequested = true
+            Self.setsCursorInBackground(true)
+        }
+        hidden = true
+        CGDisplayHideCursor(CGMainDisplayID())
+    }
+    func show() {
+        guard hidden else { return }
+        hidden = false
+        CGDisplayShowCursor(CGMainDisplayID())
+    }
+    deinit { show() }
+    private static func setsCursorInBackground(_ value: Bool) {
+        typealias Connection = UInt32
+        typealias MainConnection = @convention(c) () -> Connection
+        typealias SetProperty = @convention(c) (Connection, Connection, CFString, CFTypeRef) -> Int32
+        let handle = dlopen(nil, RTLD_NOW)
+        defer { if handle != nil { dlclose(handle) } }
+        guard let mainSymbol = dlsym(handle, "CGSMainConnectionID"), let setSymbol = dlsym(handle, "CGSSetConnectionProperty") else { return }
+        let main = unsafeBitCast(mainSymbol, to: MainConnection.self)
+        let set = unsafeBitCast(setSymbol, to: SetProperty.self)
+        let connection = main()
+        _ = set(connection, connection, "SetsCursorInBackground" as CFString, value ? kCFBooleanTrue : kCFBooleanFalse)
+    }
 }
 
 /// Parks this Mac's cursor while the pointer is on another Mac.
@@ -59,6 +97,9 @@ struct DeskCursorParking {
         let centre = CGPoint(x: screen.midX.rounded(.down), y: screen.midY.rounded(.down))
         cursor.shortenWarpPause()
         cursor.warp(to: centre)
+        // Out of the way and out of sight: a parked cursor left visible sits on
+        // this Mac's screen looking like it is hovering over what is under it.
+        cursor.hide()
         park = centre
     }
 
@@ -71,7 +112,10 @@ struct DeskCursorParking {
         cursor.warp(to: park)
     }
 
-    mutating func end() { park = nil; resets = 0; worstDrift = 0 }
+    mutating func end(_ cursor: DeskCursorSystem? = nil) {
+        if park != nil { cursor?.show() }
+        park = nil; resets = 0; worstDrift = 0
+    }
 
     /// Resets and the furthest drift since the last summary, then a fresh count.
     mutating func takeSummary() -> (resets: Int, worstDrift: Double) {

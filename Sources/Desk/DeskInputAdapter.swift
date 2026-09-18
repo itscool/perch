@@ -66,6 +66,7 @@ final class DeskInputAdapter: ObservableObject {
             guard let self, let location = CGEvent(source: nil)?.location else { return nil }
             return self.deskPosition(location)?.1
         }
+        session.focusChanged = { [weak self] in self?.updateCursor() }
         subscription = session.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateCursor() } }
     }
     deinit { stop() }
@@ -127,7 +128,7 @@ final class DeskInputAdapter: ObservableObject {
         tap = nil; source = nil
         observers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }; observers = []
         lockObservers.forEach { DistributedNotificationCenter.default().removeObserver($0) }; lockObservers = []
-        parking.end(); tapStartFailed = false; accessProblem = nil
+        parking.end(cursor); tapStartFailed = false; accessProblem = nil
     }
     var needsPermissionSetup: Bool {
         !AccessCheck.sharing
@@ -265,7 +266,7 @@ final class DeskInputAdapter: ObservableObject {
         // Control can arrive together with the movement that caused it, before
         // the cursor update runs. The first event then continues from the entry
         // point rather than from this Mac's parked cursor.
-        if !handover.placed { parking.end() }
+        if !handover.placed { parking.end(cursor) }
         let here = handover.placed ? cursor.location : handover.base(entry: point(focus), live: cursor.location)
         let point = value.kind == .motion
             ? DeskCursorParking.moved(from: here, dx: value.x, dy: value.y, displays: cursor.displays)
@@ -292,11 +293,11 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func releasePosted() {
         for event in posted.releaseAll() { emitNative(event, point: lastLocation) }
-        parking.end()
+        parking.end(cursor)
     }
     private func updateCursor() {
         guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else {
-            parking.end(); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
+            parking.end(cursor); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
         }
         setRemoteCapture(focus.computer != session.node.localID)
         if focus.computer != session.node.localID {
@@ -307,7 +308,7 @@ final class DeskInputAdapter: ObservableObject {
             parking.begin(cursor)
             controlWasLocal = false; handover.left()
         } else {
-            parking.end()
+            parking.end(cursor)
             // Place the pointer once, when control arrives from the other Mac, and
             // then leave it alone. Re-placing it whenever the focused screen changed
             // dragged the cursor back while this Mac still had control.

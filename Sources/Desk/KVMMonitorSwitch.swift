@@ -138,6 +138,10 @@ final class KVMMonitorSwitch: ObservableObject {
     var otherMessage: ((UUID, Data) -> Void)?
     private var leases: [UUID: Lease] = [:]
     private var delegates: [UUID: UUID] = [:]
+    /// When a handed-over monitor stops being worth waiting for. A peer that
+    /// never answers must not hold the whole switch open.
+    private var delegateDeadline: [UUID: TimeInterval] = [:]
+    static let delegateTimeout: TimeInterval = 20
     private var prepared: Set<UUID> = []
     private var required: Set<UUID> = []
     private var verification: [UUID: Set<UUID>] = [:]
@@ -312,6 +316,7 @@ final class KVMMonitorSwitch: ObservableObject {
         for route in request.routes { optimisticInputs[route.monitor] = nil }
         required = Set(request.routes.map { $0.control.computer }); started = now; committed = false; lastControlResend = -.infinity
         busy = true; problem = nil; caution = nil; activePreset = nil; activeGroup = nil; lastConfirmed = nil
+        PerchLog.record("switch.begin", "Switching \(request.routes.count) screen(s); waiting for \(required.count) Mac(s) to answer")
         invalidateDesktop(request)
         for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, false), peer: peer) }
         // Wake the computer that owns each selected input and reconnect its
@@ -364,13 +369,27 @@ final class KVMMonitorSwitch: ObservableObject {
             if let input, input > 0 { desktopObservations[monitor] = Observation(input: input, peer: peer, time: now, revision: revision) }
             else if desktopObservations[monitor]?.peer == peer { desktopObservations[monitor] = nil }
         case .delegate(let request, let monitor):
+            // Whatever this Mac decides, the Mac that asked gets an answer. A
+            // delegate that simply returned is what left a preset switching
+            // until the whole request timed out.
+            guard let route = request.routes.first(where: { $0.monitor == monitor && $0.control.computer == peer }) else { return }
+            func decline(_ reason: String) {
+                PerchLog.record("switch.delegate", "Declined a handed-over switch: " + reason)
+                send(.delegated(.init(request: request.id, monitor: monitor, input: route.input, state: .failed, detail: reason)), peer: peer)
+            }
             guard node.canEdit, request.epoch == node.graph.roster.epoch, request.revision == node.revision,
-                  let route = request.routes.first(where: { $0.monitor == monitor && $0.control.computer == peer }),
-                  ["standard", "lg"].contains(route.control.mode),
-                  let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
-                  let display = connection.localDisplay,
-                  (try? request.validated(in: node.group)) == request,
-                  leases[monitor] == nil, let execute else { return }
+                  (try? request.validated(in: node.group)) == request else {
+                decline("This Mac's desk is not in step with the switch, so it cannot take it over."); return
+            }
+            guard ["standard", "lg"].contains(route.control.mode) else {
+                decline("This monitor's input protocol cannot be taken over by another Mac."); return
+            }
+            guard let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
+                  let display = connection.localDisplay else {
+                decline("This Mac has no matched cable to that monitor, so it cannot switch it."); return
+            }
+            guard leases[monitor] == nil else { decline("This Mac is already switching that monitor."); return }
+            guard let execute else { decline("The monitor adapter is not available on this Mac."); return }
             let lease = Lease(peer: peer, request: request, created: now, executing: true)
             leases[monitor] = lease
             let localRoute = KVMMonitorRoute(monitor: monitor, control: .init(computer: node.localID, localDisplay: display, mode: route.control.mode), input: route.input, force: route.force)
@@ -385,6 +404,7 @@ final class KVMMonitorSwitch: ObservableObject {
         case .delegated(let outcome):
             guard delegates[outcome.monitor] == peer, let lease = leases[outcome.monitor], lease.request.id == outcome.request,
                   let route = lease.request.routes.first(where: { $0.monitor == outcome.monitor && $0.input == outcome.input }) else { return }
+            delegateDeadline[outcome.monitor] = nil
             send(.release(outcome.request), peer: peer)
             complete(route, lease: lease, state: outcome.state, detail: outcome.detail)
         case .refresh:
@@ -514,9 +534,15 @@ final class KVMMonitorSwitch: ObservableObject {
         guard leases[route.monitor]?.request.id == lease.request.id else { return }
         if state == .failed, delegates[route.monitor] == nil, ["standard", "lg"].contains(route.control.mode), now-lease.created < 18,
            node.canEdit, node.revision == lease.request.revision, node.graph.roster.epoch == lease.request.epoch {
-            let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.computer.map(node.online.contains) == true }
+            // Only a Mac whose cable to that monitor is matched can switch it;
+            // handing it to one that cannot is a round trip that changes nothing.
+            let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.localDisplay != nil && $0.computer.map(node.online.contains) == true }
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first
-            if let peer = candidate?.computer { delegates[route.monitor] = peer; send(.delegate(lease.request, route.monitor), peer: peer); return }
+            if let peer = candidate?.computer {
+                delegates[route.monitor] = peer; delegateDeadline[route.monitor] = now + Self.delegateTimeout
+                PerchLog.record("switch.delegate", "Monitor \(route.monitor.uuidString.prefix(8)) handed to computer \(peer.uuidString.prefix(8)) after a failed write")
+                send(.delegate(lease.request, route.monitor), peer: peer); return
+            }
         }
         let outcome = KVMMonitorOutcome(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(detail.prefix(500)))
         leases[route.monitor]?.completed = true
@@ -536,7 +562,9 @@ final class KVMMonitorSwitch: ObservableObject {
             // readback clears this fallback before desktop reconciliation.
             optimisticInputs[route.monitor] = route.input
         }
-        busy = false; verifyingMonitors = []; verifyDeadline = [:]
+        busy = false; verifyingMonitors = []; verifyDeadline = [:]; delegateDeadline = [:]
+        let states = request.routes.map { results[$0.monitor]?.state }
+        PerchLog.record("switch.finish", "Switch finished in \(String(format: "%.1f", now - started)) s: \(states.filter { $0 == .confirmed }.count) confirmed, \(states.filter { $0 == .unverified }.count) accepted without readback, \(states.filter { $0 == .failed }.count) failed")
         finishedDesktopReadBarrier(request)
         for peer in required { send(.release(request.id), peer: peer) }
         // Every peer applies the same per-route outcome as this Mac, so no
@@ -571,9 +599,10 @@ final class KVMMonitorSwitch: ObservableObject {
         }
     }
     private func finishFailure(_ reason: String) {
+        PerchLog.record("switch.failed", reason)
         guard let request else { return }
         busy = false; problem = reason; caution = nil; activePreset = nil; activeGroup = nil
-        verifyingMonitors = []; verifyDeadline = [:]
+        verifyingMonitors = []; verifyDeadline = [:]; delegateDeadline = [:]
         for route in request.routes { optimisticInputs[route.monitor] = nil }
         finishedDesktopReadBarrier(request)
         for route in request.routes where results[route.monitor] == nil { results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .unverified, detail: "Switch not confirmed. " + reason) }
@@ -637,7 +666,24 @@ final class KVMMonitorSwitch: ObservableObject {
             leases[monitor] = nil
             delegates[monitor] = nil
         }
-        if busy && now - started > 45 { finishFailure("A computer disconnected or the switch timed out. Actual monitor inputs need to be checked.") }
+        // A monitor handed to another Mac that never answers fails on its own,
+        // rather than holding the switch open until the whole request expires.
+        for (monitor, deadline) in delegateDeadline where now >= deadline {
+            delegateDeadline[monitor] = nil
+            guard let lease = leases[monitor], let route = lease.request.routes.first(where: { $0.monitor == monitor }) else { continue }
+            let name = node.group.computers.first { $0.id == delegates[monitor] }?.name ?? "The other Mac"
+            complete(route, lease: lease, state: .failed, detail: "\(name) did not answer after this Mac could not switch that monitor.")
+        }
+        // Nothing has been written yet while a Mac has not answered the request:
+        // say which one instead of holding the preset on Switching for 45 seconds.
+        if busy, !committed, now - started > 12 {
+            let silent = required.subtracting(prepared).map { id in node.group.computers.first { $0.id == id }?.name ?? "A paired Mac" }.sorted()
+            finishFailure(silent.joined(separator: ", ") + " did not answer the switch. Nothing was switched; check that Perch is running there, then try again.")
+        }
+        if busy && now - started > 45 {
+            let waiting = request?.routes.filter { results[$0.monitor] == nil }.map { route in node.group.monitors.first { $0.id == route.monitor }?.name ?? "a screen" } ?? []
+            finishFailure("The switch timed out" + (waiting.isEmpty ? "" : " waiting for " + waiting.sorted().joined(separator: ", ")) + ". The actual monitor inputs need to be checked.")
+        }
         if busy { tryCommit() }
         let expiredVerification = verifyDeadline.filter { now >= $0.value }.map(\.key)
         if !expiredVerification.isEmpty {

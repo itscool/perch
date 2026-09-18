@@ -49,14 +49,28 @@ enum DeskDesktopRecovery {
               !edid.isEmpty, edid.utf8.count <= 256 else { return nil }
         return .init(path: path, registryID: entry, edid: edid)
     }
+    /// How long a background caller waits for the recovery lock before giving up.
+    static let lockPatience: TimeInterval = 2
     static func locked<T>(_ action: (inout [DeskDesktopRecord]) throws -> T) throws -> T {
         try SafetyFiles.prepare()
         let fd = open(lockURL.path, O_CREAT | O_RDWR | O_NOFOLLOW, 0o600)
         guard fd >= 0 else { throw KVMError("Desktop recovery lock is unavailable.") }
         defer { close(fd) }
         var info = stat()
-        guard fstat(fd, &info) == 0, info.st_uid == getuid(), info.st_mode & S_IFMT == S_IFREG,
-              flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw KVMError("Desktop recovery is busy.") }
+        guard fstat(fd, &info) == 0, info.st_uid == getuid(), info.st_mode & S_IFMT == S_IFREG else { throw KVMError("Desktop recovery lock is unavailable.") }
+        // The once-a-second display bookkeeping holds this lock briefly on its own
+        // thread. A monitor switch arriving in that moment used to be refused as
+        // "busy", and the write went nowhere. Off the main thread, wait a moment
+        // for it instead; on the main thread, never block.
+        var acquired = flock(fd, LOCK_EX | LOCK_NB) == 0
+        if !acquired && !Thread.isMainThread {
+            let deadline = ProcessInfo.processInfo.systemUptime + Self.lockPatience
+            while !acquired && ProcessInfo.processInfo.systemUptime < deadline {
+                usleep(20_000)
+                acquired = flock(fd, LOCK_EX | LOCK_NB) == 0
+            }
+        }
+        guard acquired else { throw KVMError("Desktop recovery is busy.") }
         defer { flock(fd, LOCK_UN) }
         var records: [DeskDesktopRecord] = []
         if FileManager.default.fileExists(atPath: journal.path) {

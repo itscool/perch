@@ -918,7 +918,11 @@ final class DeskRuntime: ObservableObject {
                 let hotKey = presetHotKeys[binding.preset] ?? HotKey()
                 presetHotKeys[binding.preset] = hotKey
                 let preset = binding.preset
-                hotKey.action = { [weak self] in self?.activatePreset(preset) }
+                hotKey.action = { [weak self] in
+                    let name = self?.node.group.presets.first { $0.id == preset }?.name ?? "a preset"
+                    PerchLog.record("switch.hotkey", "Shortcut for \(name) pressed on this Mac")
+                    self?.activatePreset(preset)
+                }
                 return (hotKey, binding.shortcut)
             }
             do { try HotKey.register(changes) } catch { presetProblem = error.localizedDescription }
@@ -929,6 +933,7 @@ final class DeskRuntime: ObservableObject {
         }
         shortcutProblem = presetProblem
         sharingShortcutError = sharingProblem
+        PerchLog.note("shortcut.register", presetProblem.map { "Preset shortcuts not registered: " + $0 } ?? "Preset shortcuts registered: " + plan.presets.map { $0.shortcut.title }.joined(separator: ", "))
         shortcutMemory.finished(claims: claims, presets: presets, succeeded: presetProblem == nil && sharingProblem == nil)
     }
 }

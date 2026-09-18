@@ -220,7 +220,12 @@ final class KVMMonitorSwitch: ObservableObject {
         } catch { return error.localizedDescription }
     }
     func activate(_ preset: UUID, force: Bool = false) {
-        if let problem = readiness(preset) { self.problem = problem; return }
+        if let problem = readiness(preset) {
+            // A refusal used to leave no trace, so a shortcut that "did nothing"
+            // could not be told apart from one that never arrived.
+            PerchLog.record("switch.refused", problem)
+            self.problem = problem; return
+        }
         do {
             let request = try KVMMonitorRequest.make(group: node.group, preset: preset, epoch: node.graph.roster.epoch, revision: node.revision!, force: force)
             begin(request)

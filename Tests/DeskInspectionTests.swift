@@ -379,6 +379,10 @@ func runDeskInputListTests() throws {
     // A screen that Mac cannot see right now keeps its record; absence is not evidence.
     try check(healed.connections.first { $0.id == oneDP.id }?.localDisplay == "studio-one",
               "A screen the Studio could not currently see lost its record")
+    // Learning what a screen is must not change the sharing fingerprint: an older
+    // Perch cannot see that field, and a difference refuses every handoff.
+    try check(KVMInputConfiguration.revision(healed) == KVMInputConfiguration.revision({ var g = healed; for i in g.monitors.indices { g.monitors[i].identity = nil }; return g }()),
+              "A screen's identity changed the sharing fingerprint")
     // Two identical monitors without serials cannot be told apart, so nothing is guessed.
     var twins = healed
     twins.connections[twins.connections.firstIndex { $0.id == twoHDMI.id }!].localDisplay = "gone"

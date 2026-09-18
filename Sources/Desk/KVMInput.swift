@@ -32,7 +32,12 @@ enum KVMInputConfiguration {
         var value = group
         value.name = ""
         for index in value.computers.indices { value.computers[index].name = "" }
-        for index in value.monitors.indices { value.monitors[index].name = "" }
+        // A screen's identity says what the monitor is, not where input may go,
+        // and a Perch older than it cannot read it: left in, the two Macs'
+        // fingerprints differ and every handoff is quietly refused. Any change to
+        // what this fingerprint covers must bump KVMInputProtocol.version, so the
+        // difference is named instead.
+        for index in value.monitors.indices { value.monitors[index].name = ""; value.monitors[index].identity = nil }
         for index in value.connections.indices { value.connections[index].inputName = "" }
         for index in value.presets.indices {
             value.presets[index].name = ""

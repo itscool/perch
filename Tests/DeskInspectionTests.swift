@@ -326,6 +326,18 @@ func runDeskInputListTests() throws {
     taken.connections[otherIndex].localDisplay = "studio-hdmi-2"
     try check(DeskShowingCableResolver.resolve(taken, showing: showing, displays: [studioMac: ["studio-hdmi-2"]]) == taken,
               "A display another input already uses was matched again")
+    // A recorded display that Mac no longer has is replaced by the one it does,
+    // which is how a USB-C-to-HDMI adapter's re-enumerated display heals even
+    // when the adapter hides the monitor's own model.
+    var stale = desk
+    stale.connections[portIndex].localDisplay = "adapter-before-sleep"
+    let restored = DeskShowingCableResolver.resolve(stale, showing: showing, displays: [studioMac: ["adapter-after-wake"]])
+    try check(restored.connections.first { $0.id == studioPort.id }?.localDisplay == "adapter-after-wake",
+              "A display renamed behind an adapter was not replaced while its screen showed that Mac")
+    try check(DeskShowingCableResolver.resolve(stale, showing: showing, displays: [studioMac: ["adapter-before-sleep"]]) == stale,
+              "A recorded display that Mac still has was replaced")
+    try check(DeskShowingCableResolver.resolve(stale, showing: showing, displays: [:]) == stale,
+              "A Mac with no display report had its record replaced")
     // A screen showing an input with no computer stays as it is.
     let unassigned = desk.connections.first { $0.computer == nil }!
     try check(DeskShowingCableResolver.resolve(desk, showing: [unassigned.monitor: unassigned.inputCode ?? 0], displays: [studioMac: ["studio-hdmi-2"]]) == desk,

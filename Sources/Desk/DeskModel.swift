@@ -149,8 +149,15 @@ enum DeskShowingCableResolver {
         var draft = group
         for (monitor, input) in showing.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
             guard let index = draft.connections.firstIndex(where: { $0.monitor == monitor && $0.inputCode == input }),
-                  let computer = draft.connections[index].computer, draft.connections[index].localDisplay == nil else { continue }
-            let used = Set(draft.connections.filter { $0.computer == computer }.compactMap(\.localDisplay))
+                  let computer = draft.connections[index].computer else { continue }
+            // A recorded display that Mac no longer has is as good as none: an
+            // adapter between Mac and monitor re-enumerates it under a new ID, and
+            // may hide the monitor's own model, so this is the evidence left.
+            if let recorded = draft.connections[index].localDisplay {
+                guard let current = displays[computer], !current.isEmpty, !current.contains(recorded) else { continue }
+            }
+            let connectionID = draft.connections[index].id
+            let used = Set(draft.connections.filter { $0.computer == computer && $0.id != connectionID }.compactMap(\.localDisplay))
             let free = (displays[computer] ?? []).filter { !used.contains($0) }
             // One unused display is this screen. More than one is a guess, and
             // Perch does not guess which screen a person is looking at.

@@ -554,7 +554,7 @@ final class KVMMonitorSwitch: ObservableObject {
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first
             if let peer = candidate?.computer {
                 delegates[route.monitor] = peer; delegateDeadline[route.monitor] = now + Self.delegateTimeout
-                PerchLog.record("switch.delegate", "Monitor \(route.monitor.uuidString.prefix(8)) handed to computer \(peer.uuidString.prefix(8)) after a failed write")
+                PerchLog.record("switch.delegate", "Monitor \(route.monitor.uuidString.prefix(8)) handed to computer \(peer.uuidString.prefix(8)) after a failed write: \(detail.prefix(200))")
                 send(.delegate(lease.request, route.monitor), peer: peer); return
             }
         }
@@ -567,6 +567,7 @@ final class KVMMonitorSwitch: ObservableObject {
             reason = "\(name) cannot be reached by any Mac: a monitor only takes commands from a Mac it is showing. Choose an input on the monitor itself, then try again. (\(detail))"
         }
         let outcome = KVMMonitorOutcome(request: lease.request.id, monitor: route.monitor, input: route.input, state: state, detail: String(reason.prefix(500)))
+        PerchLog.record("switch.write", "Monitor \(route.monitor.uuidString.prefix(8)) input \(route.input) via display \(route.control.localDisplay.prefix(8)) (\(route.control.mode)): \(state) — \(detail.prefix(200))")
         leases[route.monitor]?.completed = true
         leases[route.monitor]?.outcome = outcome
         send(.result(outcome), peer: lease.peer)

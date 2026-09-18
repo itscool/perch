@@ -72,7 +72,15 @@ final class DeskDesktopHandoff {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.working = false; self.problem = problem
-                if self.disconnected != disconnected { self.disconnected = disconnected }
+                if self.disconnected != disconnected {
+                    // Letting go of a display also cuts this Mac's command path to
+                    // that monitor, so every change is worth a line in the log.
+                    let released = disconnected.subtracting(self.disconnected), reclaimed = self.disconnected.subtracting(disconnected)
+                    if !released.isEmpty { PerchLog.record("desktop.away", "Let go of display(s) \(released.map { String($0.prefix(8)) }.sorted().joined(separator: ", ")) because another Mac is showing there") }
+                    if !reclaimed.isEmpty { PerchLog.record("desktop.back", "Took back display(s) \(reclaimed.map { String($0.prefix(8)) }.sorted().joined(separator: ", "))") }
+                    self.disconnected = disconnected
+                }
+                if let problem, problem != self.problem { PerchLog.record("desktop.problem", problem) }
             }
         }
     }

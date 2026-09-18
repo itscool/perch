@@ -331,30 +331,27 @@ func runDeskInputListTests() throws {
     try check(DeskShowingCableResolver.resolve(desk, showing: [unassigned.monitor: unassigned.inputCode ?? 0], displays: [studioMac: ["studio-hdmi-2"]]) == desk,
               "An input with no computer was given a display")
 
-    // The profile for the screen on this desk: identified by its EDID product,
-    // switching HDMI and DisplayPort the standard way and USB-C LG's way, so a
-    // screen set up from scratch gets each input's command right.
-    let up850 = MonitorDescriptor(id: UUID().uuidString, displayID: 0, name: "LG ULTRAFINE", vendor: 7789, model: 23741, ddcAvailable: true)
-    guard let tested = MonitorProfiles.entries.first(where: { $0.name.hasPrefix("LG 27UP850-W ·") }) else { throw KVMError("The UP850K profile is missing from the catalog") }
-    // Offered by name while its codes are unconfirmed, never matched automatically.
-    try check(tested.automatic == false && MonitorProfiles.match(up850, reportedModel: "UP850K")?.name != tested.name,
-              "An unconfirmed profile was matched automatically: \(tested.name)")
-    try check(!tested.alternate, "The UP850K profile is not the standard-command one")
-    try check(tested.inputs.first { $0.name == "DisplayPort" }?.code == 15 && tested.inputs.first { $0.name == "DisplayPort" }?.command == nil,
-              "DisplayPort did not take the standard command in the tested profile")
-    try check(tested.inputs.first { $0.name == "USB-C" }?.code == 209 && tested.inputs.first { $0.name == "USB-C" }?.command == "lg",
-              "USB-C did not keep LG's own command in the tested profile")
-    var fresh = KVMGroup.sample()
-    fresh.monitors[0].control = .init(computer: fresh.computers[0].id, localDisplay: fresh.connections[0].localDisplay!, mode: "lg")
-    try DeskMonitorConfiguration.apply(monitor: fresh.monitors[0].id, profile: tested.name,
-                                       ports: tested.inputs.map { .init(name: $0.name, code: $0.code, command: $0.command) },
-                                       mode: tested.alternate ? "lg" : "standard", to: &fresh)
-    let freshUSB = fresh.connections.first { $0.monitor == fresh.monitors[0].id && $0.inputName == "USB-C" }
-    let freshDP = fresh.connections.first { $0.monitor == fresh.monitors[0].id && $0.inputName == "DisplayPort" }
-    try check(fresh.monitors[0].control?.mode == "standard" && freshDP?.inputCode == 15 && freshDP?.inputProtocol == nil,
-              "Setting up that screen did not give DisplayPort the standard command")
-    try check(freshUSB?.inputCode == 209 && freshUSB?.inputProtocol == "lg",
-              "Setting up that screen did not keep LG's own command for USB-C")
+    // The two screens on this desk, identified by their EDID products and set up
+    // with the LG codes proven on them, so a fresh setup needs no hand editing.
+    let lgCodes: [String: UInt16] = ["HDMI 1": 144, "HDMI 2": 145, "DisplayPort": 208, "USB-C": 209]
+    for (model, token, name) in [(UInt32(23741), "UP850K", "LG 27UP850-W · UP850K firmware"), (UInt32(30471), "UL850", "LG 27UL850-W · UL850 firmware")] {
+        let screen = MonitorDescriptor(id: UUID().uuidString, displayID: 0, name: "LG", vendor: 7789, model: model, ddcAvailable: true)
+        let byProduct = MonitorProfiles.match(screen), byToken = MonitorProfiles.match(screen, reportedModel: token)
+        try check(byProduct?.name == name && byToken?.name == name, "\(name) was not chosen for its screen: \(byProduct?.name ?? "none")")
+        guard let tested = byProduct else { continue }
+        try check(tested.confidence == "locally-tested" && tested.alternate && tested.readbackUnavailable == true,
+                  "\(name) is not the tested LG-command profile without readback")
+        try check(Dictionary(uniqueKeysWithValues: tested.inputs.map { ($0.name, $0.code) }) == lgCodes && tested.inputs.allSatisfy { $0.command == nil },
+                  "\(name) lost the LG codes proven on this desk")
+        var fresh = KVMGroup.sample()
+        fresh.monitors[0].control = .init(computer: fresh.computers[0].id, localDisplay: fresh.connections[0].localDisplay!, mode: "standard")
+        try DeskMonitorConfiguration.apply(monitor: fresh.monitors[0].id, profile: tested.name,
+                                           ports: tested.inputs.map { .init(name: $0.name, code: $0.code, command: $0.command) },
+                                           mode: tested.alternate ? "lg" : "standard", to: &fresh)
+        let dp = fresh.connections.first { $0.monitor == fresh.monitors[0].id && $0.inputName == "DisplayPort" }
+        try check(fresh.monitors[0].control?.mode == "lg" && dp?.inputCode == 208 && dp?.inputProtocol == nil,
+                  "Setting up \(name) did not give DisplayPort LG's code")
+    }
 
     // One input can be selected a different way from the rest of its screen.
     var mixed = KVMGroup.sample()

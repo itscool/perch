@@ -61,9 +61,9 @@ side-effecting behavior. Sources: [BetterDisplay DDC CLI](https://github.com/way
 | LG UltraGear 27GL850 | DisplayPort 1 = 15, HDMI 1 = 17, HDMI 2 = 18 |
 | LG HDR 4K (shared GSM7706 identity) | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 210 |
 | LG 27UN850-W / 27UN850-WY | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 209 |
-| LG 27UL850-W · UL850 firmware (advertised by the monitor, not yet confirmed) | HDMI 1 = 17, HDMI 2 = 18, DisplayPort = 15 (standard command), USB-C = 209 (LG command) |
+| LG 27UL850-W · UL850 firmware (tested here) | HDMI 1 = 144, HDMI 2 = 145 (tested), DisplayPort = 208, USB-C = 209 (tested), LG command |
 | LG 27UP850-W | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 209 |
-| LG 27UP850-W · UP850K firmware (advertised by the monitor, not yet confirmed) | HDMI 1 = 17, HDMI 2 = 18, DisplayPort = 15 (standard command), USB-C = 209 (LG command) |
+| LG 27UP850-W · UP850K firmware (tested here) | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208 (tested), USB-C = 209 (tested), LG command |
 | LG 27UP85NP-W | DisplayPort = 208, USB-C = 209 |
 | LG 32UD99-W | HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 224, USB-C = 192 |
 | LG 29UM69G | HDMI 1 = 144, DisplayPort = 192, USB-C = 224 |

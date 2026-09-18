@@ -157,7 +157,7 @@
   {
    "source": "catalog/monitor-profiles.json",
    "resource": "monitor-profiles.json",
-   "sha256": "81f09e13dfcc15a75750171afc87a9f248758679221166ab947fc4d114e8e715",
+   "sha256": "81b92acd01de7be4f640f854e9ef40c1dbb18ada06def13c01651a10bd741282",
    "records": 95
   },
   {

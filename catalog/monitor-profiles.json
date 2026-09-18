@@ -372,7 +372,6 @@
    "model": 30471,
    "automatic": false,
    "retailModels": [
-    "UL850",
     "27UL850-W (UL850)"
    ],
    "alternate": false,
@@ -447,7 +446,6 @@
    "model": 23741,
    "automatic": false,
    "retailModels": [
-    "UP850K",
     "27UP850-W (UP850K)"
    ],
    "alternate": false,

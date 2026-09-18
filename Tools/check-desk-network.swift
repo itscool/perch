@@ -233,8 +233,21 @@ import Darwin
         guard switchesA.results.count == 2, switchesA.results[noCable.monitors[0].id]?.state == .failed else {
             throw KVMError("A switch whose handover could not be taken did not finish every screen: \(switchesA.results.count) results")
         }
+        // Once the monitor's identity is known, the other Mac takes the write over
+        // without a recorded display: it finds the monitor among its own displays
+        // at the moment of the command. This is how a screen that has just moved
+        // to the Studio's DisplayPort comes back.
+        var recognised = noCable
+        recognised.monitors[0].identity = .init(vendor: 7789, model: 23741, serial: 175682)
+        try a.edit(recognised); try wait("recognised monitor configuration sync") { b.group == recognised }
+        writes = 0
+        switchesA.activate(recognised.presets[0].id)
+        try wait("a recognised monitor is taken over") { !switchesA.busy }
+        guard switchesA.results[recognised.monitors[0].id]?.state != .failed, writes >= 1 else {
+            throw KVMError("A Mac cabled to a recognised monitor declined it for want of a recorded display: \(switchesA.results[recognised.monitors[0].id].map { $0.detail } ?? "no result")")
+        }
         try a.edit(desk); try wait("restore after declined delegation") { b.group == desk }
-        print("PASS: a failed write is handed only to a Mac whose cable is matched, and a screen no Mac can switch finishes instead of waiting on silence")
+        print("PASS: a failed write is handed to a Mac that can recognise the monitor, and a screen no Mac can switch finishes instead of waiting on silence")
         fallback = false; hold = true; writes = 0
         switchesA.activate(desk.presets[0].id)
         try wait("held monitor work") { delayed.count == 2 }

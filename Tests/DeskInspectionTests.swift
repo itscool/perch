@@ -409,6 +409,15 @@ func runDeskInputListTests() throws {
               "Screen 1 kept a record the serial proves belongs to screen 2")
     try check(KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740).matches(vendor: 7789, model: 30470, serial: 353740),
               "The same monitor reporting another model number on another input was not recognised")
+    // At the moment of a command, the Mac looks at its own displays and finds the
+    // monitor by what it is, never trusting a stored ID.
+    let screenTwo = KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740)
+    try check(DeskIdentityCableResolver.display(for: screenTwo, among: [.init(id: "adapter", vendor: 7789, model: 30470, serial: 353740)]) == "adapter",
+              "The monitor was not found among this Mac's live displays through an adapter")
+    try check(DeskIdentityCableResolver.display(for: screenTwo, among: [.init(id: "other", vendor: 7789, model: 23741, serial: 175682)]) == nil,
+              "Another monitor was taken for this one")
+    try check(DeskIdentityCableResolver.display(for: nil, among: [.init(id: "any", vendor: 7789, model: 30471, serial: 353740)]) == nil,
+              "A screen with no known identity was matched")
     // Learning what a screen is must not change the sharing fingerprint: an older
     // Perch cannot see that field, and a difference refuses every handoff.
     try check(KVMInputConfiguration.revision(healed) == KVMInputConfiguration.revision({ var g = healed; for i in g.monitors.indices { g.monitors[i].identity = nil }; return g }()),

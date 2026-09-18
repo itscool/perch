@@ -1198,6 +1198,25 @@ kvm-lab 268, render, `check-dialog-contract.py`. Running: 2.0.253. On disk:
 2.0.254. Open: restart here, show preset 2, confirm the Studio's record heals
 and the pointer crosses.
 
+## Checkpoint: finding the monitor at the moment of a command (September 18, 2026)
+
+After 2.0.262 the records were right (Home screen 2's HDMI 2 now holds the
+Studio's real display `1DAE75B3`), but preset 2 never became active: screen 1,
+left on DisplayPort by preset 3, has to be sent back to USB-C by the Studio, and
+the Studio's DisplayPort record for it was correctly empty because the Studio
+had never reported seeing it. With no candidate the hand-off never happened,
+screen 1 failed, and a preset with a failed screen is not active, so sharing
+refused on both Macs. The executing Mac now reads its own displays at the moment
+of the command (`DeskLiveDisplays`, CoreGraphics in-process) and finds the
+monitor by its identity, and a Mac cabled to a monitor with a known identity
+can take a hand-off without any recorded display. Pinned in
+`runDeskInputListTests` and `check-desk-network.swift`.
+
+Verified: build 263, `--self-test` 47, `check-desk-network.py`,
+`check-kvm.py`, kvm-lab 268, `check-dialog-contract.py`,
+`check-monitor-command.py`. Running: 2.0.262. On disk: 2.0.263. Needs to reach
+the Studio, which is the Mac that takes screen 1 back.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

@@ -97,6 +97,13 @@ enum DeskPendingCableResolver {
 /// by those.
 enum DeskIdentityCableResolver {
     struct Display: Equatable { let id: String; let vendor: UInt32; let model: UInt32; let serial: UInt32 }
+    /// The one display in `live` that is this monitor, or nil when none or
+    /// several are. Used at the moment of a command, from the Mac's own list.
+    static func display(for identity: KVMScreenIdentity?, among live: [Display]) -> String? {
+        guard let identity else { return nil }
+        let found = live.filter { identity.matches(vendor: $0.vendor, model: $0.model, serial: $0.serial) }
+        return found.count == 1 ? found[0].id : nil
+    }
     static func resolve(_ group: KVMGroup, displays: [UUID: [Display]]) -> KVMGroup {
         var draft = group
         // Learn what each screen is from any Mac that currently sees it under the

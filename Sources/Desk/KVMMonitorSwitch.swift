@@ -403,9 +403,12 @@ final class KVMMonitorSwitch: ObservableObject {
             guard ["standard", "lg"].contains(route.control.mode) else {
                 decline("This monitor's input protocol cannot be taken over by another Mac."); return
             }
+            // The recorded display is a hint; the executor finds the monitor among
+            // this Mac's own displays by what it is when no record exists yet.
+            let known = node.group.monitors.first { $0.id == monitor }?.identity != nil
             guard let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
-                  let display = connection.localDisplay else {
-                decline("This Mac has no matched cable to that monitor, so it cannot switch it."); return
+                  let display = connection.localDisplay ?? (known ? "" : nil) else {
+                decline("This Mac has no cable to that monitor that it can recognise, so it cannot switch it."); return
             }
             guard leases[monitor] == nil else { decline("This Mac is already switching that monitor."); return }
             guard let execute else { decline("The monitor adapter is not available on this Mac."); return }
@@ -553,7 +556,8 @@ final class KVMMonitorSwitch: ObservableObject {
         guard leases[route.monitor]?.request.id == lease.request.id else { return }
         // Only a Mac whose cable to that monitor is matched can switch it;
         // handing it to one that cannot is a round trip that changes nothing.
-        let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && $0.localDisplay != nil && $0.computer.map(node.online.contains) == true }
+        let known = node.group.monitors.first { $0.id == route.monitor }?.identity != nil
+        let candidates = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != node.localID && ($0.localDisplay != nil || known) && $0.computer.map(node.online.contains) == true }
         if state == .failed, delegates[route.monitor] == nil, ["standard", "lg"].contains(route.control.mode), now-lease.created < 18,
            node.canEdit, node.revision == lease.request.revision, node.graph.roster.epoch == lease.request.epoch {
             let candidate = candidates.first { $0.inputCode == observations[route.monitor]?.input } ?? candidates.sorted { ($0.computer?.uuidString ?? "") < ($1.computer?.uuidString ?? "") }.first

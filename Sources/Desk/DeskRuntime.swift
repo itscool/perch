@@ -674,7 +674,20 @@ final class DeskRuntime: ObservableObject {
         try node.edit(group); model.selected = monitor; node.problem = nil
     }
     private lazy var desktopHandoff = DeskDesktopHandoff(local: node.localID, group: { [unowned self] in self.node.group }, inputs: { [weak self] in self?.switching.desktopInputs ?? [:] }, optimisticInputs: { [weak self] in self?.switching.optimisticInputs ?? [:] }, online: { [weak self] in self?.node.online ?? [] }, suspended: { [weak self] in self?.node.canEdit != true })
-    private func execute(_ route: KVMMonitorRoute, valid: @escaping () -> Bool, completion: @escaping (KVMMonitorOutcome.State, String) -> Void) {
+    private func execute(_ recorded: KVMMonitorRoute, valid: @escaping () -> Bool, completion: @escaping (KVMMonitorOutcome.State, String) -> Void) {
+        // The recorded display is only a hint. macOS renames displays, and a Mac
+        // handed a monitor may never have had one recorded for it, so look at
+        // this Mac's own displays right now and find the monitor by what it is.
+        let identity = node.group.monitors.first { $0.id == recorded.monitor }?.identity
+        var route = recorded
+        if let identity {
+            let seen = DeskLiveDisplays.current()
+            if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
+               let found = DeskIdentityCableResolver.display(for: identity, among: seen) {
+                PerchLog.record("switch.write", "Monitor \(recorded.monitor.uuidString.prefix(8)) found as display \(found.prefix(8)) on this Mac; its record said \(recorded.control.localDisplay.prefix(8))")
+                route = KVMMonitorRoute(monitor: recorded.monitor, control: .init(computer: recorded.control.computer, localDisplay: found, mode: recorded.control.mode), input: recorded.input, force: recorded.force)
+            }
+        }
         desktopHandoff.hold(route.control.localDisplay)
         queue(route.control.localDisplay).async {
             // Reconnecting a handed-away display is a display transaction that
@@ -981,5 +994,21 @@ final class DeskCoordinator: ObservableObject {
                 runtime.startInputForActivePreset()
             }
         } catch { problem = error.localizedDescription }
+    }
+}
+
+
+/// This Mac's external displays as macOS sees them this instant, read in-process
+/// from CoreGraphics: fast enough for the main thread, and never a stored ID.
+enum DeskLiveDisplays {
+    static func current() -> [DeskIdentityCableResolver.Display] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return [] }
+        return ids.prefix(Int(count)).compactMap { id in
+            guard CGDisplayIsBuiltin(id) == 0, let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
+            return .init(id: CFUUIDCreateString(nil, uuid) as String, vendor: CGDisplayVendorNumber(id), model: CGDisplayModelNumber(id), serial: CGDisplaySerialNumber(id))
+        }
     }
 }

@@ -568,7 +568,10 @@ final class DeskRuntime: ObservableObject {
         let observations = displays.flatMap { computer, values in values.map {
             KVMDisplayObservation(computer: computer, localDisplay: $0.id, vendor: $0.vendor, model: $0.model, numericSerial: $0.serial, textSerial: nil)
         } }
-        var resolved = DeskPendingCableResolver.resolve(node.group, observations: observations)
+        var resolved = DeskIdentityCableResolver.resolve(node.group, displays: displays.mapValues { values in
+            values.map { .init(id: $0.id, vendor: $0.vendor, model: $0.model, serial: $0.serial) }
+        })
+        resolved = DeskPendingCableResolver.resolve(resolved, observations: observations)
         // Then the input each screen is actually showing, which is the only
         // evidence available for a cable no other Mac can see at the same time.
         resolved = DeskShowingCableResolver.resolve(resolved, showing: switching.effectiveInputs,

@@ -87,6 +87,50 @@ enum DeskPendingCableResolver {
         return (try? draft.validated()) == nil ? group : draft
     }
 }
+/// A screen found by what it is rather than by the ID macOS gave it.
+///
+/// macOS renames a display when the monitor is replugged, switches inputs or
+/// changes mode, and each Mac has its own name for the same monitor. Stored
+/// names went stale without anyone noticing, and a Mac given control of a screen
+/// it could no longer find gave control straight back. So each screen remembers
+/// its maker, model and serial, and any Mac's current displays are matched to it
+/// by those.
+enum DeskIdentityCableResolver {
+    struct Display: Equatable { let id: String; let vendor: UInt32; let model: UInt32; let serial: UInt32 }
+    static func resolve(_ group: KVMGroup, displays: [UUID: [Display]]) -> KVMGroup {
+        var draft = group
+        // Learn what each screen is from any Mac that currently sees it under the
+        // ID recorded for it.
+        for index in draft.monitors.indices where draft.monitors[index].identity == nil {
+            let monitor = draft.monitors[index].id
+            let seen = draft.connections.compactMap { connection -> Display? in
+                guard connection.monitor == monitor, let computer = connection.computer, let local = connection.localDisplay else { return nil }
+                return displays[computer]?.first { $0.id == local && $0.vendor != 0 && $0.model != 0 }
+            }
+            if let first = seen.first, seen.allSatisfy({ $0.vendor == first.vendor && $0.model == first.model }) {
+                draft.monitors[index].identity = .init(vendor: first.vendor, model: first.model, serial: first.serial)
+            }
+        }
+        // Re-find a screen whose recorded ID a Mac no longer has, or never had.
+        for index in draft.connections.indices {
+            let connection = draft.connections[index]
+            guard let computer = connection.computer, let current = displays[computer], !current.isEmpty,
+                  let identity = draft.monitors.first(where: { $0.id == connection.monitor })?.identity else { continue }
+            if let local = connection.localDisplay, current.contains(where: { $0.id == local }) { continue }
+            let used = Set(draft.connections.filter { $0.computer == computer && $0.id != connection.id }.compactMap(\.localDisplay))
+            let candidates = current.filter { !used.contains($0.id) && identity.matches(vendor: $0.vendor, model: $0.model, serial: $0.serial) }
+            // One display on that Mac is this monitor. Two identical monitors
+            // without serials cannot be told apart this way, so leave them.
+            guard candidates.count == 1 else { continue }
+            var candidate = draft
+            candidate.connections[index].localDisplay = candidates[0].id
+            guard (try? candidate.validated()) != nil else { continue }
+            draft = candidate
+        }
+        return draft
+    }
+}
+
 /// Two Macs cannot see one monitor at the same time: while the screen shows one
 /// input, the other Mac's video output is gone. So a cable can never be matched
 /// by comparing what both Macs see, and it stayed "display matching pending"

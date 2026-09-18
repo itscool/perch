@@ -1163,6 +1163,33 @@ Verified: build 250, `--self-test` 47, `check-monitor-command.py` 16,
 Running: 2.0.249. On disk: 2.0.250. Open: the Studio needs this build; then 3 → 1
 must bring screen 1 back to USB-C, and sharing gets its first fair test.
 
+## Checkpoint: why sharing handed control straight back (September 18, 2026)
+
+With switching working from both Macs, every crossing to the Studio was undone
+within 14 ms. Logging every path that ends control (`input.end`) named it: the
+Studio itself asked to stop. The desk recorded the Studio's display for Home
+screen 2 as `CD3AF695`, and `PerchDisplay list` on the Studio no longer has that
+ID, so the Studio could not find the screen control arrived on and gave it back.
+Desk history shows these macOS display IDs drifting: `1DAE75B3` was the Studio's
+Home LG Old via HDMI 2 at revision 53 and later recorded against Home Screen 1
+via DisplayPort. macOS renames displays when a monitor is replugged, switched or
+changes mode, and Perch only checked an ID when it first matched it.
+
+Screens now remember what they physically are (`KVMMonitor.identity`: EDID
+vendor, model, serial), learned from any Mac that sees the screen under its
+recorded ID. Each Mac's display ID is kept as a cache: when a Mac's current list
+lacks the recorded ID, `DeskIdentityCableResolver` finds the display with that
+identity among its unused displays and updates the record. A screen a Mac cannot
+currently see keeps its record, and identical monitors without serials are
+never guessed between. Any Mac heals with a peer's reported list, so this Mac
+can repair the Studio's stale record before the Studio updates. Pinned in
+`runDeskInputListTests` with this desk's shape.
+
+Verified: build 254, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
+kvm-lab 268, render, `check-dialog-contract.py`. Running: 2.0.253. On disk:
+2.0.254. Open: restart here, show preset 2, confirm the Studio's record heals
+and the pointer crosses.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

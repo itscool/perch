@@ -92,6 +92,24 @@ struct KVMMonitor: Codable, Equatable, Identifiable {
     var inputProfile: String? = nil
     var defaultControlMode: String? = nil
     var panelAspect: Double? = nil
+    /// What this screen physically is, read from the monitor itself. Every Mac
+    /// reads the same maker, model and serial, while the ID macOS gives it
+    /// differs per Mac and changes when the monitor is replugged or switched.
+    var identity: KVMScreenIdentity? = nil
+}
+
+/// A monitor's own identity, as its EDID reports it to any Mac.
+struct KVMScreenIdentity: Codable, Equatable {
+    var vendor: UInt32
+    var model: UInt32
+    /// Zero when the monitor reports none.
+    var serial: UInt32 = 0
+    /// The same physical monitor: maker and model agree, and the serials agree
+    /// whenever both monitors report one.
+    func matches(vendor: UInt32, model: UInt32, serial: UInt32) -> Bool {
+        guard self.vendor == vendor, self.model == model, vendor != 0, model != 0 else { return false }
+        return self.serial == 0 || serial == 0 || self.serial == serial
+    }
 }
 
 struct KVMConnection: Codable, Equatable, Identifiable {

@@ -353,6 +353,45 @@ func runDeskInputListTests() throws {
                   "Setting up \(name) did not give DisplayPort LG's code")
     }
 
+    // Scott's desk after the Studio renamed Home screen 2: the recorded ID is gone
+    // from its list, so control handed to it was handed straight back. The screen
+    // is found again by what it is.
+    let macbook = KVMComputer(name: "MacBook Pro"), macStudio = KVMComputer(name: "Mac Studio")
+    let homeOne = KVMMonitor(name: "Home Screen 1", geometry: .init(x: 0, y: 0, width: 599.3, height: 340.2))
+    let homeTwo = KVMMonitor(name: "Home screen 2", geometry: .init(x: 599.3, y: 0, width: 599.3, height: 340.2))
+    var drifted = KVMGroup(name: "Home", computers: [macbook, macStudio], monitors: [homeOne, homeTwo])
+    let oneUSB = KVMConnection(monitor: homeOne.id, computer: macbook.id, localDisplay: "mb-one", inputName: "USB-C", inputCode: 209)
+    let twoUSB = KVMConnection(monitor: homeTwo.id, computer: macbook.id, localDisplay: "mb-two", inputName: "USB-C", inputCode: 209)
+    let oneDP = KVMConnection(monitor: homeOne.id, computer: macStudio.id, localDisplay: "studio-one", inputName: "DisplayPort", inputCode: 208)
+    let twoHDMI = KVMConnection(monitor: homeTwo.id, computer: macStudio.id, localDisplay: "studio-two-old", inputName: "HDMI 2", inputCode: 145)
+    drifted.connections = [oneUSB, twoUSB, oneDP, twoHDMI]
+    typealias Seen = DeskIdentityCableResolver.Display
+    let reports: [UUID: [Seen]] = [
+        macbook.id: [.init(id: "mb-one", vendor: 7789, model: 23741, serial: 0), .init(id: "mb-two", vendor: 7789, model: 30471, serial: 0)],
+        macStudio.id: [.init(id: "studio-two-new", vendor: 7789, model: 30471, serial: 0)]
+    ]
+    let healed = DeskIdentityCableResolver.resolve(drifted, displays: reports)
+    try check(healed.monitors.first { $0.id == homeOne.id }?.identity == .init(vendor: 7789, model: 23741) &&
+              healed.monitors.first { $0.id == homeTwo.id }?.identity == .init(vendor: 7789, model: 30471),
+              "Screens did not learn what they are from the Mac that can see them")
+    try check(healed.connections.first { $0.id == twoHDMI.id }?.localDisplay == "studio-two-new",
+              "A screen the Studio renamed was not found again by its model")
+    // A screen that Mac cannot see right now keeps its record; absence is not evidence.
+    try check(healed.connections.first { $0.id == oneDP.id }?.localDisplay == "studio-one",
+              "A screen the Studio could not currently see lost its record")
+    // Two identical monitors without serials cannot be told apart, so nothing is guessed.
+    var twins = healed
+    twins.connections[twins.connections.firstIndex { $0.id == twoHDMI.id }!].localDisplay = "gone"
+    let twinReports: [UUID: [Seen]] = [macStudio.id: [.init(id: "a", vendor: 7789, model: 30471, serial: 0), .init(id: "b", vendor: 7789, model: 30471, serial: 0)]]
+    try check(DeskIdentityCableResolver.resolve(twins, displays: twinReports).connections == twins.connections,
+              "Two identical monitors were guessed between")
+    // A serial tells identical models apart.
+    var serials = twins
+    serials.monitors[serials.monitors.firstIndex { $0.id == homeTwo.id }!].identity = .init(vendor: 7789, model: 30471, serial: 42)
+    let serialReports: [UUID: [Seen]] = [macStudio.id: [.init(id: "a", vendor: 7789, model: 30471, serial: 41), .init(id: "b", vendor: 7789, model: 30471, serial: 42)]]
+    try check(DeskIdentityCableResolver.resolve(serials, displays: serialReports).connections.first { $0.id == twoHDMI.id }?.localDisplay == "b",
+              "A serial did not pick the right one of two identical monitors")
+
     // One input can be selected a different way from the rest of its screen.
     var mixed = KVMGroup.sample()
     let mixedScreen = mixed.monitors[0]
@@ -378,5 +417,5 @@ func runDeskInputListTests() throws {
     invalid.connections[mixedUSBIndex].inputProtocol = "something else"
     try check((try? invalid.validated()) == nil, "An unknown input command was accepted")
 
-    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change; the input a screen is showing matches that cable's display; one input can be switched a different way from its screen")
+    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change; the input a screen is showing matches that cable's display; one input can be switched a different way from its screen; a screen a Mac renamed is found again by what it is")
 }

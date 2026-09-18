@@ -335,8 +335,11 @@ func runDeskInputListTests() throws {
     // switching HDMI and DisplayPort the standard way and USB-C LG's way, so a
     // screen set up from scratch gets each input's command right.
     let up850 = MonitorDescriptor(id: UUID().uuidString, displayID: 0, name: "LG ULTRAFINE", vendor: 7789, model: 23741, ddcAvailable: true)
-    guard let tested = MonitorProfiles.match(up850, reportedModel: "UP850K") else { throw KVMError("The tested UP850K profile no longer matches that screen") }
-    try check(tested.confidence == "locally-tested" && !tested.alternate, "The tested profile is not the locally tested, standard-command one: \(tested.name)")
+    guard let tested = MonitorProfiles.entries.first(where: { $0.name.hasPrefix("LG 27UP850-W ·") }) else { throw KVMError("The UP850K profile is missing from the catalog") }
+    // Offered by name while its codes are unconfirmed, never matched automatically.
+    try check(tested.automatic == false && MonitorProfiles.match(up850, reportedModel: "UP850K")?.name != tested.name,
+              "An unconfirmed profile was matched automatically: \(tested.name)")
+    try check(!tested.alternate, "The UP850K profile is not the standard-command one")
     try check(tested.inputs.first { $0.name == "DisplayPort" }?.code == 15 && tested.inputs.first { $0.name == "DisplayPort" }?.command == nil,
               "DisplayPort did not take the standard command in the tested profile")
     try check(tested.inputs.first { $0.name == "USB-C" }?.code == 209 && tested.inputs.first { $0.name == "USB-C" }?.command == "lg",

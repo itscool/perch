@@ -370,13 +370,13 @@
    "name": "LG 27UL850-W · UL850 firmware",
    "vendor": 7789,
    "model": 30471,
-   "automatic": true,
+   "automatic": false,
    "retailModels": [
     "UL850",
     "27UL850-W (UL850)"
    ],
    "alternate": false,
-   "confidence": "locally-tested",
+   "confidence": "suggested",
    "readbackUnavailable": true,
    "inputs": [
     {
@@ -398,12 +398,12 @@
     }
    ],
    "evidence": [
-    "Tested on this desk, September 18 2026: reports (prot(monitor)type(lcd)UL850cmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)) with LG firmware identity 0x5124 and no extended identity, so HDMI 1, HDMI 2 and DisplayPort answer the standard input command and USB-C does not appear in it.",
-    "Tested on this desk: the LG command with 144, 145 and 208 did not move this screen, and left it on an input neither Mac could see, which is what the standard codes above replace.",
+    "Tested on this desk, September 18 2026: reports (prot(monitor)type(lcd)UL850cmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)) with LG firmware identity 0x5124 and no extended identity, so it advertises HDMI 1, HDMI 2 and DisplayPort under the standard input command and does not list USB-C.",
     "Reports no current input for either command, so switches to this screen are accepted without readback.",
-    "USB-C 209 is LG's documented value for this family and is the code this desk already used successfully for the same maker's USB-C input; it is not separately confirmed on this unit."
+    "The standard codes here come from the monitor's own capability list and are not yet confirmed to move this unit. LG's documented codes for this family are HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208, USB-C = 209 through LG's own command: https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors",
+    "Owners of this model report it ignores input commands arriving from a connection that is not the one being shown, so a switch must be sent by the computer currently on screen: https://github.com/waydabber/BetterDisplay/discussions/2270"
    ],
-   "notes": "Sold as a 27UL850-W; its EDID names it LG HDR 4K with product 30471. Standard command for HDMI and DisplayPort, LG's own command for USB-C."
+   "notes": "Sold as a 27UL850-W; its EDID names it LG HDR 4K with product 30471. Not matched automatically until the standard codes are confirmed on hardware."
   },
   {
    "name": "LG 27UN850-W / 27UN850-WY",
@@ -445,13 +445,13 @@
    "name": "LG 27UP850-W · UP850K firmware",
    "vendor": 7789,
    "model": 23741,
-   "automatic": true,
+   "automatic": false,
    "retailModels": [
     "UP850K",
     "27UP850-W (UP850K)"
    ],
    "alternate": false,
-   "confidence": "locally-tested",
+   "confidence": "suggested",
    "readbackUnavailable": true,
    "inputs": [
     {
@@ -473,11 +473,12 @@
     }
    ],
    "evidence": [
-    "Tested on this desk, September 18 2026: the monitor reports (prot(monitor)type(lcd)UP850Kcmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)), so HDMI 1, HDMI 2 and DisplayPort answer the standard input command 0x60 and USB-C does not appear in it.",
-    "Tested on this desk: USB-C switches through LG's own command (0xF4) with 209, while DisplayPort does not switch with LG's 208.",
-    "Reports no current input for either command, so switches to this screen are accepted without readback."
+    "Tested on this desk, September 18 2026: reports (prot(monitor)type(lcd)UP850Kcmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)) with LG firmware identity 0xC024 and extended 116, so it advertises HDMI 1, HDMI 2 and DisplayPort under the standard input command and does not list USB-C.",
+    "Reports no current input for either command, so switches to this screen are accepted without readback.",
+    "USB-C switches through LG's own command with 209 on this desk. The standard codes here come from the monitor's own capability list and are not yet confirmed to move this unit; LG's documented codes for this family are HDMI 1 = 144, HDMI 2 = 145, DisplayPort = 208: https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors",
+    "LG monitors ignore input commands arriving from a connection that is not the one being shown, so a failed switch can mean the wrong computer sent it rather than the wrong code: https://github.com/waydabber/BetterDisplay/discussions/2270"
    ],
-   "notes": "Identified by EDID product 23741 with LG firmware identity 0xC024/extended 116. Standard command for HDMI and DisplayPort, LG's own command for USB-C, which is why one command per screen cannot serve this model."
+   "notes": "Identified by EDID product 23741 with LG firmware identity 0xC024/extended 116. Not matched automatically until the standard codes are confirmed on hardware."
   },
   {
    "name": "LG 27UP850-W",

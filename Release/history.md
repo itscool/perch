@@ -1,6 +1,10 @@
 # Perch release history
 
-## 2.0.262 — Current
+## 2.0.265 — Current
+
+- A screen left showing another Mac is switched back reliably, so presets apply fully and sharing starts.
+
+## 2.0.262
 
 - The pointer crosses between Macs and stays there, even through adapters and screens macOS renamed.
 - Crossing continues from where you crossed instead of landing mid-screen.

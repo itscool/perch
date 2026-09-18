@@ -1,6 +1,13 @@
 # Perch release history
 
-## 2.0.251 — Current
+## 2.0.262 — Current
+
+- The pointer crosses between Macs and stays there, even through adapters and screens macOS renamed.
+- Crossing continues from where you crossed instead of landing mid-screen.
+- The pointer hides on leaving a Mac and appears on the next without flicker.
+- Monitors are recognised by serial number through replugs, input changes and adapters.
+
+## 2.0.251
 
 - LG 27UP850-W and 27UL850-W screens are recognised by hardware identity and set up with codes tested on real monitors.
 - Switches no longer fail while Perch updates its display records, and unconfirmable monitors get the command twice.

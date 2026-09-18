@@ -1,9 +1,8 @@
-# Perch 2.0.251 — What’s new
+# Perch 2.0.262 — What’s new
 
-- **LG monitors:** LG 27UP850-W and 27UL850-W screens are recognised by their own hardware identity and set up with input codes tested on real monitors, so switching them needs no hand editing.
-- **Reliable switching:** a switch no longer fails because Perch was busy tidying its own display records, and a monitor that cannot report its input is sent the command once more, because some screens ignore the first one.
-- **Screens that cannot be reached:** when no Mac is showing on a screen, Perch says so and tells you to choose the input on the monitor itself, instead of reporting a failed switch.
-- **Keyboard and mouse sharing:** Perch now finds which display a cable shows by itself, and tells you plainly what is stopping sharing. If two Macs share the keyboard and mouse differently, Perch says so while the desk and its presets keep working.
-- **Why your screen locked:** each screen lock is logged with how long the Mac had been idle and what Perch was doing about it.
+- **Keyboard and mouse sharing:** the pointer now crosses between Macs and stays there. A screen seen through an adapter, or renamed by macOS after a replug, no longer makes the other Mac hand control straight back.
+- **Where the pointer lands:** crossing onto another Mac’s screen continues from where you crossed, instead of landing in the middle of the screen.
+- **No flicker:** the pointer hides as soon as it leaves a Mac and appears on the next one without flashing in the middle first.
+- **Screens that stay recognised:** Perch recognises each monitor by its own serial number, so it keeps the right screen through replugging, input changes and adapters. Update every Mac on your desk.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

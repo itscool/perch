@@ -1,7 +1,8 @@
-# Perch 2.0.221 — What’s new
+# Perch 2.0.225 — What’s new
 
-- **Desk pointer:** crossing to another Mac’s screen no longer jumps the pointer to the middle of that screen first. It carries on from the edge you crossed. Update every Mac on your desk.
-- **Desk wires:** dragging a connected input now changes the preset you are editing. The cable moves, and the presets that used it follow, only when that computer is not already connected to the input you drop it on.
-- **Desk canvas:** the preset you are editing is the drawn teal line, and what is on your displays now is a green glow behind it, so you can see both at once.
+- **Preset switching:** a preset could stay on Switching with nothing you could do, when one Mac handed a screen to another Mac that could not switch it and never answered. Perch now only asks a Mac whose cable is matched, always gets an answer, and names the Mac or screen it gave up on.
+- **Desk pointer:** control now lands where you crossed in both directions. Before, moving back the other way still put the pointer in the middle of the screen first.
+- **Hidden pointer:** while the pointer is on another Mac, this Mac’s cursor is hidden as well as parked, so it no longer looks like it is hovering over what is under it.
+- **Desk wires:** pulling a wire out of an input shows the wire in your hand, and the same input’s wires in your other presets stay on screen while you move one.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

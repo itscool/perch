@@ -1,6 +1,13 @@
 # Perch release history
 
-## 2.0.221 — Current
+## 2.0.225 — Current
+
+- Preset switches no longer stay on Switching when one Mac cannot switch a screen and another cannot take it over.
+- The pointer lands where you crossed in both directions.
+- The pointer is hidden on the Mac it is not on, as well as parked.
+- A wire pulled out of an input is visible in your hand, and your other presets' wires stay on screen.
+
+## 2.0.221
 
 - Crossing to another Mac’s screen carries the pointer on from the edge you crossed instead of jumping to the middle of that screen.
 - Dragging a connected input changes the preset you are editing; the cable moves only when it has to.

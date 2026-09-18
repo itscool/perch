@@ -11,8 +11,10 @@ private final class RecordingCursor: DeskCursorSystem {
     var pauseShortened = 0
     var visible = true
     var hides = 0, shows = 0
+    /// Warps made while the cursor was on screen: each one is a visible jump.
+    var visibleWarps: [CGPoint] = []
     init(location: CGPoint, displays: [CGRect]) { self.location = location; self.displays = displays }
-    func warp(to point: CGPoint) { warps.append(point); location = point }
+    func warp(to point: CGPoint) { warps.append(point); if visible { visibleWarps.append(point) }; location = point }
     func shortenWarpPause() { pauseShortened += 1 }
     func hide() { hides += 1; visible = false }
     func show() { shows += 1; visible = true }
@@ -99,6 +101,7 @@ func runDeskCursorTests() throws {
     let hidingCursor = RecordingCursor(location: CGPoint(x: 2000, y: 300), displays: [main, side])
     hiding.begin(hidingCursor)
     try check(!hidingCursor.visible && hidingCursor.hides == 1, "Parking left this Mac's cursor on screen")
+    try check(hidingCursor.visibleWarps.isEmpty, "The cursor was seen jumping to the centre as it parked")
     hiding.begin(hidingCursor)
     try check(hidingCursor.hides == 1, "Parking again hid the cursor twice")
     hiding.reset(from: CGPoint(x: 2010, y: 300), hidingCursor)

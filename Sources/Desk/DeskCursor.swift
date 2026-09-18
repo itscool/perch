@@ -95,11 +95,11 @@ struct DeskCursorParking {
         let here = cursor.location, screens = cursor.displays
         guard let screen = screens.first(where: { $0.contains(here) }) ?? screens.first else { return }
         let centre = CGPoint(x: screen.midX.rounded(.down), y: screen.midY.rounded(.down))
+        // Out of sight first, then out of the way: warping before hiding showed
+        // the cursor jump to the centre of the screen it was leaving.
+        cursor.hide()
         cursor.shortenWarpPause()
         cursor.warp(to: centre)
-        // Out of the way and out of sight: a parked cursor left visible sits on
-        // this Mac's screen looking like it is hovering over what is under it.
-        cursor.hide()
         park = centre
     }
 

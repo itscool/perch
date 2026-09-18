@@ -236,6 +236,9 @@ final class KVMInputSession: ObservableObject {
     }
     var active: Bool { enabled && ready() && lease.alive(now: clock()) && node.canEdit && lease.grant?.revision == configurationRevision }
     var preparing: Bool { enabled && ready() && preparedGrant != nil && lease.grant == nil && clock() >= preparedAt && clock() - preparedAt < 3 }
+    /// Control is on its way from this Mac to another: as the desk owner with a
+    /// handoff pending, or as a participant preparing one.
+    var handingOff: Bool { pending.map { $0.focus.computer != node.localID } == true || preparing }
     /// The computer whose screen currently has the pointer, if this Mac holds a lease.
     var focusComputer: UUID? { lease.grant.map { (focus ?? $0.focus).computer } }
     var capturing: Bool { active || preparing || clock() < localInputSuppressedUntil }
@@ -594,6 +597,11 @@ final class KVMInputSession: ObservableObject {
                   destination(preset: grant.preset, monitor: location.monitor) == node.localID,
                   node.group.monitors.first(where: { $0.id == location.monitor })?.geometry.contains(location.position) == true,
                   lease.accepts(source: source, grant: id, sequence: sequence, now: now) else { return }
+            // The owner addressed this to this Mac, so control is here now. Waiting
+            // for the next status poll to say so left a moment in which this Mac
+            // still thought the pointer was elsewhere and parked the cursor again
+            // at the centre of the screen it was arriving on.
+            if focus?.monitor != location.monitor || focus?.computer != location.computer { focus = location }
             emit(event, location)
         case .inspect(let id, let revision, let monitor):
             guard peer == node.ownerID, enabled, revision == configurationRevision, !inspecting.contains(monitor),
@@ -638,6 +646,7 @@ final class KVMInputSession: ObservableObject {
     }
     private func prepare(_ value: KVMInputGrant) {
         endAuthority(); pending = value; pendingAt = clock(); lastPrepareAt = pendingAt
+        focusChanged()
         for peer in value.participants { send(.prepare(value), to: peer) }
     }
     private func validateAuthority() {

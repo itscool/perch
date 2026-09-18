@@ -266,11 +266,13 @@ final class DeskInputAdapter: ObservableObject {
         // Control can arrive together with the movement that caused it, before
         // the cursor update runs. The first event then continues from the entry
         // point rather than from this Mac's parked cursor.
-        if !handover.placed { parking.end(cursor) }
-        let here = handover.placed ? cursor.location : handover.base(entry: point(focus), live: cursor.location)
+        let arriving = !handover.placed
+        let here = arriving ? handover.base(entry: point(focus), live: cursor.location) : cursor.location
         let point = value.kind == .motion
             ? DeskCursorParking.moved(from: here, dx: value.x, dy: value.y, displays: cursor.displays)
             : here
+        // Arriving: put the cursor where it belongs while still hidden, then show it.
+        if arriving { cursor.warp(to: point); parking.end(cursor) }
         lastLocation = point
         _ = posted.apply(value, source: postedSource)
         emitNative(value, point: point)
@@ -298,7 +300,9 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func updateCursor() {
         guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else {
-            parking.end(cursor); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
+            // Sharing stopped or a handoff fell through: whatever hid the cursor,
+            // it must be back on screen.
+            parking.end(cursor); cursor.show(); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
         }
         setRemoteCapture(focus.computer != session.node.localID)
         if focus.computer != session.node.localID {
@@ -309,13 +313,19 @@ final class DeskInputAdapter: ObservableObject {
             parking.begin(cursor)
             controlWasLocal = false; handover.left()
         } else {
-            parking.end(cursor)
             // Place the pointer once, when control arrives from the other Mac, and
             // then leave it alone. Re-placing it whenever the focused screen changed
             // dragged the cursor back while this Mac still had control.
             // A delivered event may already have placed the pointer and moved on;
             // placing again here would drag it back to the edge it came in by.
+            // Move it while it is still hidden, then show it: showing first
+            // flickered the parked cursor at the centre of the screen.
             if !controlWasLocal, !handover.placed { place(at: focus) }
+            parking.end(cursor)
+            // A handoff away that has started hides the cursor at once, rather than
+            // leaving it on screen until the other Mac confirms; one that fell
+            // through shows it again where it was.
+            if session.handingOff { cursor.hide() } else if !parking.parked { cursor.show() }
             controlWasLocal = true
         }
     }

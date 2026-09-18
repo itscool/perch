@@ -384,6 +384,9 @@ import Darwin
         let released = heldStateToB; heldStateToB = []
         for (peer, bytes) in released { _ = inputB.receive(bytes, peer: peer) }
         try wait("buffered handoff input reaches only A") { deliveries.contains { $0.0 == a.localID && $0.1.kind == .keyDown && $0.1.code == 11 } }
+        // Input addressed to A is proof that control is on A: it must not wait for
+        // a status poll, or A parks its cursor at the centre as control arrives.
+        guard inputA.focus?.computer == a.localID else { throw KVMError("A received input before it knew control was on A") }
         try wait("release and grant on both peers") { inputA.active && inputB.active }
         guard inputB.capture(.init(kind: .keyDown, code: 12)) else { throw KVMError("Remote keyboard could not send") }
         try wait("remote keyboard reaches A") { deliveries.contains { $0.0 == a.localID && $0.1.kind == .keyDown } }

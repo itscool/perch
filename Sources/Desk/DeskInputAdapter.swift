@@ -47,6 +47,7 @@ final class DeskInputAdapter: ObservableObject {
     /// The real cursor. Parking and movement from other Macs go through it alone.
     private let cursor: DeskCursorSystem = NativeDeskCursor()
     private var parking = DeskCursorParking()
+    private var handover = DeskPointerHandover()
     private var smoothness = DeskMotionSmoothness()
     private var nextParkingSummary: Double = 0
     private var subscription: AnyCancellable?
@@ -261,7 +262,11 @@ final class DeskInputAdapter: ObservableObject {
     /// click land somewhere the cursor was not.
     private func post(_ value: KVMInputEvent, focus: KVMInputFocus) {
         guard healthy, !SettingsWindow.shared.testing else { session.stop(); return }
-        let here = cursor.location
+        // Control can arrive together with the movement that caused it, before
+        // the cursor update runs. The first event then continues from the entry
+        // point rather than from this Mac's parked cursor.
+        if !handover.placed { parking.end() }
+        let here = handover.placed ? cursor.location : handover.base(entry: point(focus), live: cursor.location)
         let point = value.kind == .motion
             ? DeskCursorParking.moved(from: here, dx: value.x, dy: value.y, displays: cursor.displays)
             : here
@@ -278,6 +283,11 @@ final class DeskInputAdapter: ObservableObject {
     private func place(at focus: KVMInputFocus) {
         guard healthy, !SettingsWindow.shared.testing, let point = point(focus) else { session.stop(); return }
         lastLocation = point
+        handover.placedPointer()
+        // Warp as well as posting the movement: a posted event moves the cursor,
+        // but not before the next delivered event reads where the cursor is.
+        cursor.shortenWarpPause()
+        cursor.warp(to: point)
         emitNative(.init(kind: .motion), point: point)
     }
     private func releasePosted() {
@@ -286,7 +296,7 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func updateCursor() {
         guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else {
-            parking.end(); controlWasLocal = false; setRemoteCapture(false); return
+            parking.end(); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
         }
         setRemoteCapture(focus.computer != session.node.localID)
         if focus.computer != session.node.localID {
@@ -295,13 +305,15 @@ final class DeskInputAdapter: ObservableObject {
             // away from the centre shows the reset is failing.
             if !parking.parked { nextParkingSummary = 0 }
             parking.begin(cursor)
-            controlWasLocal = false
+            controlWasLocal = false; handover.left()
         } else {
             parking.end()
             // Place the pointer once, when control arrives from the other Mac, and
             // then leave it alone. Re-placing it whenever the focused screen changed
             // dragged the cursor back while this Mac still had control.
-            if !controlWasLocal { place(at: focus) }
+            // A delivered event may already have placed the pointer and moved on;
+            // placing again here would drag it back to the edge it came in by.
+            if !controlWasLocal, !handover.placed { place(at: focus) }
             controlWasLocal = true
         }
     }

@@ -68,5 +68,26 @@ func runDeskCursorTests() throws {
     try check(report?.contains("median 8.0 ms") == true && report?.contains("worst 30.0 ms") == true,
               "Smoothness did not report movement gaps with pauses ignored: \(report ?? "no report")")
 
-    print("PASS: desk cursor parks at the centre of the screen left and returns there after every read; remote movement adds to the live cursor and stops at the screen edge; posted movement carries its values; smoothness is measured with pauses ignored")
+    // Control arriving with its first movement continues from the edge it came
+    // in by. Taking the live cursor instead would start from the parked centre
+    // and hop the pointer to the middle of the screen it is entering.
+    let parked = CGPoint(x: side.midX, y: side.midY)
+    let entry = CGPoint(x: side.minX + 1, y: side.minY + 120)
+    var handover = DeskPointerHandover()
+    let first = handover.base(entry: entry, live: parked)
+    try check(first == entry, "The first delivered event after control arrived started from the parked cursor")
+    let moved = DeskCursorParking.moved(from: first, dx: 6, dy: 0, displays: [main, side])
+    try check(abs(moved.y - entry.y) < 0.001 && moved.y != parked.y, "Movement on arrival left the entry height")
+    // Afterwards the live cursor is the truth again: the person may be moving it too.
+    let live = CGPoint(x: side.midX, y: side.minY + 300)
+    try check(handover.base(entry: entry, live: live) == live, "Later events were still placed at the entry point")
+    // Control leaving and coming back places the pointer again.
+    handover.left()
+    try check(handover.base(entry: entry, live: parked) == entry, "Coming back a second time started from the parked cursor")
+    // Placing the pointer with no event to carry counts as placed.
+    var quiet = DeskPointerHandover()
+    quiet.placedPointer()
+    try check(quiet.base(entry: entry, live: live) == live, "The pointer was placed twice, dragging it back to the edge")
+
+    print("PASS: desk cursor parks at the centre of the screen left and returns there after every read; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
 }

@@ -220,29 +220,40 @@ final class DeskModel: ObservableObject {
               let existing = group.connections.first(where: { $0.computer == option.computer && $0.localDisplay == option.display && $0.monitor != target.monitor }) else { return nil }
         return "Already connected to " + (group.monitors.first { $0.id == existing.monitor }?.name ?? "another screen")
     }
-    /// Move a detached connection's monitor end to another input. Its computer
-    /// and every preset route go with it; a different computer already on the
-    /// target input is replaced, taking that input's routes with it.
+    /// Move a detached connection's monitor end to another input. The change is
+    /// to the preset being edited. A cable can only be in one input, so unless
+    /// that computer is already connected to the input it was dropped on, the
+    /// cable moves and the other presets that used it follow it there rather
+    /// than being left pointing at an input with nothing plugged into it. A
+    /// different computer already on that input is replaced, losing its routes.
     func moveWire(from sourceID: UUID, to targetID: UUID) {
         guard let source = group.connections.first(where: { $0.id == sourceID }),
-              let target = group.connections.first(where: { $0.id == targetID }), sourceID != targetID else { return }
+              let target = group.connections.first(where: { $0.id == targetID }), sourceID != targetID,
+              let computer = source.computer, group.presets.indices.contains(presetIndex) else { return }
+        let slot = presetIndex, plugged = target.computer == computer
         edit { g in
-            if let owner = target.computer, owner != source.computer {
-                for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == targetID } }
+            if !plugged {
+                if let owner = target.computer, owner != computer {
+                    for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == targetID } }
+                }
+                try DeskCableBinding.rewire(source, to: target, in: &g)
             }
-            try DeskCableBinding.rewire(source, to: target, in: &g)
-            for p in g.presets.indices where g.presets[p].assignments.contains(where: { $0.connection == sourceID }) {
+            for p in g.presets.indices where p == slot || (!plugged && g.presets[p].assignments.contains { $0.connection == sourceID }) {
                 g.presets[p].assignments.removeAll { $0.connection == sourceID || $0.monitor == target.monitor }
                 g.presets[p].assignments.append(.init(monitor: target.monitor, connection: targetID))
             }
         }
         if problem == nil { selected = target.monitor }
     }
-    /// A detached connection dropped in empty space disappears: the input loses
-    /// its computer and no preset uses it any more.
+    /// A detached connection dropped in empty space leaves the preset being
+    /// edited. The cable is unplugged only once no preset uses that input, so a
+    /// wire never disappears from a preset the person was not looking at.
     func removeWire(_ portID: UUID) {
+        guard group.presets.indices.contains(presetIndex) else { return }
+        let slot = presetIndex
         edit { g in
-            for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == portID } }
+            g.presets[slot].assignments.removeAll { $0.connection == portID }
+            guard !g.presets.contains(where: { $0.assignments.contains { $0.connection == portID } }) else { return }
             try DeskCableBinding.apply(connection: portID, computer: nil, display: nil, to: &g)
         }
     }

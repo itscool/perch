@@ -195,20 +195,44 @@ func runDeskPresetGraphTests() throws {
     try check(replaced.computer == nil && replaced.localDisplay == nil && routes(model.group, to: taken.id) == [1],
               "A new connection did not replace the other computer's connection and routes")
 
-    // A detached connection moves with its computer and every preset route.
+    // Moving a wire onto an input with nothing plugged into it moves the cable,
+    // so the presets that used that cable follow it instead of pointing at an
+    // empty input. The preset being edited uses the input it was dropped on.
     let moving = DeskModel(backend: WiringBackend(), group: sample)
+    moving.presetIndex = 1
     let from = port(sample, left, studio), to = port(sample, left, nil)
+    try check(routes(sample, to: from.id) == [0, 2], "Fixture changed: the Studio's left input should be in presets 1 and 3")
     moving.moveWire(from: from.id, to: to.id)
     let moved = moving.group.connections.first { $0.id == to.id }!, emptied = moving.group.connections.first { $0.id == from.id }!
-    try check(moving.problem == nil && moved.computer == studio && emptied.computer == nil && routes(moving.group, to: to.id) == [0, 2] && routes(moving.group, to: from.id).isEmpty,
-              "A moved connection did not carry its computer and preset routes: \(moving.problem ?? "")")
+    try check(moving.problem == nil && moved.computer == studio && emptied.computer == nil &&
+              routes(moving.group, to: to.id) == [0, 1, 2] && routes(moving.group, to: from.id).isEmpty,
+              "A moved cable did not take the preset being edited and the presets that used it: \(moving.problem ?? "")")
 
-    // A detached connection dropped in empty space disappears.
+    // When that computer is already connected to the input it is dropped on,
+    // no cable moves, so only the preset being edited changes.
+    var second = sample
+    let spare = second.connections.firstIndex { $0.id == to.id }!
+    second.connections[spare].computer = studio
+    let inPlace = DeskModel(backend: WiringBackend(), group: second)
+    inPlace.presetIndex = 1
+    inPlace.moveWire(from: from.id, to: to.id)
+    try check(inPlace.problem == nil && inPlace.group.connections.first { $0.id == from.id }?.computer == studio &&
+              routes(inPlace.group, to: to.id) == [1] && routes(inPlace.group, to: from.id) == [0, 2],
+              "Moving between two inputs the same computer is plugged into changed other presets: \(inPlace.problem ?? "")")
+
+    // A wire dropped in empty space leaves the preset being edited. The cable is
+    // unplugged only once no preset uses that input.
     let removing = DeskModel(backend: WiringBackend(), group: sample)
     let gone = port(sample, side, mac)
+    try check(routes(sample, to: gone.id) == [0, 1], "Fixture changed: the MacBook's portrait input should be in presets 1 and 2")
+    removing.presetIndex = 0
+    removing.removeWire(gone.id)
+    try check(removing.problem == nil && routes(removing.group, to: gone.id) == [1] && removing.group.connections.first { $0.id == gone.id }?.computer == mac,
+              "Dropping a wire in space cleared a preset that was not being edited, or unplugged a cable still in use")
+    removing.presetIndex = 1
     removing.removeWire(gone.id)
     try check(removing.group.connections.first { $0.id == gone.id }?.computer == nil && routes(removing.group, to: gone.id).isEmpty,
-              "A removed connection kept its computer or preset routes")
+              "The last preset using an input left its cable plugged in")
 
     // Clearing one preset leaves the others and every input alone.
     let clearing = DeskModel(backend: WiringBackend(), group: sample)
@@ -222,7 +246,7 @@ func runDeskPresetGraphTests() throws {
     try check(resetting.problem == nil && resetting.group.monitors.isEmpty && resetting.group.connections.isEmpty && resetting.group.presets.allSatisfy { $0.assignments.isEmpty } &&
               resetting.group.computers == sample.computers && resetting.group.presets.map(\.name) == sample.presets.map(\.name),
               "Resetting the desk did not start the layout over while keeping paired Macs: \(resetting.problem ?? "")")
-    print("PASS: desk wiring rules: computer drags always connect and claim the input, free inputs draw to a computer, connected inputs detach to move, detached ends dropped in space disappear; clear preset and reset desk")
+    print("PASS: desk wiring rules: computer drags always connect and claim the input, free inputs draw to a computer, connected inputs detach and change the preset being edited, cables move only when they must; clear preset and reset desk")
     try runDeskInputListTests()
 }
 

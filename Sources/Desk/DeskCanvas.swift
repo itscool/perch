@@ -138,7 +138,7 @@ struct DeskCanvas: View {
                     DeskComputerCard(model: model, computer: computer, wire: wire, details: actions.computerDetails)
                 }
             }
-            Text("Teal: chosen for the preset you are editing. Green: active on the displays now. Purple: both. Drag between a computer’s numbered connector and a monitor input to connect them. Drag a connected input to another input to move it, or into empty space to remove it. Play switches the displays.")
+            Text("Teal line: the preset you are editing. Green glow: on the displays now. Both together: this preset is the one showing. Drag between a computer’s numbered connector and a monitor input to connect them. Drag a connected input to another input, or into empty space, to change the preset you are editing. Play switches the displays.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .background(GeometryReader { area in Color.clear.preference(key: DeskRowHeight.self, value: area.size.height) })
@@ -218,12 +218,19 @@ struct DeskWireLayer: View {
                         let startPoint = CGPoint(x: source.midX, y: source.minY)
                         let endPoint = CGPoint(x: target.midX, y: target.maxY)
                         let middleY = (startPoint.y + endPoint.y) / 2
-                        let strokeColor: Color = activeRoute && chosen ? .purple : (activeRoute ? Color(nsColor: StatusColors.success) : (chosen ? .teal.opacity(focused ? 1 : 0.78) : .secondary.opacity(0.4)))
-                        let lineWidth: CGFloat = activeRoute && chosen ? 3.8 : (activeRoute || focused ? 3 : (chosen ? 2.5 : 1.5))
-                        Path { path in
+                        // Two different things, shown two different ways rather than as
+                        // two colours of the same line: the preset being edited is the
+                        // drawn line, and what is on the displays now glows behind it.
+                        let strokeColor: Color = chosen ? .teal.opacity(focused ? 1 : 0.85) : (activeRoute ? Color(nsColor: StatusColors.success).opacity(0.8) : .secondary.opacity(0.35))
+                        let lineWidth: CGFloat = chosen ? (focused ? 3 : 2.5) : 1.5
+                        let path = Path { path in
                             path.move(to: startPoint)
                             path.addCurve(to: endPoint, control1: CGPoint(x: startPoint.x, y: middleY), control2: CGPoint(x: endPoint.x, y: middleY))
-                        }.stroke(strokeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        }
+                        if activeRoute {
+                            path.stroke(Color(nsColor: StatusColors.success).opacity(0.3), style: StrokeStyle(lineWidth: lineWidth + 7, lineCap: .round))
+                        }
+                        path.stroke(strokeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     }
                 }
             }

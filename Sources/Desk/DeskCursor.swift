@@ -91,6 +91,26 @@ struct DeskCursorParking {
     }
 }
 
+/// Where the first event after control arrives lands.
+///
+/// Control can arrive in the same batch as the movement that caused it, and the
+/// cursor is still parked at the centre of this Mac's screen until the pointer
+/// is placed. Adding that movement to the parked cursor is what made the pointer
+/// hop to the middle of the screen it was entering, whatever edge it came in by.
+/// So the first event after control arrives continues from the entry point, and
+/// every event after it from the live cursor, which the person may be moving too.
+struct DeskPointerHandover {
+    private(set) var placed = false
+    /// Control went to another Mac: the next arrival places the pointer again.
+    mutating func left() { placed = false }
+    /// The pointer was put at the entry point by itself, with no event to carry.
+    mutating func placedPointer() { placed = true }
+    mutating func base(entry: CGPoint?, live: CGPoint) -> CGPoint {
+        defer { placed = true }
+        return placed ? live : (entry ?? live)
+    }
+}
+
 /// How evenly movement arrives on the Mac showing the pointer, so "smooth" is a
 /// number in the log rather than an impression.
 struct DeskMotionSmoothness {

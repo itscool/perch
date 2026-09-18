@@ -934,6 +934,33 @@ PASS, lab 268, render and `check-kvm.py` pass; on disk 2.0.217, running 2.0.208.
 Scott's desk repairs once he chooses Home LG New's LG profile again (all of
 27UN850, 27UP850, 40WP95C, 38BR85QC and 45GX950A use those codes).
 
+## Checkpoint: preset-scoped wires, pointer arrival, active vs editing (September 17, 2026)
+
+Scott on 2.0.218: crossing to the other screen sometimes hopped the pointer to
+the middle vertically before carrying on. Cause: control can arrive in the same
+batch as the movement that caused it, before the cursor update runs, so that
+movement was added to this Mac's parked cursor at the screen centre.
+`DeskPointerHandover` makes the first event after control arrives continue from
+the entry point, and `place` now warps as well as posting, so the next event
+reads the placed position instead of the parked one. Pinned in
+`runDeskCursorTests`.
+
+Grabbing a wire at a monitor input now changes the preset being edited, as Scott
+chose. A cable can only be in one input, so when the wire is dropped on an input
+that computer is not already connected to, the cable moves and the presets that
+used it follow rather than pointing at an empty input; when it is already
+connected there, only the edited preset changes. A wire dropped in empty space
+leaves the edited preset, and the cable is unplugged only once no preset uses it.
+
+Active and editing are no longer two colours of the same line: the preset being
+edited is the drawn teal line, and what is on the displays now is a green glow
+behind the line and its sockets. Purple is retired; both states together read as
+a teal line inside a green glow.
+
+Verified: build 220, `--self-test` 47 PASS, lab 268, render, `check-kvm.py`,
+`check-desk-network.py`, `check-dialog-contract.py`. Running: 2.0.218. On disk:
+2.0.220. Native acceptance of all three on the live two-Mac desk still open.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

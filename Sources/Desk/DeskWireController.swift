@@ -173,7 +173,7 @@ struct DeskWireSocket: NSViewRepresentable {
         view.setAccessibilityLabel(label)
         let routeState = (highlighted ? "; selected in editing preset" : "") + (activeRouting ? "; active now" : "")
         view.setAccessibilityValue(presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState)
-        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to move this connection to another input, or into empty space to remove it; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire. Click for connections."))
+        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to another input to use that input in the preset you are editing, or into empty space to leave this screen out of it; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire. Click for connections."))
         controller.register(view); view.needsDisplay = true
     }
     static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }
@@ -230,6 +230,11 @@ final class DeskWireSocketView: NSView {
             path.appendArc(withCenter: center, radius: radius, startAngle: isComputer ? 180 : 0, endAngle: isComputer ? 360 : 180)
             path.close(); return path
         }
+        if activeRouting {
+            // On the displays now: a glow behind the socket, never another ring
+            // competing with the editing preset's.
+            StatusColors.success.withAlphaComponent(0.32).setFill(); halfCircle(13).fill()
+        }
         if hovered || active {
             NSColor.systemTeal.withAlphaComponent(active ? 0.25 : 0.14).setFill(); halfCircle(12).fill()
         }
@@ -244,9 +249,6 @@ final class DeskWireSocketView: NSView {
         if connected && !detached { socket.fill() } else { socket.stroke() }
         if highlighted {
             let ring = halfCircle(10.5); ring.lineWidth = 2; NSColor.systemTeal.setStroke(); ring.stroke()
-        }
-        if activeRouting {
-            let ring = halfCircle(12); ring.lineWidth = 2; StatusColors.success.setStroke(); ring.stroke()
         }
         if drawsNumbers, !presetNumbers.isEmpty {
             let text = presetNumbers.map(String.init).joined(separator: " ") as NSString

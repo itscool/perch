@@ -214,6 +214,8 @@ struct DeskWireGesture {
 /// - A connected input detaches when dragged, so it can be rewired.
 /// - A drag from a computer always creates a new connection.
 /// - Either end dropped in empty space disappears.
+/// Moving or dropping a detached wire changes the preset being edited; the
+/// cable itself moves only when it has to (`DeskModel.moveWire`).
 enum DeskWireOutcome: Equatable {
     case nothing, click
     /// This computer uses the input in this preset, claiming the input for it.

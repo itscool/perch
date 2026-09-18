@@ -651,7 +651,7 @@ final class DeskRuntime: ObservableObject {
             group.monitors[group.monitors.count - 1].inputProfile = profile?.name ?? detected.matchedProfileName
         }
         for port in detected.inputs where !group.connections.contains(where: { $0.monitor == monitor && $0.inputCode == port.code }) {
-            group.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
+            group.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code, inputProtocol: port.command))
         }
         guard let i = group.connections.firstIndex(where: { $0.monitor == monitor && $0.inputCode == input }) else { throw KVMError("This input is not configured.") }
         guard group.connections[i].computer == nil || group.connections[i].computer == computer && group.connections[i].localDisplay == display else { throw KVMError("That input is already mapped. Correct its existing mapping first.") }
@@ -896,7 +896,7 @@ final class DeskRuntime: ObservableObject {
         guard let screen = node.group.monitors.first(where: { $0.id == monitor }), let control = screen.control,
               let detected = displays[control.computer]?.first(where: { $0.id == control.localDisplay }), detected.vendor == profile.vendor else { throw KVMError("Reconnect this monitor’s control computer so Perch can check its manufacturer before changing the profile.") }
         var group = node.group
-        try DeskMonitorConfiguration.apply(monitor: monitor, profile: profile.name, ports: profile.inputs.map { .init(name: $0.name, code: $0.code) }, mode: profile.alternate ? "lg" : "standard", to: &group)
+        try DeskMonitorConfiguration.apply(monitor: monitor, profile: profile.name, ports: profile.inputs.map { .init(name: $0.name, code: $0.code, command: $0.command) }, mode: profile.alternate ? "lg" : "standard", to: &group)
         try node.edit(group)
     }
     /// Register every Desk shortcut this Mac owns as one change. A shortcut

@@ -331,6 +331,28 @@ func runDeskInputListTests() throws {
     try check(DeskShowingCableResolver.resolve(desk, showing: [unassigned.monitor: unassigned.inputCode ?? 0], displays: [studioMac: ["studio-hdmi-2"]]) == desk,
               "An input with no computer was given a display")
 
+    // The profile for the screen on this desk: identified by its EDID product,
+    // switching HDMI and DisplayPort the standard way and USB-C LG's way, so a
+    // screen set up from scratch gets each input's command right.
+    let up850 = MonitorDescriptor(id: UUID().uuidString, displayID: 0, name: "LG ULTRAFINE", vendor: 7789, model: 23741, ddcAvailable: true)
+    guard let tested = MonitorProfiles.match(up850, reportedModel: "UP850K") else { throw KVMError("The tested UP850K profile no longer matches that screen") }
+    try check(tested.confidence == "locally-tested" && !tested.alternate, "The tested profile is not the locally tested, standard-command one: \(tested.name)")
+    try check(tested.inputs.first { $0.name == "DisplayPort" }?.code == 15 && tested.inputs.first { $0.name == "DisplayPort" }?.command == nil,
+              "DisplayPort did not take the standard command in the tested profile")
+    try check(tested.inputs.first { $0.name == "USB-C" }?.code == 209 && tested.inputs.first { $0.name == "USB-C" }?.command == "lg",
+              "USB-C did not keep LG's own command in the tested profile")
+    var fresh = KVMGroup.sample()
+    fresh.monitors[0].control = .init(computer: fresh.computers[0].id, localDisplay: fresh.connections[0].localDisplay!, mode: "lg")
+    try DeskMonitorConfiguration.apply(monitor: fresh.monitors[0].id, profile: tested.name,
+                                       ports: tested.inputs.map { .init(name: $0.name, code: $0.code, command: $0.command) },
+                                       mode: tested.alternate ? "lg" : "standard", to: &fresh)
+    let freshUSB = fresh.connections.first { $0.monitor == fresh.monitors[0].id && $0.inputName == "USB-C" }
+    let freshDP = fresh.connections.first { $0.monitor == fresh.monitors[0].id && $0.inputName == "DisplayPort" }
+    try check(fresh.monitors[0].control?.mode == "standard" && freshDP?.inputCode == 15 && freshDP?.inputProtocol == nil,
+              "Setting up that screen did not give DisplayPort the standard command")
+    try check(freshUSB?.inputCode == 209 && freshUSB?.inputProtocol == "lg",
+              "Setting up that screen did not keep LG's own command for USB-C")
+
     // One input can be selected a different way from the rest of its screen.
     var mixed = KVMGroup.sample()
     let mixedScreen = mixed.monitors[0]

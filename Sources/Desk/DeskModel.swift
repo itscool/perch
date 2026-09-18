@@ -120,7 +120,7 @@ enum DeskShowingCableResolver {
     }
 }
 
-struct DeskPortDefinition { let name: String; let code: UInt16 }
+struct DeskPortDefinition { let name: String; let code: UInt16; var command: String? = nil }
 enum DeskMonitorConfiguration {
     /// Replace a screen's input list. Each existing input carries over to the
     /// new input with the same name, or the same kind when each list has only
@@ -148,8 +148,9 @@ enum DeskMonitorConfiguration {
         for (p, port) in ports.enumerated() {
             if let i = carried[p] {
                 draft.connections[i].inputName = port.name; draft.connections[i].inputCode = port.code
+                draft.connections[i].inputProtocol = port.command
             } else {
-                draft.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code))
+                draft.connections.append(.init(monitor: monitor, computer: nil, localDisplay: nil, inputName: port.name, inputCode: port.code, inputProtocol: port.command))
             }
         }
         let protocolChanged = group.monitors[index].control?.mode != mode

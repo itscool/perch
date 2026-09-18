@@ -1,2528 +1,2566 @@
 {
-  "schemaVersion": 1,
-  "profiles": [
+ "schemaVersion": 1,
+ "profiles": [
+  {
+   "name": "ASUS TUF VG27AQ",
+   "vendor": 1715,
+   "model": 10018,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
     {
-      "name": "ASUS TUF VG27AQ",
-      "vendor": 1715,
-      "model": 10018,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS2722.xml"
-      ]
+     "code": 17,
+     "name": "HDMI 1"
     },
     {
-      "name": "ASUS VP28U",
-      "vendor": 1715,
-      "model": 10417,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS28B1.xml"
-      ]
+     "code": 18,
+     "name": "HDMI 2"
     },
     {
-      "name": "BenQ GW2480",
-      "vendor": 2513,
-      "model": 30951,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E7.xml"
-      ]
-    },
-    {
-      "name": "BenQ GW2283",
-      "vendor": 2513,
-      "model": 30953,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E9.xml"
-      ]
-    },
-    {
-      "name": "Dell U2720Q",
-      "vendor": 4268,
-      "model": 16823,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41B7.xml"
-      ]
-    },
-    {
-      "name": "Dell U2720QM",
-      "vendor": 4268,
-      "model": 16828,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41BC.xml"
-      ]
-    },
-    {
-      "name": "Dell U2723QE (HDMI HDR)",
-      "vendor": 4268,
-      "model": 16999,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4267.xml"
-      ]
-    },
-    {
-      "name": "Dell U2723QE (HDMI)",
-      "vendor": 4268,
-      "model": 17015,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4277.xml"
-      ]
-    },
-    {
-      "name": "Dell U2723QE (DisplayPort1)",
-      "vendor": 4268,
-      "model": 17016,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4278.xml"
-      ]
-    },
-    {
-      "name": "Dell U3223QE (HDMI HDR)",
-      "vendor": 4268,
-      "model": 17008,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4270.xml"
-      ]
-    },
-    {
-      "name": "Dell U3223QE (DP HDR)",
-      "vendor": 4268,
-      "model": 17011,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4273.xml"
-      ]
-    },
-    {
-      "name": "Dell U2718 (HDMI)",
-      "vendor": 4268,
-      "model": 41194,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EA.xml"
-      ]
-    },
-    {
-      "name": "Dell U2718 (DP/mDP)",
-      "vendor": 4268,
-      "model": 41196,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EC.xml"
-      ]
-    },
-    {
-      "name": "LG UltraGear 27GL850",
-      "vendor": 7789,
-      "model": 23423,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM5B7F.xml"
-      ]
-    },
-    {
-      "name": "LG HDR 4K (shared GSM7706 identity)",
-      "vendor": 7789,
-      "model": 30470,
-      "alternate": true,
-      "confidence": "suggested",
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 210,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM7706.xml",
-        "https://github.com/waydabber/m1ddc#usage"
-      ]
-    },
-    {
-      "name": "LG 27UN850-W / 27UN850-WY",
-      "vendor": 7789,
-      "model": 30470,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "27UN850-W",
-        "LG 27UN850-W",
-        "27UN850-WY",
-        "LG 27UN850-WY"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "27UN850-W owner confirmed USB-C switching works with code 209 rather than 210 on 2026-09-07. Earlier brief HDMI 2 response was insufficient to establish full compatibility. Confirmation does not cover the WY variant or every adapter. Shared GSM7706 ID must not auto-select this model."
-    },
-    {
-      "name": "LG 27UP850-W",
-      "vendor": 7789,
-      "model": null,
-      "automatic": false,
-      "retailModels": [
-        "27UP850-W",
-        "LG 27UP850-W"
-      ],
-      "alternate": true,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
-    },
-    {
-      "name": "LG 27UP85NP-W",
-      "vendor": 7789,
-      "model": null,
-      "automatic": false,
-      "retailModels": [
-        "27UP85NP-W",
-        "LG 27UP85NP-W"
-      ],
-      "alternate": true,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
-    },
-    {
-      "name": "LG 32UD99-W",
-      "vendor": 7789,
-      "model": null,
-      "automatic": false,
-      "retailModels": [
-        "32UD99-W",
-        "LG 32UD99-W"
-      ],
-      "alternate": true,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 224,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 192,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
-    },
-    {
-      "name": "LG 29UM69G",
-      "vendor": 7789,
-      "model": null,
-      "automatic": false,
-      "retailModels": [
-        "29UM69G",
-        "LG 29UM69G"
-      ],
-      "alternate": true,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 192,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 224,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
-    },
-    {
-      "name": "LG 40WP95C-W",
-      "vendor": 7789,
-      "model": null,
-      "automatic": false,
-      "retailModels": [
-        "40WP95C-W",
-        "LG 40WP95C-W"
-      ],
-      "alternate": true,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
-    },
-    {
-      "name": "ASUS MG28U",
-      "vendor": 1129,
-      "model": 10407,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 19,
-          "name": "HDMI 3"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACI28A7.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Acer P226HQV",
-      "vendor": 1138,
-      "model": 455,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR01C7.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Acer B196L",
-      "vendor": 1138,
-      "model": 868,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR0364.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Acer Nitro XV273K",
-      "vendor": 1138,
-      "model": 1713,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 16,
-          "name": "DisplayPort 2"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR06B1.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "ACER VG270U P",
-      "vendor": 1138,
-      "model": 1743,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR06CF.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Acer KA242Y",
-      "vendor": 1138,
-      "model": 1835,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR072B.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Acer Predator XB273U",
-      "vendor": 1138,
-      "model": 1866,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR074A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC 2260",
-      "vendor": 1507,
-      "model": 8800,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "HDMI"
-        },
-        {
-          "code": 4,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2260.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC 2269",
-      "vendor": 1507,
-      "model": 8809,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 4,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2269.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC 2343",
-      "vendor": 1507,
-      "model": 9027,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2343.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC 2401",
-      "vendor": 1507,
-      "model": 9217,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2401.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC Q3279VWF",
-      "vendor": 1507,
-      "model": 12921,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC3279.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "BenQ GL2460",
-      "vendor": 2513,
-      "model": 30926,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78CE.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "BENQ XL2411P",
-      "vendor": 2513,
-      "model": 32563,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ7F33.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "BenQ BL2410",
-      "vendor": 2513,
-      "model": 33537,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ8301.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell Ultrasharp u3011",
-      "vendor": 4268,
-      "model": 16483,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 4,
-          "name": "DVI 2"
-        },
-        {
-          "code": 12,
-          "name": "Component"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4063.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell Ultrasharp u3011",
-      "vendor": 4268,
-      "model": 16485,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 4,
-          "name": "DVI 2"
-        },
-        {
-          "code": 12,
-          "name": "Component"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4065.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "DELL S2718D",
-      "vendor": 4268,
-      "model": 16656,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI"
-        },
-        {
-          "code": 27,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4110.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2518D",
-      "vendor": 4268,
-      "model": 16698,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL413A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell UltraSharp U2719D",
-      "vendor": 4268,
-      "model": 16730,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL415A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "DELL S2721DGFA",
-      "vendor": 4268,
-      "model": 16858,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41DA.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2721DE",
-      "vendor": 4268,
-      "model": 16864,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41E0.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U4021QW",
-      "vendor": 4268,
-      "model": 16902,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 25,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4206.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell P3223DE (USB-C)",
-      "vendor": 4268,
-      "model": 17045,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4295.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell Pro Plus P3225QE",
-      "vendor": 4268,
-      "model": 17279,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL437F.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2412M (DVI)",
-      "vendor": 4268,
-      "model": 41082,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA07A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2414H (HDMI 1)",
-      "vendor": 4268,
-      "model": 41124,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0A4.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U3415W (DP)",
-      "vendor": 4268,
-      "model": 41126,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        },
-        {
-          "code": 18,
-          "name": "HDMI / MHL"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0A6.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2415 (DisplayPort1)",
-      "vendor": 4268,
-      "model": 41144,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 16,
-          "name": "DisplayPort 2"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0B8.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell P2415Q",
-      "vendor": 4268,
-      "model": 41150,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI / MHL"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0BE.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell P2417H (DisplayPort)",
-      "vendor": 4268,
-      "model": 41179,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0DB.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U3818DW (DisplayPort)",
-      "vendor": 4268,
-      "model": 41203,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 27,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0F3.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U3219Q",
-      "vendor": 4268,
-      "model": 41251,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 27,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA123.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U3219Q",
-      "vendor": 4268,
-      "model": 41252,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 27,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA124.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2520D",
-      "vendor": 4268,
-      "model": 41294,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 27,
-          "name": "USB-C"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA14E.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2715H (HDMI 2)",
-      "vendor": 4268,
-      "model": 53353,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD069.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Dell U2515H",
-      "vendor": 4268,
-      "model": 53360,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD070.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "HP 27h 737K9AA (DisplayPort)",
-      "vendor": 8718,
-      "model": 14632,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/HPN3928.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Iiyama PLE2483H",
-      "vendor": 9933,
-      "model": 24851,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 1,
-          "name": "VGA 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6113.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Iiyama X2483HSU",
-      "vendor": 9933,
-      "model": 24852,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 1,
-          "name": "VGA 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6114.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "iiyama PL2791Q",
-      "vendor": 9933,
-      "model": 26182,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6646.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Iiyama GB3461WQSU (HDMI)",
-      "vendor": 9933,
-      "model": 30228,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 16,
-          "name": "DisplayPort 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM7614.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Iiyama GB3466WQSU (DP)",
-      "vendor": 9933,
-      "model": 30234,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 16,
-          "name": "DisplayPort 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM761A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Iiyama PL3494WQ",
-      "vendor": 9933,
-      "model": 30257,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "USB-C"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM7631.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Philips 221P6Q",
-      "vendor": 16652,
-      "model": 2268,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/PHL08DC.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Philips BDM3270QP",
-      "vendor": 16652,
-      "model": 2279,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/PHL08E7.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Samsung C27HG70",
-      "vendor": 19501,
-      "model": 3606,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 5,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 6,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 9,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM0E16.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "C49RG9x",
-      "vendor": 19501,
-      "model": 3996,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 3,
-          "name": "DisplayPort 2"
-        },
-        {
-          "code": 6,
-          "name": "HDMI"
-        },
-        {
-          "code": 9,
-          "name": "DisplayPort 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM0F9C.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07.",
-      "readbackUnavailable": true
-    },
-    {
-      "name": "Samsung Odyssey G5",
-      "vendor": 19501,
-      "model": 28953,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 9,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 6,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM7119.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "Sony INZONE M9 (SDM-U27M90)",
-      "vendor": 19929,
-      "model": 1882,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 15,
-          "name": "DisplayPort 1"
-        },
-        {
-          "code": 16,
-          "name": "DisplayPort 2"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SNY075A.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "ViewSonic VG2253",
-      "vendor": 23139,
-      "model": 2355,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 16,
-          "name": "Mini DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/VSC0933.xml"
-      ],
-      "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 27BN88Q-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "27BN88Q-B",
-        "LG 27BN88Q-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 27UK500-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "27UK500-B",
-        "LG 27UK500-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 27UL550-W",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "27UL550-W",
-        "LG 27UL550-W"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 27US500-W",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "27US500-W",
-        "LG 27US500-W"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 29WN600",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "29WN600",
-        "LG 29WN600"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 29U531A",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "29U531A",
-        "LG 29U531A"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 32GP750-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "32GP750-B",
-        "LG 32GP750-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 32GP850-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "32GP850-B",
-        "LG 32GP850-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 34WN750-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "34WN750-B",
-        "LG 34WN750-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 38BR85QC",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "38BR85QC",
-        "LG 38BR85QC"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 40U990A-W",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "40U990A-W",
-        "LG 40U990A-W"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "LG 45GX950A-B",
-      "vendor": 7789,
-      "alternate": true,
-      "confidence": "community-documented",
-      "automatic": false,
-      "retailModels": [
-        "45GX950A-B",
-        "LG 45GX950A-B"
-      ],
-      "inputs": [
-        {
-          "code": 144,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 145,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 208,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 209,
-          "name": "USB-C"
-        }
-      ],
-      "evidence": [
-        "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
-      ],
-      "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
-    },
-    {
-      "name": "AOC 24G2 / 24G2U / 24B2XDAM",
-      "vendor": 1507,
-      "model": 9218,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2402.xml"
-      ]
-    },
-    {
-      "name": "Dell P2416D",
-      "vendor": 4268,
-      "model": 41155,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI 1"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0C3.xml"
-      ]
-    },
-    {
-      "name": "Dell 2408WFP (DVI)",
-      "vendor": 4268,
-      "model": 41002,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 4,
-          "name": "DVI 2"
-        },
-        {
-          "code": 5,
-          "name": "Composite"
-        },
-        {
-          "code": 7,
-          "name": "S-Video"
-        },
-        {
-          "code": 12,
-          "name": "Component"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA02A.xml"
-      ]
-    },
-    {
-      "name": "Dell 2007FP (DVI)",
-      "vendor": 4268,
-      "model": 40993,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        },
-        {
-          "code": 5,
-          "name": "Composite"
-        },
-        {
-          "code": 7,
-          "name": "S-Video"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA021.xml"
-      ]
-    },
-    {
-      "name": "Dell U2410f",
-      "vendor": 4268,
-      "model": 61462,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 4,
-          "name": "DVI 2"
-        },
-        {
-          "code": 5,
-          "name": "Composite"
-        },
-        {
-          "code": 12,
-          "name": "Component"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF016.xml"
-      ]
-    },
-    {
-      "name": "Dell Ultrasharp u2410 (Rev A02)",
-      "vendor": 4268,
-      "model": 61463,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI 1"
-        },
-        {
-          "code": 4,
-          "name": "DVI 2"
-        },
-        {
-          "code": 15,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        },
-        {
-          "code": 12,
-          "name": "Component"
-        },
-        {
-          "code": 5,
-          "name": "Composite"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF017.xml"
-      ]
-    },
-    {
-      "name": "Dell S2316M (DVI)",
-      "vendor": 4268,
-      "model": 53376,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 3,
-          "name": "DVI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD080.xml"
-      ]
-    },
-    {
-      "name": "ViewSonic VSCBD44",
-      "vendor": 23139,
-      "model": 48452,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 1,
-          "name": "VGA"
-        },
-        {
-          "code": 17,
-          "name": "HDMI"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/VSCBD44.xml"
-      ]
-    },
-    {
-      "name": "LC-Power M34 Curved Gaming Monitor",
-      "vendor": 12547,
-      "model": 13568,
-      "alternate": false,
-      "confidence": "community-documented",
-      "inputs": [
-        {
-          "code": 7,
-          "name": "DisplayPort"
-        },
-        {
-          "code": 5,
-          "name": "HDMI 1"
-        },
-        {
-          "code": 18,
-          "name": "HDMI 2"
-        },
-        {
-          "code": 19,
-          "name": "HDMI 3"
-        }
-      ],
-      "evidence": [
-        "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/LHC3500.xml"
-      ]
+     "code": 15,
+     "name": "DisplayPort"
     }
-  ]
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS2722.xml"
+   ]
+  },
+  {
+   "name": "ASUS VP28U",
+   "vendor": 1715,
+   "model": 10417,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AUS28B1.xml"
+   ]
+  },
+  {
+   "name": "BenQ GW2480",
+   "vendor": 2513,
+   "model": 30951,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E7.xml"
+   ]
+  },
+  {
+   "name": "BenQ GW2283",
+   "vendor": 2513,
+   "model": 30953,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78E9.xml"
+   ]
+  },
+  {
+   "name": "Dell U2720Q",
+   "vendor": 4268,
+   "model": 16823,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41B7.xml"
+   ]
+  },
+  {
+   "name": "Dell U2720QM",
+   "vendor": 4268,
+   "model": 16828,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41BC.xml"
+   ]
+  },
+  {
+   "name": "Dell U2723QE (HDMI HDR)",
+   "vendor": 4268,
+   "model": 16999,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4267.xml"
+   ]
+  },
+  {
+   "name": "Dell U2723QE (HDMI)",
+   "vendor": 4268,
+   "model": 17015,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4277.xml"
+   ]
+  },
+  {
+   "name": "Dell U2723QE (DisplayPort1)",
+   "vendor": 4268,
+   "model": 17016,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4278.xml"
+   ]
+  },
+  {
+   "name": "Dell U3223QE (HDMI HDR)",
+   "vendor": 4268,
+   "model": 17008,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4270.xml"
+   ]
+  },
+  {
+   "name": "Dell U3223QE (DP HDR)",
+   "vendor": 4268,
+   "model": 17011,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4273.xml"
+   ]
+  },
+  {
+   "name": "Dell U2718 (HDMI)",
+   "vendor": 4268,
+   "model": 41194,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EA.xml"
+   ]
+  },
+  {
+   "name": "Dell U2718 (DP/mDP)",
+   "vendor": 4268,
+   "model": 41196,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0EC.xml"
+   ]
+  },
+  {
+   "name": "LG UltraGear 27GL850",
+   "vendor": 7789,
+   "model": 23423,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM5B7F.xml"
+   ]
+  },
+  {
+   "name": "LG HDR 4K (shared GSM7706 identity)",
+   "vendor": 7789,
+   "model": 30470,
+   "alternate": true,
+   "confidence": "suggested",
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 210,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/GSM7706.xml",
+    "https://github.com/waydabber/m1ddc#usage"
+   ]
+  },
+  {
+   "name": "LG 27UN850-W / 27UN850-WY",
+   "vendor": 7789,
+   "model": 30470,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "27UN850-W",
+    "LG 27UN850-W",
+    "27UN850-WY",
+    "LG 27UN850-WY"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "27UN850-W owner confirmed USB-C switching works with code 209 rather than 210 on 2026-09-07. Earlier brief HDMI 2 response was insufficient to establish full compatibility. Confirmation does not cover the WY variant or every adapter. Shared GSM7706 ID must not auto-select this model."
+  },
+  {
+   "name": "LG 27UP850-W · UP850K firmware",
+   "vendor": 7789,
+   "model": 23741,
+   "automatic": true,
+   "retailModels": [
+    "UP850K",
+    "27UP850-W (UP850K)"
+   ],
+   "alternate": false,
+   "confidence": "locally-tested",
+   "readbackUnavailable": true,
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C",
+     "command": "lg"
+    }
+   ],
+   "evidence": [
+    "Tested on this desk, September 18 2026: the monitor reports (prot(monitor)type(lcd)UP850Kcmds(01 02 03 0C E3 F3)vcp(... 60( 11 12 0F 00) ... F4 F5(00 01 02) F6(00 01 02) ...)), so HDMI 1, HDMI 2 and DisplayPort answer the standard input command 0x60 and USB-C does not appear in it.",
+    "Tested on this desk: USB-C switches through LG's own command (0xF4) with 209, while DisplayPort does not switch with LG's 208.",
+    "Reports no current input for either command, so switches to this screen are accepted without readback."
+   ],
+   "notes": "Identified by EDID product 23741 with LG firmware identity 0xC024/extended 116. Standard command for HDMI and DisplayPort, LG's own command for USB-C, which is why one command per screen cannot serve this model."
+  },
+  {
+   "name": "LG 27UP850-W",
+   "vendor": 7789,
+   "model": null,
+   "automatic": false,
+   "retailModels": [
+    "27UP850-W",
+    "LG 27UP850-W"
+   ],
+   "alternate": true,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+  },
+  {
+   "name": "LG 27UP85NP-W",
+   "vendor": 7789,
+   "model": null,
+   "automatic": false,
+   "retailModels": [
+    "27UP85NP-W",
+    "LG 27UP85NP-W"
+   ],
+   "alternate": true,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+  },
+  {
+   "name": "LG 32UD99-W",
+   "vendor": 7789,
+   "model": null,
+   "automatic": false,
+   "retailModels": [
+    "32UD99-W",
+    "LG 32UD99-W"
+   ],
+   "alternate": true,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 224,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 192,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+  },
+  {
+   "name": "LG 29UM69G",
+   "vendor": 7789,
+   "model": null,
+   "automatic": false,
+   "retailModels": [
+    "29UM69G",
+    "LG 29UM69G"
+   ],
+   "alternate": true,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 192,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 224,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+  },
+  {
+   "name": "LG 40WP95C-W",
+   "vendor": 7789,
+   "model": null,
+   "automatic": false,
+   "retailModels": [
+    "40WP95C-W",
+    "LG 40WP95C-W"
+   ],
+   "alternate": true,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Exact retail-model selection only; No EDID product identity is asserted. Values from model-specific test reports, not locally tested."
+  },
+  {
+   "name": "ASUS MG28U",
+   "vendor": 1129,
+   "model": 10407,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 19,
+     "name": "HDMI 3"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACI28A7.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Acer P226HQV",
+   "vendor": 1138,
+   "model": 455,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR01C7.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Acer B196L",
+   "vendor": 1138,
+   "model": 868,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR0364.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Acer Nitro XV273K",
+   "vendor": 1138,
+   "model": 1713,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 16,
+     "name": "DisplayPort 2"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR06B1.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "ACER VG270U P",
+   "vendor": 1138,
+   "model": 1743,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR06CF.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Acer KA242Y",
+   "vendor": 1138,
+   "model": 1835,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR072B.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Acer Predator XB273U",
+   "vendor": 1138,
+   "model": 1866,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/ACR074A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC 2260",
+   "vendor": 1507,
+   "model": 8800,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "HDMI"
+    },
+    {
+     "code": 4,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2260.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC 2269",
+   "vendor": 1507,
+   "model": 8809,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 4,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2269.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC 2343",
+   "vendor": 1507,
+   "model": 9027,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2343.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC 2401",
+   "vendor": 1507,
+   "model": 9217,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2401.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC Q3279VWF",
+   "vendor": 1507,
+   "model": 12921,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC3279.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "BenQ GL2460",
+   "vendor": 2513,
+   "model": 30926,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ78CE.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "BENQ XL2411P",
+   "vendor": 2513,
+   "model": 32563,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ7F33.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "BenQ BL2410",
+   "vendor": 2513,
+   "model": 33537,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/BNQ8301.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell Ultrasharp u3011",
+   "vendor": 4268,
+   "model": 16483,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 4,
+     "name": "DVI 2"
+    },
+    {
+     "code": 12,
+     "name": "Component"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4063.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell Ultrasharp u3011",
+   "vendor": 4268,
+   "model": 16485,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 4,
+     "name": "DVI 2"
+    },
+    {
+     "code": 12,
+     "name": "Component"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4065.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "DELL S2718D",
+   "vendor": 4268,
+   "model": 16656,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI"
+    },
+    {
+     "code": 27,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4110.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2518D",
+   "vendor": 4268,
+   "model": 16698,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL413A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell UltraSharp U2719D",
+   "vendor": 4268,
+   "model": 16730,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL415A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "DELL S2721DGFA",
+   "vendor": 4268,
+   "model": 16858,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41DA.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2721DE",
+   "vendor": 4268,
+   "model": 16864,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL41E0.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U4021QW",
+   "vendor": 4268,
+   "model": 16902,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 25,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4206.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell P3223DE (USB-C)",
+   "vendor": 4268,
+   "model": 17045,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL4295.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell Pro Plus P3225QE",
+   "vendor": 4268,
+   "model": 17279,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DEL437F.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2412M (DVI)",
+   "vendor": 4268,
+   "model": 41082,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA07A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2414H (HDMI 1)",
+   "vendor": 4268,
+   "model": 41124,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0A4.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U3415W (DP)",
+   "vendor": 4268,
+   "model": 41126,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    },
+    {
+     "code": 18,
+     "name": "HDMI / MHL"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0A6.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2415 (DisplayPort1)",
+   "vendor": 4268,
+   "model": 41144,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 16,
+     "name": "DisplayPort 2"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0B8.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell P2415Q",
+   "vendor": 4268,
+   "model": 41150,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI / MHL"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0BE.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell P2417H (DisplayPort)",
+   "vendor": 4268,
+   "model": 41179,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0DB.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U3818DW (DisplayPort)",
+   "vendor": 4268,
+   "model": 41203,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 27,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0F3.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U3219Q",
+   "vendor": 4268,
+   "model": 41251,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 27,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA123.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U3219Q",
+   "vendor": 4268,
+   "model": 41252,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 27,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA124.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2520D",
+   "vendor": 4268,
+   "model": 41294,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 27,
+     "name": "USB-C"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA14E.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2715H (HDMI 2)",
+   "vendor": 4268,
+   "model": 53353,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD069.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Dell U2515H",
+   "vendor": 4268,
+   "model": 53360,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD070.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "HP 27h 737K9AA (DisplayPort)",
+   "vendor": 8718,
+   "model": 14632,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/HPN3928.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Iiyama PLE2483H",
+   "vendor": 9933,
+   "model": 24851,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 1,
+     "name": "VGA 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6113.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Iiyama X2483HSU",
+   "vendor": 9933,
+   "model": 24852,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 1,
+     "name": "VGA 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6114.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "iiyama PL2791Q",
+   "vendor": 9933,
+   "model": 26182,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM6646.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Iiyama GB3461WQSU (HDMI)",
+   "vendor": 9933,
+   "model": 30228,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 16,
+     "name": "DisplayPort 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM7614.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Iiyama GB3466WQSU (DP)",
+   "vendor": 9933,
+   "model": 30234,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 16,
+     "name": "DisplayPort 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM761A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Iiyama PL3494WQ",
+   "vendor": 9933,
+   "model": 30257,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "USB-C"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/IVM7631.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Philips 221P6Q",
+   "vendor": 16652,
+   "model": 2268,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/PHL08DC.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Philips BDM3270QP",
+   "vendor": 16652,
+   "model": 2279,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/PHL08E7.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Samsung C27HG70",
+   "vendor": 19501,
+   "model": 3606,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 5,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 6,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 9,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM0E16.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "C49RG9x",
+   "vendor": 19501,
+   "model": 3996,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 3,
+     "name": "DisplayPort 2"
+    },
+    {
+     "code": 6,
+     "name": "HDMI"
+    },
+    {
+     "code": 9,
+     "name": "DisplayPort 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM0F9C.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07.",
+   "readbackUnavailable": true
+  },
+  {
+   "name": "Samsung Odyssey G5",
+   "vendor": 19501,
+   "model": 28953,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 9,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 6,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SAM7119.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "Sony INZONE M9 (SDM-U27M90)",
+   "vendor": 19929,
+   "model": 1882,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 15,
+     "name": "DisplayPort 1"
+    },
+    {
+     "code": 16,
+     "name": "DisplayPort 2"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/SNY075A.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "ViewSonic VG2253",
+   "vendor": 23139,
+   "model": 2355,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 16,
+     "name": "Mini DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/VSC0933.xml"
+   ],
+   "notes": "Explicit model inputsource values; not inferred from generic capabilities. Community report, not Perch hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 27BN88Q-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "27BN88Q-B",
+    "LG 27BN88Q-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 27UK500-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "27UK500-B",
+    "LG 27UK500-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 27UL550-W",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "27UL550-W",
+    "LG 27UL550-W"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 27US500-W",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "27US500-W",
+    "LG 27US500-W"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 29WN600",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "29WN600",
+    "LG 29WN600"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 29U531A",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "29U531A",
+    "LG 29U531A"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 32GP750-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "32GP750-B",
+    "LG 32GP750-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 32GP850-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "32GP850-B",
+    "LG 32GP850-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 34WN750-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "34WN750-B",
+    "LG 34WN750-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 38BR85QC",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "38BR85QC",
+    "LG 38BR85QC"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 40U990A-W",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "40U990A-W",
+    "LG 40U990A-W"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "LG 45GX950A-B",
+   "vendor": 7789,
+   "alternate": true,
+   "confidence": "community-documented",
+   "automatic": false,
+   "retailModels": [
+    "45GX950A-B",
+    "LG 45GX950A-B"
+   ],
+   "inputs": [
+    {
+     "code": 144,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 145,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 208,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 209,
+     "name": "USB-C"
+    }
+   ],
+   "evidence": [
+    "https://github.com/rockowitz/ddcutil/wiki/Switching-input-source-on-LG-monitors"
+   ],
+   "notes": "Only explicitly listed input codes from model report; not local hardware verification. Reviewed 2026-09-07."
+  },
+  {
+   "name": "AOC 24G2 / 24G2U / 24B2XDAM",
+   "vendor": 1507,
+   "model": 9218,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/AOC2402.xml"
+   ]
+  },
+  {
+   "name": "Dell P2416D",
+   "vendor": 4268,
+   "model": 41155,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI 1"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA0C3.xml"
+   ]
+  },
+  {
+   "name": "Dell 2408WFP (DVI)",
+   "vendor": 4268,
+   "model": 41002,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 4,
+     "name": "DVI 2"
+    },
+    {
+     "code": 5,
+     "name": "Composite"
+    },
+    {
+     "code": 7,
+     "name": "S-Video"
+    },
+    {
+     "code": 12,
+     "name": "Component"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA02A.xml"
+   ]
+  },
+  {
+   "name": "Dell 2007FP (DVI)",
+   "vendor": 4268,
+   "model": 40993,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    },
+    {
+     "code": 5,
+     "name": "Composite"
+    },
+    {
+     "code": 7,
+     "name": "S-Video"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELA021.xml"
+   ]
+  },
+  {
+   "name": "Dell U2410f",
+   "vendor": 4268,
+   "model": 61462,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 4,
+     "name": "DVI 2"
+    },
+    {
+     "code": 5,
+     "name": "Composite"
+    },
+    {
+     "code": 12,
+     "name": "Component"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF016.xml"
+   ]
+  },
+  {
+   "name": "Dell Ultrasharp u2410 (Rev A02)",
+   "vendor": 4268,
+   "model": 61463,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI 1"
+    },
+    {
+     "code": 4,
+     "name": "DVI 2"
+    },
+    {
+     "code": 15,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    },
+    {
+     "code": 12,
+     "name": "Component"
+    },
+    {
+     "code": 5,
+     "name": "Composite"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELF017.xml"
+   ]
+  },
+  {
+   "name": "Dell S2316M (DVI)",
+   "vendor": 4268,
+   "model": 53376,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 3,
+     "name": "DVI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/DELD080.xml"
+   ]
+  },
+  {
+   "name": "ViewSonic VSCBD44",
+   "vendor": 23139,
+   "model": 48452,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 1,
+     "name": "VGA"
+    },
+    {
+     "code": 17,
+     "name": "HDMI"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/VSCBD44.xml"
+   ]
+  },
+  {
+   "name": "LC-Power M34 Curved Gaming Monitor",
+   "vendor": 12547,
+   "model": 13568,
+   "alternate": false,
+   "confidence": "community-documented",
+   "inputs": [
+    {
+     "code": 7,
+     "name": "DisplayPort"
+    },
+    {
+     "code": 5,
+     "name": "HDMI 1"
+    },
+    {
+     "code": 18,
+     "name": "HDMI 2"
+    },
+    {
+     "code": 19,
+     "name": "HDMI 3"
+    }
+   ],
+   "evidence": [
+    "https://github.com/ddccontrol/ddccontrol-db/blob/1c7c3f1603332574d48b68e46dcf3d46e788de12/db/monitor/LHC3500.xml"
+   ]
+  }
+ ]
 }

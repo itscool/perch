@@ -1113,8 +1113,19 @@ picker in Edit port. Pinned in `runDeskInputListTests`.
 
 Verified: build 233, `--self-test` 47 PASS, `check-kvm.py`,
 `check-desk-network.py`, kvm-lab 268, render, `check-dialog-contract.py`.
-Running: 2.0.228. On disk: 2.0.233. Open: confirm on the live desk that
+Running: 2.0.228. On disk: 2.0.241. Open: confirm on the live desk that
 DisplayPort switches with the standard command before publishing.
+
+Scott asked for that screen to be set up correctly from the start, as our own
+profile beside the ones found online. `catalog/monitor-profiles.json` gains
+"LG 27UP850-W · UP850K firmware", confidence `locally-tested`, matched by EDID
+product 23741 or the reported model UP850K: HDMI 1 = 17, HDMI 2 = 18,
+DisplayPort = 15 on the standard command, USB-C = 209 on LG's own, and readback
+recorded as unavailable. Its evidence lines quote the capability string this
+desk reported and what was observed. A profile input can now carry its own
+command (`MonitorInput.command`), which setting a screen up applies to that
+connection, so a fresh setup of this model needs no hand editing. Recorded in
+`catalog/HARDWARE-SUPPORT.md` and re-digested in `Release/dependencies.json`.
 
 ## Completed evidence and ongoing maintenance
 

@@ -13,7 +13,15 @@ struct MonitorDescriptor: Codable, Equatable {
 struct MonitorInput: Codable, Equatable {
     var code: UInt16
     var name: String
-    var valid: Bool { code > 0 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf8.count <= 80 }
+    /// The command this one input answers, when it differs from the rest of the
+    /// screen: an LG monitor can list DisplayPort and HDMI in the standard
+    /// command while answering USB-C only through LG's own. Nil means the
+    /// screen's own setting.
+    var command: String? = nil
+    var valid: Bool {
+        code > 0 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf8.count <= 80 &&
+        (command == nil || command == "standard" || command == "lg")
+    }
     static func name(_ code: UInt16, alternate: Bool = false) -> String {
         let names: [UInt16:String] = alternate ? [:] : [1:"VGA 1",2:"VGA 2",3:"DVI 1",4:"DVI 2",15:"DisplayPort 1",16:"DisplayPort 2",17:"HDMI 1",18:"HDMI 2"]
         return names[code] ?? "Input \(code)"

@@ -13,7 +13,7 @@ struct MonitorProfile: Codable {
     var retailModels: [String]? = nil
     var valid: Bool {
         !name.isEmpty && vendor > 0 && ((model ?? 0) > 0 || (automatic == false && !(retailModels ?? []).isEmpty)) && !evidence.isEmpty && inputs.count >= 2 && inputs.count <= 16 &&
-        inputs.allSatisfy { $0.valid } && Set(inputs.map { $0.code }).count == inputs.count && ["community-documented","suggested"].contains(confidence)
+        inputs.allSatisfy { $0.valid } && Set(inputs.map { $0.code }).count == inputs.count && ["community-documented","suggested","locally-tested"].contains(confidence)
     }
 }
 enum MonitorProfiles {

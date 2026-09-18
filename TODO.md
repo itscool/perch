@@ -1225,6 +1225,34 @@ Verified: build 263, `--self-test` 47, `check-desk-network.py`,
 `check-monitor-command.py`. Running: 2.0.262. On disk: 2.0.263. Needs to reach
 the Studio, which is the Mac that takes screen 1 back.
 
+## Checkpoint: end of September 18 — where sharing stands
+
+Switching presets works from both Macs' keyboards. Sharing still does not start,
+because preset 2 is never active: every 3 → 2 switch left screen 1 failed. From
+the logs on 2.0.265: the MacBook cannot reach screen 1 while it shows
+DisplayPort, the hand-off goes to the Studio, and the Studio's write failed with
+"Invalid monitor identity" — the monitor tool was handed an empty display,
+because the Studio's live lookup at that instant found nothing.
+
+Root of the whole day: the Studio's two display IDs were swapped in the desk.
+`CD3AF695` is the Studio's DisplayPort view of Home Screen 1 (LG ULTRAFINE, model
+23740 over DisplayPort, 23741 over USB-C, serial 175682), and `1DAE75B3` is its
+HDMI view of Home screen 2 through the USB-C-to-HDMI adapter (model 30470 over
+HDMI, 30471 over USB-C, serial 353740). The desk had them the other way round.
+As of revision 121 all four records are right, repaired by Perch itself: screen 1
+DisplayPort = Studio `CD3AF695`, USB-C = MacBook `0A7A7FD4`; screen 2 HDMI 2 =
+Studio `1DAE75B3`, USB-C = MacBook `9B219105`.
+
+Next session, in order:
+1. Try preset 3 → 2 once; with correct records the Studio's hand-off may work.
+2. Never pass an empty display to the monitor tool: a hand-off with no display
+   found must decline with what the Mac saw, and log the live list it searched.
+3. Then sharing in preset 2, and the version-aware update check so the Studio
+   stops needing manual updates.
+
+Running: 2.0.265 on both Macs (this Mac confirmed; the Studio announces sharing
+version 1).
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

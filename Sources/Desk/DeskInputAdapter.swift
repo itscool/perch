@@ -104,7 +104,7 @@ final class DeskInputAdapter: ObservableObject {
             for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
                 lockObservers.append(DistributedNotificationCenter.default().addObserver(forName: NSNotification.Name(name), object: nil, queue: .main) { [weak self] _ in
                     self?.screenLocked = locked
-                    if locked { self?.healthy = false; self?.session.stop() }
+                    if locked { self?.healthy = false; self?.session.stop("this Mac's screen locked") }
                 })
             }
         }
@@ -166,7 +166,7 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func receive(_ event: CGEvent, type: CGEventType) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if !reenableTap() { healthy = false; session.stop() }
+            if !reenableTap() { healthy = false; session.stop("macOS turned off this Mac's input capture") }
             return false
         }
         guard event.getIntegerValueField(.eventSourceUserData) != KVMNativeEvent.eventTag else { return false }
@@ -262,7 +262,7 @@ final class DeskInputAdapter: ObservableObject {
     /// is. Placing them at a position converted from desk millimetres is what let a
     /// click land somewhere the cursor was not.
     private func post(_ value: KVMInputEvent, focus: KVMInputFocus) {
-        guard healthy, !SettingsWindow.shared.testing else { session.stop(); return }
+        guard healthy, !SettingsWindow.shared.testing else { session.stop("input capture on this Mac is not healthy"); return }
         // Control can arrive together with the movement that caused it, before
         // the cursor update runs. The first event then continues from the entry
         // point rather than from this Mac's parked cursor.
@@ -282,7 +282,8 @@ final class DeskInputAdapter: ObservableObject {
     }
     /// Put the cursor where control arrives, once, just inside the edge it crossed.
     private func place(at focus: KVMInputFocus) {
-        guard healthy, !SettingsWindow.shared.testing, let point = point(focus) else { session.stop(); return }
+        guard healthy, !SettingsWindow.shared.testing else { session.stop("input capture on this Mac is not healthy"); return }
+        guard let point = point(focus) else { session.stop("this Mac could not find the screen control arrived on among its displays"); return }
         lastLocation = point
         handover.placedPointer()
         // Warp as well as posting the movement: a posted event moves the cursor,

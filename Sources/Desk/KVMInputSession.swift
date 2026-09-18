@@ -180,7 +180,8 @@ final class KVMInputSession: ObservableObject {
         self.timer = timer
         tick()
     }
-    func stop() {
+    func stop(_ reason: String = "stopped on this Mac") {
+        PerchLog.record("input.end", "Control ended: " + reason)
         pendingStart = nil
         localInputSuppressedUntil = 0
         send(.stop(nil), to: node.ownerID)
@@ -192,12 +193,14 @@ final class KVMInputSession: ObservableObject {
         stop()
     }
     func allowAutomaticStart() { automaticStartSuppressed = false }
-    private func endLocal() {
+    private func endLocal(_ reason: String? = nil) {
+        if let reason, lease.grant != nil || preparedGrant != nil { PerchLog.record("input.end", "This Mac let go of control: " + reason) }
         release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; sequence = 0
         localGrantAcceptedAt = -.infinity
         pendingMotion = nil; motionFlushScheduled = false; heartbeats = [:]; nextHeartbeat = 0
     }
-    private func endAuthority() {
+    private func endAuthority(_ reason: String? = nil) {
+        if let reason, grant != nil || pending != nil { PerchLog.record("input.end", "The desk took control back: " + reason) }
         // Participants release their own injected state when the next poll
         // returns nil (or independently within one second if unreachable).
         grant = nil; pending = nil; prepared = []; pointer = nil; incoming = [:]
@@ -222,14 +225,14 @@ final class KVMInputSession: ObservableObject {
         let revision = configurationRevision, context = contextIssue
         if revision != lastRevision || context != lastContextIssue {
             let wasControlling = lease.grant != nil || preparedGrant != nil || pending != nil || pendingStart != nil
-            stop(); lastRevision = revision; lastContextIssue = context
+            stop(revision != lastRevision ? "the desk configuration changed on this Mac" : "sharing conditions changed: " + (context ?? "now ready")); lastRevision = revision; lastContextIssue = context
             visibility = [:]; probes = [:]; availableConnections = []; readyComputers = []; stateExpires = 0
             peerVersions = [:]; peerHeard = [:]; nextVersionAnnounce = 0
             coordinatorProblem = nil; blockedTarget = nil
             localProblem = wasControlling && context == nil ? "The desk layout changed. Control returned to this Mac. Select a screen and choose Control to resume." : nil
         }
-        if let grant, !grant.participants.isSubset(of: node.online) { endAuthority() }
-        if let pending, !pending.participants.isSubset(of: node.online) { endAuthority() }
+        if let grant, !grant.participants.isSubset(of: node.online) { endAuthority("a computer in the handoff went offline") }
+        if let pending, !pending.participants.isSubset(of: node.online) { endAuthority("a computer in the handoff went offline") }
     }
     var active: Bool { enabled && ready() && lease.alive(now: clock()) && node.canEdit && lease.grant?.revision == configurationRevision }
     var preparing: Bool { enabled && ready() && preparedGrant != nil && lease.grant == nil && clock() >= preparedAt && clock() - preparedAt < 3 }
@@ -463,7 +466,7 @@ final class KVMInputSession: ObservableObject {
         case .poll(let nonce, let available):
             guard node.isOwner else { return }
             if available && enabled { readiness[peer] = now } else { readiness[peer] = nil }
-            if grant?.participants.contains(peer) == true && !available { endAuthority() }
+            if grant?.participants.contains(peer) == true && !available { endAuthority((node.group.computers.first { $0.id == peer }?.name ?? "a computer") + " reported it cannot share right now") }
             validateAuthority()
             let connections = Set(node.group.connections.filter { connection in
                 if let observed = visibility[connection.monitor], observed.revision == configurationRevision,
@@ -511,7 +514,7 @@ final class KVMInputSession: ObservableObject {
                 if preparedGrant != nil, lease.grant == nil { scheduleFastPoll() }
                 // A poll response may predate a prepare already received on this
                 // ordered connection. Do not discard that pending preparation.
-                if lease.grant != nil, localGrantAcceptedAt <= sent { endLocal() }
+                if lease.grant != nil, localGrantAcceptedAt <= sent { endLocal("the desk reported no active control" + (issue.map { ": " + $0 } ?? "")) }
                 // The coordinator has explicitly reported that no grant is
                 // active. It is safe to release the local input fence; a
                 // subsequent prepare installs a new transaction first.
@@ -574,7 +577,7 @@ final class KVMInputSession: ObservableObject {
                 for (source, event) in waiting where self.grant?.id == grant.id { route(event, source: source, grant: grant) }
             }
         case .stop(let id):
-            if node.isOwner && (id == nil || id == grant?.id || id == pending?.id) && (grant?.participants.contains(peer) == true || pending?.participants.contains(peer) == true || peer == node.localID) { endAuthority() }
+            if node.isOwner && (id == nil || id == grant?.id || id == pending?.id) && (grant?.participants.contains(peer) == true || pending?.participants.contains(peer) == true || peer == node.localID) { endAuthority(peer == node.localID ? "this Mac stopped sharing" : (node.group.computers.first { $0.id == peer }?.name ?? "a computer") + " asked to stop") }
         case .event(let id, let sequence, let event):
             guard node.isOwner else { return }
             validateAuthority()
@@ -638,20 +641,29 @@ final class KVMInputSession: ObservableObject {
         for peer in value.participants { send(.prepare(value), to: peer) }
     }
     private func validateAuthority() {
-        if let grant, (!grant.participants.allSatisfy(fresh) ||
-                       grant.revision != configurationRevision || !node.canEdit) { endAuthority() }
+        if let grant {
+            let stale = grant.participants.filter { !fresh($0) }
+            if !stale.isEmpty {
+                let names = stale.map { peer in node.group.computers.first { $0.id == peer }?.name ?? String(peer.uuidString.prefix(8)) }.sorted()
+                endAuthority(names.joined(separator: ", ") + " has not confirmed it is ready to share in the last 2.5 s")
+            } else if grant.revision != configurationRevision {
+                endAuthority("the desk configuration changed since control was granted")
+            } else if !node.canEdit {
+                endAuthority("this Mac cannot edit the desk right now")
+            }
+        }
         if let grant {
             let now = clock()
             let missingHeartbeat = grant.participants.contains { peer in
                 peer != node.localID && now - peerHeartbeats[peer, default: 0] >= KVMInputLease.duration
             }
             if missingHeartbeat {
-                endAuthority()
+                endAuthority("a computer stopped confirming the shared lease")
                 localProblem = "Input returned locally because a computer stopped confirming the shared lease. Perch will retry automatically."
             }
         }
-        if let grant, installed != grant.participants, clock() - grantedAt >= 2 { endAuthority(); localProblem = "A computer did not accept control in time. Input is local." }
-        if pending != nil && clock() - pendingAt >= 3 { endAuthority(); localProblem = "A computer did not finish releasing input. Control remains local." }
+        if let grant, installed != grant.participants, clock() - grantedAt >= 2 { endAuthority("a computer did not accept control within 2 s"); localProblem = "A computer did not accept control in time. Input is local." }
+        if pending != nil && clock() - pendingAt >= 3 { endAuthority("a computer did not finish releasing input within 3 s"); localProblem = "A computer did not finish releasing input. Control remains local." }
     }
     private func route(_ value: KVMInputEvent, source: UUID, grant: KVMInputGrant) {
         guard var location = pointer, var screen = node.group.monitors.first(where: { $0.id == location.monitor }),

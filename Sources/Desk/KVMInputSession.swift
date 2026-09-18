@@ -18,6 +18,9 @@ enum KVMInputMessage: Codable {
     case heartbeatAck(UUID, UUID)
     case inspect(UUID, String, UUID)
     case visible(UUID, UUID, UInt16?)
+    /// Which sharing version this Mac speaks. A Perch that predates versioning
+    /// never sends one and cannot decode it, which is itself the answer.
+    case version(Int)
 }
 
 /// The desk owner arbitrates transient input focus, never configuration edits.
@@ -56,6 +59,14 @@ final class KVMInputSession: ObservableObject {
     }
     @Published private(set) var availableConnections: Set<UUID> = []
     @Published private(set) var readyComputers: Set<UUID> = []
+    /// The sharing version each Mac last announced, and when this Mac last
+    /// heard anything at all from it, so an older Perch that cannot announce
+    /// one is told apart from a Mac that has not answered yet.
+    private var peerVersions: [UUID: Int] = [:]
+    private var peerHeard: [UUID: TimeInterval] = [:]
+    private var nextVersionAnnounce: TimeInterval = 0
+    /// How long to wait for a version before concluding the other Mac is too old.
+    static let versionGrace: TimeInterval = 6
     /// Emergency/local-control exits are intentional and must not be
     /// immediately undone by the runtime's automatic preset start.
     private(set) var automaticStartSuppressed = false
@@ -213,6 +224,7 @@ final class KVMInputSession: ObservableObject {
             let wasControlling = lease.grant != nil || preparedGrant != nil || pending != nil || pendingStart != nil
             stop(); lastRevision = revision; lastContextIssue = context
             visibility = [:]; probes = [:]; availableConnections = []; readyComputers = []; stateExpires = 0
+            peerVersions = [:]; peerHeard = [:]; nextVersionAnnounce = 0
             coordinatorProblem = nil; blockedTarget = nil
             localProblem = wasControlling && context == nil ? "The desk layout changed. Control returned to this Mac. Select a screen and choose Control to resume." : nil
         }
@@ -254,19 +266,21 @@ final class KVMInputSession: ObservableObject {
         if let contextIssue { return contextIssue }
         if let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
            let connection = node.group.connections.first(where: { $0.id == assignment.connection }), connection.computer != nil, connection.localDisplay == nil {
-            return "Match this screen’s display in Desk before sharing input. Its monitor preset can still switch the picture."
+            return "Perch has not seen this screen from that Mac yet. Switch to this input once and Perch will pick it up. The picture still switches meanwhile."
         }
         guard node.online.contains(node.ownerID), clock() < stateExpires else { return "Waiting for " + node.ownerName + " to confirm sharing status. Turn on Share on this Mac from the Perch menu there; Perch will update this status automatically." }
         guard readyComputers.contains(node.ownerID) else { return "On " + node.ownerName + ", turn on Share on this Mac from the Perch menu. The desk coordinator must allow sharing too." }
+        if let issue = versionIssue(node.ownerID) { return issue }
         // No shared desk space means no edge to cross, so the pointer must
         // stay under this Mac's own control rather than being taken over
         // with nowhere to go. Decided from the monitor arrangement.
         if let saved = node.group.presets.first(where: { $0.id == preset }), let issue = KVMEdge.sharedSpaceIssue(group: node.group, preset: saved) {
             return issue
         }
-        guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no matched computer. Connect and match its computer before starting control." }
+        guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no computer connected to it. Draw a wire from a computer to it before starting control." }
         let name = node.group.computers.first { $0.id == owner }?.name ?? "the screen’s computer"
         guard node.online.contains(owner) else { return name + " is offline. Open Perch there and retry the desk connection." }
+        if let issue = versionIssue(owner) { return issue }
         guard readyComputers.contains(owner) else { return "On " + name + ", turn on Share on this Mac from the Perch menu and resolve any access warning shown there. Perch will update this status automatically." }
         // A monitor that cannot report its current input must not block KVM.
         // The monitor command and the input handoff are separate operations:
@@ -376,9 +390,27 @@ final class KVMInputSession: ObservableObject {
     }
     /// Send a readiness poll now. Each poll carries a fresh lease challenge that
     /// the coordinator's answer must match.
+    /// Why this Mac cannot share with that one, when their sharing versions do
+    /// not agree. Everything else about the desk keeps working: only the
+    /// pointer needs both sides to behave the same way.
+    func versionIssue(_ computer: UUID) -> String? {
+        guard computer != node.localID else { return nil }
+        let name = node.group.computers.first { $0.id == computer }?.name ?? "The other Mac"
+        if let version = peerVersions[computer] {
+            guard version != KVMInputProtocol.version else { return nil }
+            return name + " shares the keyboard and mouse a different way (version \(version); this Mac uses \(KVMInputProtocol.version)). Update both Macs to the same version of Perch. The desk and its presets still work."
+        }
+        // Heard from, but it has never said which version it speaks.
+        guard let heard = peerHeard[computer], clock() - heard >= Self.versionGrace else { return nil }
+        return name + " runs a version of Perch that shares the keyboard and mouse a different way. Update it to this Mac's version. The desk and its presets still work."
+    }
     private func pollNow() {
         let nonce = lease.challenge(now: clock())
         polls = polls.filter { clock() - $0.value < 2.5 }; polls[nonce] = clock()
+        if clock() >= nextVersionAnnounce {
+            nextVersionAnnounce = clock() + 5
+            for peer in node.online where peer != node.localID { send(.version(KVMInputProtocol.version), to: peer) }
+        }
         send(.poll(nonce, ready()), to: node.ownerID)
     }
     /// While a handoff prepares, ask again quickly in a bounded burst, so the grant
@@ -405,6 +437,7 @@ final class KVMInputSession: ObservableObject {
     }
     private func receive(_ message: KVMInputMessage, peer: UUID) {
         guard node.isMember, node.online.contains(peer) else { return }
+        if peer != node.localID { peerHeard[peer] = clock() }
         let now = clock()
         switch message {
         case .wakeDisplay:
@@ -420,6 +453,13 @@ final class KVMInputSession: ObservableObject {
                   now >= sent, now - sent < KVMInputLease.duration,
                   let grant = lease.grant, grant.id == grantID, lease.alive(now: now) else { return }
             lease.renew(grant: grantID, now: now)
+        case .version(let value):
+            if peerVersions[peer] != value {
+                peerVersions[peer] = value
+                PerchLog.note("input.version", "Computer \(peer.uuidString.prefix(8)) shares input at version \(value); this Mac speaks \(KVMInputProtocol.version)")
+            }
+            // Answer immediately, so neither Mac waits a cadence to learn the other's.
+            send(.version(KVMInputProtocol.version), to: peer)
         case .poll(let nonce, let available):
             guard node.isOwner else { return }
             if available && enabled { readiness[peer] = now } else { readiness[peer] = nil }

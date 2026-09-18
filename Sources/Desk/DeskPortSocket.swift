@@ -54,7 +54,7 @@ struct DeskPortSocket: View {
                 // is. Offer that here, where the unmatched cable is.
                 if let owner = port.computer, port.localDisplay == nil {
                     let name = model.group.computers.first { $0.id == owner }?.name ?? "that Mac"
-                    menu.action("Match this cable’s display on \(name)…", help: "Perch does not know which of \(name)'s displays this input shows, so it cannot share the keyboard and mouse across this screen.") {
+                    menu.action("Tell Perch which screen this is on \(name)…", help: "Perch picks this up by itself the first time the monitor shows this input. Choose it here if you would rather not switch to it.") {
                         model.selected = port.monitor; cable(port.id, owner)
                     }
                     menu.addItem(.separator())

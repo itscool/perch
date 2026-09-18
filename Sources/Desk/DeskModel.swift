@@ -295,7 +295,7 @@ final class DeskModel: ObservableObject {
     }
     func connectionLabel(_ connection: KVMConnection) -> String {
         let computer = group.computers.first { $0.id == connection.computer }
-        return connection.inputName + " — " + (computer?.name ?? "Unassigned") + (computer != nil && connection.localDisplay == nil ? " · Display matching pending" : "")
+        return connection.inputName + " — " + (computer?.name ?? "Unassigned") + (computer != nil && connection.localDisplay == nil ? " · Perch has not seen this screen from that Mac yet" : "")
     }
     func owner(_ monitor: UUID, in preset: KVMPreset? = nil) -> String {
         guard let a = (preset ?? self.preset).assignments.first(where: { $0.monitor == monitor }),

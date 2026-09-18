@@ -354,6 +354,23 @@ import Darwin
         try wait("fresh input visibility") { reads >= 2 }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         try wait("sharing readiness is current") { inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id) == nil && inputB.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id) == nil }
+        // Keyboard and mouse sharing has its own version. A Mac that speaks a
+        // different one is named, not silently ignored, and the desk keeps
+        // working; when it speaks the same one again, sharing recovers by itself.
+        let otherVersion = try JSONEncoder().encode(KVMInputMessage.version(KVMInputProtocol.version + 7))
+        guard inputA.receive(KVMInputSession.wirePrefix + otherVersion, peer: b.localID) else { throw KVMError("A version announcement was not recognised on the wire") }
+        try wait("the other Mac's sharing version is heard") { inputA.versionIssue(b.localID) != nil }
+        try wait("a different sharing version is named") {
+            inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[1].id)?.contains("shares the keyboard and mouse a different way") == true
+        }
+        guard inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[1].id)?.contains("presets still work") == true else {
+            throw KVMError("A sharing version mismatch did not say the desk still works")
+        }
+        guard b.group == a.group else { throw KVMError("A sharing version mismatch disturbed the desk itself") }
+        let sameVersion = try JSONEncoder().encode(KVMInputMessage.version(KVMInputProtocol.version))
+        _ = inputA.receive(KVMInputSession.wirePrefix + sameVersion, peer: b.localID)
+        try wait("matching versions recover on their own") { inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[1].id) == nil }
+        print("PASS: keyboard and mouse sharing carries its own version; a mismatch is named on the Mac that sees it, leaves the desk working, and clears itself when the versions agree")
         inputA.start(preset: UUID(), monitor: UUID())
         try wait("coordinator failure reaches peer") { inputB.problem != nil }
         inputA.refreshReadiness()

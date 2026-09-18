@@ -51,8 +51,9 @@ struct KVMMonitorRequest: Codable, Equatable {
         let routes = try group.monitors.filter { selected.contains($0.id) }.map { monitor -> KVMMonitorRoute in
             guard let control = monitor.control else { throw KVMError("Choose a control connection for \(monitor.name).") }
             guard let assignment = preset.assignments.first(where: { $0.monitor == monitor.id }),
-                  let input = group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { throw KVMError("Choose the actual input code for \(monitor.name)’s connection.") }
-            return .init(monitor: monitor.id, control: control, input: input, force: force)
+                  let connection = group.connections.first(where: { $0.id == assignment.connection }),
+                  let input = connection.inputCode else { throw KVMError("Choose the actual input code for \(monitor.name)’s connection.") }
+            return .init(monitor: monitor.id, control: Self.control(control, for: connection), input: input, force: force)
         }
         return Self(id: id, epoch: epoch, revision: revision, preset: preset.id, routes: routes, force: force)
     }
@@ -63,7 +64,14 @@ struct KVMMonitorRequest: Codable, Equatable {
               let control = monitor.control else { throw KVMError("Choose this monitor’s control connection in Monitor setup first.") }
         guard let input = port.inputCode else { throw KVMError("Set this port’s input code in Monitor setup first.") }
         return Self(id: id, epoch: epoch, revision: revision, preset: nil,
-                    routes: [.init(monitor: monitor.id, control: control, input: input, force: force)], connection: connection, force: force)
+                    routes: [.init(monitor: monitor.id, control: Self.control(control, for: port), input: input, force: force)], connection: connection, force: force)
+    }
+    /// One input can need a different command from the rest of its screen: LG
+    /// monitors answer USB-C only through LG's own command, while listing
+    /// DisplayPort and HDMI in the standard one.
+    static func control(_ control: KVMMonitorControl, for connection: KVMConnection) -> KVMMonitorControl {
+        guard let method = connection.inputProtocol, method != control.mode else { return control }
+        var own = control; own.mode = method; return own
     }
     func validated(in group: KVMGroup) throws -> Self {
         if let connection, preset == nil {

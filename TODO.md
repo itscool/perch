@@ -1085,6 +1085,37 @@ Verified: build 230, `--self-test` 47 PASS, `check-kvm.py`,
 2.0.228. On disk: 2.0.230. Next: version the input session and name a mismatch,
 as Scott asked, and his preset 3 DisplayPort switch.
 
+## Checkpoint: input version, plain words, per-input command (September 18, 2026)
+
+Sharing now carries its own version (`KVMInputProtocol.version`), separate from
+the app version and the desk protocol, as Scott asked. It is part of the
+configuration hash, so a change to that recipe is a version difference rather
+than a silent mismatch; it rides in every grant, and a grant without one (an
+older Perch) reads as version 0 and is refused. Macs announce their version on
+connection and every five seconds, and a difference is named on the Mac that
+sees it, while the desk, its presets and monitor switching keep working. It
+clears itself when the versions agree. Pinned in `check-desk-network.swift` and
+`check-kvm.swift`.
+
+Scott: "if a cable is connected, how would a person know it is also unmatched?"
+They would not. Matching is now automatic from the showing input, and every
+message about it is in plain words: "Perch has not seen this screen from that
+Mac yet. Switch to this input once and Perch will pick it up."
+
+His DisplayPort report, with facts from `PerchDisplay` on the Studio: the screen
+is an LG UP850K, `lgIdentity` 0xC024, and its capabilities advertise
+`60(11 12 0F 00)`, so HDMI 1/2 and DisplayPort answer the standard command,
+while USB-C appears only under LG's own command. It also reports no current
+input at all, which is why every switch is "accepted without readback". One
+command per screen cannot serve both, so `KVMConnection.inputProtocol` now sets
+the command for a single input, used by preset and one-off switches, with a
+picker in Edit port. Pinned in `runDeskInputListTests`.
+
+Verified: build 233, `--self-test` 47 PASS, `check-kvm.py`,
+`check-desk-network.py`, kvm-lab 268, render, `check-dialog-contract.py`.
+Running: 2.0.228. On disk: 2.0.233. Open: confirm on the live desk that
+DisplayPort switches with the standard command before publishing.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

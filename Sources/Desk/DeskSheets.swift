@@ -112,6 +112,23 @@ struct DeskPortSheet: View {
                         } }
                         if let problem = model.problem { throw KVMError(problem) }
                     }
+                    // An LG monitor answers USB-C only through LG's own command
+                    // while listing DisplayPort and HDMI in the standard one, so
+                    // one screen can need both.
+                    Picker("Switch this input using", selection: Binding(
+                        get: { port.inputProtocol ?? "" },
+                        set: { value in
+                            model.edit { group in
+                                if let i = group.connections.firstIndex(where: { $0.id == port.id }) {
+                                    group.connections[i].inputProtocol = value.isEmpty ? nil : value
+                                }
+                            }
+                        })) {
+                        Text("The same command as this screen").tag("")
+                        Text("The standard monitor command").tag("standard")
+                        Text("LG’s own command").tag("lg")
+                    }
+                    Text("Change this only when this input does not respond while others on the same screen do.").font(.callout).foregroundStyle(.secondary)
                 }
             }
             if port.computer != nil { Button("Disconnect cable") { model.disconnectCable(port.id); if model.problem == nil { page.close() } } }

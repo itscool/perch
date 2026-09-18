@@ -1,6 +1,16 @@
 import Foundation
 import CryptoKit
 
+/// Keyboard and mouse sharing has its own version, separate from the app version
+/// and from the desk protocol. Two Macs pair, sync the desk and switch monitors
+/// across versions; only sharing the pointer needs both sides to agree on how
+/// events, leases and focus behave. Bump this whenever that changes, and a
+/// mismatch is named on both Macs instead of quietly doing nothing.
+enum KVMInputProtocol {
+    /// A var so tests can pretend to be another version; never written in the app.
+    static var version = 1
+}
+
 enum KVMInputConfiguration {
     private struct Keyboard: Encodable {
         let id: UUID
@@ -11,6 +21,9 @@ enum KVMInputConfiguration {
     private struct Snapshot: Encodable {
         let group: KVMGroup
         let keyboards: [Keyboard]
+        /// What goes into this hash is part of the sharing version: a release
+        /// that changes the recipe must not look like a desk that differs.
+        let version: Int
     }
     /// Cosmetic edits must not interrupt someone typing into remote Settings.
     /// Geometry, mappings, control paths and keyboard-follow policy still fence
@@ -37,7 +50,7 @@ enum KVMInputConfiguration {
         value.connections.sort { $0.id.uuidString < $1.id.uuidString }
         value.presets.sort { $0.slot < $1.slot }
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
-        guard let bytes = try? encoder.encode(Snapshot(group: value, keyboards: keyboards)) else { return nil }
+        guard let bytes = try? encoder.encode(Snapshot(group: value, keyboards: keyboards, version: KVMInputProtocol.version)) else { return nil }
         return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 }
@@ -90,7 +103,25 @@ struct KVMInputGrant: Codable, Equatable {
     let preset: UUID
     let participants: Set<UUID>
     let focus: KVMInputFocus
+    /// Absent from a grant made by a Perch that predates input versioning, which
+    /// reads as version 0 and is refused with a named reason.
+    var version: Int = KVMInputProtocol.version
+    init(id: UUID, epoch: UUID, revision: String, preset: UUID, participants: Set<UUID>, focus: KVMInputFocus, version: Int = KVMInputProtocol.version) {
+        self.id = id; self.epoch = epoch; self.revision = revision; self.preset = preset
+        self.participants = participants; self.focus = focus; self.version = version
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        epoch = try values.decode(UUID.self, forKey: .epoch)
+        revision = try values.decode(String.self, forKey: .revision)
+        preset = try values.decode(UUID.self, forKey: .preset)
+        participants = try values.decode(Set<UUID>.self, forKey: .participants)
+        focus = try values.decode(KVMInputFocus.self, forKey: .focus)
+        version = try values.decodeIfPresent(Int.self, forKey: .version) ?? 0
+    }
     func valid(group: KVMGroup, epoch: UUID, revision: String) -> Bool {
+        guard version == KVMInputProtocol.version else { return false }
         guard self.epoch == epoch, self.revision == revision, (try? group.validated()) != nil,
               !participants.isEmpty, participants.isSubset(of: Set(group.computers.map(\.id))), participants.contains(focus.computer),
               let screen = group.monitors.first(where: { $0.id == focus.monitor }), screen.geometry.contains(focus.position),

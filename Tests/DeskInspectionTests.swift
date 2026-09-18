@@ -331,5 +331,30 @@ func runDeskInputListTests() throws {
     try check(DeskShowingCableResolver.resolve(desk, showing: [unassigned.monitor: unassigned.inputCode ?? 0], displays: [studioMac: ["studio-hdmi-2"]]) == desk,
               "An input with no computer was given a display")
 
-    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change; the input a screen is showing matches that cable's display")
+    // One input can be selected a different way from the rest of its screen.
+    var mixed = KVMGroup.sample()
+    let mixedScreen = mixed.monitors[0]
+    let mixedUSB = mixed.connections.first { $0.monitor == mixedScreen.id && $0.inputName.contains("USB-C") }!
+    mixed.monitors[0].control = .init(computer: mixedUSB.computer!, localDisplay: mixedUSB.localDisplay!, mode: "standard")
+    let mixedUSBIndex = mixed.connections.firstIndex { $0.id == mixedUSB.id }!
+    mixed.connections[mixedUSBIndex].inputCode = 209
+    mixed.connections[mixedUSBIndex].inputProtocol = "lg"
+    try check((try? mixed.validated()) != nil, "A per-input command was refused by validation")
+    // Only this screen is in the preset, so the request is about it alone.
+    for index in mixed.presets.indices {
+        mixed.presets[index].assignments = [.init(monitor: mixedScreen.id, connection: mixedUSB.id)]
+    }
+    let mixedRequest = try KVMMonitorRequest.make(group: mixed, preset: mixed.presets[0].id, epoch: UUID(), revision: "r")
+    try check(mixedRequest.routes.first { $0.monitor == mixedScreen.id }?.control.mode == "lg",
+              "A switch ignored the command that input needs and used the screen's")
+    let direct = try KVMMonitorRequest.makeConnection(group: mixed, connection: mixedUSB.id, epoch: UUID(), revision: "r")
+    try check(direct.routes[0].control.mode == "lg", "A one-off switch ignored the command that input needs")
+    let other = mixed.connections.first { $0.monitor == mixedScreen.id && $0.id != mixedUSB.id && $0.inputCode != nil }!
+    let standard = try KVMMonitorRequest.makeConnection(group: mixed, connection: other.id, epoch: UUID(), revision: "r")
+    try check(standard.routes[0].control.mode == "standard", "Another input on the same screen lost the screen's own command")
+    var invalid = mixed
+    invalid.connections[mixedUSBIndex].inputProtocol = "something else"
+    try check((try? invalid.validated()) == nil, "An unknown input command was accepted")
+
+    print("PASS: changing a screen's input list replaces it: same-name and same-kind inputs keep their cables and routes, unused leftovers go, an input in use is never stranded by a protocol change; the input a screen is showing matches that cable's display; one input can be switched a different way from its screen")
 }

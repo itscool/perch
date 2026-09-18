@@ -263,7 +263,7 @@ final class DeskRuntime: ObservableObject {
             return node.group.monitors.first { $0.id == assignment.monitor }?.name
         }
         guard !pending.isEmpty else { return nil }
-        return pending.joined(separator: ", ") + ": this cable’s display is not matched yet, so input cannot follow the picture there. Click the port to match it."
+        return pending.joined(separator: ", ") + ": Perch has not seen this screen from that Mac yet, so the keyboard and mouse cannot follow the picture there. Switch to this input once and Perch will pick it up."
     }
     func activatePreset(_ preset: UUID) {
         if switching.busy && switching.request?.preset == preset { return }

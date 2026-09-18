@@ -236,6 +236,17 @@ import CryptoKit
         try rejects("zero-size coordinate conversion rejected") {
             _ = try KVMGeometry(x: 0, y: 0, width: 0, height: 1).nativePoint(.init(x: 0, y: 0), pixelWidth: 1, pixelHeight: 1)
         }
+        // A grant made under another sharing version is refused, and one from a
+        // Perch too old to carry a version reads as version 0 and is refused too.
+        let versionedFocus = KVMInputFocus(monitor: group.monitors[0].id, computer: group.computers[0].id, position: .init(x: 1, y: 1))
+        let strange = KVMInputGrant(id: UUID(), epoch: UUID(), revision: "r", preset: group.presets[0].id,
+                                    participants: Set(group.computers.map(\.id)), focus: versionedFocus, version: KVMInputProtocol.version + 3)
+        try check(!strange.valid(group: group, epoch: strange.epoch, revision: "r"), "A grant from another sharing version was accepted")
+        let unversioned = try JSONDecoder().decode(KVMInputGrant.self, from: Data("""
+        {"id":"\(UUID().uuidString)","epoch":"\(UUID().uuidString)","revision":"r","preset":"\(group.presets[0].id.uuidString)","participants":["\(group.computers[0].id.uuidString)"],"focus":{"monitor":"\(group.monitors[0].id.uuidString)","computer":"\(group.computers[0].id.uuidString)","position":{"x":1,"y":1}}}
+        """.utf8))
+        try check(unversioned.version == 0 && !unversioned.valid(group: group, epoch: unversioned.epoch, revision: "r"),
+                  "A grant from a Perch without input versioning was accepted")
         let grant = KVMInputGrant(id: UUID(), epoch: UUID(), revision: "revision", preset: group.presets[0].id,
                                   participants: [alice.id, bob.id], focus: .init(monitor: left.id, computer: alice.id, position: .init(x: 300, y: 170)))
         try check(grant.valid(group: group, epoch: grant.epoch, revision: "revision"), "focus resolves to the selected physical connection")

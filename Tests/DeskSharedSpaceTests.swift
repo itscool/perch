@@ -53,7 +53,7 @@ func runDeskSharedSpaceTests() throws {
     pending.connections = [matched, unmatchedCable]
     pending.presets[0].assignments = [.init(monitor: first.id, connection: matched.id), .init(monitor: second.id, connection: unmatchedCable.id)]
     let unmatched = KVMEdge.sharedSpaceIssue(group: pending, preset: pending.presets[0]) ?? ""
-    try check(unmatched.contains("does not know which display") && unmatched.contains("Mac Studio") && unmatched.contains("Home screen 2") && !unmatched.contains("side by side"),
+    try check(unmatched.contains("has not seen") && unmatched.contains("Mac Studio") && unmatched.contains("Home screen 2") && !unmatched.contains("side by side"),
               "An unmatched display was reported as screens not being side by side: \(unmatched)")
     // Once that cable is matched, the same desk shares space.
     var matchedDesk = pending

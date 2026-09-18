@@ -102,6 +102,11 @@ struct KVMConnection: Codable, Equatable, Identifiable {
     var localDisplay: String?
     var inputName: String
     var inputCode: UInt16? = nil
+    /// How this one input is selected, when it differs from the rest of the
+    /// screen. LG monitors answer USB-C only through LG's own command while
+    /// listing DisplayPort and HDMI in the standard one, so a screen can need
+    /// both. Nil means the screen's own setting.
+    var inputProtocol: String? = nil
 }
 
 struct KVMAssignment: Codable, Equatable {
@@ -182,6 +187,9 @@ struct KVMGroup: Codable, Equatable, Identifiable {
                         "This screen already has an input with that name. Edit its computer mapping instead.")
             if let code = connection.inputCode { try require(connections.filter { $0.monitor == connection.monitor && $0.inputCode == code }.count == 1, "This monitor input code is already configured.") }
             try require(connection.localDisplay == nil || connection.computer != nil, "A display identity needs a connected computer.")
+            if let method = connection.inputProtocol {
+                try require(method == "standard" || method == "lg", "An input can only be selected the standard way or the LG way.")
+            }
             if let local = connection.localDisplay {
                 try require(!local.isEmpty && local.utf8.count <= 1024, "A mapped connection needs a valid local display.")
                 try require(connections.filter { $0.computer == connection.computer && $0.localDisplay == local }.count == 1, "A local display cannot represent two physical screens.")
@@ -306,7 +314,7 @@ enum KVMEdge {
             return (screen.name, group.computers.first { $0.id == computer }?.name ?? "that Mac")
         }.sorted { $0.screen < $1.screen }
         if let first = unmatched.first {
-            return "Perch does not know which display on \(first.mac) shows \(first.screen) yet, so it cannot place that screen. Switch to that input once so Perch can match it, or choose its display in Desk. The picture still switches."
+            return "Perch has not seen \(first.screen) from \(first.mac) yet, so it cannot place that screen. Switch to that input once and Perch will pick it up. The picture still switches."
         }
         let computers = Set(preset.assignments.compactMap { assignment in
             group.connections.first { $0.id == assignment.connection }?.computer

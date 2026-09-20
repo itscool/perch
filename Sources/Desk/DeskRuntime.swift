@@ -85,6 +85,9 @@ enum DeskDeviceMessage: Codable {
     static let wirePrefix = Data("Perch devices v1\0".utf8)
     var wire: Data? { (try? JSONEncoder().encode(self)).map { Self.wirePrefix + $0 } }
     case displays([DeskDetectedDisplay])
+    /// Which Perch this Mac runs, so a Mac behind a newer one can go and look
+    /// for that release itself instead of waiting to be updated by hand.
+    case running(build: Int, version: String)
     case refresh
     case displayProblem(String)
     case inspect(String)
@@ -465,7 +468,7 @@ final class DeskRuntime: ObservableObject {
                     }
                     self.displays[self.node.localID, default: []].append(contentsOf: retained)
                     self.logDisplays(self.node.localID, self.displays[self.node.localID] ?? [])
-                    self.resolvePendingDisplays(); self.publishDisplays()
+                    self.resolvePendingDisplays(); self.publishDisplays(); self.announceBuild()
                 case .failure(let error):
                     self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
                     if let data = DeskDeviceMessage.displayProblem(String(self.discoveryProblem!.prefix(800))).wire {
@@ -591,6 +594,29 @@ final class DeskRuntime: ObservableObject {
         }.joined(separator: "; ")
         PerchLog.note("desk.displays." + computer.uuidString.prefix(8), name + " sees: " + seen)
     }
+    /// Tell the other Macs which Perch this one runs, and check once for an
+    /// update when one of them is newer. Only published releases are ever
+    /// installed, so a Mac running a newer local build simply finds nothing.
+    private var announcedBuild = false
+    private var checkedForBuild = 0
+    func announceBuild(to peers: [UUID]? = nil) {
+        guard let data = DeskDeviceMessage.running(build: PerchVersion.build, version: PerchVersion.current).wire else { return }
+        for peer in peers ?? Array(node.online) where peer != node.localID { node.sendApplication(data, peer: peer) }
+        announcedBuild = true
+    }
+    private func notePeerBuild(_ build: Int, version: String, peer: UUID) {
+        let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
+        guard build > PerchVersion.build else {
+            PerchLog.note("desk.build." + peer.uuidString.prefix(8), "\(name) runs Perch \(version) (build \(build)); this Mac runs \(PerchVersion.current)")
+            return
+        }
+        PerchLog.note("desk.build." + peer.uuidString.prefix(8), "\(name) runs Perch \(version) (build \(build)), newer than this Mac's \(PerchVersion.current)")
+        guard DeskUpdateNudge.shouldCheck(peerBuild: build, ownBuild: PerchVersion.build, alreadyCheckedFor: checkedForBuild) else { return }
+        checkedForBuild = build
+        guard PerchUpdater.shared.canCheck else { return }
+        PerchLog.record("desk.build", "Looking for the published update, because \(name) runs a newer Perch")
+        PerchUpdater.shared.check()
+    }
     private func publishDisplays() {
         guard let data = DeskDeviceMessage.displays(displays[node.localID] ?? []).wire else { return }
         for peer in node.online where peer != node.localID { node.sendApplication(data, peer: peer) }
@@ -612,6 +638,11 @@ final class DeskRuntime: ObservableObject {
             displays[peer] = values; remoteDisplayProblems[peer] = nil; logDisplays(peer, values); resolvePendingDisplays(); updateModel()
         case .displayProblem(let problem):
             remoteDisplayProblems[peer] = String(problem.prefix(800)); updateModel()
+        case .running(let build, let version):
+            guard build > 0, build < 1_000_000, version.utf8.count <= 40 else { return }
+            notePeerBuild(build, version: version, peer: peer)
+            // A Mac that has just heard from us for the first time needs ours too.
+            if !announcedBuild { announceBuild(to: [peer]) }
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
         case .inspectRequest(let token, let display):
@@ -679,22 +710,45 @@ final class DeskRuntime: ObservableObject {
         // handed a monitor may never have had one recorded for it, so look at
         // this Mac's own displays right now and find the monitor by what it is.
         let identity = node.group.monitors.first { $0.id == recorded.monitor }?.identity
-        var route = recorded
-        if let identity {
-            let seen = DeskLiveDisplays.current()
-            if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
-               let found = DeskIdentityCableResolver.display(for: identity, among: seen) {
-                PerchLog.record("switch.write", "Monitor \(recorded.monitor.uuidString.prefix(8)) found as display \(found.prefix(8)) on this Mac; its record said \(recorded.control.localDisplay.prefix(8))")
-                route = KVMMonitorRoute(monitor: recorded.monitor, control: .init(computer: recorded.control.computer, localDisplay: found, mode: recorded.control.mode), input: recorded.input, force: recorded.force)
-            }
-        }
-        desktopHandoff.hold(route.control.localDisplay)
-        queue(route.control.localDisplay).async {
+        let handedAway = desktopHandoff.disconnected
+        desktopHandoff.hold(recorded.control.localDisplay)
+        queue(recorded.control.localDisplay).async {
             // Reconnecting a handed-away display is a display transaction that
             // can block for seconds; it belongs here, not on the main thread.
-            do { try self.desktopHandoff.restoreHeld(route.control.localDisplay) }
+            do { try self.desktopHandoff.restoreHeld(recorded.control.localDisplay) }
             catch {
-                DispatchQueue.main.async { self.desktopHandoff.finishCommand(route.control.localDisplay); completion(.failed, error.localizedDescription) }
+                DispatchQueue.main.async { self.desktopHandoff.finishCommand(recorded.control.localDisplay); completion(.failed, error.localizedDescription) }
+                return
+            }
+            // A monitor only takes commands from a Mac it is showing, so this Mac
+            // must be able to see it. Perch's own desktop handoff may have let
+            // that display go a moment ago, believing the screen was moving away:
+            // take everything back before looking, or the Mac cannot find the
+            // monitor it is about to command.
+            var route = recorded
+            if let identity {
+                var seen = DeskLiveDisplays.current()
+                if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
+                   DeskIdentityCableResolver.display(for: identity, among: seen) == nil, !handedAway.isEmpty {
+                    PerchLog.record("switch.write", "Taking back \(handedAway.count) display(s) this Mac had let go of, to find monitor \(recorded.monitor.uuidString.prefix(8))")
+                    self.desktopHandoff.restoreAll()
+                    seen = DeskLiveDisplays.current()
+                }
+                if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
+                   let found = DeskIdentityCableResolver.display(for: identity, among: seen) {
+                    PerchLog.record("switch.write", "Monitor \(recorded.monitor.uuidString.prefix(8)) found as display \(found.prefix(8)) on this Mac; its record said \(recorded.control.localDisplay.isEmpty ? "nothing" : String(recorded.control.localDisplay.prefix(8)))")
+                    route = KVMMonitorRoute(monitor: recorded.monitor, control: .init(computer: recorded.control.computer, localDisplay: found, mode: recorded.control.mode), input: recorded.input, force: recorded.force)
+                    try? self.desktopHandoff.restoreHeld(found)
+                }
+            }
+            // Nothing to command: say so, rather than sending the monitor tool an
+            // empty display and reporting its complaint about the identifier.
+            guard !route.control.localDisplay.isEmpty else {
+                let visible = DeskLiveDisplays.current().map { String($0.id.prefix(8)) }.sorted().joined(separator: ", ")
+                DispatchQueue.main.async {
+                    self.desktopHandoff.finishCommand(recorded.control.localDisplay)
+                    completion(.failed, "This Mac cannot see that screen, so it cannot switch it. It sees " + (visible.isEmpty ? "no external displays." : visible + "."))
+                }
                 return
             }
             let backend = MonitorDisplayBackend()
@@ -1010,5 +1064,15 @@ enum DeskLiveDisplays {
             guard CGDisplayIsBuiltin(id) == 0, let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
             return .init(id: CFUUIDCreateString(nil, uuid) as String, vendor: CGDisplayVendorNumber(id), model: CGDisplayModelNumber(id), serial: CGDisplaySerialNumber(id))
         }
+    }
+}
+
+
+/// When hearing that another Mac runs a newer Perch is worth looking for the
+/// published update. Once for each newer build heard about, so a Mac running an
+/// unpublished local build never makes the other check again and again.
+enum DeskUpdateNudge {
+    static func shouldCheck(peerBuild: Int, ownBuild: Int, alreadyCheckedFor: Int) -> Bool {
+        peerBuild > ownBuild && peerBuild > alreadyCheckedFor
     }
 }

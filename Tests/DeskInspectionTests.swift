@@ -409,6 +409,15 @@ func runDeskInputListTests() throws {
               "Screen 1 kept a record the serial proves belongs to screen 2")
     try check(KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740).matches(vendor: 7789, model: 30470, serial: 353740),
               "The same monitor reporting another model number on another input was not recognised")
+    // Hearing that another Mac runs a newer Perch is worth one look for the
+    // published update, and only one per build heard about.
+    try check(DeskUpdateNudge.shouldCheck(peerBuild: 265, ownBuild: 262, alreadyCheckedFor: 0), "A newer Mac did not prompt a look for the update")
+    try check(!DeskUpdateNudge.shouldCheck(peerBuild: 265, ownBuild: 262, alreadyCheckedFor: 265), "The same newer build was looked for twice")
+    try check(DeskUpdateNudge.shouldCheck(peerBuild: 266, ownBuild: 262, alreadyCheckedFor: 265), "A further newer build was not looked for")
+    try check(!DeskUpdateNudge.shouldCheck(peerBuild: 262, ownBuild: 262, alreadyCheckedFor: 0) &&
+              !DeskUpdateNudge.shouldCheck(peerBuild: 200, ownBuild: 262, alreadyCheckedFor: 0),
+              "A Mac that is not newer prompted a look for an update")
+
     // At the moment of a command, the Mac looks at its own displays and finds the
     // monitor by what it is, never trusting a stored ID.
     let screenTwo = KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740)

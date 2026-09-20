@@ -1269,6 +1269,32 @@ Next session, in order:
 Running: 2.0.265 on both Macs (this Mac confirmed; the Studio announces sharing
 version 1).
 
+## Checkpoint: commanding a screen this Mac let go of (September 20, 2026)
+
+The three repairs for the September 18 diagnosis. A command now runs on the
+executing Mac's queue in this order: take back the recorded display, and if the
+monitor still cannot be found, take back everything the desktop handoff had let
+go of and look again by identity; then, if there is still no display, fail with
+what the Mac can actually see instead of handing the monitor tool an empty
+identifier ("Invalid monitor identity"). A delegate declines only when it has no
+record and no identity to look for.
+
+Scott also asked for the manual update of the other Mac to end. Macs now tell
+each other which Perch they run (`DeskDeviceMessage.running`), announced with
+each display refresh and answered on first contact. A Mac that hears of a newer
+build looks for the published update once per build heard about
+(`DeskUpdateNudge`), so a Mac on an unpublished local build never makes the
+other check repeatedly, and only published releases are ever installed. Pinned
+in `runDeskInputListTests`.
+
+Still open from that diagnosis: counting "the destination Mac sees the screen
+again" as confirmation for monitors that cannot report their input, so a switch
+finished by the monitor's own input switching is not recorded as failed.
+
+Verified: build 267, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
+kvm-lab 268, `check-dialog-contract.py`, `check-monitor-command.py`. Running:
+2.0.265. On disk: 2.0.267.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

@@ -406,9 +406,13 @@ final class KVMMonitorSwitch: ObservableObject {
             // The recorded display is a hint; the executor finds the monitor among
             // this Mac's own displays by what it is when no record exists yet.
             let known = node.group.monitors.first { $0.id == monitor }?.identity != nil
-            guard let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }),
-                  let display = connection.localDisplay ?? (known ? "" : nil) else {
-                decline("This Mac has no cable to that monitor that it can recognise, so it cannot switch it."); return
+            guard let connection = node.group.connections.first(where: { $0.monitor == monitor && $0.computer == node.localID }) else {
+                decline("This Mac has no cable to that monitor, so it cannot switch it."); return
+            }
+            // Without a record, the executor finds the monitor among this Mac's own
+            // displays when the command runs, taking back anything it had let go of.
+            guard let display = connection.localDisplay ?? (known ? "" : nil) else {
+                decline("This Mac has no record of that monitor and does not know what to look for."); return
             }
             guard leases[monitor] == nil else { decline("This Mac is already switching that monitor."); return }
             guard let execute else { decline("The monitor adapter is not available on this Mac."); return }

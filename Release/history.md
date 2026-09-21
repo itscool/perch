@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.278 — Current
+## 2.0.283 — Current
+
+- A preset counts as active when the Mac it chose, and only that Mac, can see each screen, for monitors that never report their input.
+- Keyboard and mouse sharing follows, since it waits for an active preset.
+- Hearing that another Mac is newer looks for the release and says it is available, without installing anything.
+
+## 2.0.278
 
 - A screen's reachability is checked the same way the switch is sent, so working switches are no longer reported as failed.
 - A Mac with no screens of its own in a preset drives the Mac that has them.

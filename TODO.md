@@ -734,6 +734,16 @@ registering as active on the live two-Mac desk now that a screen only one Mac
 can see counts as showing it, and pointer sharing across the two Macs after
 that.
 
+Perch 2.0.291 was published on September 21, 2026. Apple accepted the app
+(02d95e53-e16a-4816-b4ee-4c21303c3da4) and the DMG
+(f58ea87e-29ab-4781-b9af-d4f704a15512); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. This release raises the keyboard-and-mouse
+sharing version to 2, so both Macs must run it before they will share again.
+Native acceptance is still open: typing going where you last clicked across the
+two Macs, the steadier pointer over Wi-Fi, and the hidden stopped cursor not
+hovering anything underneath it.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

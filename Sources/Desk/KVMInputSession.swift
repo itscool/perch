@@ -4,7 +4,7 @@ import Combine
 enum KVMInputMessage: Codable {
     case poll(UUID, Bool)
     case wakeDisplay
-    case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?)
+    case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?)
     /// preset, screen, the requester's pointer position, and whether the request
     /// is automatic (a settling handoff may ignore those) or deliberate.
     case focus(UUID, UUID, KVMPoint?, Bool)
@@ -23,6 +23,22 @@ enum KVMInputMessage: Codable {
     case version(Int)
 }
 
+/// Where each kind of input goes. The pointer goes where you move it; the keys
+/// go where you last clicked, the way one Mac decides which window is typed
+/// into. Hovering another Mac's screen no longer takes the keyboard with it.
+enum KVMInputRouting {
+    static func typing(_ kind: KVMInputEvent.Kind) -> Bool {
+        kind == .keyDown || kind == .keyUp || kind == .modifiers
+    }
+    /// The focus an event is delivered to: the keyboard's for typing, the
+    /// pointer's for everything else.
+    static func target(_ kind: KVMInputEvent.Kind, pointer: KVMInputFocus, keyboard: KVMInputFocus?) -> KVMInputFocus {
+        typing(kind) ? (keyboard ?? pointer) : pointer
+    }
+    /// A click is what moves typing to that Mac.
+    static func claimsKeyboard(_ kind: KVMInputEvent.Kind) -> Bool { kind == .buttonDown }
+}
+
 /// The desk owner arbitrates transient input focus, never configuration edits.
 /// Losing it returns every participant to local control; there is no split-brain
 /// failover and no persisted permission to capture input on the next launch.
@@ -30,6 +46,9 @@ final class KVMInputSession: ObservableObject {
     static let wirePrefix = Data("Perch input v1\0".utf8)
     let node: KVMDeskNode
     @Published private(set) var enabled = false
+    /// Where typing goes: the Mac last clicked on. The owner decides it; every
+    /// Mac learns it with the status it already polls for.
+    private(set) var keyboardFocus: KVMInputFocus?
     @Published private(set) var focus: KVMInputFocus? {
         // Where control actually is, each time it moves. A lease that is
         // taken and dropped again leaves both lines here, which is what
@@ -195,7 +214,7 @@ final class KVMInputSession: ObservableObject {
     func allowAutomaticStart() { automaticStartSuppressed = false }
     private func endLocal(_ reason: String? = nil) {
         if let reason, lease.grant != nil || preparedGrant != nil { PerchLog.record("input.end", "This Mac let go of control: " + reason) }
-        release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; sequence = 0
+        release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; keyboardFocus = nil; sequence = 0
         localGrantAcceptedAt = -.infinity
         pendingMotion = nil; motionFlushScheduled = false; heartbeats = [:]; nextHeartbeat = 0
     }
@@ -215,7 +234,7 @@ final class KVMInputSession: ObservableObject {
         // local lease looking active: its event tap would consume local input
         // while the owner rejected the resulting events because `grant` is
         // already nil.
-        lease.release(); preparedGrant = nil; focus = nil; sequence = 0
+        lease.release(); preparedGrant = nil; focus = nil; keyboardFocus = nil; sequence = 0
         pendingMotion = nil; motionFlushScheduled = false; localGrantAcceptedAt = -.infinity
         localInputSuppressedUntil = 0
         _ = held.releaseAll()
@@ -319,7 +338,8 @@ final class KVMInputSession: ObservableObject {
             buffer(&buffered, event); return true
         }
         guard active, event.valid, let grant = lease.grant else { return false }
-        let localFocus = (focus ?? grant.focus).computer == node.localID
+        let pointerFocus = focus ?? grant.focus
+        let localFocus = KVMInputRouting.target(event.kind, pointer: pointerFocus, keyboard: keyboardFocus).computer == node.localID
         if event.kind == .motion {
             pendingMotion = pendingMotion.map { previous in
                 var combined = event
@@ -329,7 +349,7 @@ final class KVMInputSession: ObservableObject {
             scheduleMotionFlush()
             // With focus on this Mac the hardware cursor has already moved; the
             // coordinator only needs the position to notice an edge crossing.
-            return !localFocus
+            return pointerFocus.computer != node.localID
         }
         // Keys, clicks and scrolling stay native while this Mac has focus.
         // Re-injecting them only added latency and broke secure text fields.
@@ -479,8 +499,9 @@ final class KVMInputSession: ObservableObject {
                 }
                 return optimisticMonitorInput?(connection.monitor) == connection.inputCode
             }.map(\.id))
-            send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer), to: peer)
-        case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus):
+            send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer, keyboardFocus), to: peer)
+        case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus, let typingFocus):
+            if keyboardFocus != typingFocus { keyboardFocus = typingFocus }
             guard peer == node.ownerID, enabled, let sent = polls.removeValue(forKey: nonce), now >= sent, now - sent < 2.5,
                   connections.count <= 256, computers.isSubset(of: Set(node.group.computers.map(\.id))) else { return }
             if availableConnections != connections { availableConnections = connections }
@@ -601,8 +622,10 @@ final class KVMInputSession: ObservableObject {
             // The owner addressed this to this Mac, so control is here now. Waiting
             // for the next status poll to say so left a moment in which this Mac
             // still thought the pointer was elsewhere and parked the cursor again
-            // at the centre of the screen it was arriving on.
-            if focus?.monitor != location.monitor || focus?.computer != location.computer { focus = location }
+            // at the centre of the screen it was arriving on. Typing delivered to
+            // a Mac the pointer is not on says nothing about where the pointer is.
+            if !KVMInputRouting.typing(event.kind),
+               focus?.monitor != location.monitor || focus?.computer != location.computer { focus = location }
             emit(event, location)
         case .inspect(let id, let revision, let monitor):
             guard peer == node.ownerID, enabled, revision == configurationRevision, !inspecting.contains(monitor),
@@ -717,13 +740,24 @@ final class KVMInputSession: ObservableObject {
             } else { location.position = proposed }
             pointer = location
         }
+        // A click is what moves typing to a Mac, the way one Mac decides which
+        // window is typed into. Hovering another screen no longer takes the
+        // keyboard with it.
+        if KVMInputRouting.claimsKeyboard(value.kind) { keyboardFocus = location }
+        let keyboard = keyboardFocus.flatMap { candidate -> KVMInputFocus? in
+            guard grant.participants.contains(candidate.computer), fresh(candidate.computer),
+                  destination(preset: grant.preset, monitor: candidate.monitor) == candidate.computer else { return nil }
+            return candidate
+        }
+        if keyboardFocus != nil && keyboard == nil { keyboardFocus = nil }
+        let target = KVMInputRouting.target(value.kind, pointer: location, keyboard: keyboard)
         // Nothing is delivered back to the Mac whose own hardware produced it:
         // its events stayed native, so an echo would double every action.
-        guard source != location.computer else { return }
+        guard source != target.computer else { return }
         guard outputSequence < UInt64.max else { endAuthority(); return }
         outputSequence += 1
         if let event = held.apply(value, source: source) {
-            if !send(.delivery(grant.id, source, outputSequence, event, location), to: location.computer) {
+            if !send(.delivery(grant.id, source, outputSequence, event, target), to: target.computer) {
                 endAuthority(); localProblem = "Input returned locally because the destination Mac disconnected. Perch will reconnect automatically."
             }
         }

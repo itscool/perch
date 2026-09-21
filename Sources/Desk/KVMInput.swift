@@ -8,7 +8,9 @@ import CryptoKit
 /// mismatch is named on both Macs instead of quietly doing nothing.
 enum KVMInputProtocol {
     /// A var so tests can pretend to be another version; never written in the app.
-    static var version = 1
+    /// 2: typing follows the last click rather than the pointer, and the status
+    /// exchange carries where typing goes.
+    static var version = 2
 }
 
 enum KVMInputConfiguration {

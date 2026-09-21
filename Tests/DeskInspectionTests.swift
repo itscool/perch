@@ -409,6 +409,23 @@ func runDeskInputListTests() throws {
               "Screen 1 kept a record the serial proves belongs to screen 2")
     try check(KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740).matches(vendor: 7789, model: 30470, serial: 353740),
               "The same monitor reporting another model number on another input was not recognised")
+    // Typing goes where you last clicked; the pointer goes where you move it.
+    let here = KVMInputFocus(monitor: UUID(), computer: UUID(), position: .init(x: 1, y: 1))
+    let there = KVMInputFocus(monitor: UUID(), computer: UUID(), position: .init(x: 2, y: 2))
+    try check(KVMInputRouting.target(.motion, pointer: here, keyboard: there) == here &&
+              KVMInputRouting.target(.buttonDown, pointer: here, keyboard: there) == here &&
+              KVMInputRouting.target(.scroll, pointer: here, keyboard: there) == here,
+              "The pointer, its buttons or its scrolling went to the Mac that has the keyboard")
+    try check(KVMInputRouting.target(.keyDown, pointer: here, keyboard: there) == there &&
+              KVMInputRouting.target(.keyUp, pointer: here, keyboard: there) == there &&
+              KVMInputRouting.target(.modifiers, pointer: here, keyboard: there) == there,
+              "Typing followed the pointer instead of the last click")
+    try check(KVMInputRouting.target(.keyDown, pointer: here, keyboard: nil) == here,
+              "Typing before any click did not go where the pointer is")
+    try check(KVMInputRouting.claimsKeyboard(.buttonDown) && !KVMInputRouting.claimsKeyboard(.buttonUp) &&
+              !KVMInputRouting.claimsKeyboard(.motion) && !KVMInputRouting.claimsKeyboard(.keyDown),
+              "Something other than a click moved the keyboard")
+
     // A monitor that cannot report its input leaves only the command as evidence,
     // and a command can fail while the screen still ends up right. One Mac
     // seeing the screen, and it being the Mac this preset chose, settles it.

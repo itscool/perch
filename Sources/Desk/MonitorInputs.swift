@@ -8,6 +8,7 @@ struct MonitorDescriptor: Codable, Equatable {
     let vendor: UInt32
     let model: UInt32
     let ddcAvailable: Bool
+    var serial: UInt32 = 0
     var connection: String? = nil
 }
 struct MonitorInput: Codable, Equatable {

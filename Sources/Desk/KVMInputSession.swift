@@ -280,7 +280,8 @@ final class KVMInputSession: ObservableObject {
         // No shared desk space means no edge to cross, so the pointer must
         // stay under this Mac's own control rather than being taken over
         // with nowhere to go. Decided from the monitor arrangement.
-        if let saved = node.group.presets.first(where: { $0.id == preset }), let issue = KVMEdge.sharedSpaceIssue(group: node.group, preset: saved) {
+        if let saved = node.group.presets.first(where: { $0.id == preset }),
+           let issue = KVMEdge.sharedSpaceIssue(group: node.group, preset: saved, local: node.localID) {
             return issue
         }
         guard let owner = destination(preset: preset, monitor: monitor) else { return "This input has no computer connected to it. Draw a wire from a computer to it before starting control." }

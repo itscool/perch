@@ -65,5 +65,24 @@ func runDeskSharedSpaceTests() throws {
     let gap = KVMEdge.sharedSpaceIssue(group: apart, preset: apart.presets[0]) ?? ""
     try check(gap.contains("do not sit next to each other"), "Screens with a gap did not report the arrangement: \(gap)")
 
-    print("PASS: virtual pointer control follows the monitor arrangement; no shared edge means no shared control, and Perch names which of an unmatched display, one Mac or an actual gap is stopping it")
+    // None of this Mac's screens are in the preset: there is nothing to cross to,
+    // so its keyboard and mouse drive the Mac that is on screen instead of being
+    // refused. Scott: "if i'm on pc 1, and i switch to a preset which is only
+    // both pc 2, pc 1 input should still work to solely drive pc 2's displays".
+    let mine = group.computers[0].id, theirs = group.computers[1].id
+    let allTheirs = group.presets.first { preset in
+        let computers = Set(preset.assignments.compactMap { a in group.connections.first { $0.id == a.connection }?.computer })
+        return computers == [theirs]
+    }
+    try check(allTheirs != nil, "The fixture lost its all-on-one-Mac preset")
+    try check(KVMEdge.drivesAnother(group: group, preset: allTheirs!, local: mine), "A preset with none of this Mac's screens did not drive the other Mac")
+    try check(KVMEdge.sharedSpaceIssue(group: group, preset: allTheirs!, local: mine) == nil,
+              "Driving the other Mac outright was refused: \(KVMEdge.sharedSpaceIssue(group: group, preset: allTheirs!, local: mine) ?? "")")
+    // The Mac that is on screen everywhere keeps its own input: there is no other
+    // Mac to drive, and nothing to cross to.
+    try check(!KVMEdge.drivesAnother(group: group, preset: allTheirs!, local: theirs) &&
+              KVMEdge.sharedSpaceIssue(group: group, preset: allTheirs!, local: theirs) != nil,
+              "The Mac showing on every screen was told it drives another Mac")
+
+    print("PASS: virtual pointer control follows the monitor arrangement; no shared edge means no shared control, and Perch names which of an unmatched display, one Mac or an actual gap is stopping it, and a Mac with no screen in the preset drives the one that has them")
 }

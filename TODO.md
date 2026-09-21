@@ -1339,6 +1339,28 @@ Verified: build 271, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
 kvm-lab 268, `check-dialog-contract.py`. Running: 2.0.269 on both Macs. On disk
 here: 2.0.271. Both changes need to reach the Studio.
 
+## Checkpoint: checking what the tool sees, and driving a Mac with no screens (September 21, 2026)
+
+The cross-Mac decision sharing worked first time: the Studio's own lines arrive
+in this Mac's log under `from.HQ-KP40Y76PT6`, and they showed the Studio waiting
+3.1 s for a display that never came while this Mac's write failed as "not
+connected" for a screen it had just listed. Cause: the check and the command
+had different views. Perch asked CoreGraphics in this process, then the separate
+display tool performed the write with its own enumeration. `DeskLiveDisplays`
+now asks the tool itself (`asTool(sees:)`, with the tool reporting each
+display's serial), and waits on that same view before resolving and commanding.
+
+Scott: "if i'm on pc 1, and i switch to a preset which is only both pc 2, pc 1
+input should still work to solely drive pc 2's displays". `KVMEdge.drivesAnother`
+now allows exactly that: a Mac with no screen of its own in the preset keeps
+sharing enabled and drives the Mac that is on screen, while the Mac showing
+everywhere still gets the honest refusal. Ctrl-Opt-Cmd-Esc remains the way back.
+Pinned in `runDeskSharedSpaceTests`.
+
+Verified: build 275, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
+kvm-lab 268, `check-dialog-contract.py`, `check-monitor-command.py`,
+`check-app-bundle.py`. Running: 2.0.273 on both Macs. On disk here: 2.0.275.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

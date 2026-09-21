@@ -76,7 +76,7 @@ int main(int argc, const char **argv) { @autoreleasepool {
             DisplayInfos *d = &displays[i];
             if (CGDisplayIsBuiltin(d->id) || !d->uuid) continue;
             DDCTransport t = getDisplayDDCTransport(d);
-            [result addObject:@{@"id":d->uuid,@"displayID":@(d->id),@"name":d->productName ?: @"External monitor",@"vendor":@(d->vendor),@"model":@(d->model),@"connection":d->ioLocation ?: @"unknown",@"ddcAvailable":t.service ? @YES : @NO}];
+            [result addObject:@{@"id":d->uuid,@"displayID":@(d->id),@"name":d->productName ?: @"External monitor",@"vendor":@(d->vendor),@"model":@(d->model),@"serial":@(CGDisplaySerialNumber(d->id)),@"connection":d->ioLocation ?: @"unknown",@"ddcAvailable":t.service ? @YES : @NO}];
             if (t.service) CFRelease(t.service);
         }
         emit(result); return 0;

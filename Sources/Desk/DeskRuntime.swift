@@ -767,12 +767,17 @@ final class DeskRuntime: ObservableObject {
             // input, because the returning signal switched it. So wait for it.
             var route = recorded
             if let identity {
-                var seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity)
+                // Ask the display tool itself what it can see. Asking CoreGraphics
+                // in this process instead reported a screen the tool then refused
+                // as "not connected": the check and the command must share one
+                // view of the world.
+                let backend = MonitorDisplayBackend()
+                var seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity) { DeskLiveDisplays.asTool(sees: backend) }
                 if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
                    DeskIdentityCableResolver.display(for: identity, among: seen) == nil, !handedAway.isEmpty {
                     PerchLog.record("switch.write", "Taking back \(handedAway.count) display(s) this Mac had let go of, to find monitor \(recorded.monitor.uuidString.prefix(8))")
                     self.desktopHandoff.restoreAll()
-                    seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity)
+                    seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity) { DeskLiveDisplays.asTool(sees: backend) }
                 }
                 if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
                    let found = DeskIdentityCableResolver.display(for: identity, among: seen) {
@@ -784,7 +789,7 @@ final class DeskRuntime: ObservableObject {
             // Nothing to command: say so, rather than sending the monitor tool an
             // empty display and reporting its complaint about the identifier.
             guard !route.control.localDisplay.isEmpty else {
-                let visible = DeskLiveDisplays.current().map { String($0.id.prefix(8)) }.sorted().joined(separator: ", ")
+                let visible = DeskLiveDisplays.asTool(sees: MonitorDisplayBackend()).map { String($0.id.prefix(8)) }.sorted().joined(separator: ", ")
                 DispatchQueue.main.async {
                     self.desktopHandoff.finishCommand(recorded.control.localDisplay)
                     completion(.failed, "This Mac cannot see that screen, so it cannot switch it. It sees " + (visible.isEmpty ? "no external displays." : visible + "."))
@@ -1099,14 +1104,22 @@ enum DeskLiveDisplays {
     /// reconnected display is listed again within a moment; commanding before
     /// that fails as if the monitor were not there at all.
     static let arrival: TimeInterval = 3
+    /// What the display tool sees, which is the only view that matters for a
+    /// command: it is the program that has to reach the monitor.
+    static func asTool(sees backend: MonitorCommandBackend) -> [DeskIdentityCableResolver.Display] {
+        guard let data = try? backend.run(["list"]),
+              let listed = try? JSONDecoder().decode([MonitorDescriptor].self, from: data) else { return [] }
+        return listed.map { .init(id: $0.id, vendor: $0.vendor, model: $0.model, serial: $0.serial) }
+    }
     /// Never on the main thread: this waits.
-    static func waitFor(display: String, or identity: KVMScreenIdentity?) -> [DeskIdentityCableResolver.Display] {
-        var seen = current()
+    static func waitFor(display: String, or identity: KVMScreenIdentity?,
+                        looking: () -> [DeskIdentityCableResolver.Display] = { current() }) -> [DeskIdentityCableResolver.Display] {
+        var seen = looking()
         let started = ProcessInfo.processInfo.systemUptime
         while !seen.contains(where: { $0.id == display }), DeskIdentityCableResolver.display(for: identity, among: seen) == nil,
               ProcessInfo.processInfo.systemUptime - started < arrival {
             Thread.sleep(forTimeInterval: 0.1)
-            seen = current()
+            seen = looking()
         }
         let waited = ProcessInfo.processInfo.systemUptime - started
         if waited >= 0.15 {

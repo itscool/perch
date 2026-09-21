@@ -326,8 +326,12 @@ enum KVMEdge {
     /// nil when it can. A screen whose cable has no matched display is left out
     /// of the arrangement, so saying the screens are not side by side would be
     /// wrong: name the screen Perch cannot place yet instead.
-    static func sharedSpaceIssue(group: KVMGroup, preset: KVMPreset) -> String? {
+    /// - Parameter local: the Mac asking. When none of its screens are in this
+    ///   preset, there is nothing to cross to and nothing to lose: its keyboard
+    ///   and mouse simply drive the Mac that is on screen.
+    static func sharedSpaceIssue(group: KVMGroup, preset: KVMPreset, local: UUID? = nil) -> String? {
         guard !sharesDeskSpace(group: group, preset: preset) else { return nil }
+        if let local, drivesAnother(group: group, preset: preset, local: local) { return nil }
         let unmatched = preset.assignments.compactMap { assignment -> (screen: String, mac: String)? in
             guard let connection = group.connections.first(where: { $0.id == assignment.connection }),
                   let computer = connection.computer, connection.localDisplay == nil,
@@ -344,6 +348,17 @@ enum KVMEdge {
             return "This preset shows one Mac on every screen, so there is nowhere to move the pointer across to."
         }
         return "These screens do not sit next to each other in Desk, so there is no edge to move the pointer across. Place them side by side to share the keyboard and mouse."
+    }
+    /// This Mac has no screen in the preset while another Mac has one it can
+    /// show on: its input drives that Mac outright.
+    static func drivesAnother(group: KVMGroup, preset: KVMPreset, local: UUID) -> Bool {
+        let showing = preset.assignments.compactMap { assignment -> UUID? in
+            guard let connection = group.connections.first(where: { $0.id == assignment.connection }),
+                  connection.localDisplay != nil, let computer = connection.computer,
+                  group.monitors.contains(where: { $0.id == assignment.monitor }) else { return nil }
+            return computer
+        }
+        return !showing.contains(local) && !showing.filter { $0 != local }.isEmpty
     }
     static func crossing(group: KVMGroup, preset: KVMPreset, source: UUID, from: KVMPoint, to: KVMPoint) -> Crossing {
         guard (try? group.validated()) != nil, group.presets.contains(preset), let screen = group.monitors.first(where: { $0.id == source }),

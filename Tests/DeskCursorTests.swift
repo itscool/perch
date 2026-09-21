@@ -18,33 +18,41 @@ private final class RecordingCursor: DeskCursorSystem {
     func shortenWarpPause() { pauseShortened += 1 }
     func hide() { hides += 1; visible = false }
     func show() { shows += 1; visible = true }
+    var following = true
+    var detaches = 0, attaches = 0
+    func detach() { detaches += 1; following = false }
+    func attach() { attaches += 1; following = true }
 }
 
 func runDeskCursorTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let main = CGRect(x: 0, y: 0, width: 1512, height: 982)
     let side = CGRect(x: 1512, y: 0, width: 1920, height: 1080)
-    let centre = CGPoint(x: 2472, y: 540)
+    let parkedAt = CGPoint(x: 1900, y: 40)
 
-    // Parking goes to the centre of the screen the cursor is on, never an edge,
-    // after shortening macOS's post-warp pause.
-    let cursor = RecordingCursor(location: CGPoint(x: 1900, y: 40), displays: [main, side])
+    // Parking stops the cursor where it stands: hidden, detached from the mouse,
+    // and never moved. Putting it back over and over is what made the window
+    // under it show tooltips, and what the person saw as the cursor recentring.
+    let cursor = RecordingCursor(location: parkedAt, displays: [main, side])
     var parking = DeskCursorParking()
     parking.begin(cursor)
-    try check(cursor.warps == [centre] && cursor.pauseShortened == 1, "Parking did not go to the centre of the screen it left: \(cursor.warps)")
+    try check(cursor.warps.isEmpty && !cursor.following && !cursor.visible && cursor.pauseShortened == 1,
+              "Parking did not simply stop the cursor where it was: \(cursor.warps)")
     parking.begin(cursor)
-    try check(cursor.warps.count == 1, "Beginning again moved an already parked cursor")
-    // Every read puts it straight back to that same centre, whatever the drift.
-    for drift in [CGPoint(x: 2480, y: 536), CGPoint(x: 2300, y: 700), CGPoint(x: 2473, y: 541)] {
-        parking.reset(from: drift, cursor)
-    }
-    try check(cursor.warps.count == 4 && cursor.warps.allSatisfy { $0 == centre }, "A read did not return the cursor to the centre: \(cursor.warps)")
+    try check(cursor.detaches == 1 && cursor.hides == 1, "Beginning again parked an already parked cursor twice")
+    // A stopped cursor cannot drift, and the readings prove it. Anything that
+    // does move is put back, so a failure to stop it is still corrected.
+    parking.reset(from: parkedAt, cursor)
+    try check(cursor.warps.isEmpty, "A cursor that had not moved was put back anyway")
+    parking.reset(from: CGPoint(x: parkedAt.x + 172, y: parkedAt.y + 160), cursor)
+    try check(cursor.warps == [parkedAt], "A cursor that did move was not put back: \(cursor.warps)")
     let summary = parking.takeSummary()
-    try check(summary.resets == 3 && abs(summary.worstDrift - hypot(172.0, 160.0)) < 0.01, "Parking did not measure its resets and worst drift: \(summary)")
+    try check(summary.resets == 2 && abs(summary.worstDrift - hypot(172.0, 160.0)) < 0.01, "Parking did not measure its reads and worst drift: \(summary)")
     try check(parking.takeSummary().resets == 0, "A summary did not start a fresh count")
-    parking.end()
+    parking.end(cursor)
     parking.reset(from: .zero, cursor)
-    try check(cursor.warps.count == 4 && !parking.parked, "A reset ran after parking ended")
+    try check(cursor.warps.count == 1 && !parking.parked && cursor.following && cursor.visible,
+              "Ending parking left the cursor stopped, hidden, or still being put back")
 
     // Movement from another Mac is added to the live cursor. It may continue onto
     // this Mac's adjacent screen, but stops at the edge beyond every screen.
@@ -102,14 +110,21 @@ func runDeskCursorTests() throws {
     hiding.begin(hidingCursor)
     try check(!hidingCursor.visible && hidingCursor.hides == 1, "Parking left this Mac's cursor on screen")
     try check(hidingCursor.visibleWarps.isEmpty, "The cursor was seen jumping to the centre as it parked")
+    // Parked means stopped, not moved: a cursor put back again and again made the
+    // window under it show its tooltip, hidden or not.
+    try check(!hidingCursor.following && hidingCursor.warps.isEmpty,
+              "Parking moved the cursor instead of stopping it: \(hidingCursor.warps)")
+    hiding.reset(from: hidingCursor.location, hidingCursor)
+    try check(hidingCursor.warps.isEmpty, "A stopped cursor was put back although it had not moved")
     hiding.begin(hidingCursor)
     try check(hidingCursor.hides == 1, "Parking again hid the cursor twice")
     hiding.reset(from: CGPoint(x: 2010, y: 300), hidingCursor)
     try check(!hidingCursor.visible, "A reset showed the parked cursor again")
     hiding.end(hidingCursor)
-    try check(hidingCursor.visible && hidingCursor.shows == 1, "The cursor stayed hidden after the pointer came back")
+    try check(hidingCursor.visible && hidingCursor.shows == 1 && hidingCursor.following,
+              "The cursor stayed hidden or stopped after the pointer came back")
     hiding.end(hidingCursor)
     try check(hidingCursor.shows == 1, "Ending twice showed the cursor twice")
 
-    print("PASS: desk cursor parks hidden at the centre of the screen left and returns there after every read; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
+    print("PASS: desk cursor parks hidden and stopped, so nothing under it sees a pointer; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
 }

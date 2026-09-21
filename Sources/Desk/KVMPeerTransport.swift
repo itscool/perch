@@ -127,7 +127,13 @@ final class KVMPeerTransport {
         tcp.keepaliveInterval = 2
         tcp.keepaliveCount = 3
         tcp.connectionTimeout = 8
+        // Pointer movement is a stream of tiny packets. Nagle holds them back to
+        // fill a segment, which showed up as 40 to 90 ms stalls in the movement
+        // gaps; send each one as it happens and ask the network for interactive
+        // treatment, which matters most over Wi-Fi.
+        tcp.noDelay = true
         let result = NWParameters(tls: tls, tcp: tcp)
+        result.serviceClass = .responsiveData
         result.includePeerToPeer = peerToPeer
         return result
     }

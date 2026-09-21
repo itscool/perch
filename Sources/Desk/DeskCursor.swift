@@ -26,6 +26,12 @@ protocol DeskCursorSystem: AnyObject {
     /// again when it comes back. Both are safe to call twice.
     func hide()
     func show()
+    /// Stop and resume the cursor following this Mac's own mouse. While the
+    /// pointer is on another Mac, the cursor should not move at all: a cursor
+    /// that is merely hidden still sits over a window, and every time Perch put
+    /// it back that window saw the pointer arrive and showed its tooltip.
+    func detach()
+    func attach()
 }
 
 /// The real cursor.
@@ -66,7 +72,18 @@ final class NativeDeskCursor: DeskCursorSystem {
         hidden = false
         CGDisplayShowCursor(CGMainDisplayID())
     }
-    deinit { show() }
+    private var detached = false
+    func detach() {
+        guard !detached else { return }
+        detached = true
+        CGAssociateMouseAndMouseCursorPosition(0)
+    }
+    func attach() {
+        guard detached else { return }
+        detached = false
+        CGAssociateMouseAndMouseCursorPosition(1)
+    }
+    deinit { show(); attach() }
     private static func setsCursorInBackground(_ value: Bool) {
         typealias Connection = UInt32
         typealias MainConnection = @convention(c) () -> Connection
@@ -92,28 +109,31 @@ struct DeskCursorParking {
     /// parked changes nothing.
     mutating func begin(_ cursor: DeskCursorSystem) {
         guard park == nil else { return }
-        let here = cursor.location, screens = cursor.displays
-        guard let screen = screens.first(where: { $0.contains(here) }) ?? screens.first else { return }
-        let centre = CGPoint(x: screen.midX.rounded(.down), y: screen.midY.rounded(.down))
-        // Out of sight first, then out of the way: warping before hiding showed
-        // the cursor jump to the centre of the screen it was leaving.
+        // Hidden, and then stopped: the cursor stays exactly where it was and
+        // does not move again until the pointer comes back. Nothing warps, so no
+        // window under it sees the pointer arrive, and the hardware's movement
+        // still reaches Perch to be sent on.
         cursor.hide()
         cursor.shortenWarpPause()
-        cursor.warp(to: centre)
-        park = centre
+        cursor.detach()
+        park = cursor.location
     }
 
     /// After a movement read, put the cursor straight back, remembering how far it
     /// had moved so a failing reset shows up in the log.
+    /// A detached cursor does not drift, so there is nothing to put back. The
+    /// reading is kept to prove it: any drift here means detaching failed.
     mutating func reset(from location: CGPoint, _ cursor: DeskCursorSystem) {
         guard let park else { return }
-        worstDrift = max(worstDrift, Double(hypot(location.x - park.x, location.y - park.y)))
+        let drift = Double(hypot(location.x - park.x, location.y - park.y))
+        worstDrift = max(worstDrift, drift)
         resets += 1
+        guard drift > 1 else { return }
         cursor.warp(to: park)
     }
 
     mutating func end(_ cursor: DeskCursorSystem? = nil) {
-        if park != nil { cursor?.show() }
+        if park != nil { cursor?.attach(); cursor?.show() }
         park = nil; resets = 0; worstDrift = 0
     }
 

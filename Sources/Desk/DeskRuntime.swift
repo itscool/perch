@@ -232,6 +232,10 @@ final class DeskRuntime: ObservableObject {
         model.caution = switching.caution ?? inputAdapter.note ?? pendingMatchCaution()
         model.status = inputStatus()
         model.switchingPreset = switching.busy ? switching.request?.preset : nil
+        // While the keyboard and mouse are actually shared, collect the other
+        // Macs' measurements now and then, so how the pointer behaves on each
+        // Mac can be read from whichever one you are sitting at.
+        if input.active { requestPeerDecisions(60, atMost: 60) }
         // A screen that would not switch is exactly when the other Macs' reasons
         // are worth having; ask once per request, not per refresh.
         if let request = switching.request?.id, request != lastFailureReported,
@@ -629,9 +633,9 @@ final class DeskRuntime: ObservableObject {
     /// on the other machine.
     private var lastDecisionRequest: TimeInterval = -.infinity
     private var lastFailureReported: UUID?
-    func requestPeerDecisions(seconds: Double = 120) {
+    func requestPeerDecisions(_ seconds: Double = 120, atMost interval: Double = 20) {
         let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastDecisionRequest > 20 else { return }
+        guard now - lastDecisionRequest > interval else { return }
         lastDecisionRequest = now
         guard let data = DeskDeviceMessage.decisionsRequest(seconds: seconds).wire else { return }
         let peers = node.online.filter { $0 != node.localID }

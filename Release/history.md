@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.265 — Current
+## 2.0.269 — Current
+
+- A screen is switched back from another Mac reliably: Perch takes back its own picture there before commanding it.
+- A Mac that cannot see a screen says so, and lists what it can see.
+- Macs tell each other which Perch they run, and one that is behind looks for the update itself.
+
+## 2.0.265
 
 - A screen left showing another Mac is switched back reliably, so presets apply fully and sharing starts.
 

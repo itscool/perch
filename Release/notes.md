@@ -1,6 +1,7 @@
-# Perch 2.0.265 — What’s new
+# Perch 2.0.269 — What’s new
 
-- **Presets that move a screen between Macs:** a screen left showing another Mac is now switched back reliably. The Mac that can reach it finds the monitor among its own displays at that moment, so a preset no longer half-applies and leaves keyboard and mouse sharing off.
-- **Keyboard and mouse sharing:** the pointer crosses between Macs and lands where you crossed, and the cursor hides and reappears without flicker. Update every Mac on your desk.
+- **Switching a screen back from another Mac:** Perch now takes back its own picture on that screen before sending the command, so the switch works instead of failing while the monitor changes input by itself. Presets that move a screen between Macs apply fully again, which is what keyboard and mouse sharing waits for.
+- **Clearer failures:** when a Mac genuinely cannot see a screen, it says so and lists what it can see.
+- **Macs keep each other up to date:** each Mac tells the others which Perch it runs, and a Mac that is behind looks for the published update once by itself.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

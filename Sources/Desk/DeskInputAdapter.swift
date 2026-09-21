@@ -49,6 +49,10 @@ final class DeskInputAdapter: ObservableObject {
     private var parking = DeskCursorParking()
     private var handover = DeskPointerHandover()
     private var smoothness = DeskMotionSmoothness()
+    /// The same measure on the sending side: how evenly this Mac's own mouse
+    /// reaches Perch. A pointer that stutters on the other Mac is either late
+    /// leaving here or late arriving there, and these two numbers say which.
+    private var capturedSmoothness = DeskMotionSmoothness()
     private var nextParkingSummary: Double = 0
     private var subscription: AnyCancellable?
     init(session: KVMInputSession) {
@@ -211,6 +215,10 @@ final class DeskInputAdapter: ObservableObject {
             // While this Mac has focus its hardware cursor is the truth.
             if session.focusComputer == session.node.localID { value.absolute = deskPosition(event.location)?.1 }
         default: return false
+        }
+        if value.kind == .motion, session.focusComputer != session.node.localID,
+           let summary = capturedSmoothness.arrived(at: ProcessInfo.processInfo.systemUptime) {
+            PerchLog.record("input.capture", "This Mac's own mouse, on its way out: " + summary)
         }
         let captured = session.capture(value)
         // A parked cursor goes straight back to the centre after every read.

@@ -345,6 +345,15 @@ final class KVMInputSession: ObservableObject {
         if KVMInputRouting.claimsKeyboard(event.kind) { keyboardFocus = pointerFocus }
         let localFocus = KVMInputRouting.target(event.kind, pointer: pointerFocus, keyboard: keyboardFocus).computer == node.localID
         if event.kind == .motion {
+            // Send the first movement straight away and combine only what
+            // arrives while that one is on its way. Holding every movement for
+            // the coalescing window added its delay to all of them.
+            if pendingMotion == nil && !motionFlushScheduled {
+                pendingMotion = event
+                flushMotion()
+                scheduleMotionFlush()
+                return pointerFocus.computer != node.localID
+            }
             pendingMotion = pendingMotion.map { previous in
                 var combined = event
                 combined.x += previous.x; combined.y += previous.y

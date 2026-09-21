@@ -610,8 +610,35 @@ final class KVMMonitorSwitch: ObservableObject {
         invalidateDesktop(request, finished: true)
         for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, true), peer: peer) }
     }
+    /// Which Macs can see a screen right now, from their reported displays. A
+    /// screen only one Mac can see is the screen that Mac is showing.
+    var seenBy: ((UUID) -> Set<UUID>)?
+    /// A monitor that cannot report its input leaves the command as the only
+    /// evidence, and a command can fail while the screen still ends up right:
+    /// the Mac on the chosen input can see the screen, and no other Mac can.
+    /// Believe the screens over the command.
+    private func showing(_ route: KVMMonitorRoute, in request: KVMMonitorRequest) -> UUID? {
+        let owner = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.computer
+        guard Self.showsExpected(seen: seenBy?(route.monitor) ?? [], owner: owner) else { return nil }
+        return owner
+    }
+    /// Only one Mac can see the screen, and it is the Mac on the input this
+    /// preset asked for. Two Macs seeing it proves nothing: some monitors keep
+    /// a connection alive on an input they are not showing.
+    static func showsExpected(seen: Set<UUID>, owner: UUID?) -> Bool {
+        guard let owner else { return false }
+        return seen == [owner]
+    }
     private func finishIfReady() {
         guard let request, results.count == request.routes.count, verifyingMonitors.isEmpty else { return }
+        for route in request.routes where results[route.monitor]?.state == .failed {
+            guard let owner = showing(route, in: request) else { continue }
+            let name = node.group.computers.first { $0.id == owner }?.name ?? "that Mac"
+            let screen = node.group.monitors.first { $0.id == route.monitor }?.name ?? "The screen"
+            PerchLog.record("switch.write", "\(screen) is showing \(name), the input this preset asked for, although the command failed")
+            results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .unverified,
+                                           detail: "\(screen) is showing \(name). Perch could not confirm the command, but only \(name) can see this screen, which is what this preset asked for.")
+        }
         for route in request.routes where results[route.monitor]?.state == .confirmed || results[route.monitor]?.state == .unverified {
             // Permit KVM and desktop reconciliation for an accepted route even
             // when its current input cannot be read. A later contradictory

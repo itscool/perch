@@ -170,6 +170,7 @@ final class DeskRuntime: ObservableObject {
             }
         }
         switching.readForVerification = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
+        switching.seenBy = { [weak self] monitor in self?.computersSeeing(monitor) ?? [] }
         input.readMonitor = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
         input.motionScale = { [weak self] focus in
             guard let self, let geometry = self.node.group.monitors.first(where: { $0.id == focus.monitor })?.geometry,
@@ -633,7 +634,9 @@ final class DeskRuntime: ObservableObject {
         guard now - lastDecisionRequest > 20 else { return }
         lastDecisionRequest = now
         guard let data = DeskDeviceMessage.decisionsRequest(seconds: seconds).wire else { return }
-        for peer in node.online where peer != node.localID { node.sendApplication(data, peer: peer) }
+        let peers = node.online.filter { $0 != node.localID }
+        PerchLog.record("desk.decisions", "Asked \(peers.count) Mac(s) what they decided in the last \(Int(seconds)) s")
+        for peer in peers { node.sendApplication(data, peer: peer) }
     }
     private func notePeerBuild(_ build: Int, version: String, peer: UUID) {
         let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
@@ -649,6 +652,19 @@ final class DeskRuntime: ObservableObject {
         // Look only. Installing without being asked would be a setting, not a
         // side effect of another Mac being newer.
         PerchUpdater.shared.checkQuietly()
+    }
+    /// Which Macs currently report a display that is this screen, by the screen's
+    /// own identity or by the display recorded for that Mac.
+    private func computersSeeing(_ monitor: UUID) -> Set<UUID> {
+        let identity = node.group.monitors.first { $0.id == monitor }?.identity
+        var found: Set<UUID> = []
+        for (computer, values) in displays {
+            let recorded = node.group.connections.first { $0.monitor == monitor && $0.computer == computer }?.localDisplay
+            if values.contains(where: { display in
+                display.id == recorded || identity?.matches(vendor: display.vendor, model: display.model, serial: display.serial) == true
+            }) { found.insert(computer) }
+        }
+        return found
     }
     private func publishDisplays() {
         guard let data = DeskDeviceMessage.displays(displays[node.localID] ?? []).wire else { return }

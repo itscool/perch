@@ -409,6 +409,16 @@ func runDeskInputListTests() throws {
               "Screen 1 kept a record the serial proves belongs to screen 2")
     try check(KVMScreenIdentity(vendor: 7789, model: 30471, serial: 353740).matches(vendor: 7789, model: 30470, serial: 353740),
               "The same monitor reporting another model number on another input was not recognised")
+    // A monitor that cannot report its input leaves only the command as evidence,
+    // and a command can fail while the screen still ends up right. One Mac
+    // seeing the screen, and it being the Mac this preset chose, settles it.
+    let onScreen = UUID(), elsewhere = UUID()
+    try check(KVMMonitorSwitch.showsExpected(seen: [onScreen], owner: onScreen), "A screen only its own Mac can see was not counted as showing it")
+    try check(!KVMMonitorSwitch.showsExpected(seen: [onScreen, elsewhere], owner: onScreen), "Two Macs seeing a screen was taken as proof")
+    try check(!KVMMonitorSwitch.showsExpected(seen: [elsewhere], owner: onScreen), "Another Mac seeing the screen was taken as proof")
+    try check(!KVMMonitorSwitch.showsExpected(seen: [], owner: onScreen) && !KVMMonitorSwitch.showsExpected(seen: [onScreen], owner: nil),
+              "A screen no Mac can see, or an input with no computer, was counted as showing")
+
     // Hearing that another Mac runs a newer Perch is worth one look for the
     // published update, and only one per build heard about.
     try check(DeskUpdateNudge.shouldCheck(peerBuild: 265, ownBuild: 262, alreadyCheckedFor: 0), "A newer Mac did not prompt a look for the update")

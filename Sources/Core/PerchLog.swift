@@ -23,6 +23,12 @@ enum PerchLog {
     /// Bounded: a desk left running for days must not grow this without limit.
     static let limit = 400
     private(set) static var entries: [Entry] = []
+    /// The recent decisions, oldest first, for sharing with the other Macs on a
+    /// desk. Perch's own state only: never a keystroke, pointer or anything typed.
+    static func recent(seconds: Double, limit: Int = 200) -> [Entry] {
+        let start = clock().addingTimeInterval(-max(1, seconds))
+        return entries.filter { $0.at >= start }.suffix(limit)
+    }
     private static var last: [String: String] = [:]
     /// Tests replace these; production keeps the clock and the unified log.
     static var clock: () -> Date = { Date() }

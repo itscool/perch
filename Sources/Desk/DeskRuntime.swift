@@ -88,6 +88,11 @@ enum DeskDeviceMessage: Codable {
     /// Which Perch this Mac runs, so a Mac behind a newer one can go and look
     /// for that release itself instead of waiting to be updated by hand.
     case running(build: Int, version: String)
+    /// "What did you decide, and why?" — one Mac asking another for its recent
+    /// desk decisions, and the answer. Perch's own reasoning only, so a desk can
+    /// be diagnosed from whichever Mac someone is sitting at.
+    case decisionsRequest(seconds: Double)
+    case decisions([String])
     case refresh
     case displayProblem(String)
     case inspect(String)
@@ -220,6 +225,13 @@ final class DeskRuntime: ObservableObject {
         model.caution = switching.caution ?? inputAdapter.note ?? pendingMatchCaution()
         model.status = inputStatus()
         model.switchingPreset = switching.busy ? switching.request?.preset : nil
+        // A screen that would not switch is exactly when the other Macs' reasons
+        // are worth having; ask once per request, not per refresh.
+        if let request = switching.request?.id, request != lastFailureReported,
+           !switching.busy, switching.results.values.contains(where: { $0.state == .failed }) {
+            lastFailureReported = request
+            requestPeerDecisions()
+        }
         model.activeUnconfirmed = switching.activePreset != nil && switching.results.values.contains { $0.state == .unverified }
         model.active = node.group.presets.first { $0.id == switching.activePreset }
         model.activeGroup = switching.activeGroup
@@ -604,6 +616,18 @@ final class DeskRuntime: ObservableObject {
         for peer in peers ?? Array(node.online) where peer != node.localID { node.sendApplication(data, peer: peer) }
         announcedBuild = true
     }
+    /// Ask the other Macs what they decided. Sent when a switch fails, so the
+    /// reasons from every Mac land in one log without anyone running a command
+    /// on the other machine.
+    private var lastDecisionRequest: TimeInterval = -.infinity
+    private var lastFailureReported: UUID?
+    func requestPeerDecisions(seconds: Double = 120) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastDecisionRequest > 20 else { return }
+        lastDecisionRequest = now
+        guard let data = DeskDeviceMessage.decisionsRequest(seconds: seconds).wire else { return }
+        for peer in node.online where peer != node.localID { node.sendApplication(data, peer: peer) }
+    }
     private func notePeerBuild(_ build: Int, version: String, peer: UUID) {
         let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
         guard build > PerchVersion.build else {
@@ -643,6 +667,17 @@ final class DeskRuntime: ObservableObject {
             notePeerBuild(build, version: version, peer: peer)
             // A Mac that has just heard from us for the first time needs ours too.
             if !announcedBuild { announceBuild(to: [peer]) }
+        case .decisionsRequest(let seconds):
+            guard seconds > 0, seconds <= 600 else { return }
+            let stamp = DateFormatter()
+            stamp.dateFormat = "HH:mm:ss"
+            let lines = PerchLog.recent(seconds: seconds).map { "\(stamp.string(from: $0.at)) \($0.category): \(String($0.message.prefix(300)))" }
+            guard !lines.isEmpty, let data = DeskDeviceMessage.decisions(lines).wire, data.count <= 60_000 else { return }
+            node.sendApplication(data, peer: peer)
+        case .decisions(let lines):
+            guard lines.count <= 200 else { return }
+            let name = node.group.computers.first { $0.id == peer }?.name ?? String(peer.uuidString.prefix(8))
+            for line in lines.prefix(200) { PerchLog.record("from." + name, String(line.prefix(400))) }
         case .refresh: refreshDisplays()
         case .inspect(let display): inspect(display, computer: node.localID)
         case .inspectRequest(let token, let display):
@@ -725,14 +760,19 @@ final class DeskRuntime: ObservableObject {
             // that display go a moment ago, believing the screen was moving away:
             // take everything back before looking, or the Mac cannot find the
             // monitor it is about to command.
+            //
+            // A display does not come back the instant it is reconnected: macOS
+            // takes a moment to list it again, and commanding inside that gap
+            // failed with "not connected" while the monitor had already changed
+            // input, because the returning signal switched it. So wait for it.
             var route = recorded
             if let identity {
-                var seen = DeskLiveDisplays.current()
+                var seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity)
                 if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
                    DeskIdentityCableResolver.display(for: identity, among: seen) == nil, !handedAway.isEmpty {
                     PerchLog.record("switch.write", "Taking back \(handedAway.count) display(s) this Mac had let go of, to find monitor \(recorded.monitor.uuidString.prefix(8))")
                     self.desktopHandoff.restoreAll()
-                    seen = DeskLiveDisplays.current()
+                    seen = DeskLiveDisplays.waitFor(display: recorded.control.localDisplay, or: identity)
                 }
                 if !seen.contains(where: { $0.id == recorded.control.localDisplay }),
                    let found = DeskIdentityCableResolver.display(for: identity, among: seen) {
@@ -1055,6 +1095,25 @@ final class DeskCoordinator: ObservableObject {
 /// This Mac's external displays as macOS sees them this instant, read in-process
 /// from CoreGraphics: fast enough for the main thread, and never a stored ID.
 enum DeskLiveDisplays {
+    /// How long to let a display that is coming back finish arriving. A
+    /// reconnected display is listed again within a moment; commanding before
+    /// that fails as if the monitor were not there at all.
+    static let arrival: TimeInterval = 3
+    /// Never on the main thread: this waits.
+    static func waitFor(display: String, or identity: KVMScreenIdentity?) -> [DeskIdentityCableResolver.Display] {
+        var seen = current()
+        let started = ProcessInfo.processInfo.systemUptime
+        while !seen.contains(where: { $0.id == display }), DeskIdentityCableResolver.display(for: identity, among: seen) == nil,
+              ProcessInfo.processInfo.systemUptime - started < arrival {
+            Thread.sleep(forTimeInterval: 0.1)
+            seen = current()
+        }
+        let waited = ProcessInfo.processInfo.systemUptime - started
+        if waited >= 0.15 {
+            PerchLog.record("switch.write", String(format: "Waited %.1f s for a display to come back; this Mac now sees %d", waited, seen.count))
+        }
+        return seen
+    }
     static func current() -> [DeskIdentityCableResolver.Display] {
         var count: UInt32 = 0
         guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }

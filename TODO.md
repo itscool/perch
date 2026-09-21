@@ -1304,6 +1304,33 @@ Verified: build 267, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
 kvm-lab 268, `check-dialog-contract.py`, `check-monitor-command.py`. Running:
 2.0.265. On disk: 2.0.267.
 
+## Checkpoint: a display does not come back instantly (September 20, 2026, evening)
+
+Scott moved the Studio's cable for Home screen 2 from the USB-C-to-HDMI adapter
+to DisplayPort; Perch re-found that screen by serial on its own (`08E7D12A`), and
+both Macs now run 2.0.269 with every record correct. Switching still reported
+failure while the picture visibly changed, and Scott named the contradiction:
+"the studio tried and DID get the display change even if it was supposedly told
+it wasn't there".
+
+Cause: taking a handed-away display back starts driving that output again, and
+the monitor switches to it by itself, but macOS does not list the display again
+for about a second. Perch resolved and commanded inside that gap, hit a display
+that had not finished arriving, and reported "The selected monitor is not
+connected to this Mac" — for a switch that had already happened.
+`DeskLiveDisplays.waitFor` now waits up to 3 s for the display to appear, before
+resolving and before commanding, and logs how long it waited.
+
+Also, because diagnosing this needed commands run on the other Mac: Macs now ask
+each other for their recent desk decisions (`DeskDeviceMessage.decisionsRequest`
+/ `.decisions`, `PerchLog.recent`), automatically whenever a switch fails and at
+most once every 20 s. The other Mac's lines land in this Mac's log under
+`from.<Mac name>`, so a desk can be diagnosed from wherever someone is sitting.
+
+Verified: build 271, `--self-test` 47, `check-kvm.py`, `check-desk-network.py`,
+kvm-lab 268, `check-dialog-contract.py`. Running: 2.0.269 on both Macs. On disk
+here: 2.0.271. Both changes need to reach the Studio.
+
 ## Completed evidence and ongoing maintenance
 
 Build 81's 22/22 isolated suites passed; its production build was warning-free.

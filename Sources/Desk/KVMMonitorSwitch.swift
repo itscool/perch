@@ -571,6 +571,26 @@ final class KVMMonitorSwitch: ObservableObject {
                 send(.delegate(lease.request, route.monitor), peer: peer); return
             }
         }
+        // Why a failed write was not handed to another Mac. Silence here was
+        // indistinguishable from "no other Mac exists", and cost a day.
+        if state == .failed, delegates[route.monitor] == nil {
+            let screen = route.monitor.uuidString.prefix(8)
+            if !["standard", "lg"].contains(route.control.mode) {
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: its control protocol cannot be taken over")
+            } else if now - lease.created >= 18 {
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: this switch is older than 18 s")
+            } else if !node.canEdit {
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: this Mac cannot edit the desk right now")
+            } else if node.revision != lease.request.revision {
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: the desk changed while this switch ran")
+            } else if node.graph.roster.epoch != lease.request.epoch {
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: the desk's membership changed while this switch ran")
+            } else if candidates.isEmpty {
+                let cabled = node.group.connections.filter { $0.monitor == route.monitor && $0.computer != nil && $0.computer != node.localID }
+                let offline = cabled.filter { $0.computer.map(node.online.contains) != true }.count
+                PerchLog.record("switch.delegate", "Monitor \(screen) not handed over: no other Mac can reach it (\(cabled.count) cabled, \(offline) offline, identity \(known ? "known" : "unknown"))")
+            }
+        }
         // A failed write that no other Mac can take over means no Mac has a live
         // picture on that screen, so nothing can command it. Say that, instead of
         // reporting a write failure the person can do nothing with.

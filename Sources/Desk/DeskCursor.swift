@@ -175,6 +175,32 @@ struct DeskPointerHandover {
     }
 }
 
+/// How much the travel time from the other Mac varies. The clocks need not
+/// agree: a constant offset cancels, so what is left is the jitter that a
+/// person feels. It says whether a late movement was late on the network or
+/// late being posted here.
+struct DeskTravelJitter {
+    static let window = 5.0
+    private var samples: [Double] = []
+    private var started: Double?
+    mutating func arrived(sent: Double, at now: Double) -> String? {
+        guard sent > 0 else { return nil }
+        samples.append(now - sent)
+        let start = started ?? now
+        started = start
+        guard now - start >= Self.window, samples.count >= 8 else { return nil }
+        defer { samples = []; started = now }
+        let sorted = samples.sorted()
+        let smallest = sorted[0]
+        // Only the variation is meaningful, so measure everything from the
+        // quickest arrival in this window.
+        func ms(_ value: Double) -> String { String(format: "%.1f", value * 1000) }
+        let median = sorted[sorted.count / 2] - smallest
+        let high = sorted[min(sorted.count - 1, Int((Double(sorted.count) * 0.95).rounded(.down)))] - smallest
+        return "\(sorted.count) movements; beyond the quickest, median \(ms(median)) ms, 95th percentile \(ms(high)) ms, worst \(ms(sorted[sorted.count - 1] - smallest)) ms"
+    }
+}
+
 /// How evenly movement arrives on the Mac showing the pointer, so "smooth" is a
 /// number in the log rather than an impression.
 struct DeskMotionSmoothness {

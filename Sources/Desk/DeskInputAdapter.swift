@@ -53,6 +53,7 @@ final class DeskInputAdapter: ObservableObject {
     /// reaches Perch. A pointer that stutters on the other Mac is either late
     /// leaving here or late arriving there, and these two numbers say which.
     private var capturedSmoothness = DeskMotionSmoothness()
+    private var travel = DeskTravelJitter()
     private var nextParkingSummary: Double = 0
     private var subscription: AnyCancellable?
     init(session: KVMInputSession) {
@@ -285,8 +286,12 @@ final class DeskInputAdapter: ObservableObject {
         _ = posted.apply(value, source: postedSource)
         emitNative(value, point: point)
         guard value.kind == .motion else { return }
-        if let summary = smoothness.arrived(at: ProcessInfo.processInfo.systemUptime) {
+        let arrivedAt = ProcessInfo.processInfo.systemUptime
+        if let summary = smoothness.arrived(at: arrivedAt) {
             PerchLog.record("input.smoothness", "Pointer on this Mac: " + summary)
+        }
+        if let summary = travel.arrived(sent: value.sentAt, at: arrivedAt) {
+            PerchLog.record("input.travel", "Movement from the other Mac: " + summary)
         }
         if let position = deskPosition(point)?.1 { session.reportPointer(position) }
     }

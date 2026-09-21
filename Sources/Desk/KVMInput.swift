@@ -79,12 +79,17 @@ struct KVMInputEvent: Codable, Equatable {
     var absolute: KVMPoint? = nil
     /// Scroll: pixel deltas from a trackpad/continuous device, or wheel notches.
     var continuous = true
+    /// The sender's own uptime when it captured this, used only to measure how
+    /// much the travel time varies. The two Macs' clocks need not agree: the
+    /// difference between them is constant and cancels out.
+    var sentAt: Double = 0
     /// CGScrollPhase / CGMomentumScrollPhase raw values so the destination sees
     /// gesture boundaries and inertia instead of an endless stream of deltas.
     var phase: Int = 0
     var momentum: Int = 0
     static let flagMask: UInt64 = 0x00FF_0000
     var valid: Bool {
+        guard sentAt.isFinite, sentAt >= 0, sentAt < 1e12 else { return false }
         guard flags & ~Self.flagMask == 0, (0...3).contains(clickCount), x.isFinite, y.isFinite, abs(x) <= 10_000, abs(y) <= 10_000,
               [0, 1, 2, 4, 8, 128].contains(phase), (0...3).contains(momentum) else { return false }
         if let absolute { guard absolute.x.isFinite, absolute.y.isFinite, abs(absolute.x) <= 100_000, abs(absolute.y) <= 100_000 else { return false } }

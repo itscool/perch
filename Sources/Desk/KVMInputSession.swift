@@ -419,8 +419,9 @@ final class KVMInputSession: ObservableObject {
         }
     }
     private func flushMotion() {
-        guard let event = pendingMotion else { return }
+        guard var event = pendingMotion else { return }
         pendingMotion = nil
+        event.sentAt = ProcessInfo.processInfo.systemUptime
         guard active, event.valid, let grant = lease.grant, sequence < UInt64.max else { return }
         sequence += 1
         guard send(.event(grant.id, sequence, event), to: node.ownerID) else {

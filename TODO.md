@@ -754,40 +754,47 @@ launch, existing-install replacement and uninstall/recovery as one journey.
 
 ## Backlog — optional future work, outside current release gates
 
-- [ ] **Shared KVM clipboard and file transfer.** Copy/paste plain and rich text,
-  images and files between explicitly trusted Desk members. All payload types
-  use bounded chunked transfers, compression before encryption when beneficial,
-  and authenticated encryption. Derive a separate per-chunk key from fresh
-  authenticated transfer/session secrets using a reviewed KDF (e.g. HKDF,
-  https://www.rfc-editor.org/rfc/rfc5869); bind transfer ID, direction, chunk
-  index, lengths and format into authenticated context, with safe unique nonces.
-  Use an established cipher/library, not a different homemade algorithm per
-  chunk. Peers negotiate the same versioned format, authenticate the complete
-  manifest and reassembled content, and reject corruption, replay, missing or
-  reordered chunks. Include cancellation/resume, size/decompression limits,
-  bounded memory, cleanup and explicit trust/sharing controls. Keep contents
-  and filenames out of logs and expose unobtrusive progress for larger transfers.
-  Encrypt clipboard type, filename and other application metadata inside a
-  uniform transfer envelope so packet contents do not identify text/image/file.
-  Assess bounded padding/batching for size/timing leakage, without promising
-  invisible traffic. Nearby discovery (Bluetooth/peer-to-peer Wi-Fi where
-  supported) may bootstrap an authenticated out-of-band pairing/fingerprint
-  check for the main network channel. Do not broadcast encryption secrets in
-  discovery advertisements. Use authenticated ephemeral key agreement and
-  forward secrecy; a network transcript alone must not reveal content keys.
-  Explore genuinely independent transports (LAN/routed network plus nearby
-  Bluetooth/peer-to-peer Wi-Fi), including an optional split-key/secret-sharing
-  or encrypted-fragment scheme whose reconstruction needs both channels. Define
-  the single-channel observer threat model, fallback when one transport vanishes,
-  fail-closed behavior for a mode requiring both, and limits if both channels or
-  an endpoint are compromised. Evaluate established constructions rather than
-  inventing byte-omission cryptography; multiple ports on one network do not count
-  as independent paths. This is research, not a promised security guarantee.
-  Let users choose manual verification or automatic pairing. Define what supplies
-  identity assurance in automatic mode (existing trust/account credentials or
-  explicitly unverified first contact), show verified/unverified state honestly,
-  and never label unauthenticated nearby discovery as verified. Existing trusted
-  peers should reconnect without repeated manual codes.
+- [ ] **Shared clipboard, then file transfer.** Decided with Scott on September
+  21, 2026, replacing a single entry that mixed three projects.
+
+  **What it does.** Copy on one Mac of the desk, paste on another. Nothing is
+  sent when you copy: the paste asks the Mac that holds the keyboard's last
+  copied content for it. Pushing every copy would send far more, far more often,
+  than anyone asked for. Only Macs already paired in the desk take part.
+
+  **Stage 1, plain and rich text and images.** They share one path: pasteboard
+  data, bounded, chunked, with a size cap and progress for anything large.
+  **Stage 2, files**, separately, because its problems are not transfer problems:
+  where a received file lands, permissions and sandboxing, partial writes, name
+  collisions, resume, and file promises rather than plain data.
+
+  **Transport.** The desk's existing authenticated TLS 1.3 channel with pinned
+  peer identities carries it. Add an authenticated manifest over the content so
+  reassembly cannot be altered, and reject corruption, replay, reordering and
+  missing chunks; negotiate one versioned format and refuse anything else. A
+  second encryption layer of per-chunk keys derived with HKDF belongs here only
+  if the goal is protection independent of the transport: decide that explicitly
+  rather than adding failure modes for their own sake, and if it is adopted, bind
+  transfer ID, direction, chunk index, lengths and format into the authenticated
+  context with unique nonces, using an established library.
+
+  **Compression before encryption leaks length** (the CRIME family). Compress
+  only above a threshold and pad to size buckets; treat that as a rule, not an
+  assessment. Keep contents, filenames and types out of logs, and out of what a
+  packet's shape reveals: one envelope for every kind.
+
+  **Limits and refusals.** Size caps per kind, decompression limits, bounded
+  memory, cancellation, cleanup on failure, rate limiting, and an honest refusal
+  when the other Mac says no. Never send anything a password manager marked
+  concealed, and never anything transient.
+
+  **Parked, deliberately.** Nearby Bluetooth or peer-to-peer Wi-Fi as a second
+  transport, and split-key schemes whose reconstruction needs two channels. That
+  is research, it would hold the useful feature hostage, and multiple ports on
+  one network are not independent paths. If it is ever revisited: evaluate
+  established constructions, define the single-channel observer threat model and
+  the fail-closed behaviour, never broadcast secrets in discovery, and never
+  label unauthenticated discovery as verified.
   Nearby proximity alone is not authentication. Review compression
   side channels and whether padding is warranted before implementing the protocol.
 

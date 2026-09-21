@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.269 — Current
+## 2.0.273 — Current
+
+- A switch waits for a reclaimed screen to return, so a switch that worked is no longer reported as failed.
+- Dragging from a monitor input picks up a wire only when the preset being edited uses it; otherwise it draws a new one.
+- When a switch fails, Macs ask each other what they decided, so one log explains the whole desk.
+
+## 2.0.269
 
 - A screen is switched back from another Mac reliably: Perch takes back its own picture there before commanding it.
 - A Mac that cannot see a screen says so, and lists what it can see.

@@ -1,6 +1,13 @@
 # Perch release history
 
-## 2.0.273 — Current
+## 2.0.278 — Current
+
+- A screen's reachability is checked the same way the switch is sent, so working switches are no longer reported as failed.
+- A Mac with no screens of its own in a preset drives the Mac that has them.
+- A Mac that has updated tells the others at once, and one that is behind fetches the release itself.
+- Macs share their reasoning, so one log explains the whole desk.
+
+## 2.0.273
 
 - A switch waits for a reclaimed screen to return, so a switch that worked is no longer reported as failed.
 - Dragging from a monitor input picks up a wire only when the preset being edited uses it; otherwise it draws a new one.

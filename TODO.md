@@ -744,6 +744,16 @@ Native acceptance is still open: typing going where you last clicked across the
 two Macs, the steadier pointer over Wi-Fi, and the hidden stopped cursor not
 hovering anything underneath it.
 
+Perch 2.0.295 was published on September 21, 2026. Apple accepted the app
+(0767bc90-61ec-4783-bcf2-7ca4e32a86f9) and the DMG
+(f5318172-e34f-419f-951a-f176648ab083); the GitHub release at v2.0.295, the
+stable Sparkle feed and the SHA256SUMS checksums for the DMG, ZIP and appcast
+were verified, and the `itscool/tap` cask was updated to 2.0.295 and confirmed
+with `brew fetch` and `brew info`. Both Macs need this version, because the
+sending Mac stamps each movement and the receiving Mac reads it. The open work
+is reading the new pointer measurements from the live two-Mac desk to decide
+which half of the input path moves off the main thread.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

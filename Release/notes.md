@@ -1,7 +1,6 @@
-# Perch 2.0.291 — What’s new
+# Perch 2.0.295 — What’s new
 
-- **Typing goes where you last clicked:** moving the pointer onto another Mac's screen no longer takes the keyboard with it. Click to type there, exactly as you would to type into another window. Update every Mac on your desk.
-- **A steadier pointer:** movement is sent the moment it happens instead of waiting to fill a network packet, which removes the stalls you could feel over Wi-Fi.
-- **A cursor that stays out of the way:** while the pointer is on another Mac, this Mac's cursor is hidden and stopped, so nothing underneath it lights up or shows a tooltip.
+- **A quicker pointer:** the first movement is sent the moment it happens rather than waiting to be combined with the next one.
+- **Perch can now show why the pointer stutters:** each movement carries the sending Mac's clock, so Perch can tell time spent travelling from time spent waiting, and the Macs share these readings with each other while sharing is on. This is groundwork for making the pointer on the other Mac feel like the one in front of you.
 
 Perch requires Apple silicon and macOS 26 or later. See Settings → Updates → Release history for the complete history of Perch releases.

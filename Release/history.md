@@ -1,6 +1,11 @@
 # Perch release history
 
-## 2.0.291 — Current
+## 2.0.295 — Current
+
+- The first pointer movement is sent immediately instead of waiting to be combined.
+- Perch measures how much the travel time between Macs varies, and the Macs share those readings, to find what makes the pointer stutter.
+
+## 2.0.291
 
 - Typing goes to the Mac you last clicked on, not the one the pointer is over; every Mac on the desk needs this version.
 - Pointer movement is sent as it happens, removing the stalls felt over Wi-Fi.

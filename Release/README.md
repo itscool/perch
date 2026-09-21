@@ -18,6 +18,15 @@ at the secure prompt, never in chat, source, or command-line arguments:
 Use the resulting Perch Keychain profile for the commands below. A Developer ID
 certificate does not itself authenticate notarytool.
 
+Release with this Mac unlocked. Those credentials live in the data-protection
+keychain, which the volume keybag seals while the Mac is locked, so notarytool
+reports "No Keychain password item found for profile: Perch" even though the
+item is there. On September 20 2026 the keybag unlocked at 18:57:06 with the
+screen (`kernel (apfs) handle_async_keybag_unlock`, then
+`securityd keybag locked, unlocking`), and the same command succeeded a minute
+later. If that error appears, unlock the Mac and run it again before touching
+the stored credentials.
+
 ## Pipeline
 
 Notarization is opt-in. An explicit notarization request covers the complete app

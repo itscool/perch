@@ -30,6 +30,9 @@ Keep this part short. The slow work belongs to the agent.
      `Tools/check-release-assets.py`, `Tools/check-release-launcher.py`,
      `Tools/check-build-number.py`, `Tools/check-install-candidate.py`
    - `xcrun notarytool history --keychain-profile Perch` succeeds, so credentials exist.
+     It fails with "No Keychain password item found" whenever the Mac is locked,
+     because the data-protection keychain is sealed then: unlock and retry before
+     concluding anything about the credentials (Release/README.md).
 4. Work out the version: `python3 Tools/build_number.py next` prints the build
    number the release will reserve, the next above the last release, the last
    local build and the installed app. The release is `2.0.<that number>`.

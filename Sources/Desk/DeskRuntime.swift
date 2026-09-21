@@ -219,6 +219,12 @@ final class DeskRuntime: ObservableObject {
             automaticInputStart = nil
         }
         registerShortcuts()
+        // A Mac that has just updated says so the moment it can reach another,
+        // rather than waiting for the next display refresh: whoever is behind
+        // then goes and fetches the release.
+        let joined = node.online.subtracting(knownOnline)
+        knownOnline = node.online
+        if !joined.isEmpty { announceBuild(to: Array(joined.filter { $0 != node.localID })) }
         model.group = node.group; model.online = node.online
         model.conflict = node.conflicts.first ?? node.recoveredDraft
         model.problem = switching.problem ?? desktopHandoff.problem ?? node.displayProblem ?? discoveryProblem ?? shortcutProblem ?? inputAdapter.accessProblem
@@ -610,9 +616,10 @@ final class DeskRuntime: ObservableObject {
     /// update when one of them is newer. Only published releases are ever
     /// installed, so a Mac running a newer local build simply finds nothing.
     private var announcedBuild = false
+    private var knownOnline: Set<UUID> = []
     private var checkedForBuild = 0
     func announceBuild(to peers: [UUID]? = nil) {
-        guard let data = DeskDeviceMessage.running(build: PerchVersion.build, version: PerchVersion.current).wire else { return }
+        guard let data = DeskDeviceMessage.running(build: PerchVersion.build, version: PerchVersion.current).wire, !(peers?.isEmpty ?? false) else { return }
         for peer in peers ?? Array(node.online) where peer != node.localID { node.sendApplication(data, peer: peer) }
         announcedBuild = true
     }

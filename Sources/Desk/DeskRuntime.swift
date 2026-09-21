@@ -646,7 +646,9 @@ final class DeskRuntime: ObservableObject {
         checkedForBuild = build
         guard PerchUpdater.shared.canCheck else { return }
         PerchLog.record("desk.build", "Looking for the published update, because \(name) runs a newer Perch")
-        PerchUpdater.shared.check()
+        // Look only. Installing without being asked would be a setting, not a
+        // side effect of another Mac being newer.
+        PerchUpdater.shared.checkQuietly()
     }
     private func publishDisplays() {
         guard let data = DeskDeviceMessage.displays(displays[node.localID] ?? []).wire else { return }

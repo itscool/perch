@@ -39,6 +39,21 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
             }
         } catch { message = "Update checking could not start: " + error.localizedDescription }
     }
+    /// Look, and say what is there. No download, no install, no window: hearing
+    /// that another Mac is newer is a reason to find out, never a reason to
+    /// install something behind the person's back.
+    func checkQuietly() {
+        guard canCheck, let controller else { return }
+        controller.updater.checkForUpdateInformation()
+    }
+    /// The quiet check found one. Sparkle's own settings decide what happens
+    /// next; Perch only says so.
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        available = item.displayVersionString
+        message = "Perch " + item.displayVersionString + " is available. Install it when you are ready."
+        PerchLog.note("update.available", "Perch " + item.displayVersionString + " is published; this Mac runs " + PerchVersion.current)
+    }
+    private(set) var available: String?
     func check() {
         guard canCheck, let controller else { return }
         ownSettings()

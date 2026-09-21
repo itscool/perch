@@ -54,6 +54,10 @@ extension View {
     /// A detached connection dropped in empty space.
     var removeWire: ((UUID) -> Void)?
     var connection: ((String) -> KVMConnection?)?
+    /// Whether the preset being edited uses this input, so only a wire the
+    /// person can actually see is picked up. An input connected for other
+    /// presets, or connected with no wire drawn, starts a new wire instead.
+    var routed: ((UUID) -> Bool)?
     private var pickedUp: KVMConnection?
     var detachedPort: UUID? { gesture.dragging ? pickedUp?.id : nil }
     /// Which numbered connector a picked-up wire hangs from: the one for the
@@ -91,7 +95,7 @@ extension View {
     }
     func begin(_ id: String, at point: CGPoint) {
         cancel(); gesture.begin(id, at: point)
-        if let cable = connection?(id), cable.computer != nil { pickedUp = cable }
+        if let cable = connection?(id), cable.computer != nil, routed?(cable.id) ?? true { pickedUp = cable }
         for socket in sockets.values { if let view = socket.view { observeGeometry(of: view) } }
         for name in [NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification] {
             geometryObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -181,7 +185,8 @@ struct DeskWireSocket: NSViewRepresentable {
         view.setAccessibilityLabel(label)
         let routeState = (highlighted ? "; selected in editing preset" : "") + (activeRouting ? "; active now" : "")
         view.setAccessibilityValue(presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState)
-        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (connected && id.hasPrefix("port:") ? ". Drag to another input to use that input in the preset you are editing, or into empty space to leave this screen out of it; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire. Click for connections."))
+        let wireHere = connected && highlighted && id.hasPrefix("port:")
+        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (wireHere ? ". Drag this wire to another input, or into empty space to leave this screen out of the preset you are editing; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire for the preset you are editing. Click for connections."))
         controller.register(view); view.needsDisplay = true
     }
     static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }

@@ -78,6 +78,13 @@ rewireController.moveWire = { from, to in
     try! DeskCableBinding.rewire(desk.connections.first { $0.id == from }!, to: desk.connections.first { $0.id == to }!, in: &desk); rewired += 1
 }
 rewireController.removeWire = { port in try! DeskCableBinding.apply(connection: port, computer: nil, display: nil, to: &desk); removed += 1 }
+// Only a wire the person can see is picked up: an input connected for other
+// presets, or connected with no wire drawn here, starts a new wire instead.
+rewireController.routed = { _ in false }
+oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
+precondition(rewireController.detachedPort == nil && rewireController.cableSource == oldPort.socketID, "A connected input with no wire in this preset was picked up instead of drawing a new one")
+rewireController.cancel()
+rewireController.routed = { _ in true }
 let before = desk
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22))
 precondition(rewireController.end(oldPort.socketID, at: CGPoint(x: 23, y: 21)), "An occupied input still clicks without rewiring")

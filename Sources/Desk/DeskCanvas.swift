@@ -120,6 +120,7 @@ struct DeskCanvas: View {
                 if model.problem == nil { actions.cable(port, computer) }
             }
             wire.editingSlot = { model.presetIndex + 1 }
+            wire.routed = { connection in model.preset.assignments.contains { $0.connection == connection } }
             wire.moveWire = { from, to in model.moveWire(from: from, to: to) }
             wire.removeWire = { port in model.removeWire(port) }
         }

@@ -339,6 +339,10 @@ final class KVMInputSession: ObservableObject {
         }
         guard active, event.valid, let grant = lease.grant else { return false }
         let pointerFocus = focus ?? grant.focus
+        // Apply the click's effect here at once. Waiting to be told where typing
+        // went, on the next quarter-second status, would send the first letters
+        // after a click to the Mac the keyboard was on before it.
+        if KVMInputRouting.claimsKeyboard(event.kind) { keyboardFocus = pointerFocus }
         let localFocus = KVMInputRouting.target(event.kind, pointer: pointerFocus, keyboard: keyboardFocus).computer == node.localID
         if event.kind == .motion {
             pendingMotion = pendingMotion.map { previous in

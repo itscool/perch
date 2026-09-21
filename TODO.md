@@ -725,6 +725,15 @@ reporting success on the live two-Mac desk, a Mac with none of its screens in
 the preset driving the other Mac, and the automatic update announcement pulling
 the Studio along.
 
+Perch 2.0.283 was published on September 21, 2026. Apple accepted the app
+(c332d66a-b498-430c-8404-cac0fd925db9) and the DMG
+(ec13d65d-0db4-4feb-a638-c8cedb44212f); the GitHub release, stable Sparkle feed
+and SHA256SUMS checksums were verified, and the `itscool/tap` cask was updated
+and verified with `brew info`. Native acceptance is still open: preset 2
+registering as active on the live two-Mac desk now that a screen only one Mac
+can see counts as showing it, and pointer sharing across the two Macs after
+that.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

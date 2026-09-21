@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.283 — Current
+## 2.0.291 — Current
+
+- Typing goes to the Mac you last clicked on, not the one the pointer is over; every Mac on the desk needs this version.
+- Pointer movement is sent as it happens, removing the stalls felt over Wi-Fi.
+- The cursor on the Mac you are not using is hidden and stopped, so nothing under it hovers.
+
+## 2.0.283
 
 - A preset counts as active when the Mac it chose, and only that Mac, can see each screen, for monitors that never report their input.
 - Keyboard and mouse sharing follows, since it waits for an active preset.

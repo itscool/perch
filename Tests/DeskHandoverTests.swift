@@ -48,5 +48,37 @@ func runDeskHandoverTests() throws {
     try check(KVMInputSession.entryPoint(requested: nil, carried: nil, screen: screen) == nil,
               "Control started at an invented position with no pointer to carry")
 
-    print("PASS: switching control carries the pointer to the nearest point on the new screen, and never invents a position")
+    // Sharing starts once, and after that only crossing a screen edge moves the
+    // pointer. Every Mac keeps offering to start sharing on its own screen; once
+    // sharing runs, none of those offers may move it.
+    try check(KVMInputSession.placementAllowed(sharing: false, automatic: true, pointerAlreadyThere: false),
+              "Sharing could not start on its own")
+    try check(!KVMInputSession.placementAllowed(sharing: true, automatic: true, pointerAlreadyThere: false),
+              "A Mac took the pointer away from the Mac holding it, without the person asking")
+    // The person is the exception: picking a preset or Share on this Mac places it.
+    try check(KVMInputSession.placementAllowed(sharing: true, automatic: false, pointerAlreadyThere: false),
+              "The person could not move the pointer while sharing was running")
+    // Asking for where it already is never re-prepares a handoff on top of itself.
+    try check(!KVMInputSession.placementAllowed(sharing: true, automatic: false, pointerAlreadyThere: true),
+              "A request for where the pointer already was started another handoff")
+
+    // The loop that made the pointer unusable, replayed. Preparing a handoff
+    // clears each Mac's record of where the pointer is, so every Mac that is not
+    // holding it offers to start sharing on its own screen, over and over. If any
+    // of those offers can move it, the desk trades the pointer with itself for as
+    // long as sharing runs. The rule does not count Macs, so this holds for a desk
+    // of two the same as a desk of five.
+    for macs in 2...5 {
+        var holder = 0, seizures = 0
+        for _ in 0..<50 {
+            for mac in 0..<macs where mac != holder {
+                guard KVMInputSession.placementAllowed(sharing: true, automatic: true, pointerAlreadyThere: false) else { continue }
+                holder = mac; seizures += 1
+            }
+        }
+        try check(seizures == 0 && holder == 0,
+                  "On a desk of \(macs) Macs the pointer was seized \(seizures) times by Macs that did not hold it")
+    }
+
+    print("PASS: switching control carries the pointer to the nearest point on the new screen, and never invents a position; sharing starts once and then only an edge crossing or the person moves the pointer, on a desk of any size")
 }

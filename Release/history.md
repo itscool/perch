@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.295 — Current
+## 2.0.296 — Current
+
+- Two Macs no longer take the pointer back and forth from each other on their own; whichever Mac has it keeps it.
+- Fast pointer movement on the other Mac is steadier, because those changes of control were interrupting it.
+- Sharing starts once, and after that only carrying the pointer across a screen edge moves it. Every Mac on the desk needs this version.
+
+## 2.0.295
 
 - The first pointer movement is sent immediately instead of waiting to be combined.
 - Perch measures how much the travel time between Macs varies, and the Macs share those readings, to find what makes the pointer stutter.

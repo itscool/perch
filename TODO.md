@@ -754,6 +754,19 @@ sending Mac stamps each movement and the receiving Mac reads it. The open work
 is reading the new pointer measurements from the live two-Mac desk to decide
 which half of the input path moves off the main thread.
 
+Perch 2.0.296 was published on September 24, 2026. Apple accepted the app
+(81c7cb0d-b433-49e3-ac5f-4a0fe261206c) and the DMG
+(613cdd41-af24-4378-906b-ca932a11566f); the GitHub release at v2.0.296, the
+stable Sparkle feed and the SHA256SUMS checksums for the DMG, ZIP and appcast
+were verified, and the `itscool/tap` cask was updated to 2.0.296 and confirmed
+with `brew fetch` and `brew info`. Every Mac on the desk needs this version,
+because the Macs stop trading control only once both of them have it. Native
+acceptance is still open: re-measuring the pointer on the live two-Mac desk now
+that the Macs no longer trade control with each other, reading input.capture,
+input.smoothness and input.travel to find whether the remaining ~65 ms
+95th-percentile travel variation is the network or the receiving Mac's main
+thread.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

@@ -145,6 +145,13 @@ final class KVMDeskNode: ObservableObject {
     /// dials immediately; the other waits so both Macs do not open at once.
     private var routeLostAt: [UUID: Date] = [:]
     private var lastDialUsedDiscovery: [UUID: Bool] = [:]
+    /// Peers a wired dial has already been started for, and the cable it was
+    /// started over. Together they are `KVMPeerPath`'s "one move per cable
+    /// event": the record is forgotten only when that cable goes away or a
+    /// different one replaces it, never merely because discovery reported the
+    /// same peer again.
+    private var triedWire: Set<UUID> = []
+    private var peerWire: [UUID: String] = [:]
     private var hostingPairing = false
     private var directContacts: [UUID: String] = [:]
     private var lastEdit = Date()
@@ -198,7 +205,7 @@ final class KVMDeskNode: ObservableObject {
         transport.goodbye = { reason in
             try? JSONEncoder().encode(KVMDeskMessage.goodbye(reason.rawValue, reason == .incompatible ? "\(KVMDeskProtocol.version)" : ""))
         }
-        transport.discovered = { [weak self] nearby in self?.nearby = nearby; self?.reconnect() }
+        transport.discovered = { [weak self] nearby in self?.nearby = nearby; self?.wireUpdate(); self?.reconnect() }
         transport.listenerProblem = { [weak self] in self?.listenerProblem = $0 }
         transport.discoveryProblem = { [weak self] in self?.discoveryProblem = $0 }
         transport.connectionProblem = { [weak self] link, message in self?.connectionStatus(link, message: message) }
@@ -242,7 +249,7 @@ final class KVMDeskNode: ObservableObject {
         for pairing in pairings { if let link = transport.links[pairing.id] { transport.close(link, reason: .pairingClosed) } }
         pairings = []
     }
-    func connect(_ endpoint: NWEndpoint, expected: UUID? = nil) {
+    func connect(_ endpoint: NWEndpoint, expected: UUID? = nil, wire: NWInterface? = nil) {
         if expected == nil {
             guard pairingOpen, pairingConnection == nil, pairings.isEmpty else { return }
             pairingProblem = nil
@@ -259,7 +266,7 @@ final class KVMDeskNode: ObservableObject {
         // Members dial over infrastructure; peer-to-peer stays available for
         // pairing and as a fallback when ordinary attempts keep failing.
         let peerToPeer = expected == nil || pairingOpen || (expected.flatMap { failedAttempts[$0] } ?? 0) >= 3
-        let link = transport.connect(endpoint, peerToPeer: peerToPeer)
+        let link = transport.connect(endpoint, peerToPeer: peerToPeer, wire: wire)
         guard transport.links[link.id] != nil else {
             // Refused at the link cap: nothing will report this attempt as lost.
             if let expected { connecting[expected] = nil }
@@ -469,10 +476,16 @@ final class KVMDeskNode: ObservableObject {
             // the Macs dialled each other simultaneously, and a symmetric
             // tie-break picks the same survivor on both sides. Otherwise the
             // peer dialled again because its side of the old route is gone,
-            // so the new route wins regardless of nonce order.
+            // so the new route wins regardless of nonce order. A route over the
+            // cable between the two Macs outranks a wireless one in that
+            // tie-break; see `KVMPeerPath.keepsArrivingRoute`.
             let simultaneous = abs((old.readyAt ?? old.created) - (link.readyAt ?? link.created)) < 2
             func order(_ id: UUID) -> String { [localNonces[id]?.uuidString ?? "", hellos[id]?.nonce.uuidString ?? ""].sorted().joined() }
-            if simultaneous, order(oldID) < order(link.id) { transport.close(link, reason: .duplicate); return }
+            guard KVMPeerPath.keepsArrivingRoute(arrivingIsWired: link.wired, workingIsWired: old.wired,
+                                                 simultaneous: simultaneous,
+                                                 arrivingWinsTieBreak: order(oldID) >= order(link.id)) else {
+                transport.close(link, reason: .duplicate); return
+            }
             peerLinks[peer] = link.id
             transport.close(old, reason: .duplicate)
         }
@@ -499,6 +512,13 @@ final class KVMDeskNode: ObservableObject {
         if let address = directContacts.removeValue(forKey: link.id) { archive.addresses[peer] = address; do { try archive.write(storage) } catch { problem = error.localizedDescription } }
         refreshPresentation(); peersChanged?(); sync(link)
         if let port = transport.listener?.port?.rawValue, port > 0 { send(.contact(port), to: link) }
+        // The other moment a cable event can be acted on: a route has just come
+        // up, and it may be the wireless one. The cable is often discovered
+        // before this Mac has anything to move onto it — the other Mac waking
+        // is both a new record in discovery and, a moment later, a connection.
+        // `wireUpdate` is idempotent, so arriving here changes nothing once the
+        // desk is already on the cable or has already spent its one attempt.
+        wireUpdate()
     }
     private func connectionStatus(_ link: KVMPeerTransport.Link, message: String?) {
         if let peer = expectedPeers[link.id] ?? hellos[link.id]?.card.id,
@@ -674,7 +694,19 @@ final class KVMDeskNode: ObservableObject {
             // then have to be reconciled. The other waits 15 seconds.
             let primaryDialer = localID.uuidString < peer.id.uuidString
             if !primaryDialer, now.timeIntervalSince(routeLostAt[peer.id] ?? .distantPast) < 15 { continue }
-            let discovered = nearby.first { $0.id == peer.id.uuidString }?.endpoint
+            let entry = nearby.first { $0.id == peer.id.uuidString }
+            // A wire beats wireless: when the peer is discovered on a cable,
+            // the first attempt goes over that cable, before the ordinary
+            // alternation below. One attempt only, so a cable that does not
+            // carry this peer costs a single dial rather than all of them.
+            if KVMPeerPath.dialsOverWire(wireFound: entry?.wire != nil, loopback: transport.localOnly,
+                                         triedWire: triedWire.contains(peer.id)),
+               let endpoint = entry?.endpoint, let wire = entry?.wire {
+                triedWire.insert(peer.id)
+                connect(endpoint, expected: peer.id, wire: wire)
+                continue
+            }
+            let discovered = entry?.endpoint
             let saved = archive.addresses[peer.id].flatMap(Self.endpoint)
             let useDiscovery: Bool
             switch (discovered, saved) {
@@ -688,6 +720,32 @@ final class KVMDeskNode: ObservableObject {
             lastDialUsedDiscovery[peer.id] = useDiscovery
             guard let endpoint = useDiscovery ? discovered : saved else { continue }
             connect(endpoint, expected: peer.id)
+        }
+    }
+    /// Discovery has republished the nearby Macs. When a cable to a member has
+    /// appeared while the desk is running over Wi-Fi, move onto it — once.
+    /// Nothing is closed here: this adds a second connection, and the working
+    /// one is given up only in `trust`, once the wired route has authenticated.
+    private func wireUpdate() {
+        for peer in membership.peers where peer.id != localID {
+            let entry = nearby.first { $0.id == peer.id.uuidString }
+            let wire = entry?.wire
+            if !KVMPeerPath.remembersWiredTry(triedWire.contains(peer.id), wire: wire?.name, lastWire: peerWire[peer.id]) {
+                triedWire.remove(peer.id)
+            }
+            peerWire[peer.id] = wire?.name
+            // Only the Mac that dials first moves, the same way only one of them
+            // redials a lost route, so a cable event adds one connection between
+            // the two Macs rather than one from each.
+            guard localID.uuidString < peer.id.uuidString else { continue }
+            let link = peerLinks[peer.id].flatMap { transport.links[$0] }
+            guard KVMPeerPath.movesToWire(wireFound: wire != nil, loopback: transport.localOnly,
+                                          connected: link?.ready == true, linkIsWired: link?.wired == true,
+                                          triedWire: triedWire.contains(peer.id),
+                                          dialInFlight: connecting[peer.id] != nil),
+                  let endpoint = entry?.endpoint, let wire else { continue }
+            triedWire.insert(peer.id)
+            connect(endpoint, expected: peer.id, wire: wire)
         }
     }
     private func tick() {

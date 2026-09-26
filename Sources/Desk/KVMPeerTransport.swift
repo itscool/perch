@@ -29,6 +29,100 @@ struct KVMConnectionEvent: Codable, Identifiable {
     }
 }
 
+/// Which way Perch reaches another Mac: over a cable between the two, or over
+/// Wi-Fi.
+///
+/// Measured on Scott's two Macs, both on 2.0.296, same peer, same port, forty
+/// TCP handshakes each. Over Wi-Fi a handshake took a median of 16.7 ms, 69.8 ms
+/// at the ninety-fifth percentile and 101.4 ms at worst. Over the Thunderbolt
+/// cable already joining those two Macs the same handshake took 0.9 ms, 1.2 ms
+/// and 1.3 ms. Perch's own pointer travel over Wi-Fi measured 67 to 73 ms at the
+/// ninety-fifth percentile and 86 to 112 ms at worst, which the Wi-Fi handshakes
+/// reproduce. The lag and the jitter people feel as the pointer crosses to the
+/// other Mac's screen is the wireless link, not Perch's code.
+///
+/// The cable was plugged in the whole time. Perch handed Bonjour's service
+/// endpoint to Network.framework and let it pick the route, and a Thunderbolt
+/// bridge carries no route to the internet, so it lost to Wi-Fi every time —
+/// even though macOS itself ranks Thunderbolt Bridge above Wi-Fi.
+///
+/// The rule is deliberately blunt. The subtle version of a rule like this is
+/// what produced the pointer that traded itself between Macs.
+///
+/// 1. A wire beats wireless. When the other Mac is discovered on a wired
+///    interface, dial it over that interface. With no wire, dial as before.
+/// 2. A working link is never dropped for one that might not arrive. Nothing
+///    here closes a connection. A wired attempt is an extra dial alongside the
+///    link in use, and it can only take over once it is connected and its
+///    signed hello has been checked.
+/// 3. One move per cable event. A desk already running over Wi-Fi moves onto a
+///    newly plugged cable exactly once. Discovery republishes a peer whenever
+///    anything about it changes, so the same cable is reported over and over;
+///    a rule that acted on each report would dial in a loop.
+/// 4. There is no setting. Using the cable you plugged in is not a preference.
+enum KVMPeerPath {
+    /// Whether this dial should be pinned to the wire the peer was found on.
+    ///
+    /// `triedWire` is the single attempt rule 3 allows. A cable that is plugged
+    /// in but does not carry this peer — one Mac wired to a switch, the other
+    /// only on Wi-Fi — must cost one attempt, not every attempt, or the desk
+    /// would spend its whole reconnect budget on a route that cannot work.
+    ///
+    /// Loopback is excluded outright: there is no wire between a process and
+    /// itself, and requiring one would hang the desk's own network fixtures.
+    static func dialsOverWire(wireFound: Bool, loopback: Bool, triedWire: Bool) -> Bool {
+        guard wireFound, !loopback else { return false }
+        return !triedWire
+    }
+
+    /// Whether to add one wired dial for a peer the desk already reaches over
+    /// Wi-Fi, because a cable to it has just appeared.
+    ///
+    /// This closes nothing (rule 2). It asks for a second connection beside the
+    /// working one: if it arrives and authenticates, the ordinary duplicate-route
+    /// rule retires the wireless one, and if it never arrives the desk carries
+    /// on over Wi-Fi having lost nothing.
+    static func movesToWire(wireFound: Bool, loopback: Bool, connected: Bool, linkIsWired: Bool,
+                            triedWire: Bool, dialInFlight: Bool) -> Bool {
+        guard connected, !linkIsWired, !dialInFlight else { return false }
+        return dialsOverWire(wireFound: wireFound, loopback: loopback, triedWire: triedWire)
+    }
+
+    /// Whether the record of that one wired attempt survives this report of the
+    /// peer's interfaces.
+    ///
+    /// Rule 3 lives here. macOS republishes a discovered Mac many times over,
+    /// and every one of those reports names the same cable; only the cable
+    /// going away, or a different one taking its place, is a new cable event
+    /// and earns another attempt. Forgetting on any other report is what would
+    /// turn discovery into a dialling loop.
+    static func remembersWiredTry(_ tried: Bool, wire: String?, lastWire: String?) -> Bool {
+        guard let wire, wire == lastWire else { return false }
+        return tried
+    }
+
+    /// Which of two authenticated routes to the same Mac the desk keeps.
+    ///
+    /// This is the only place a working link is given up, and it is reached
+    /// only once the arriving route is connected and its signed hello has been
+    /// checked. That is rule 2: a wired dial in flight is not yet a route, and
+    /// one that never connects simply dies with the desk still running.
+    static func keepsArrivingRoute(arrivingIsWired: Bool, workingIsWired: Bool,
+                                   simultaneous: Bool, arrivingWinsTieBreak: Bool) -> Bool {
+        // Routes that did not become ready together mean the peer dialled again
+        // because its side of the working one is gone, so the arriving route
+        // wins whatever each runs over. Holding on to a wire the other Mac has
+        // already given up on would leave it dialling a route this Mac has not
+        // yet noticed is dead.
+        guard simultaneous else { return true }
+        // Both Macs see the same pair of connections, and a connection runs over
+        // the same kind of interface at both ends, so preferring the wire picks
+        // the same survivor on both and neither is left dialling alone.
+        if arrivingIsWired != workingIsWired { return arrivingIsWired }
+        return arrivingWinsTieBreak
+    }
+}
+
 /// All callbacks and trust changes run on main. Transport authentication is
 /// certificate pinning; unpaired TLS connections carry only the approval flow.
 final class KVMPeerTransport {
@@ -36,11 +130,17 @@ final class KVMPeerTransport {
         let id: String
         let name: String
         let endpoint: NWEndpoint
+        /// The wired interface this Mac was found on, when the two are cabled
+        /// together. Discovery answers "are these Macs wired to each other",
+        /// which a path monitor cannot: a Thunderbolt bridge carries no route
+        /// to anywhere else, so macOS reports no wired path at all. See
+        /// `KVMPeerPath`.
+        let wire: NWInterface?
         var pairingRole: String?
         var deskName: String?
-        static func make(id: String, endpoint: NWEndpoint, txt: NWTXTRecord?) -> Self {
+        static func make(id: String, endpoint: NWEndpoint, txt: NWTXTRecord?, wire: NWInterface? = nil) -> Self {
             let name = txt?["name"].map { String($0.prefix(100)) }.flatMap { $0.isEmpty ? nil : $0 }
-            return Self(id: id, name: name ?? "Unnamed Mac", endpoint: endpoint,
+            return Self(id: id, name: name ?? "Unnamed Mac", endpoint: endpoint, wire: wire,
                         pairingRole: txt?["pairing"], deskName: txt?["desk"].map { String($0.prefix(100)) })
         }
     }
@@ -51,6 +151,8 @@ final class KVMPeerTransport {
         var framer = KVMMessageFramer()
         var queuedBytes = 0
         var ready = false
+        /// Whether this connection runs over a cable between the two Macs.
+        var wired = false
         let created = ProcessInfo.processInfo.systemUptime
         var readyAt: Double?
         var closeReason = KVMCloseReason.local
@@ -102,6 +204,9 @@ final class KVMPeerTransport {
     private(set) var links: [UUID: Link] = [:]
     var nearby: [Nearby] = []
     private var pathMonitor: NWPathMonitor?
+    /// A Perch started for loopback testing. It has no wire and must never be
+    /// pinned to one; see `KVMPeerPath`.
+    private(set) var localOnly = false
     private let serviceType = "_perch-desk._tcp"
     init(identity: KVMPeerIdentity) { self.identity = identity }
     func parameters(certificate: @escaping (Data) -> Void, peerToPeer: Bool = true) -> NWParameters {
@@ -139,6 +244,7 @@ final class KVMPeerTransport {
     }
     func start(name: String, localOnly: Bool = false, port: NWEndpoint.Port = .any) throws {
         guard listener == nil else { return }
+        self.localOnly = localOnly
         // TLS metadata is read again from each accepted connection. A listener's
         // verify callback must not share a mutable peer certificate between links.
         let params = parameters(certificate: { _ in })
@@ -171,7 +277,8 @@ final class KVMPeerTransport {
                 guard case .service(let id, _, _, _) = result.endpoint, id != self.identity.saved.id.uuidString else { return nil }
                 let txt: NWTXTRecord?
                 if case .bonjour(let record) = result.metadata { txt = record } else { txt = nil }
-                return Nearby.make(id: id, endpoint: result.endpoint, txt: txt)
+                return Nearby.make(id: id, endpoint: result.endpoint, txt: txt,
+                                   wire: result.interfaces.first { $0.type == .wiredEthernet })
             }.sorted { $0.name < $1.name }
             self.discovered?(self.nearby)
         }
@@ -185,14 +292,27 @@ final class KVMPeerTransport {
         }
         browser.start(queue: .main)
     }
-    @discardableResult func connect(_ endpoint: NWEndpoint, peerToPeer: Bool = true) -> Link {
-        let params = parameters(certificate: { _ in }, peerToPeer: peerToPeer)
-        if case .hostPort(let host, _) = endpoint, host == NWEndpoint.Host("127.0.0.1") { params.includePeerToPeer = false }
+    /// `wire` pins the dial to the interface the peer was discovered on, which
+    /// is how `KVMPeerPath`'s first rule reaches Network.framework. Left to
+    /// itself it picks Wi-Fi over a Thunderbolt bridge, because the bridge has
+    /// no route to the internet to recommend it.
+    @discardableResult func connect(_ endpoint: NWEndpoint, peerToPeer: Bool = true, wire: NWInterface? = nil) -> Link {
+        var loopback = false
+        if case .hostPort(let host, _) = endpoint, host == NWEndpoint.Host("127.0.0.1") { loopback = true }
+        // Belt and braces for the loopback fixtures: a connection to this same
+        // process, or from a Perch started for local-only testing, is never put
+        // on a physical interface whatever the caller asked for.
+        let wire = loopback || localOnly ? nil : wire
+        // Peer-to-peer is Wi-Fi by definition, so a wired dial never offers it.
+        let params = parameters(certificate: { _ in }, peerToPeer: wire == nil && peerToPeer)
+        if loopback { params.includePeerToPeer = false }
+        if let wire { params.requiredInterface = wire }
         let connection = NWConnection(to: endpoint, using: params)
-        return accept(connection)
+        return accept(connection, wired: wire != nil)
     }
-    @discardableResult private func accept(_ connection: NWConnection) -> Link {
+    @discardableResult private func accept(_ connection: NWConnection, wired: Bool = false) -> Link {
         let link = Link(connection)
+        link.wired = wired
         // Handshakes that never finish must not crowd out members: they have
         // their own small cap inside the overall limit.
         guard links.count < 32, links.values.filter({ !$0.ready }).count < 8 else { connection.cancel(); return link }
@@ -207,6 +327,7 @@ final class KVMPeerTransport {
                     certificates.append(SecCertificateCopyData(sec_certificate_copy_ref(certificate).takeRetainedValue()) as Data)
                 }
                 guard let certificate = certificates.first, self.permitted(certificate) else { self.connectionProblem?(link, "The computer’s identity is unavailable or no longer approved."); self.close(link, reason: .identity); return }
+                link.wired = link.wired || connection.currentPath?.usesInterfaceType(.wiredEthernet) == true
                 link.certificate = certificate; link.ready = true; link.readyAt = ProcessInfo.processInfo.systemUptime; self.connectionProblem?(link, nil); self.connected?(link); self.read(link)
             case .waiting(let error): self.connectionProblem?(link, "Waiting to connect: " + error.localizedDescription)
             case .failed(let error): link.failureCode = String(describing: error); self.connectionProblem?(link, "Could not connect: " + error.localizedDescription); self.close(link, reason: .network)

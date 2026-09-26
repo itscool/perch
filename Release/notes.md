@@ -1,8 +1,8 @@
-# Perch 2.0.296 — What’s new
+# Perch 2.0.297 — What’s new
 
-- **The pointer stays where you put it.** Two Macs could quietly take control back and forth from each other about once a second, with nobody touching a mouse. Whichever Mac has the pointer keeps it now.
-- **A steadier pointer on the other Mac.** Each of those changes of control interrupted the movement arriving on the other screen, which is much of what made fast movement feel rough there.
-- **One rule for where the pointer goes:** sharing starts once, and after that the pointer moves only when you carry it across the edge of a screen. Choosing a preset, or Share on this Mac, still places it wherever you want.
+- **Perch uses the cable between your Macs.** Connect them with Thunderbolt or Ethernet and keyboard and mouse sharing goes over the wire instead of Wi-Fi. On the desk this was measured on, the worst delay fell from about a tenth of a second to near a millisecond.
+- **Plug in at any time.** Perch notices the cable and moves onto it without dropping the desk, and it never lets go of a working connection until the new one is up and verified.
+- **Nothing to set up.** No setting, no choice to make. With no cable, Perch works exactly as before.
 
 Every Mac on the desk needs this version.
 

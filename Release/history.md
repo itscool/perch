@@ -1,6 +1,12 @@
 # Perch release history
 
-## 2.0.296 — Current
+## 2.0.297 — Current
+
+- Keyboard and mouse sharing uses a Thunderbolt or Ethernet cable between your Macs when there is one, instead of Wi-Fi.
+- Plugging the cable in at any time moves sharing onto it without dropping the desk; a working connection is never let go until the new one is verified.
+- No setting to change, and no difference when there is no cable. Every Mac on the desk needs this version.
+
+## 2.0.296
 
 - Two Macs no longer take the pointer back and forth from each other on their own; whichever Mac has it keeps it.
 - Fast pointer movement on the other Mac is steadier, because those changes of control were interrupting it.

@@ -767,6 +767,22 @@ input.smoothness and input.travel to find whether the remaining ~65 ms
 95th-percentile travel variation is the network or the receiving Mac's main
 thread.
 
+Perch 2.0.297 was published on September 26, 2026. Apple accepted the app
+(13330fc2-4405-488b-b99a-4a3e1834f59e) and the DMG
+(e2cdd56f-e80a-497c-be0b-f36289da2eec); the GitHub release at v2.0.297, the
+stable Sparkle feed and the SHA256SUMS checksums for the DMG, ZIP and appcast
+were verified from the public URLs, and the `itscool/tap` cask was updated to
+2.0.297 and confirmed with `brew fetch` and `brew info`. Every Mac on the desk
+needs this version, because both ends have to agree before sharing moves onto
+the cable. Native acceptance is open for the new wired path specifically: that
+pinning the dial to the Thunderbolt bridge actually connects, that the move from
+Wi-Fi onto the wire happens exactly once with the desk staying connected across
+it, and what unplugging and replugging the cable does. The supporting
+measurement is already taken on this desk: the peer handshake over Wi-Fi was
+median 16.7 ms, 95th percentile 69.8 ms, worst 101.4 ms, and over Thunderbolt
+median 0.9 ms, 95th percentile 1.2 ms, worst 1.3 ms, and Bonjour already
+advertises the peer on bridge0 (interface 13) as well as en0.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

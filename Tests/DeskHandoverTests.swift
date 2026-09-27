@@ -184,5 +184,47 @@ func runDeskHandoverTests() throws {
     }
     try check(dials == 2, "A replugged cable moved the desk \(dials - 1) times instead of once")
 
-    print("PASS: a Mac discovered on the cable between them is dialled over the cable, Wi-Fi is used when there is none, a working link is kept until the wired one has connected and authenticated, and repeated reports of the same cable move the desk exactly once")
+    // Several interfaces can call themselves wired at once. The choice must not
+    // depend on the order macOS happens to report them: the same real listing
+    // put bridge0 first for one Mac and en8 first for another, which would pin
+    // the two ends of one connection to different ports.
+    let listing = ["bridge0", "en8", "en7"]
+    try check(KVMPeerPath.wireName(among: listing) == "bridge0",
+              "The cable between the Macs lost to a numbered port: \(String(describing: KVMPeerPath.wireName(among: listing)))")
+    try check(KVMPeerPath.wireName(among: listing.reversed()) == KVMPeerPath.wireName(among: listing),
+              "Reporting the same interfaces in another order chose a different one")
+    try check(KVMPeerPath.wireName(among: []) == nil, "An interface was chosen when the peer was on no wire")
+
+    // A cable that is present but not used has to say why, or the feature is
+    // undiagnosable on a live desk — which is exactly how it shipped once.
+    try check(KVMDeskNode.wireHold(loopback: false, connected: false, linkIsWired: false, triedWire: false, dialInFlight: false)?
+                .contains("no working connection") == true, "A move with nothing connected gave no reason")
+    try check(KVMDeskNode.wireHold(loopback: false, connected: true, linkIsWired: true, triedWire: false, dialInFlight: false)?
+                .contains("already connected over the cable") == true, "Being on the cable already gave no reason")
+    try check(KVMDeskNode.wireHold(loopback: false, connected: true, linkIsWired: false, triedWire: true, dialInFlight: false)?
+                .contains("already been tried") == true, "A spent cable attempt gave no reason")
+    try check(KVMDeskNode.wireHold(loopback: false, connected: true, linkIsWired: false, triedWire: false, dialInFlight: true)?
+                .contains("already running") == true, "A dial in flight gave no reason")
+    // Nothing holding it back means the move happens, so there is no sentence
+    // to write; the two must never disagree.
+    try check(KVMDeskNode.wireHold(loopback: false, connected: true, linkIsWired: false, triedWire: false, dialInFlight: false) == nil,
+              "A move that should happen still reported a reason for staying put")
+    for loopback in [true, false] {
+        for connected in [true, false] {
+            for linkIsWired in [true, false] {
+                for tried in [true, false] {
+                    for inFlight in [true, false] {
+                        let moves = KVMPeerPath.movesToWire(wireFound: true, loopback: loopback, connected: connected,
+                                                            linkIsWired: linkIsWired, triedWire: tried, dialInFlight: inFlight)
+                        let hold = KVMDeskNode.wireHold(loopback: loopback, connected: connected, linkIsWired: linkIsWired,
+                                                        triedWire: tried, dialInFlight: inFlight)
+                        try check(moves == (hold == nil),
+                                  "The cable decision and its explanation disagree for loopback=\(loopback) connected=\(connected) wired=\(linkIsWired) tried=\(tried) inFlight=\(inFlight)")
+                    }
+                }
+            }
+        }
+    }
+
+    print("PASS: a Mac discovered on the cable between them is dialled over the cable, Wi-Fi is used when there is none, a working link is kept until the wired one has connected and authenticated, repeated reports of the same cable move the desk exactly once, the same interface is chosen whatever order they are reported in, and every refusal to use a cable explains itself")
 }

@@ -88,6 +88,26 @@ enum KVMPeerPath {
         return dialsOverWire(wireFound: wireFound, loopback: loopback, triedWire: triedWire)
     }
 
+    /// Which interface to dial a peer over, when it was discovered on several.
+    ///
+    /// More than one interface can call itself wired at the same time: a
+    /// Thunderbolt bridge between the two Macs alongside other Ethernet ports.
+    /// One real listing here was
+    /// `bridge0(wiredEthernet), en8(wiredEthernet), en7(wiredEthernet), en0(wifi)`,
+    /// and taking whichever came first made the choice depend on an order that
+    /// is not stable: the same listing put `bridge0` first for one Mac and
+    /// `en8` first for another, so two Macs could pin opposite ends of a
+    /// connection to different ports. Choosing the lowest name picks the same
+    /// interface on both, every report, and puts `bridge0` — the direct
+    /// Mac-to-Mac link — ahead of the numbered ports.
+    static func wire(among interfaces: [NWInterface]) -> NWInterface? {
+        interfaces.filter { $0.type == .wiredEthernet }.min { $0.name < $1.name }
+    }
+
+    /// The same choice over plain names, so the ordering rule is pinned by a
+    /// test without a live network.
+    static func wireName(among wiredNames: [String]) -> String? { wiredNames.min() }
+
     /// Whether the record of that one wired attempt survives this report of the
     /// peer's interfaces.
     ///
@@ -136,11 +156,17 @@ final class KVMPeerTransport {
         /// to anywhere else, so macOS reports no wired path at all. See
         /// `KVMPeerPath`.
         let wire: NWInterface?
+        /// Every interface this Mac was discovered on, named for the log. A
+        /// wire that is present but not chosen, or absent when a cable is
+        /// plugged in, is invisible without this.
+        let routes: [String]
         var pairingRole: String?
         var deskName: String?
-        static func make(id: String, endpoint: NWEndpoint, txt: NWTXTRecord?, wire: NWInterface? = nil) -> Self {
+        static func make(id: String, endpoint: NWEndpoint, txt: NWTXTRecord?, interfaces: [NWInterface] = []) -> Self {
             let name = txt?["name"].map { String($0.prefix(100)) }.flatMap { $0.isEmpty ? nil : $0 }
-            return Self(id: id, name: name ?? "Unnamed Mac", endpoint: endpoint, wire: wire,
+            return Self(id: id, name: name ?? "Unnamed Mac", endpoint: endpoint,
+                        wire: KVMPeerPath.wire(among: interfaces),
+                        routes: interfaces.map { "\($0.name) (\($0.type))" }.sorted(),
                         pairingRole: txt?["pairing"], deskName: txt?["desk"].map { String($0.prefix(100)) })
         }
     }
@@ -277,8 +303,7 @@ final class KVMPeerTransport {
                 guard case .service(let id, _, _, _) = result.endpoint, id != self.identity.saved.id.uuidString else { return nil }
                 let txt: NWTXTRecord?
                 if case .bonjour(let record) = result.metadata { txt = record } else { txt = nil }
-                return Nearby.make(id: id, endpoint: result.endpoint, txt: txt,
-                                   wire: result.interfaces.first { $0.type == .wiredEthernet })
+                return Nearby.make(id: id, endpoint: result.endpoint, txt: txt, interfaces: result.interfaces)
             }.sorted { $0.name < $1.name }
             self.discovered?(self.nearby)
         }

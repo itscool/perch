@@ -1135,12 +1135,11 @@ Verified: build 224, `--self-test` 47 PASS, lab 268, render, `check-kvm.py`,
 Scott: the other Mac still locks when idle. Measured on this Mac, read-only:
 the HID idle clock climbed steadily while untouched and Perch's null-event
 signal returned it to zero, so the technique works on macOS 26. On the other Mac
-the clock stays under 30 s with Prevent idle lock on, and no configuration
-profile carries maxInactivity, idleTime, askForPassword or loginWindowIdleTime,
-so its locks are not idle timeouts Perch can hold off and not a profile we can
-read. Rather than guess again, `ScreenLockLog` records every lock and unlock with
-the facts: how long the Mac had actually been idle, whether that is even long
-enough to be an idle lock (under 55 s it is not), whether Prevent idle lock is on
+the clock stays under 30 s with Prevent idle lock on, and the inspected configuration
+profiles did not show maxInactivity, idleTime, askForPassword or loginWindowIdleTime.
+The original conclusion that this ruled out idle lock was incorrect; see the
+September 26 measurements below. `ScreenLockLog` records every lock and unlock with
+the observed HID idle time, whether Prevent idle lock is on
 and when it last reported activity or was refused, whether a desk session was
 interrupted, and how long the screen stayed locked. `IdleClock` reads the idle
 time read-only. Pinned in `runIdleLockWordingTests`. Read it with
@@ -1150,6 +1149,44 @@ filtering on `screen.`.
 Verified: build 226, `--self-test` 47 PASS, `check-dialog-contract.py`,
 `check-lid-policy.py`. Running: 2.0.221. On disk: 2.0.226. Open: read the log on
 the Mac that locks and name the cause.
+
+September 26 investigation: Scott confirms the other Mac uses Jamf and has a
+managed ten-minute lock that Prevent idle lock does not prevent. He has not yet
+checked whether it also locks during active Perch keyboard/mouse use.
+Current source returns immediately
+after an accepted `IOHIDPostEvent(NX_NULLEVENT)`, so its mouse-event fallback is
+never tried when that call succeeds. Two independent passive measurements on this
+Mac show HIDIdleTime and CoreGraphics HID idle resetting while CoreGraphics
+combined-session idle keeps rising. The diagnostic smoke capture measured
+HID 7.6 → 8.6 → 1.0 seconds while session idle rose 89.4 → 90.5 → 91.5 seconds,
+with the preference enabled. Use `kCGAnyInputEventType` (`0xffffffff`), not
+`CGEventType.null`, when measuring time since any input. Evidence:
+`work/idle-lock-2026-09-26/smoke.txt`.
+
+Apple documents both legacy `maxInactivity` and declarative
+`MaximumInactivityInMinutes` as translating to macOS screensaver settings:
+https://github.com/apple/device-management/blob/release/mdm/profiles/com.apple.mobiledevice.passwordpolicy.yaml
+https://github.com/apple/device-management/blob/release/declarative/declarations/configurations/passcode.settings.yaml
+A low HID counter does not establish the managed policy's clock or rule out an
+idle lock. `ScreenLockLog` still makes that unsupported inference; its wording
+and matching test need correction when implementing the verified fix.
+
+Prepared `Tools/diagnose-idle-lock.command`, a portable read-only twelve-minute
+capture using built-in macOS tools. It samples all three clocks, reads selected
+preferences/enrollment status, and collects Perch's screen lock/unlock records;
+it posts no input and changes no policy. Shell syntax and a two-second local
+capture passed. This Mac is running 2.0.297 (PID 90654, launched after the
+installed bundle was built); on disk 2.0.297/build 297. Peer decision logs at
+20:21 also reported 2.0.297 on the Studio. No app build/install/release was made
+for this investigation. Other concurrent Desk source edits are separate.
+
+Remaining acceptance: capture one natural lock on the affected Mac with the
+option enabled, identify whether session idle reaches roughly 600 seconds, and
+compare an explicit CoreGraphics mouse-activity path with the existing null
+signal in a separately announced live test. Verify both the clock change and
+survival past ten minutes before claiming a managed-lock fix. Also establish
+whether normal forwarded keyboard/mouse use prevents the lock. No such native
+test has run yet; the affected Mac's specific Jamf policy remains unknown.
 
 ## Checkpoint: why sharing will not start (September 18, 2026)
 

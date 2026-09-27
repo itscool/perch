@@ -703,6 +703,8 @@ final class KVMDeskNode: ObservableObject {
                                          triedWire: triedWire.contains(peer.id)),
                let endpoint = entry?.endpoint, let wire = entry?.wire {
                 triedWire.insert(peer.id)
+                PerchLog.record("desk.wire." + String(peer.id.uuidString.prefix(8)),
+                                "Dialling over the cable on \(wire.name). Found on: " + (entry?.routes.joined(separator: ", ") ?? "?"))
                 connect(endpoint, expected: peer.id, wire: wire)
                 continue
             }
@@ -728,25 +730,54 @@ final class KVMDeskNode: ObservableObject {
     /// one is given up only in `trust`, once the wired route has authenticated.
     private func wireUpdate() {
         for peer in membership.peers where peer.id != localID {
+            let tag = "desk.wire." + String(peer.id.uuidString.prefix(8))
             let entry = nearby.first { $0.id == peer.id.uuidString }
             let wire = entry?.wire
             if !KVMPeerPath.remembersWiredTry(triedWire.contains(peer.id), wire: wire?.name, lastWire: peerWire[peer.id]) {
                 triedWire.remove(peer.id)
             }
             peerWire[peer.id] = wire?.name
+            let seen = entry.map { $0.routes.joined(separator: ", ") } ?? "not discovered yet"
+            guard let wire, let endpoint = entry?.endpoint else {
+                PerchLog.note(tag, "No cable to this Mac. Found on: " + seen); continue
+            }
             // Only the Mac that dials first moves, the same way only one of them
             // redials a lost route, so a cable event adds one connection between
             // the two Macs rather than one from each.
-            guard localID.uuidString < peer.id.uuidString else { continue }
+            guard localID.uuidString < peer.id.uuidString else {
+                PerchLog.note(tag, "Cable on \(wire.name); the other Mac is the one that moves onto it"); continue
+            }
             let link = peerLinks[peer.id].flatMap { transport.links[$0] }
-            guard KVMPeerPath.movesToWire(wireFound: wire != nil, loopback: transport.localOnly,
+            let hold = Self.wireHold(loopback: transport.localOnly, connected: link?.ready == true,
+                                     linkIsWired: link?.wired == true, triedWire: triedWire.contains(peer.id),
+                                     dialInFlight: connecting[peer.id] != nil)
+            guard KVMPeerPath.movesToWire(wireFound: true, loopback: transport.localOnly,
                                           connected: link?.ready == true, linkIsWired: link?.wired == true,
                                           triedWire: triedWire.contains(peer.id),
-                                          dialInFlight: connecting[peer.id] != nil),
-                  let endpoint = entry?.endpoint, let wire else { continue }
+                                          dialInFlight: connecting[peer.id] != nil) else {
+                PerchLog.note(tag, "Cable on \(wire.name), staying put: " + (hold ?? "no reason recorded")); continue
+            }
             triedWire.insert(peer.id)
+            PerchLog.record(tag, "Moving onto the cable on \(wire.name). Found on: " + seen)
             connect(endpoint, expected: peer.id, wire: wire)
         }
+    }
+
+    /// Why a cable that is present is not being moved onto, or nil when nothing
+    /// is holding the move back.
+    ///
+    /// The reasons are in the same order the rule tests them, so the sentence
+    /// always names the one that actually decided. The wired path shipped
+    /// without any of this and could not be diagnosed on the very desk it was
+    /// written for: it simply stayed on Wi-Fi and said nothing.
+    static func wireHold(loopback: Bool, connected: Bool, linkIsWired: Bool,
+                         triedWire: Bool, dialInFlight: Bool) -> String? {
+        if !connected { return "there is no working connection to move yet" }
+        if linkIsWired { return "this Mac is already connected over the cable" }
+        if dialInFlight { return "a connection attempt is already running" }
+        if loopback { return "this Perch is running on loopback for testing" }
+        if triedWire { return "this cable has already been tried once" }
+        return nil
     }
     private func tick() {
         if pairingUntil != nil && !pairingOpen { closePairing() }

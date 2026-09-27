@@ -59,12 +59,17 @@ final class DeskPasteboardAccess {
     struct Inspection: Equatable {
         let changeCount: Int
         let assessment: DeskClipboardPolicy.Assessment
+        /// What the copy is, when it may be offered.
+        let what: DeskClipboardDescriptor?
     }
     let store: DeskPasteboardStore
     var timeout: Double
     private let queue = DispatchQueue(label: "Perch.desk.pasteboard", qos: .userInitiated)
     private var pending = 0
     private var stuck = false
+    /// The last inspection, reused while the copy is unchanged. Touched only on
+    /// the queue, so sizing a text copy reads its data once, not on every click.
+    private var inspected: Inspection?
     private final class Once { var done = false }
     init(store: DeskPasteboardStore, timeout: Double = 2) { self.store = store; self.timeout = timeout }
 
@@ -88,9 +93,51 @@ final class DeskPasteboardAccess {
 
     func poll(_ done: @escaping (Int?) -> Void) { run({ $0.changeCount }, late: nil, done) }
 
-    /// What the newest copy is, from its types alone. No data is read.
+    /// What the newest copy is. Its types decide everything except whether
+    /// text is small, which needs the size of its text, read here once per copy.
+    /// A concealed copy is refused from its types; none of its data is read.
     func inspect(limits: DeskClipboardLimits, _ done: @escaping (Inspection?) -> Void) {
-        run({ store in Inspection(changeCount: store.changeCount, assessment: DeskClipboardPolicy.assess(store.itemTypes(), limits: limits)) }, late: nil, done)
+        run({ [weak self] store in
+            let count = store.changeCount
+            if let cached = self?.inspected, cached.changeCount == count { return cached }
+            let types = store.itemTypes()
+            let assessment = DeskClipboardPolicy.assess(types, limits: limits)
+            let what: DeskClipboardDescriptor?
+            switch assessment {
+            case .withheld: what = nil
+            case .files:
+                // Their number and total size, from the file system alone.
+                let urls = types.indices.compactMap { index in
+                    store.data(item: index, type: DeskClipboardMarker.fileURL).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                }
+                let bytes = urls.reduce(0) { total, url in
+                    var info = stat()
+                    return total + (lstat(url.path, &info) == 0 && info.st_mode & S_IFMT == S_IFREG ? Int(info.st_size) : 0)
+                }
+                what = .init(kind: .files, count: max(1, urls.count), small: false, size: DeskClipboardPolicy.sizeIndex(bytes))
+            case .share(let plan):
+                // The size of what would be sent: the text, and the one image
+                // representation. Read once per copy; the answer is kept.
+                var total = 0
+                for (index, item) in plan.enumerated() {
+                    for type in item { total += store.data(item: index, type: type.identifier)?.count ?? 0 }
+                }
+                what = DeskClipboardDescriptor.describe(plan, bytes: total)
+            }
+            let value = Inspection(changeCount: count, assessment: assessment, what: what)
+            self?.inspected = value
+            return value
+        }, late: nil, done)
+    }
+
+    /// The file URLs the pasteboard holds now, and its change count.
+    func files(_ done: @escaping ((changeCount: Int, urls: [URL])?) -> Void) {
+        run({ store in
+            let urls = store.itemTypes().indices.compactMap { index in
+                store.data(item: index, type: DeskClipboardMarker.fileURL).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+            }
+            return (store.changeCount, urls)
+        }, late: nil, done)
     }
 
     /// The copy with this change count, or why it cannot be sent. The markers
@@ -130,57 +177,64 @@ final class DeskPasteboardAccess {
         }, late: .failure(.readTimedOut), done)
     }
 
-    /// Put a copy on the pasteboard only if nothing was copied here since the
-    /// fetch began: something newer made on this Mac always wins.
-    func write(_ content: DeskClipboardContent, ifUnchanged expected: Int, _ done: @escaping (Result<Int, DeskClipboardReason>) -> Void) {
-        replace(content.items.map { item in item.map { (type: $0.type.identifier, data: $0.data) } }, ifUnchanged: expected, done)
+    /// Put another Mac's copy on the pasteboard, only if nothing was copied
+    /// here since the fetch began (something newer made here always wins), and
+    /// with Perch's mark holding the copy's identity, so it is recognised as
+    /// received and never announced or sent on again.
+    func write(_ content: DeskClipboardContent, marker: UUID, ifUnchanged expected: Int, _ done: @escaping (Result<Int, DeskClipboardReason>) -> Void) {
+        replace(content.items.map { item in item.map { (type: $0.type.identifier, data: $0.data) } }, marker: marker, ifUnchanged: expected, done)
     }
 
-    /// Replace the pasteboard with these items (received files as file URLs,
-    /// for example) on the same terms.
-    func replace(_ items: [[(type: String, data: Data)]], ifUnchanged expected: Int, _ done: @escaping (Result<Int, DeskClipboardReason>) -> Void) {
+    /// Replace the pasteboard with these items (staged files as file URLs, for
+    /// example) on the same terms.
+    func replace(_ items: [[(type: String, data: Data)]], marker: UUID, ifUnchanged expected: Int, _ done: @escaping (Result<Int, DeskClipboardReason>) -> Void) {
+        let mark = (type: DeskClipboardMarker.received, data: Data(marker.uuidString.utf8))
         run({ store in
             guard store.changeCount == expected else { return .failure(.newerHere) }
-            return .success(store.replace(with: items))
+            return .success(store.replace(with: items.map { $0 + [mark] }))
         }, late: .failure(.writeFailed), done)
     }
 }
 
 /// Copy on one Mac of the desk, paste on another.
 ///
-/// **Nothing is sent when you copy.** When the keyboard arrives on this Mac, it
-/// asks the other Macs which copy is their newest and how long ago it was made,
-/// and fetches the newest one only if it is newer than this Mac's own.
+/// **Scott's design, September 27, 2026.** When something is copied on a Mac:
+/// - A copy that is only text, 64 KB or less in all, goes onto every other
+///   connected Mac's clipboard. The copying Mac announces it and each other Mac
+///   with sharing on fetches it at once, silently, so the content only ever
+///   reaches a Mac whose own consent is on.
+/// - Anything else (more text, any image, any file) is only announced: its kind,
+///   a size bucket, which Mac has it. ⌃⌥⌘V brings it over onto the clipboard of
+///   the Mac typing goes to, with a small progress popup that closes itself.
+///   After that every ordinary paste works: keyboard, menu or right-click.
+/// - A copy Perch put on a clipboard carries Perch's mark and is never announced
+///   or sent on again, so nothing echoes between Macs.
 ///
-/// **The paste never waits for the network.** Perch's desk connections and its
-/// input event tap both run on the main run loop. A pasteboard data promise is
-/// answered synchronously on the main thread while the pasting app waits; one
-/// that waited there for network data arriving on that same main thread would
-/// deadlock, and would freeze the shared pointer for everyone while it did. So
-/// text, rich text and images are never promised. The copy is fetched when the
-/// keyboard arrives (a click moves the keyboard, so this is still on demand,
-/// never on every copy) and written as ordinary data once it is complete and
-/// verified. A paste only ever reads data already on this Mac: before the fetch
-/// finishes it pastes what was there before, and a slow or dead peer costs a
-/// timeout here, never a hang there. Pasteboard reads and writes happen off the
-/// main thread with deadlines (`DeskPasteboardAccess`); so do compression, the
-/// content digest and decoding. Only small bounded steps run on main.
-///
-/// **Files land in Downloads**, the way AirDrop delivers, when the keyboard
-/// arrives: their names first, then each file streamed to disk, verified, and
-/// moved into place only once the whole copy is here. The pasteboard then holds
-/// those files, so any app pastes them as files, and a paste never waits for
-/// the network. See `DeskFileTransfer.swift`.
+/// **Nothing waits for the network on the main thread, and nothing is ever
+/// promised on the pasteboard.** Perch's desk connections and its input event
+/// tap both run on the main run loop; a pasteboard promise is answered on that
+/// same thread while the pasting app waits, so one that waited for the network
+/// would deadlock and freeze the shared pointer. Copies are written as ordinary
+/// data once they are here and verified, so every paste reads what is already
+/// on this Mac. Pasteboard reads and writes happen off the main thread with
+/// deadlines (`DeskPasteboardAccess`); so do compression, digests, decoding and
+/// all file work. Only small bounded steps run on main.
 ///
 /// **An older Perch is never sent anything but a hello.** Desk application
 /// messages are routed by their tag; a Perch without clipboard support routes
 /// this tag nowhere and ignores it (checked against the 2.0.297 sources). Every
 /// other clipboard message waits until that Mac has answered with a format both
 /// speak; `send` enforces that in one place.
+///
+/// **Defaults pending Scott's confirmation**, each decided in one place:
+/// - (a) Bring over acts for the Mac typing goes to: `bringOverTarget`.
+/// - (b) What is waiting clears when a newer copy appears anywhere, and when the
+///   Mac holding it leaves: `consider` and `peersChanged`.
+/// - (c) Bring over with nothing waiting does nothing: `bringOverHere`.
+/// - (d) Small text reaches only Macs with sharing on: `consider`.
+/// - (e) The shortcut and its conflicts: `DeskBringOverShortcut`.
 final class DeskClipboard {
     struct Timings {
-        /// How long to wait for the other Macs to say what they have.
-        var query = 1.0
         /// From asking for a copy to its manifest arriving.
         var reply = 5.0
         /// Between chunks.
@@ -191,10 +245,13 @@ final class DeskClipboard {
         var serveStall = 10.0
         /// How often a Mac that has not answered is greeted again.
         var hello = 30.0
-        var tick = 0.5
+        /// How often this Mac's clipboard is checked for a new copy.
+        var tick = 0.25
         /// Reading a file through once to take its digest before sending it:
         /// allowed this long per gigabyte, on top of `reply`.
         var digestPerGigabyte = 10.0
+        /// How often staged files are checked against `DeskFileStaging`'s rule.
+        var sweep = 30.0
     }
     /// Chunks in flight beyond the last acknowledgement. Pointer messages share
     /// the connection and queue behind whatever is in flight, so this bounds
@@ -208,26 +265,28 @@ final class DeskClipboard {
     /// Stay far below the send queue size at which the desk closes a link, and
     /// keep little queued ahead of the pointer.
     static let paceLimit = 256 * 1024
-    /// Space left free on the destination beyond the file itself.
+    /// Space left free on this Mac beyond the files being staged.
     static let spaceMargin: UInt64 = 64 * 1024 * 1024
 
     let link: DeskClipboardLink
     let pasteboard: DeskPasteboardAccess
+    let staging: DeskFileStaging
     var limits = DeskClipboardLimits()
     var fileLimits = DeskFileLimits()
     var timings = Timings()
     /// Whether this Mac takes part now: keyboard and mouse sharing is on here,
     /// and ready (not locked, access granted).
     var permitted: () -> Bool = { false }
-    /// Which Mac typing goes to while sharing is active; nil when it is not.
-    var keyboardComputer: () -> UUID? = { nil }
+    /// Draws the bring-over popup. Nil draws nothing.
+    var presenter: DeskPastePresenting?
+    /// What is waiting changed; the menu bar's status follows it.
+    var waitingChanged: () -> Void = {}
     var clock: () -> Double = { ProcessInfo.processInfo.systemUptime }
     var after: (Double, @escaping () -> Void) -> Void = { delay, work in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work) }
-    /// Where received files land: this Mac's Downloads folder.
-    var receiveFolder: () -> URL? = { FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
-    /// Free space where files are about to land.
+    /// Free space on the volume files are staged on.
     var freeSpace: (URL) -> UInt64? = { directory in
-        (try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage.map { UInt64(max(0, $0)) }
+        let probe = FileManager.default.fileExists(atPath: directory.path) ? directory : FileManager.default.homeDirectoryForCurrentUser
+        return (try? probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage.map { UInt64(max(0, $0)) }
     }
     /// Heavy, pure work: sealing, digests, decompression, decoding.
     var work = DispatchQueue(label: "Perch.desk.clipboard", qos: .userInitiated)
@@ -242,23 +301,32 @@ final class DeskClipboard {
     private var helloSent: [UUID: Double] = [:]
     private var noted: [UUID: DeskClipboardReason] = [:]
 
-    private struct Copy { let id: UUID; let changeCount: Int; let at: Double? }
-    /// This Mac's newest copy. `at` is nil for what was already on the
-    /// pasteboard when Perch started: its age is unknown, so it is never offered
-    /// and counts as older than any copy whose age is known.
+    /// What this Mac's clipboard holds. `at` is when it was copied, on this
+    /// Mac's clock, nil for what was already there when Perch started (never
+    /// announced). `received` marks a copy that came from another Mac.
+    private struct Copy { let id: UUID; let changeCount: Int; let at: Double?; var received: Bool }
     private var copy: Copy?
-    private var lastKeyboard: UUID?
+    /// The copy last announced, or judged not to be, so each is decided once.
+    private var announced: UUID?
+    private var announcing: UUID?
+    /// The newest copy this Mac knows of on the desk: which Mac holds it (nil
+    /// for this one) and when it was made, on this Mac's clock.
+    private var newest: (peer: UUID?, at: Double)?
 
-    private enum Answer {
-        case offer(copy: UUID, at: Double)
-        case withheld(DeskClipboardReason, at: Double?)
-        var at: Double? { switch self { case .offer(_, let at): return at; case .withheld(_, let at): return at } }
+    /// Another Mac's copy, newer than anything here, not yet on this Mac.
+    struct Waiting: Equatable {
+        let peer: UUID, copy: UUID, at: Double
+        let what: DeskClipboardDescriptor
     }
-    private struct Query { let id: UUID; var waiting: Set<UUID>; var answers: [UUID: Answer] }
-    private var query: Query?
+    private(set) var waiting: Waiting? { didSet { if waiting != oldValue { waitingChanged() } } }
 
+    private enum Mode { case silent, bringOver }
     private struct Incoming {
         let id: UUID, peer: UUID, copy: UUID, copyAt: Double, key: SymmetricKey
+        let mode: Mode
+        /// Fetching the names of files: the popup's progress follows the
+        /// files' own bytes, not this short list.
+        var files = false
         /// This Mac's change count when the fetch began.
         let expected: Int
         let started: Double
@@ -267,6 +335,8 @@ final class DeskClipboard {
         var finishing = false
     }
     private var incoming: Incoming?
+    /// The popup of the bring-over in flight.
+    private var progress: DeskPasteProgress?
 
     /// What this Mac sends: a sealed copy held in memory, or one file read from
     /// disk a chunk at a time.
@@ -288,7 +358,7 @@ final class DeskClipboard {
     /// asked for their names. Only these can be sent.
     private var served: (copy: UUID, files: [DeskSourceFile])?
 
-    /// Another Mac's copy of files on its way into this Mac's Downloads folder.
+    /// Another Mac's copy of files on its way into the staging folder.
     private struct FileIncoming {
         let id: UUID, key: SymmetricKey, sink: DeskFileSink, size: UInt64
         let started: Double
@@ -299,11 +369,9 @@ final class DeskClipboard {
     }
     private struct FileBatch {
         let id: UUID, peer: UUID, copy: UUID, copyAt: Double
-        /// This Mac's change count when the fetch began.
         let expected: Int
         let folder: URL
         let files: [DeskFileList.Entry]
-        let started: Double
         var total: UInt64 { files.reduce(0) { $0 + $1.size } }
         var index = 0
         var current: FileIncoming?
@@ -314,40 +382,48 @@ final class DeskClipboard {
         /// finishes on its own terms: its pasteboard write already refuses if
         /// anything newer was copied, and then removes what it placed.
         var placing = false
+        var cancelled = false
     }
     private var batch: FileBatch?
 
-    private var askTimes: [UUID: [Double]] = [:]
     private var fetchTimes: [UUID: [Double]] = [:]
     private var fileFetchTimes: [UUID: [Double]] = [:]
+    private var bringTimes: [UUID: [Double]] = [:]
     private var inbound: [UUID: (start: Double, count: Int)] = [:]
     private var timer: Timer?
+    private var nextSweep: Double = 0
 
-    init(link: DeskClipboardLink, pasteboard: DeskPasteboardAccess) {
-        self.link = link; self.pasteboard = pasteboard
+    init(link: DeskClipboardLink, pasteboard: DeskPasteboardAccess, staging: DeskFileStaging = DeskFileStaging(root: DeskFileStaging.standard)) {
+        self.link = link; self.pasteboard = pasteboard; self.staging = staging
     }
     deinit { timer?.invalidate() }
 
     /// Whether a transfer is under way in either direction, for tests and status.
-    var busy: Bool { incoming != nil || batch != nil || !outgoing.isEmpty || query != nil }
-    /// How much of the copy on its way here has arrived, 0 to 1, while one is.
-    var progress: Double? { incoming.map { $0.assembly?.fraction ?? 0 } }
-    /// How much of a copy of files on its way here has arrived, 0 to 1.
-    var fileProgress: Double? { batch.map { $0.total == 0 ? 0 : Double($0.received) / Double($0.total) } }
+    var busy: Bool { incoming != nil || batch != nil || !outgoing.isEmpty }
+    /// How far the bring-over in flight has come, 0 to 1.
+    var bringOverProgress: Double? { progress?.fraction }
 
     func start() {
         guard timer == nil else { return }
         pasteboard.poll { [weak self] count in if let count { self?.observe(count) } }
+        // A staged copy the clipboard still lists is kept; the rest go now.
+        pasteboard.files { [weak self] found in
+            guard let self else { return }
+            if let found { self.staging.adopt(found.urls, changeCount: found.changeCount) }
+            self.sweep()
+        }
+        nextSweep = clock() + timings.sweep
         timer = MainTimer.every(timings.tick) { [weak self] in self?.tick() }
-        announce()
+        greet()
     }
 
     func stop() {
         timer?.invalidate(); timer = nil
+        let shown = progress
         if incoming != nil { fail(.cancelled) }
         failBatch(.cancelled)
+        shown?.close()
         for id in Array(outgoing.keys) { stopSending(id, .cancelled, tell: true) }
-        query = nil
     }
 
     // MARK: The one gate
@@ -422,9 +498,10 @@ final class DeskClipboard {
     private func handle(_ message: DeskClipboardMessage, from peer: UUID) {
         switch message {
         case .hello(let theirs, let reply): greeted(theirs, reply: reply, by: peer)
-        case .ask(let id): answer(id, to: peer)
-        case .offer(let id, let copy, let age): answered(id, by: peer, .offer(copy: copy, at: clock() - Double(age) / 1000))
-        case .withheld(let id, let reason, let age): answered(id, by: peer, .withheld(reason, at: age.map { clock() - Double($0) / 1000 }))
+        case .copied(let copy, let age, let what): consider(copy, at: clock() - Double(age) / 1000, what: what, from: peer)
+        case .bringOver:
+            guard allow(&bringTimes, peer, limit: 10, per: 10) else { return }
+            bringOverHere()
         case .fetch(let transfer, let copy, let key): serve(transfer, copy: copy, key: key, to: peer)
         case .fileFetch(let transfer, let copy, let index, let key): serveFile(transfer, copy: copy, index: index, key: key, to: peer)
         case .manifest(let manifest):
@@ -438,6 +515,7 @@ final class DeskClipboard {
             else if let incoming, incoming.id == transfer, incoming.peer == peer {
                 self.incoming = nil
                 decide(.refusedBy(link.name(of: peer), transfer: transfer, reason))
+                finished(incoming, .failure(reason))
             } else if let batch, batch.current?.id == transfer, batch.peer == peer {
                 failBatch(reason, tell: false, refusedBy: true)
             }
@@ -450,6 +528,8 @@ final class DeskClipboard {
             if formats[peer] != common {
                 formats[peer] = common; noted[peer] = nil
                 decide(.peerSupports(link.name(of: peer), format: common))
+                // A Mac that has just arrived learns of this Mac's newest copy.
+                announceCopy(to: [peer])
             }
         } else {
             formats[peer] = nil
@@ -462,7 +542,7 @@ final class DeskClipboard {
     /// Greet every Mac that has not yet said which formats it speaks. A Perch
     /// without clipboard support ignores the greeting and is greeted again only
     /// every `timings.hello` seconds.
-    private func announce() {
+    private func greet() {
         let now = clock()
         for peer in link.peers where formats[peer] == nil && !incompatible.contains(peer) {
             if let sent = helloSent[peer], now - sent < timings.hello { continue }
@@ -472,7 +552,8 @@ final class DeskClipboard {
     }
 
     /// The desk's online Macs changed. A Mac that left may come back running a
-    /// different Perch, so what it said is forgotten.
+    /// different Perch, so what it said is forgotten, and what it held is no
+    /// longer waiting (default (b)).
     func peersChanged() {
         let online = link.peers
         for peer in Set(formats.keys).union(helloSent.keys).union(noted.keys).union(incompatible) where !online.contains(peer) {
@@ -480,103 +561,174 @@ final class DeskClipboard {
         }
         if let incoming, !online.contains(incoming.peer) { fail(.peerGone, tell: false) }
         if let batch, !online.contains(batch.peer) { failBatch(.peerGone, tell: false) }
+        if let waiting, !online.contains(waiting.peer) { self.waiting = nil }
         for (id, out) in outgoing where !online.contains(out.peer) { stopSending(id, .peerGone, tell: false) }
-        if var query {
-            query.waiting = query.waiting.intersection(online)
-            self.query = query
-            if query.waiting.isEmpty { settle(query.id) }
-        }
-        announce()
+        greet()
     }
 
-    // MARK: This Mac's own copy
+    // MARK: This Mac's own copies
 
     private func observe(_ count: Int) {
-        if let copy, copy.changeCount == count { return }
+        staging.clipboardChanged(to: count, now: clock())
+        guard copy?.changeCount != count else { return }
         let first = copy == nil
-        copy = Copy(id: UUID(), changeCount: count, at: first ? nil : clock())
+        copy = Copy(id: UUID(), changeCount: count, at: first ? nil : clock(), received: false)
         // Files examined for an older copy can no longer be sent.
         served = nil
-        // Something was copied here while a fetch was on its way: this Mac's
-        // own newer copy wins, and the fetch is dropped at once.
-        if !first, incoming != nil { fail(.newerHere) }
-        if !first, batch != nil { failBatch(.newerHere) }
+        guard !first else { return }
+        // A copy made here is the newest on the desk: nothing is waiting for
+        // this Mac any more, and a fetch on its way here is dropped at once.
+        newest = (nil, clock())
+        waiting = nil
+        if incoming != nil { fail(.newerHere) }
+        if batch != nil { failBatch(.newerHere) }
+        announceCopy()
+    }
+
+    /// Tell the other Macs about this Mac's newest copy, once. A copy Perch put
+    /// here from another Mac is recognised by its mark and never announced:
+    /// that is what stops a copy echoing back or being relayed onwards. A copy
+    /// marked concealed, transient or generated leaves no trace on other Macs.
+    private func announceCopy(to only: [UUID]? = nil) {
+        guard let copy, !copy.received, let at = copy.at, permitted() else { return }
+        guard only != nil || (announced != copy.id && announcing != copy.id) else { return }
+        let id = copy.id
+        if only == nil { announcing = id }
+        pasteboard.inspect(limits: limits) { [weak self] inspection in
+            guard let self else { return }
+            if only == nil, self.announcing == id { self.announcing = nil }
+            guard let inspection, let current = self.copy, current.id == id else { return }
+            guard inspection.changeCount == current.changeCount else { self.observe(inspection.changeCount); return }
+            if only == nil { self.announced = id }
+            switch inspection.assessment {
+            case .withheld(.received):
+                self.copy?.received = true
+                return
+            case .withheld(let reason) where [.concealed, .transient, .autoGenerated].contains(reason):
+                self.decide(.notAnnounced(reason))
+                return
+            default: break
+            }
+            let age = UInt32(clamping: Int(max(0, (self.clock() - at) * 1000)))
+            let told = (only ?? Array(self.link.peers)).filter { self.send(.copied(copy: id, age: age, what: inspection.what), to: $0) }
+            if !told.isEmpty { self.decide(.announced(to: told.map { self.link.name(of: $0) }.sorted())) }
+        }
+    }
+
+    /// Another Mac copied something. Newer than anything this Mac knows of, it
+    /// replaces what is waiting here (default (b)): small text comes straight
+    /// onto this clipboard while sharing is on here (default (d)); anything else
+    /// waits for ⌃⌥⌘V; a copy that cannot be brought over just clears it.
+    private func consider(_ copyID: UUID, at: Double, what: DeskClipboardDescriptor?, from peer: UUID) {
+        // The same copy announced again (after a reconnect, say) is recognised
+        // by its identity, never by a time that network jitter can nudge.
+        if copy?.id == copyID || (waiting?.copy == copyID && waiting?.peer == peer) { return }
+        if let newest, at <= newest.at { return }
+        newest = (peer, at)
+        // Whatever was on its way here is older now.
+        if incoming != nil { fail(.newerThere) }
+        if batch != nil { failBatch(.newerThere) }
+        guard let what else { waiting = nil; decide(.newerElsewhere(from: link.name(of: peer))); return }
+        waiting = Waiting(peer: peer, copy: copyID, at: at, what: what)
+        if what.small, permitted() { fetch(copyID, at: at, from: peer, mode: .silent) }
+        else { decide(.waiting(from: link.name(of: peer))) }
     }
 
     func tick() {
-        announce()
+        greet()
         guard permitted() else {
             if incoming != nil { fail(.sharingOffHere) }
             failBatch(.sharingOffHere)
             for id in Array(outgoing.keys) { stopSending(id, .sharingOffHere, tell: true) }
             return
         }
-        keyboardMoved()
         pasteboard.poll { [weak self] count in if let count { self?.observe(count) } }
+        // A copy made while sharing was off, or whose first look timed out, is
+        // announced now.
+        announceCopy()
         let now = clock()
         for (id, out) in outgoing where now - out.lastAck > timings.serveStall { stopSending(id, .timedOut, tell: true) }
+        if now >= nextSweep { nextSweep = now + timings.sweep; sweep() }
     }
 
-    // MARK: Asking, when the keyboard arrives
+    // MARK: Bringing it over
 
-    /// Typing may have moved. When it arrives on this Mac from another one, ask.
-    /// Gaps while control changes hands are skipped, so a handoff reads as one move.
-    func keyboardMoved() {
-        guard let now = keyboardComputer() else { return }
-        let previous = lastKeyboard
-        lastKeyboard = now
-        guard now == link.localID, let previous, previous != link.localID else { return }
-        keyboardArrived()
+    /// Default (a): bring over acts for the Mac typing goes to (the last one
+    /// clicked), whichever Mac's keyboard pressed the keys; with sharing not
+    /// running, that is this Mac.
+    static func bringOverTarget(keyboard: UUID?, local: UUID) -> UUID { keyboard ?? local }
+
+    /// ⌃⌥⌘V was pressed on this Mac's keyboard. `keyboard` is where typing goes.
+    func bringOver(keyboard: UUID?) {
+        let target = Self.bringOverTarget(keyboard: keyboard, local: link.localID)
+        guard target != link.localID else { bringOverHere(); return }
+        guard permitted() else { decide(.notBringing(.sharingOffHere)); return }
+        if send(.bringOver, to: target) { decide(.askedToBringOver(on: link.name(of: target))) }
     }
 
-    func keyboardArrived() {
-        guard permitted() else { decide(.notAsking(.sharingOffHere)); return }
-        // One question at a time; the one in flight answers this arrival too.
-        guard query == nil, incoming == nil, batch == nil else { return }
-        guard copy != nil else { decide(.notAsking(.notReady)); return }
-        let id = UUID()
-        // Every online Mac is offered the question, and `send` alone decides who
-        // may receive it. A Mac that never answered a hello is not asked.
-        let asked = Set(link.peers.filter { send(.ask(query: id), to: $0) })
-        guard !asked.isEmpty else { decide(.notAsking(.notSupported)); return }
-        query = Query(id: id, waiting: asked, answers: [:])
-        after(timings.query) { [weak self] in self?.settle(id) }
-    }
-
-    private func answered(_ id: UUID, by peer: UUID, _ answer: Answer) {
-        guard var query, query.id == id, query.waiting.remove(peer) != nil else { return }
-        query.answers[peer] = answer
-        self.query = query
-        if query.waiting.isEmpty { settle(id) }
-    }
-
-    /// Choose: the youngest copy on the desk wins, this Mac's own included.
-    private func settle(_ id: UUID) {
-        guard let query, query.id == id else { return }
-        self.query = nil
-        guard permitted() else { decide(.notAsking(.sharingOffHere)); return }
-        guard !query.answers.isEmpty else { decide(.noAnswer); return }
-        let named = query.answers.sorted { link.name(of: $0.key) < link.name(of: $1.key) }
-        guard let best = named.compactMap({ peer, answer in answer.at.map { (peer: peer, answer: answer, at: $0) } }).max(by: { $0.at < $1.at }) else {
-            // No Mac reported a copy whose age it knows. Name the first reason given.
-            for (peer, answer) in named { if case .withheld(let reason, _) = answer { decide(.notShared(from: link.name(of: peer), reason)); return } }
-            decide(.newestHere)
-            return
+    /// Bring what is waiting onto this Mac's clipboard, with the popup.
+    func bringOverHere() {
+        guard permitted() else { decide(.notBringing(.sharingOffHere)); return }
+        // Default (c): nothing waiting, nothing happens.
+        guard let waiting else { decide(.nothingWaiting); return }
+        // One at a time; a second press while one is coming is the same request.
+        guard progress == nil else { return }
+        guard link.peers.contains(waiting.peer), formats[waiting.peer] != nil else {
+            self.waiting = nil; decide(.notBringing(.peerGone)); return
         }
-        if case .offer(let copyID, _) = best.answer, copyID == copy?.id { decide(.alreadyHere(from: link.name(of: best.peer))); return }
-        if let own = copy?.at, own >= best.at { decide(.newestHere); return }
-        switch best.answer {
-        case .withheld(let reason, _): decide(.notShared(from: link.name(of: best.peer), reason))
-        case .offer(let copyID, let at): fetch(copyID, at: at, from: best.peer)
+        // Small text already on its way silently is brought over with the popup instead.
+        if incoming != nil { fail(.cancelled) }
+        let from = link.name(of: waiting.peer)
+        let shown = DeskPasteProgress(title: DeskPasteProgress.title(waiting.what, from: from), clock: clock, after: after)
+        shown.onCancel = { [weak self] in self?.cancelBringOver() }
+        progress = shown
+        presenter?.present(shown)
+        decide(.bringing(from: from))
+        fetch(waiting.copy, at: waiting.at, from: waiting.peer, mode: .bringOver)
+    }
+
+    /// The person pressed Cancel.
+    private func cancelBringOver() {
+        if let incoming, incoming.mode == .bringOver { fail(.cancelled) }
+        else if batch != nil {
+            batch?.cancelled = true
+            failBatch(.cancelled)
+        }
+    }
+
+    /// Copies that will not arrive however often they are asked for stop
+    /// waiting; one that failed for a passing reason stays, and bringing it
+    /// over again retries.
+    static func stopsWaiting(_ reason: DeskClipboardReason) -> Bool {
+        [.tooLarge, .folders, .links, .unreadable, .unsupported, .unsafeName, .concealed, .transient, .autoGenerated, .unknownCopy, .changed].contains(reason)
+    }
+
+    /// A fetch ended. Updates what is waiting and the popup.
+    private func finished(_ incoming: Incoming, _ outcome: Result<Void, DeskClipboardReason>) {
+        switch outcome {
+        case .success:
+            if waiting?.copy == incoming.copy { waiting = nil }
+        case .failure(let reason):
+            if Self.stopsWaiting(reason), waiting?.copy == incoming.copy { waiting = nil }
+        }
+        guard incoming.mode == .bringOver, let shown = progress else { return }
+        progress = nil
+        switch outcome {
+        case .success: shown.finish()
+        case .failure(let reason): shown.fail(DeskPasteProgress.line(for: reason, from: link.name(of: incoming.peer)))
         }
     }
 
     // MARK: Fetching a copy (or the names of its files)
 
-    private func fetch(_ copyID: UUID, at: Double, from peer: UUID) {
+    /// The most a silent fetch may bring: small text and the few bytes around it.
+    private static let silentPayload = DeskClipboardDescriptor.smallText + 1024
+
+    private func fetch(_ copyID: UUID, at: Double, from peer: UUID, mode: Mode) {
         guard let expected = copy?.changeCount else { return }
         let transfer = UUID(), key = SymmetricKey(size: .bits256)
-        incoming = Incoming(id: transfer, peer: peer, copy: copyID, copyAt: at, key: key, expected: expected,
+        incoming = Incoming(id: transfer, peer: peer, copy: copyID, copyAt: at, key: key, mode: mode,
+                            files: waiting?.copy == copyID && waiting?.what.kind == .files, expected: expected,
                             started: clock(), lastProgress: clock())
         decide(.fetching(from: link.name(of: peer), transfer: transfer))
         guard send(.fetch(transfer: transfer, copy: copyID, key: key.withUnsafeBytes { Data($0) }), to: peer) else { fail(.peerGone, tell: false); return }
@@ -602,14 +754,17 @@ final class DeskClipboard {
         self.incoming = nil
         if tell { send(.cancel(transfer: incoming.id, reason: reason), to: incoming.peer) }
         decide(.failed(from: link.name(of: incoming.peer), transfer: incoming.id, reason, detail: detail))
+        finished(incoming, .failure(reason))
     }
 
     private func manifestArrived(_ manifest: DeskClipboardManifest, from peer: UUID) {
         guard let incoming, incoming.peer == peer, incoming.id == manifest.transfer, incoming.assembly == nil,
               let format = formats[peer] else { return }
         do {
+            // Unasked, only small text comes, whatever the other Mac says it sends.
+            let most = incoming.mode == .silent ? Self.silentPayload : limits.total
             let assembly = try DeskClipboardAssembly(manifest, transfer: incoming.id, copy: incoming.copy, key: incoming.key,
-                                                     format: format, maximumPayload: limits.total)
+                                                     format: format, maximumPayload: most)
             self.incoming?.assembly = assembly
             self.incoming?.lastProgress = clock()
             send(.ack(transfer: incoming.id, next: 0), to: peer)
@@ -627,6 +782,7 @@ final class DeskClipboard {
         catch let failure as DeskClipboardAssembly.Failure { fail(.corrupt, detail: failure.detail); return }
         catch { fail(.corrupt, detail: "unreadable chunk"); return }
         self.incoming?.lastProgress = clock()
+        if incoming.mode == .bringOver, !incoming.files { progress?.advance(to: assembly.fraction) }
         send(.ack(transfer: transfer, next: assembly.next), to: peer)
         guard assembly.complete else { return }
         self.incoming?.finishing = true
@@ -637,11 +793,11 @@ final class DeskClipboard {
             catch let failure as DeskClipboardAssembly.Failure { result = .failure(failure) }
             catch let reason as DeskClipboardReason { result = .failure(.declined(reason)) }
             catch { result = .failure(.content("does not follow the format")) }
-            DispatchQueue.main.async { [weak self] in self?.finished(transfer, result) }
+            DispatchQueue.main.async { [weak self] in self?.arrived(transfer, result) }
         }
     }
 
-    private func finished(_ id: UUID, _ result: Result<DeskClipboardPayload, DeskClipboardAssembly.Failure>) {
+    private func arrived(_ id: UUID, _ result: Result<DeskClipboardPayload, DeskClipboardAssembly.Failure>) {
         guard let incoming, incoming.id == id else { return }
         let from = link.name(of: incoming.peer)
         switch result {
@@ -649,40 +805,63 @@ final class DeskClipboard {
             // Everything arrived intact; this Mac says no, by name.
             self.incoming = nil
             decide(.discarded(transfer: id, reason))
+            finished(incoming, .failure(reason))
         case .failure(let failure): fail(.corrupt, detail: failure.detail)
         case .success(.content(let content)):
-            pasteboard.write(content, ifUnchanged: incoming.expected) { [weak self] outcome in
+            if incoming.mode == .silent {
+                let text = content.items.allSatisfy { $0.allSatisfy { !$0.type.isImage } }
+                guard text, content.byteCount <= DeskClipboardDescriptor.smallText else {
+                    fail(.corrupt, detail: "more than small text arrived unasked"); return
+                }
+            }
+            pasteboard.write(content, marker: incoming.copy, ifUnchanged: incoming.expected) { [weak self] outcome in
                 guard let self, self.incoming?.id == id else { return }
                 self.incoming = nil
                 switch outcome {
                 case .success(let count):
-                    self.copy = Copy(id: incoming.copy, changeCount: count, at: incoming.copyAt)
+                    self.copy = Copy(id: incoming.copy, changeCount: count, at: incoming.copyAt, received: true)
                     self.served = nil
+                    self.staging.clipboardChanged(to: count, now: self.clock())
                     self.decide(.received(from: from, transfer: id, size: DeskClipboardPolicy.sizeBucket(content.byteCount)))
-                case .failure(let reason): self.decide(.discarded(transfer: id, reason))
+                    self.finished(incoming, .success(()))
+                case .failure(let reason):
+                    self.decide(.discarded(transfer: id, reason))
+                    self.finished(incoming, .failure(reason))
                 }
             }
-        case .success(.files(let list)): beginBatch(list, from: incoming)
+        case .success(.files(let list)):
+            guard incoming.mode == .bringOver else { fail(.corrupt, detail: "files arrived unasked"); return }
+            beginBatch(list, from: incoming)
         }
     }
 
     // MARK: Bringing a copy's files
 
     /// The names have arrived. Make each safe, check there is room, then bring
-    /// the files one by one into hidden temporary files.
+    /// the files one by one into a staging folder of their own.
     private func beginBatch(_ list: DeskFileList, from incoming: Incoming) {
         self.incoming = nil
         // A name that cannot be made safe refuses the whole copy rather than
         // inventing one.
         let safe = list.files.map { entry in DeskFileNames.sanitize(entry.name).map { DeskFileList.Entry(name: $0, size: entry.size) } }
-        guard safe.allSatisfy({ $0 != nil }) else { decide(.discarded(transfer: incoming.id, .unsafeName)); return }
-        guard let folder = receiveFolder()?.standardizedFileURL else { decide(.discarded(transfer: incoming.id, .writeFailed)); return }
-        if let free = freeSpace(folder), free < list.total + Self.spaceMargin {
-            decide(.discarded(transfer: incoming.id, .noSpace)); return
+        guard safe.allSatisfy({ $0 != nil }) else {
+            decide(.discarded(transfer: incoming.id, .unsafeName)); finished(incoming, .failure(.unsafeName)); return
+        }
+        if let free = freeSpace(staging.root), free < list.total + Self.spaceMargin {
+            decide(.discarded(transfer: incoming.id, .noSpace)); finished(incoming, .failure(.noSpace)); return
         }
         batch = FileBatch(id: incoming.id, peer: incoming.peer, copy: incoming.copy, copyAt: incoming.copyAt, expected: incoming.expected,
-                          folder: folder, files: safe.compactMap { $0 }, started: clock())
-        nextFile()
+                          folder: staging.folder(incoming.id), files: safe.compactMap { $0 })
+        let staging = self.staging, id = incoming.id
+        disk.async { [weak self] in
+            let ready: Bool
+            do { try staging.prepare(id); ready = true } catch { ready = false }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.batch?.id == id else { return }
+                guard ready else { self.failBatch(.writeFailed, tell: false); return }
+                self.nextFile()
+            }
+        }
     }
 
     private func nextFile() {
@@ -722,16 +901,23 @@ final class DeskClipboard {
         }
     }
 
-    /// End the copy on its way here and remove everything it wrote: the file in
-    /// progress and every verified one not yet in place.
+    /// Stand-in for the fetch a batch replaced, so `finished` treats both alike.
+    private func asIncoming(_ batch: FileBatch) -> Incoming {
+        Incoming(id: batch.id, peer: batch.peer, copy: batch.copy, copyAt: batch.copyAt, key: SymmetricKey(size: .bits256),
+                 mode: .bringOver, files: true, expected: batch.expected, started: 0, lastProgress: 0)
+    }
+
+    /// End the copy on its way here and remove its staging folder, partial and
+    /// verified files alike (rule 1 of `DeskFileStaging`).
     private func failBatch(_ reason: DeskClipboardReason, detail: String? = nil, tell: Bool = true, refusedBy: Bool = false) {
         guard let batch, !batch.placing else { return }
         self.batch = nil
-        let sinks = batch.done + (batch.current.map { [$0.sink] } ?? [])
-        disk.async { sinks.forEach { $0.discard() } }
+        let sinks = batch.done + (batch.current.map { [$0.sink] } ?? []), staging = self.staging, id = batch.id
+        disk.async { sinks.forEach { $0.discard() }; staging.remove(id) }
         if tell, let current = batch.current { send(.cancel(transfer: current.id, reason: reason), to: batch.peer) }
         let from = link.name(of: batch.peer), transfer = batch.current?.id ?? batch.id
         decide(refusedBy ? .refusedBy(from, transfer: transfer, reason) : .failed(from: from, transfer: transfer, reason, detail: detail))
+        finished(asIncoming(batch), .failure(reason))
     }
 
     private func fileManifestArrived(_ manifest: DeskClipboardManifest, from peer: UUID) {
@@ -769,6 +955,7 @@ final class DeskClipboard {
                 self.batch?.current?.written += 1
                 self.batch?.received += UInt64(part.count)
                 self.batch?.current?.lastProgress = self.clock()
+                if let batch = self.batch, batch.total > 0 { self.progress?.advance(to: Double(batch.received) / Double(batch.total)) }
                 let written = self.batch?.current?.written ?? 0
                 self.send(.ack(transfer: transfer, next: written), to: peer)
                 if written == count { self.verifyFile(transfer, digest: digest) }
@@ -796,14 +983,14 @@ final class DeskClipboard {
         }
     }
 
-    /// Every file is here and verified. Mark them as downloaded, give each a
-    /// name that does not exist yet, and put them on the pasteboard, unless
-    /// something newer was copied here meanwhile. If any step fails, none of
-    /// the copy stays.
+    /// Every file is here and verified. Mark them as downloaded, give each its
+    /// name in the staging folder, and put them on the clipboard as files,
+    /// unless something newer was copied here meanwhile or the person pressed
+    /// Cancel. If any step fails, none of the copy stays.
     private func placeBatch() {
         guard let batch else { return }
         self.batch?.placing = true
-        let sinks = batch.done, id = batch.id
+        let sinks = batch.done, id = batch.id, staging = self.staging
         disk.async { [weak self] in
             var placed: [URL] = [], reason: DeskClipboardReason?
             for sink in sinks {
@@ -811,33 +998,51 @@ final class DeskClipboard {
                 catch let failure as DeskClipboardReason { reason = failure; break }
                 catch { reason = .writeFailed; break }
             }
-            if reason != nil {
-                sinks.forEach { $0.discard() }
-                placed.forEach { unlink($0.path) }
-            }
+            if reason != nil { sinks.forEach { $0.discard() }; staging.remove(id) }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.batch?.id == id else { placed.forEach { unlink($0.path) }; return }
-                if let reason {
+                guard let self, let current = self.batch, current.id == id else { staging.remove(id); return }
+                let failure = reason ?? (current.cancelled ? .cancelled : nil)
+                if let failure {
                     self.batch = nil
-                    self.decide(.failed(from: self.link.name(of: batch.peer), transfer: id, reason, detail: nil))
+                    if reason == nil { self.disk.async { staging.remove(id) } }
+                    self.decide(.failed(from: self.link.name(of: batch.peer), transfer: id, failure, detail: nil))
+                    self.finished(self.asIncoming(batch), .failure(failure))
                     return
                 }
                 let items = placed.map { [(type: DeskClipboardMarker.fileURL, data: $0.dataRepresentation)] }
-                self.pasteboard.replace(items, ifUnchanged: batch.expected) { [weak self] outcome in
+                self.pasteboard.replace(items, marker: batch.copy, ifUnchanged: batch.expected) { [weak self] outcome in
                     guard let self, self.batch?.id == id else { return }
                     self.batch = nil
                     let from = self.link.name(of: batch.peer)
                     switch outcome {
                     case .success(let count):
-                        self.copy = Copy(id: batch.copy, changeCount: count, at: batch.copyAt)
+                        self.copy = Copy(id: batch.copy, changeCount: count, at: batch.copyAt, received: true)
                         self.served = nil
+                        self.staging.placed(id, changeCount: count, now: self.clock())
                         self.decide(.received(from: from, transfer: id, size: DeskClipboardPolicy.sizeBucket(Int(clamping: batch.total))))
+                        self.finished(self.asIncoming(batch), .success(()))
                     case .failure(let reason):
-                        // Never the clipboard, so never left behind.
-                        self.disk.async { placed.forEach { unlink($0.path) } }
+                        // Never on the clipboard, so never kept.
+                        self.disk.async { staging.remove(id) }
                         self.decide(.discarded(transfer: id, reason))
+                        self.finished(self.asIncoming(batch), .failure(reason))
                     }
                 }
+            }
+        }
+    }
+
+    /// Apply `DeskFileStaging`'s rule now: list the staging folder off the main
+    /// thread and remove what may go.
+    func sweep() {
+        let staging = self.staging, onClipboard = staging.onClipboard?.id, active = batch?.id, leftAt = staging.leftAt, now = clock()
+        disk.async { [weak self] in
+            let gone = DeskFileStaging.removable(present: staging.present(), onClipboard: onClipboard, active: active, leftAt: leftAt, now: now)
+            gone.forEach { staging.remove($0) }
+            DispatchQueue.main.async { [weak self] in
+                guard !gone.isEmpty else { return }
+                staging.forget(gone)
+                self?.decide(.cleaned(gone.count))
             }
         }
     }
@@ -853,57 +1058,29 @@ final class DeskClipboard {
         return true
     }
 
-    private func withhold(_ id: UUID, _ reason: DeskClipboardReason, age: UInt32? = nil, to peer: UUID) {
-        send(.withheld(query: id, reason: reason, age: age), to: peer)
-        decide(.withheld(to: link.name(of: peer), reason))
-    }
-
-    /// Questions waiting for the one pasteboard inspection in flight. Every
-    /// Mac asking at the same moment gets the same, single look.
-    private var questions: [(id: UUID, peer: UUID)] = []
-
-    private func answer(_ id: UUID, to peer: UUID) {
-        guard allow(&askTimes, peer, limit: 20, per: 10) else { withhold(id, .rateLimited, to: peer); return }
-        guard permitted() else { withhold(id, .sharingOff, to: peer); return }
-        questions.append((id, peer))
-        guard questions.count == 1 else { return }
-        pasteboard.inspect(limits: limits) { [weak self] inspection in
-            guard let self else { return }
-            let waiting = self.questions
-            self.questions = []
-            if let inspection { self.observe(inspection.changeCount) }
-            for (id, peer) in waiting {
-                guard self.permitted() else { self.withhold(id, .sharingOff, to: peer); continue }
-                guard let inspection else { self.withhold(id, .readTimedOut, to: peer); continue }
-                guard let copy = self.copy, let at = copy.at else { self.withhold(id, .noCopy, to: peer); continue }
-                let age = UInt32(clamping: Int(max(0, (self.clock() - at) * 1000)))
-                switch inspection.assessment {
-                case .withheld(let reason): self.withhold(id, reason, age: age, to: peer)
-                case .share, .files:
-                    self.send(.offer(query: id, copy: copy.id, age: age), to: peer)
-                    self.decide(.offered(to: self.link.name(of: peer)))
-                }
-            }
-        }
-    }
-
     private func refuse(_ transfer: UUID, _ reason: DeskClipboardReason, to peer: UUID) {
         send(.refuse(transfer: transfer, reason: reason), to: peer)
         decide(.refused(to: link.name(of: peer), transfer: transfer, reason))
     }
 
     /// One copy to each Mac at a time and one file to each Mac at a time; three
-    /// transfers at most in all.
+    /// transfers at most in all. A Mac asks for one copy or file at a time, so a
+    /// new request from it replaces whatever it asked for before: that one was
+    /// abandoned (it lost this Mac for a moment, or gave up), and waiting for
+    /// its stall timer would refuse the new one as busy.
     private func busySending(to peer: UUID, file: Bool) -> Bool {
-        outgoing.values.contains { $0.peer == peer && $0.file == file } || outgoing.count >= 3
+        for (id, out) in outgoing where out.peer == peer && out.file == file { stopSending(id, .cancelled, tell: false) }
+        return outgoing.count >= 3
     }
 
+    /// Only this Mac's own newest copy is ever sent, and only the one announced:
+    /// never one that came from another Mac.
     private func serve(_ transfer: UUID, copy copyID: UUID, key: Data, to peer: UUID) {
         guard key.count == 32 else { return }
-        guard allow(&fetchTimes, peer, limit: 12, per: 60) else { refuse(transfer, .rateLimited, to: peer); return }
+        guard allow(&fetchTimes, peer, limit: 60, per: 60) else { refuse(transfer, .rateLimited, to: peer); return }
         guard permitted() else { refuse(transfer, .sharingOff, to: peer); return }
         guard outgoing[transfer] == nil, !busySending(to: peer, file: false) else { refuse(transfer, .busy, to: peer); return }
-        guard let copy, copy.id == copyID, copy.at != nil, let format = formats[peer] else { refuse(transfer, .unknownCopy, to: peer); return }
+        guard let copy, copy.id == copyID, !copy.received, copy.at != nil, let format = formats[peer] else { refuse(transfer, .unknownCopy, to: peer); return }
         outgoing[transfer] = Outgoing(peer: peer, key: SymmetricKey(data: key), format: format, file: false, lastAck: clock())
         pasteboard.read(expecting: copy.changeCount, limits: limits, fileLimits: fileLimits) { [weak self] result in
             guard let self, let out = self.outgoing[transfer] else { return }
@@ -938,7 +1115,7 @@ final class DeskClipboard {
         guard allow(&fileFetchTimes, peer, limit: fileLimits.count + 20, per: 60) else { refuse(transfer, .rateLimited, to: peer); return }
         guard permitted() else { refuse(transfer, .sharingOff, to: peer); return }
         guard outgoing[transfer] == nil, !busySending(to: peer, file: true) else { refuse(transfer, .busy, to: peer); return }
-        guard let copy, copy.id == copyID, let served, served.copy == copyID, served.files.indices.contains(Int(index)),
+        guard let copy, copy.id == copyID, !copy.received, let served, served.copy == copyID, served.files.indices.contains(Int(index)),
               let format = formats[peer] else { refuse(transfer, .unknownCopy, to: peer); return }
         let file = served.files[Int(index)]
         let sealKey = SymmetricKey(data: key)

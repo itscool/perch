@@ -21,7 +21,7 @@ final class SystemDeskPasteboard: DeskPasteboardStore {
     }
     /// Writes ordinary data only, never a promise: a data promise would be
     /// answered on Perch's main thread while the pasting app waited. Received
-    /// files go on as their file URLs in Downloads; see `DeskClipboard`.
+    /// files go on as the file URLs of their staged copies; see `DeskClipboard`.
     func replace(with items: [[(type: String, data: Data)]]) -> Int {
         let written = items.map { representations -> NSPasteboardItem in
             let item = NSPasteboardItem()

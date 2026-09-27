@@ -6,8 +6,12 @@ import Foundation
 /// The rules, agreed with Scott on September 21, 2026 (TODO.md, "Shared
 /// clipboard, then file transfer"):
 ///
-/// - Nothing is sent when you copy. When the keyboard arrives on a Mac, that Mac
-///   asks the others which of them copied last, and fetches only that copy.
+/// - Scott's design, September 27, 2026, replacing the earlier "nothing is sent
+///   when you copy": a copy that is only text, 64 KB or less in all, goes onto
+///   every other connected Mac's clipboard as soon as it is copied. Anything
+///   else is only announced (its kind, a size bucket and which Mac has it),
+///   and comes over when ⌃⌥⌘V brings it, with a small progress popup. After
+///   that every ordinary paste works: keyboard, menu or right-click.
 /// - Only Macs already paired in the desk take part, and only while keyboard and
 ///   mouse sharing is on for the Mac ("Share on this Mac"). That switch is the
 ///   person's consent for the desk to act across Macs; there is no second one.
@@ -15,7 +19,7 @@ import Foundation
 ///   or generated automatically, is never offered at all (nspasteboard.org).
 /// - Only an allowlist of plain types crosses: plain text, rich text, HTML and
 ///   images. Never an app's private pasteboard types, which can hold anything.
-///   Files cross as files, into Downloads (DeskFileTransfer).
+///   Files cross as files, staged in a folder of Perch's own (DeskFileTransfer).
 /// - Contents, file names, types and exact sizes never reach the log. Sizes are
 ///   logged as buckets.
 enum DeskClipboardType: UInt8, CaseIterable {
@@ -53,6 +57,10 @@ enum DeskClipboardMarker {
     /// images, which must never be pasted in their place.
     static let fileURL = "public.file-url"
     static let legacyFileNames = "NSFilenamesPboardType"
+    /// Perch's own mark on a copy it brought from another Mac, holding that
+    /// copy's identity. A copy carrying it came from the desk and is never
+    /// announced or sent on again, whatever else changed: no echo, no relay.
+    static let received = "local.scott.perch.desk-copy"
 }
 
 /// Why a copy was not shared or a transfer ended. Every refusal and every
@@ -62,6 +70,7 @@ enum DeskClipboardReason: UInt8, CaseIterable {
     case changed, busy, rateLimited, readTimedOut, noCopy, unknownCopy, format
     case timedOut, cancelled, corrupt, newerHere, peerGone, notSupported, writeFailed, sharingOffHere, notReady
     case folders, links, unreadable, unsafeName, noSpace, quarantine
+    case received, newerThere
 
     /// The reason as a phrase that completes "because …". Plain feature terms.
     var text: String {
@@ -94,6 +103,8 @@ enum DeskClipboardReason: UInt8, CaseIterable {
         case .unsafeName: return "a file name in it could not be made safe"
         case .noSpace: return "there is not enough space for it on this Mac"
         case .quarantine: return "this Mac could not mark it as downloaded"
+        case .received: return "it came from another Mac of the desk"
+        case .newerThere: return "something newer was copied on another Mac"
         }
     }
 }
@@ -102,32 +113,35 @@ enum DeskClipboardReason: UInt8, CaseIterable {
 /// The log line is computed from the decision itself, so the two cannot
 /// disagree: there is no second place where a reason could be written.
 enum DeskClipboardDecision: Equatable {
-    /// Requesting side.
-    case newestHere
-    case alreadyHere(from: String)
-    case notShared(from: String, DeskClipboardReason)
-    case noAnswer
+    /// This Mac's own copies.
+    case announced(to: [String])
+    case notAnnounced(DeskClipboardReason)
+    /// Another Mac's copies.
+    case waiting(from: String)
+    case newerElsewhere(from: String)
     case fetching(from: String, transfer: UUID)
     case received(from: String, transfer: UUID, size: String)
     case refusedBy(String, transfer: UUID?, DeskClipboardReason)
     case failed(from: String, transfer: UUID, DeskClipboardReason, detail: String?)
     case discarded(transfer: UUID, DeskClipboardReason)
+    /// Bringing it over.
+    case bringing(from: String)
+    case nothingWaiting
+    case notBringing(DeskClipboardReason)
+    case askedToBringOver(on: String)
     /// Serving side.
-    case offered(to: String)
-    case withheld(to: String, DeskClipboardReason)
     case sent(to: String, transfer: UUID, size: String)
     case refused(to: String, transfer: UUID, DeskClipboardReason)
     case stoppedSending(to: String, transfer: UUID, DeskClipboardReason)
     /// The desk.
     case peerSupports(String, format: UInt8)
     case peerCannot(String, DeskClipboardReason)
-    case notAsking(DeskClipboardReason)
+    case cleaned(Int)
 
     var reason: DeskClipboardReason? {
         switch self {
-        case .notShared(_, let reason), .refusedBy(_, _, let reason), .failed(_, _, let reason, _), .discarded(_, let reason),
-             .withheld(_, let reason), .refused(_, _, let reason), .stoppedSending(_, _, let reason), .peerCannot(_, let reason),
-             .notAsking(let reason): return reason
+        case .notAnnounced(let reason), .refusedBy(_, _, let reason), .failed(_, _, let reason, _), .discarded(_, let reason),
+             .notBringing(let reason), .refused(_, _, let reason), .stoppedSending(_, _, let reason), .peerCannot(_, let reason): return reason
         default: return nil
         }
     }
@@ -138,26 +152,51 @@ enum DeskClipboardDecision: Equatable {
         func id(_ value: UUID?) -> String { value.map { " " + String($0.uuidString.prefix(8)) } ?? "" }
         func because(_ reason: DeskClipboardReason) -> String { " because " + reason.text }
         switch self {
-        case .newestHere: return "Paste stays as it is: the newest copy on the desk is on this Mac"
-        case .alreadyHere(let from): return "Paste stays as it is: this Mac already has the newest copy, from \(from)"
-        case .notShared(let from, let reason): return "Did not bring the newest copy from \(from)" + because(reason)
-        case .noAnswer: return "Paste stays as it is: no other Mac answered in time"
+        case .announced(let to): return "Told \(to.joined(separator: ", ")) about a new copy on this Mac"
+        case .notAnnounced(let reason): return "Kept a new copy on this Mac to itself" + because(reason)
+        case .waiting(let from): return "The newest copy is on \(from); ⌃⌥⌘V brings it here"
+        case .newerElsewhere(let from): return "The newest copy is on \(from) and cannot be brought over"
         case .fetching(let from, let transfer): return "Bringing the newest copy from \(from), transfer\(id(transfer))"
         case .received(let from, let transfer, let size): return "Brought the newest copy from \(from), transfer\(id(transfer)), \(size)"
         case .refusedBy(let from, let transfer, let reason): return "\(from) declined to send its copy\(transfer == nil ? "" : ", transfer" + id(transfer))" + because(reason)
         case .failed(let from, let transfer, let reason, let detail):
             return "Stopped bringing the copy from \(from), transfer\(id(transfer))" + because(reason) + (detail.map { " (\($0))" } ?? "")
         case .discarded(let transfer, let reason): return "Did not use transfer\(id(transfer))" + because(reason)
-        case .offered(let to): return "Told \(to) about this Mac's newest copy"
-        case .withheld(let to, let reason): return "Did not offer this Mac's newest copy to \(to)" + because(reason)
+        case .bringing(let from): return "Bringing over the newest copy, from \(from)"
+        case .nothingWaiting: return "Bring over did nothing: no newer copy is waiting on another Mac"
+        case .notBringing(let reason): return "Did not bring over the newest copy" + because(reason)
+        case .askedToBringOver(let on): return "Asked \(on), where typing goes, to bring over the newest copy"
         case .sent(let to, let transfer, let size): return "Sent this Mac's newest copy to \(to), transfer\(id(transfer)), \(size)"
         case .refused(let to, let transfer, let reason): return "Declined to send this Mac's copy to \(to), transfer\(id(transfer))" + because(reason)
         case .stoppedSending(let to, let transfer, let reason): return "Stopped sending to \(to), transfer\(id(transfer))" + because(reason)
         case .peerSupports(let name, let format): return "\(name) shares copies (format \(format))"
         case .peerCannot(let name, let reason): return "Copies are not shared with \(name)" + because(reason)
-        case .notAsking(let reason): return "Did not ask the other Macs for their newest copy" + because(reason)
+        case .cleaned(let count): return "Removed \(count) staged \(count == 1 ? "copy" : "copies") of files no longer on the clipboard"
         }
     }
+}
+
+/// What a copy is, as announced to the other Macs: its kind and count ("3
+/// photos"), a size bucket, and whether it is small text, which alone goes
+/// straight onto their clipboards. Never its contents or names.
+struct DeskClipboardDescriptor: Equatable {
+    enum Kind: UInt8 { case text = 1, image = 2, files = 3 }
+    var kind: Kind
+    var count: Int
+    var small: Bool
+    /// An index into `DeskClipboardPolicy.sizeBuckets`; 0 when not known.
+    var size: UInt8 = 0
+    /// Scott's line: text of 64 KB or less, every representation together.
+    static let smallText = 64 * 1024
+
+    /// From a copy's plan and the bytes it would send.
+    static func describe(_ plan: [[DeskClipboardType]], bytes: Int) -> Self {
+        let images = plan.filter { $0.contains { $0.isImage } }.count
+        if images > 0 { return .init(kind: .image, count: images, small: false, size: DeskClipboardPolicy.sizeIndex(bytes)) }
+        return .init(kind: .text, count: 1, small: bytes <= smallText, size: DeskClipboardPolicy.sizeIndex(bytes))
+    }
+    /// The size bucket in words, or nil when not known.
+    var sizeText: String? { DeskClipboardPolicy.sizeBuckets.indices.contains(Int(size) - 1) ? DeskClipboardPolicy.sizeBuckets[Int(size) - 1].name : nil }
 }
 
 /// How much Perch carries. Conservative first values; each is recorded in
@@ -188,7 +227,7 @@ enum DeskClipboardPolicy {
     enum Assessment: Equatable {
         case withheld(DeskClipboardReason)
         case share([[DeskClipboardType]])
-        /// Files: their names first, then each file, into Downloads.
+        /// Files: their names first, then each file, into Perch's staging folder.
         case files
     }
     static func assess(_ items: [[String]], limits: DeskClipboardLimits = .init()) -> Assessment {
@@ -198,6 +237,8 @@ enum DeskClipboardPolicy {
         if all.contains(DeskClipboardMarker.concealed) || !all.isDisjoint(with: DeskClipboardMarker.legacyConcealed) { return .withheld(.concealed) }
         if all.contains(DeskClipboardMarker.transient) || !all.isDisjoint(with: DeskClipboardMarker.legacyTransient) { return .withheld(.transient) }
         if all.contains(DeskClipboardMarker.autoGenerated) { return .withheld(.autoGenerated) }
+        // A copy Perch brought from another Mac is never offered again.
+        if all.contains(DeskClipboardMarker.received) { return .withheld(.received) }
         // A copy of files carries their names and icons too, which must never
         // be pasted in place of the files themselves.
         if all.contains(DeskClipboardMarker.fileURL) { return .files }
@@ -213,15 +254,11 @@ enum DeskClipboardPolicy {
         return .share(plan)
     }
 
-    /// Coarse size for the log: a bucket, never the exact number.
-    static func sizeBucket(_ bytes: Int) -> String {
-        switch bytes {
-        case ..<(64 * 1024): return "under 64 KB"
-        case ..<(1024 * 1024): return "64 KB to 1 MB"
-        case ..<(8 * 1024 * 1024): return "1 to 8 MB"
-        case ..<(32 * 1024 * 1024): return "8 to 32 MB"
-        case ..<(256 * 1024 * 1024): return "32 to 256 MB"
-        default: return "over 256 MB"
-        }
-    }
+    /// Coarse sizes: what the log and an announcement say, never the number.
+    static let sizeBuckets: [(below: Int, name: String)] = [
+        (64 * 1024, "under 64 KB"), (1024 * 1024, "64 KB to 1 MB"), (8 * 1024 * 1024, "1 to 8 MB"),
+        (32 * 1024 * 1024, "8 to 32 MB"), (256 * 1024 * 1024, "32 to 256 MB"), (Int.max, "over 256 MB")]
+    /// The bucket's index, counting from 1.
+    static func sizeIndex(_ bytes: Int) -> UInt8 { UInt8((sizeBuckets.firstIndex { bytes < $0.below } ?? sizeBuckets.count - 1) + 1) }
+    static func sizeBucket(_ bytes: Int) -> String { sizeBuckets[Int(sizeIndex(bytes)) - 1].name }
 }

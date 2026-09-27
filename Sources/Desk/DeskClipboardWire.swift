@@ -263,12 +263,16 @@ enum DeskClipboardMessage: Equatable {
     /// The formats this Mac speaks. The only message ever sent to a Mac that
     /// has not answered with one of its own.
     case hello(formats: [UInt8], reply: Bool)
-    /// "Which copy is your newest, and how long ago was it made?"
-    case ask(query: UUID)
-    /// Age in milliseconds, measured on the answering Mac's own clock, so the
-    /// two Macs' clocks never need to agree.
-    case offer(query: UUID, copy: UUID, age: UInt32)
-    case withheld(query: UUID, reason: DeskClipboardReason, age: UInt32?)
+    /// "Something was just copied on this Mac." Sent once per copy, by the Mac
+    /// it was copied on only, never by a Mac that received it. Its age in
+    /// milliseconds is measured on the sender's own clock, so the two Macs'
+    /// clocks never need to agree. `what` is its kind, count and size bucket,
+    /// never its contents or names; nil for a copy that cannot be brought over.
+    /// Inside the padded 1 KB envelope, so it changes nothing an observer sees.
+    case copied(copy: UUID, age: UInt32, what: DeskClipboardDescriptor?)
+    /// "Bring over the newest copy": sent to the Mac typing goes to by the Mac
+    /// whose keyboard pressed ⌃⌥⌘V.
+    case bringOver
     case fetch(transfer: UUID, copy: UUID, key: Data)
     /// One of a copy's files, asked for one by one once their names are in.
     case fileFetch(transfer: UUID, copy: UUID, index: UInt32, key: Data)
@@ -283,9 +287,10 @@ enum DeskClipboardMessage: Equatable {
         switch self {
         case .hello(let formats, let reply):
             w.u8(1); w.u8(UInt8(min(formats.count, 16))); formats.prefix(16).forEach { w.u8($0) }; w.u8(reply ? 1 : 0)
-        case .ask(let query): w.u8(2); w.uuid(query)
-        case .offer(let query, let copy, let age): w.u8(3); w.uuid(query); w.uuid(copy); w.u32(age)
-        case .withheld(let query, let reason, let age): w.u8(4); w.uuid(query); w.u8(reason.rawValue); w.u8(age == nil ? 0 : 1); w.u32(age ?? 0)
+        case .copied(let copy, let age, let what):
+            w.u8(12); w.uuid(copy); w.u32(age); w.u8(what == nil ? 0 : 1)
+            if let what { w.u8(what.kind.rawValue); w.u32(UInt32(clamping: what.count)); w.u8(what.small ? 1 : 0); w.u8(what.size) }
+        case .bringOver: w.u8(13)
         case .fetch(let transfer, let copy, let key): w.u8(5); w.uuid(transfer); w.uuid(copy); w.fixed(key)
         case .manifest(let m): w.u8(6); m.writeFields(into: &w); w.fixed(m.mac)
         case .chunk(let transfer, let index, let data, let mac): w.u8(7); w.uuid(transfer); w.u32(index); w.bytes(data); w.fixed(mac)
@@ -312,12 +317,16 @@ enum DeskClipboardMessage: Equatable {
             guard (1...16).contains(count) else { throw DeskClipboardWire.Failure.malformed("hello formats") }
             let formats = try (0..<count).map { _ in try r.u8() }
             return .hello(formats: formats, reply: try flag())
-        case 2: return .ask(query: try r.uuid())
-        case 3: return .offer(query: try r.uuid(), copy: try r.uuid(), age: try r.u32())
-        case 4:
-            let query = try r.uuid(), why = try reason(), known = try flag(), age = try r.u32()
-            guard known || age == 0 else { throw DeskClipboardWire.Failure.malformed("age") }
-            return .withheld(query: query, reason: why, age: known ? age : nil)
+        case 12:
+            let copy = try r.uuid(), age = try r.u32()
+            guard try flag() else { return .copied(copy: copy, age: age, what: nil) }
+            guard let kind = DeskClipboardDescriptor.Kind(rawValue: try r.u8()) else { throw DeskClipboardWire.Failure.malformed("unknown kind") }
+            let count = Int(try r.u32()), small = try flag(), size = try r.u8()
+            guard (1...100_000).contains(count), !small || kind == .text, Int(size) <= DeskClipboardPolicy.sizeBuckets.count else {
+                throw DeskClipboardWire.Failure.malformed("description")
+            }
+            return .copied(copy: copy, age: age, what: .init(kind: kind, count: count, small: small, size: size))
+        case 13: return .bringOver
         case 5: return .fetch(transfer: try r.uuid(), copy: try r.uuid(), key: try r.fixed(32))
         case 6:
             let manifest = DeskClipboardManifest(transfer: try r.uuid(), copy: try r.uuid(), payloadLength: try r.u64(),

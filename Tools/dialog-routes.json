@@ -270,5 +270,11 @@
     "kind": "alert",
     "review": "September 15 2026 manual Quit design with Scott: ask only when a feature is on, name what stops and what is kept in plain feature terms, keep an Agent Kill Switch block; native app-modal notice through SettingsWindow.presentStandaloneNotice",
     "acceptance": "QuitPlanTests (effects wording, idle quit without asking, kept block, helper stop/allow sequence, bounded turn-off) pass headlessly; native click-through of the Quit notice not yet performed"
+  },
+  "DeskPastePanel.swift:make:panel:1": {
+    "file": "DeskPastePanel.swift",
+    "kind": "panel",
+    "review": "TODO.md shared clipboard entry: bring-over progress popup (⌃⌥⌘V), non-activating and never key; one Cancel action; closes itself after 'Ready to paste' (at least 0.5 s on screen) or after one failure line.",
+    "acceptance": "Headless: the panel is constructed (never shown) and pinned non-activating, never key or main; the popup's text, progress, timing, Cancel and closing are pinned on DeskPasteProgress. Its look in Light and Dark and the Cancel click without a focus change remain native acceptance on the live desk."
   }
 }

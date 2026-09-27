@@ -6,16 +6,19 @@ import CoreServices
 /// clipboard. Its problems are storage problems, not transfer problems, so the
 /// transfer is the Stage 1 path and everything here is about the disk:
 ///
-/// - **Where files land.** In this Mac's Downloads folder, the way AirDrop
-///   delivers, when the keyboard arrives; then the pasteboard holds those
-///   files, so any app pastes them as files. File promises were tried first
-///   and set aside: on an ordinary pasteboard (rather than a drag) the standard
-///   receiver never asked the provider to write, in one process or across two.
+/// - **When and where.** Only when ⌃⌥⌘V brings them over (Scott's design,
+///   September 27, 2026). The files are staged in a folder of Perch's own
+///   (`DeskFileStaging`) and the pasteboard then holds them as files, so any
+///   ordinary paste in Finder, Mail or anything else puts them where the person
+///   is. The staging folder is on this Mac's own volume, so Finder's paste
+///   clones rather than copies. File promises were tried and set aside: on an
+///   ordinary pasteboard (rather than a drag) the standard receiver never asked
+///   the provider to write, in one process or across two.
 /// - **Names.** Every received name is made safe before it touches the disk:
 ///   slashes, colons, control and direction-override characters are replaced,
 ///   leading dots and surrounding spaces removed, and a name with nothing safe
 ///   left, or too long, refuses the whole copy. A peer can never write outside
-///   the folder files land in.
+///   the folder files are staged in.
 /// - **Partial files.** Each file arrives into a hidden temporary file beside its
 ///   destination, created exclusively, and its length and SHA-256 are verified.
 ///   Only once every file of the copy is verified are they moved into place,
@@ -60,9 +63,7 @@ enum DeskFileNames {
     }
 }
 
-/// Files are fetched when the keyboard arrives, not when pasted, so these stay
-/// modest: a copied film must not start crossing the desk on a click. Scott's
-/// to change.
+/// First values, Scott's to change.
 struct DeskFileLimits {
     var perFile: UInt64 = 1024 * 1024 * 1024
     var total: UInt64 = 2 * 1024 * 1024 * 1024
@@ -275,4 +276,87 @@ final class DeskFileSink {
         // the file is not delivered at all.
         guard getxattr(url.path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW) > 0 else { throw DeskClipboardReason.quarantine }
     }
+}
+
+/// Where another Mac's files wait to be pasted: a folder of Perch's own with
+/// one subfolder per copy, on this Mac's own volume (in Application Support,
+/// kept out of backups) so Finder's paste can clone rather than copy.
+///
+/// When staged files are removed. The rule, pinned by tests:
+/// 1. A copy that failed or was cancelled: at once, partial files and all.
+/// 2. The copy this Mac's clipboard holds: never, while it holds it.
+/// 3. A copy that has left the clipboard, because something else was copied
+///    here: ten minutes later, so a paste still copying out of it can finish.
+/// 4. Anything else found in the folder (left from before Perch last quit and
+///    no longer on the clipboard): at once.
+final class DeskFileStaging {
+    static let grace: Double = 600
+    let root: URL
+    private(set) var onClipboard: (id: UUID, changeCount: Int)?
+    private(set) var leftAt: [UUID: Double] = [:]
+    init(root: URL) { self.root = root.standardizedFileURL }
+    static var standard: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Perch/Desk/Clipboard", isDirectory: true)
+    }
+    func folder(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString, isDirectory: true) }
+
+    /// Create a copy's folder, private to this user. On the disk queue.
+    func prepare(_ id: UUID) throws {
+        let manager = FileManager.default
+        try manager.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        var values = URLResourceValues(); values.isExcludedFromBackup = true
+        var marked = root; try? marked.setResourceValues(values)
+        // A fresh name, never an existing one: nothing is written through a
+        // folder or link someone else put here.
+        guard mkdir(folder(id).path, 0o700) == 0 else { throw DeskClipboardReason.writeFailed }
+    }
+
+    /// A copy's files are now what the clipboard holds. The one before starts
+    /// its ten minutes.
+    func placed(_ id: UUID, changeCount: Int, now: Double) {
+        if let previous = onClipboard, previous.id != id { leftAt[previous.id] = now }
+        onClipboard = (id, changeCount); leftAt[id] = nil
+    }
+
+    /// The clipboard changed. If it no longer holds the staged copy, that copy
+    /// starts its ten minutes.
+    func clipboardChanged(to changeCount: Int, now: Double) {
+        guard let current = onClipboard, current.changeCount != changeCount else { return }
+        leftAt[current.id] = now
+        onClipboard = nil
+    }
+
+    /// At start: the staged copy the clipboard still lists, if any, is kept.
+    func adopt(_ urls: [URL], changeCount: Int) {
+        let base = root.path + "/"
+        for url in urls {
+            let path = url.standardizedFileURL.path
+            guard path.hasPrefix(base), let first = path.dropFirst(base.count).split(separator: "/").first,
+                  let id = UUID(uuidString: String(first)) else { continue }
+            onClipboard = (id, changeCount); return
+        }
+    }
+
+    /// Which of the staged copies present may go now.
+    static func removable(present: Set<UUID>, onClipboard: UUID?, active: UUID?, leftAt: [UUID: Double], now: Double) -> Set<UUID> {
+        present.filter { id in
+            guard id != onClipboard, id != active else { return false }
+            guard let left = leftAt[id] else { return true }
+            return now - left >= grace
+        }
+    }
+
+    /// The staged copies on disk: folders named for a copy, nothing else.
+    func present() -> Set<UUID> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        return Set(names.compactMap(UUID.init(uuidString:)))
+    }
+
+    /// Remove a staged copy. On the disk queue.
+    func remove(_ id: UUID) {
+        try? FileManager.default.removeItem(at: folder(id))
+    }
+
+    /// Forget what is gone.
+    func forget(_ ids: Set<UUID>) { for id in ids { leftAt[id] = nil } }
 }

@@ -1,9 +1,8 @@
 import AppKit
 import CryptoKit
 
-/// Files copied on one Mac and pasted on another, pinned without Finder: the
-/// pasting app is played by calling the promise handler from a background
-/// queue with a folder, exactly as a file promise is fulfilled.
+/// Files copied on one Mac, brought over to another and pasted there, pinned
+/// without Finder: every file operation runs against temporary folders.
 func runDeskFileTransferTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     func wait(_ what: String, seconds: Double = 8, until predicate: () -> Bool) throws {
@@ -161,159 +160,194 @@ func runDeskFileTransferTests() throws {
     try check(DeskClipboardPolicy.assess(fileStore.itemTypes()) == .files, "Received files would not be shared on in turn")
     print("PASS: shared files go on the pasteboard as plain file URLs that apps read as files, on a private pasteboard")
 
-    // MARK: End to end, into Downloads when the keyboard arrives
+    // MARK: Staged files: when they are removed
 
-    let desk = ClipboardFileDesk()
-    let a = desk.a, b = desk.b
-    let downloads = try folder("Downloads")
-    b.clipboard.receiveFolder = { downloads }
-    a.clipboard.receiveFolder = { nil }
+    let rule = DeskFileStaging.removable
+    let (kept, left, orphan, active) = (UUID(), UUID(), UUID(), UUID())
+    let present: Set<UUID> = [kept, left, orphan, active]
+    try check(rule(present, kept, active, [left: 100], 100 + DeskFileStaging.grace - 1) == [orphan],
+              "Rule: only a copy found with no record may go at once")
+    try check(rule(present, kept, active, [left: 100], 100 + DeskFileStaging.grace) == [orphan, left],
+              "Rule: a copy that left the clipboard did not go after ten minutes")
+    try check(!rule(present, kept, nil, [kept: 0], 1_000_000).contains(kept), "Rule: the copy on the clipboard was removed")
+    try check(!rule(present, nil, active, [:], 1_000_000).contains(active), "Rule: the copy on its way here was removed")
+    do {
+        let staging = DeskFileStaging(root: root.appendingPathComponent("staging-rule"))
+        let first = UUID(), second = UUID(), stray = UUID()
+        for id in [first, second, stray] { try staging.prepare(id); try Data("x".utf8).write(to: staging.folder(id).appendingPathComponent("f")) }
+        try fm.createDirectory(at: staging.root.appendingPathComponent("not a copy"), withIntermediateDirectories: true)
+        try check(staging.present() == [first, second, stray], "Staged copies were not listed exactly: \(staging.present())")
+        try check((try? staging.prepare(first)) == nil, "A staging folder was reused rather than refused")
+        try check((try fm.attributesOfItem(atPath: staging.folder(first).path)[.posixPermissions] as? NSNumber)?.intValue == 0o700, "A staging folder is not private")
+        staging.placed(first, changeCount: 5, now: 10)
+        staging.placed(second, changeCount: 6, now: 20)
+        try check(staging.onClipboard?.id == second && staging.leftAt[first] == 20, "Replacing the staged copy on the clipboard did not start the first one's ten minutes")
+        staging.clipboardChanged(to: 6, now: 30)
+        try check(staging.onClipboard?.id == second, "An unchanged clipboard let its staged copy go")
+        staging.clipboardChanged(to: 7, now: 40)
+        try check(staging.onClipboard == nil && staging.leftAt[second] == 40, "Copying something else did not start the staged copy's ten minutes")
+        let gone = DeskFileStaging.removable(present: staging.present(), onClipboard: nil, active: nil, leftAt: staging.leftAt, now: 20 + DeskFileStaging.grace)
+        try check(gone == [first, stray], "The wrong staged copies were due: \(gone)")
+        gone.forEach(staging.remove)
+        try check(staging.present() == [second] && listing(staging.root).contains("not a copy"), "Removing staged copies took the wrong folders")
+        // At start, a staged copy the clipboard still lists is kept, the rest go.
+        let restarted = DeskFileStaging(root: staging.root)
+        restarted.adopt([staging.folder(second).appendingPathComponent("f")], changeCount: 9)
+        try check(restarted.onClipboard?.id == second && restarted.onClipboard?.changeCount == 9, "A staged copy still on the clipboard was not kept at start")
+        let other = DeskFileStaging(root: staging.root)
+        other.adopt([root.appendingPathComponent("elsewhere/f")], changeCount: 9)
+        try check(other.onClipboard == nil, "A file outside staging was taken for a staged copy")
+    }
+    print("PASS: shared files' staging rule: failed copies go at once, the copy on the clipboard stays, one that left the clipboard goes ten minutes later, strays go at start, and only Perch's own private folders are ever removed")
+
+    // MARK: End to end: brought over into staging, then pasted as files
+
+    let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"])
+    let a = desk.macs[0], b = desk.macs[1]
     desk.start()
     defer { desk.stop() }
-    try wait("greeting") { b.clipboard.decisions.contains(.peerSupports("MacBook", format: 1)) && a.clipboard.decisions.contains(.peerSupports("Studio", format: 1)) }
-    /// The keyboard arrives on the Studio; wait for its decision.
-    func arrive(_ what: String, until done: @escaping (DeskClipboardDecision) -> Bool) throws {
-        let before = b.clipboard.lastDecision
-        b.clipboard.keyboardArrived()
-        try wait(what) { guard let now = b.clipboard.lastDecision, now != before else { return false }; return done(now) }
-    }
-    func received(_ decision: DeskClipboardDecision) -> Bool { if case .received = decision { return true }; return false }
-    func copy(_ urls: [URL], text: String? = nil) {
-        a.store.copy(urls.map { url in [(type: DeskClipboardMarker.fileURL, data: url.dataRepresentation)] + (text.map { [(type: "public.utf8-plain-text", data: Data($0.utf8))] } ?? []) })
-        settle(0.15)
-    }
+    try wait("greeting") { desk.greeted() }
+    let staged = b.clipboard.staging
     let photos = try folder("photos")
     let big = bytes(700_000), secretName = "CANARY-\(UUID().uuidString.prefix(8)).jpg"
     try big.write(to: photos.appendingPathComponent(secretName))
     try Data().write(to: photos.appendingPathComponent(".empty-marker"))
-    try Data("already downloaded".utf8).write(to: downloads.appendingPathComponent(secretName))
-    let clipboardBefore = b.store.current.count
-    var gap = 0.0
+    func copyFiles(_ urls: [URL], text: String? = nil) {
+        a.store.copy(urls.map { url in [(type: DeskClipboardMarker.fileURL, data: url.dataRepresentation)] + (text.map { [(type: "public.utf8-plain-text", data: Data($0.utf8))] } ?? []) })
+    }
+    /// A copy of files announced on the MacBook; wait until the Studio knows
+    /// of that copy, not an earlier one still waiting.
+    var known: UUID?
+    func announced(_ label: String) throws {
+        try wait(label) { b.clipboard.waiting?.what.kind == .files && b.clipboard.waiting?.copy != known }
+        known = b.clipboard.waiting?.copy
+    }
+    /// Bring it over on the Studio, and wait for the popup to end.
+    func bring(_ label: String) throws -> DeskPasteProgress {
+        let shown = b.fakes.presented.count
+        b.clipboard.bringOverHere()
+        try wait(label) { b.fakes.presented.count > shown && b.fakes.last?.phase != .moving }
+        return b.fakes.last!
+    }
+    copyFiles([photos.appendingPathComponent(secretName), photos.appendingPathComponent(".empty-marker")], text: secretName)
+    try announced("files announced")
+    try check(b.clipboard.waiting?.what.count == 2 && b.link.count(DeskClipboardTests.isFetch) == 0, "Files were fetched before being brought over")
+    var gap = 0.0, progress: [Double] = []
     do {
         var last = ProcessInfo.processInfo.systemUptime
         let timer = Timer(timeInterval: 0.01, repeats: true) { _ in let now = ProcessInfo.processInfo.systemUptime; gap = max(gap, now - last); last = now }
         RunLoop.main.add(timer, forMode: .common)
         defer { timer.invalidate() }
         a.link.chunkDelay = 0.05
-        copy([photos.appendingPathComponent(secretName), photos.appendingPathComponent(".empty-marker")], text: secretName)
-        var progress: [Double] = []
-        let before = b.clipboard.lastDecision
-        b.clipboard.keyboardArrived()
+        b.clipboard.bringOverHere()
         try wait("files arrive") {
-            if let value = b.clipboard.fileProgress { progress.append(value) }
-            guard let now = b.clipboard.lastDecision, now != before else { return false }
-            return received(now)
+            if let value = b.clipboard.bringOverProgress { progress.append(value) }
+            return b.fakes.last?.phase == .done
         }
         a.link.chunkDelay = 0
-        try check(progress.contains { $0 > 0 && $0 < 1 }, "Files on their way showed no progress")
     }
-    try check(gap < 0.3, "Bringing files stalled the main thread for \(gap) s")
-    let renamed = secretName.replacingOccurrences(of: ".jpg", with: " 2.jpg")
-    try check(b.store.files.map(\.lastPathComponent) == [renamed, "empty-marker"] && clipboardBefore == 0,
-              "The pasteboard does not hold the files that arrived: \(b.store.files)")
-    try check(b.store.current.allSatisfy { $0.count == 1 }, "A file's name or icon was pasted beside it")
-    try check((try Data(contentsOf: downloads.appendingPathComponent(renamed))) == big && (try Data(contentsOf: downloads.appendingPathComponent("empty-marker"))).isEmpty,
-              "Files did not arrive whole")
-    try check((try Data(contentsOf: downloads.appendingPathComponent(secretName))) == Data("already downloaded".utf8), "An existing download was overwritten")
-    try check(marked(downloads.appendingPathComponent(renamed)) && marked(downloads.appendingPathComponent("empty-marker")), "Received files were not marked as downloaded")
-    try check(listing(downloads) == [renamed, secretName, "empty-marker"].sorted(), "Something besides the files was left: \(listing(downloads))")
-    let settled = listing(downloads)
-    // The MacBook asking back finds it already has that copy.
-    a.clipboard.keyboardArrived()
-    try wait("already there") { if case .alreadyHere? = a.clipboard.lastDecision { return true }; return false }
-    // Changed on the MacBook between listing and sending: refused, nothing left.
-    copy([photos.appendingPathComponent(secretName)])
-    b.link.intercept = { _, message in
-        if case .fileFetch? = message { try? Data("changed".utf8).write(to: photos.appendingPathComponent(secretName)) }
-        return false
+    try check(gap < 0.3, "Bringing files over stalled the main thread for \(gap) s")
+    try check(progress.contains { $0 > 0 && $0 < 1 }, "Files on their way showed no progress")
+    try check(b.fakes.last?.title == "2 files from MacBook", "The popup said \(b.fakes.last?.title ?? "nothing")")
+    let brought = b.store.files
+    try check(brought.map(\.lastPathComponent) == [secretName, "empty-marker"], "The pasteboard does not hold the files that arrived: \(brought)")
+    try check(brought.allSatisfy { $0.standardizedFileURL.path.hasPrefix(staged.root.path + "/") }, "Files were not staged in Perch's own folder: \(brought)")
+    try check(b.store.current.allSatisfy { $0.map(\.type) == [DeskClipboardMarker.fileURL, DeskClipboardMarker.received] },
+              "A file's name or icon was pasted beside it, or the files were not marked as received")
+    try check((try Data(contentsOf: brought[0])) == big && (try Data(contentsOf: brought[1])).isEmpty, "Files did not arrive whole")
+    try check(marked(brought[0]) && marked(brought[1]), "Received files were not marked as downloaded")
+    try check(listing(brought[0].deletingLastPathComponent()) == [secretName, "empty-marker"].sorted(), "Something besides the files was left in staging")
+    try check(staged.onClipboard != nil && staged.present().count == 1, "The staged copy on the clipboard is not the one recorded")
+    try check(b.clipboard.waiting == nil, "What was waiting stayed after the files came")
+    // Received files are never announced back.
+    settle(0.3)
+    try check(b.link.count(DeskClipboardTests.isCopied) == 0, "Received files were announced again")
+    let stagedCopy = staged.onClipboard!.id
+    func refused(_ label: String, _ reason: DeskClipboardReason, holds expected: [URL]? = nil, prepare: () throws -> Void) throws {
+        let before = staged.present(), holding = b.store.files
+        try prepare()
+        try announced(label + " announced")
+        let popup = try bring(label)
+        try check(popup.phase == .failed && popup.line == DeskPasteProgress.line(for: reason, from: "MacBook"),
+                  "\(label): the popup said \(popup.line ?? "nothing"), not \(DeskPasteProgress.line(for: reason, from: "MacBook"))")
+        try wait(label + " cleans up") { staged.present() == before }
+        try check(b.store.files == (expected ?? holding), "\(label) changed what this Mac's clipboard holds")
     }
-    try arrive("changed file refused") { $0.reason == .changed }
+    // Changed between listing and sending: refused, nothing left.
+    try refused("changed file", .changed) {
+        copyFiles([photos.appendingPathComponent(secretName)])
+        b.link.intercept = { _, message in
+            if case .fileFetch? = message { try? Data("changed".utf8).write(to: photos.appendingPathComponent(secretName)) }
+            return false
+        }
+    }
     b.link.intercept = nil
-    try check(listing(downloads) == settled, "A refused file left something behind: \(listing(downloads))")
-    // No room: declined before anything is written.
     try big.write(to: photos.appendingPathComponent(secretName))
-    copy([photos.appendingPathComponent(secretName)])
+    // No room: declined before anything is written.
     b.clipboard.freeSpace = { _ in 1000 }
-    try arrive("no room") { $0.reason == .noSpace }
+    try refused("no room", .noSpace) { copyFiles([photos.appendingPathComponent(secretName)]) }
     b.clipboard.freeSpace = { _ in nil }
-    try check(listing(downloads) == settled, "Files were started without room")
     // More than this Mac accepts: declined by name.
     b.clipboard.fileLimits.total = 1000
-    copy([photos.appendingPathComponent(secretName)])
-    try arrive("too large declined") { $0.reason == .tooLarge }
+    try refused("too large", .tooLarge) { copyFiles([photos.appendingPathComponent(secretName)]) }
     b.clipboard.fileLimits = DeskFileLimits()
     // The second file stalls: the first, already verified, goes too.
     let smallFile = photos.appendingPathComponent("small.txt")
     try Data("small".utf8).write(to: smallFile)
-    copy([smallFile, photos.appendingPathComponent(secretName)])
     var fetches = 0
-    b.link.intercept = { _, message in if case .fileFetch? = message { fetches += 1 }; return false }
-    a.link.intercept = { _, message in if case .chunk(_, let index, _, _)? = message { return fetches >= 2 && index >= 3 }; return false }
-    try arrive("stall") { $0.reason == .timedOut }
-    a.link.intercept = nil; b.link.intercept = nil
-    try wait("partial files removed") { listing(downloads) == settled }
-    // Something copied here while files are on their way wins; none of them stay.
-    copy([smallFile, photos.appendingPathComponent(secretName)])
-    fetches = 0
-    b.link.intercept = { _, message in
-        if case .fileFetch? = message { fetches += 1; if fetches == 2 { b.store.copy([[(type: "public.utf8-plain-text", data: Data("typed here".utf8))]]) } }
-        return false
+    try refused("stall on the second file", .timedOut) {
+        copyFiles([smallFile, photos.appendingPathComponent(secretName)])
+        b.link.intercept = { _, message in if case .fileFetch? = message { fetches += 1 }; return false }
+        a.link.intercept = { _, message in if case .chunk(_, let index, _, _)? = message { return fetches >= 2 && index >= 3 }; return false }
     }
-    try arrive("newer local copy") { $0.reason == .newerHere }
+    a.link.intercept = nil; b.link.intercept = nil
+    // Cancel while files come: the sender stops and nothing stays.
+    a.link.chunkDelay = 0.05
+    let before = staged.present()
+    copyFiles([photos.appendingPathComponent(secretName)])
+    try announced("cancel announced")
+    b.clipboard.bringOverHere()
+    try wait("files moving") { (b.clipboard.bringOverProgress ?? 0) > 0.05 }
+    b.fakes.last?.cancel()
+    try wait("the sender stops") { a.clipboard.decisions.contains { if case .stoppedSending(_, _, .cancelled) = $0 { return true }; return false } }
+    try wait("cancel cleans up") { staged.present() == before }
+    try check(b.store.files == brought && b.fakes.last?.isClosed == true, "Cancel left files behind or changed the clipboard")
+    a.link.chunkDelay = 0
+    // Something copied here while files are on their way wins; none of them stay.
+    fetches = 0
+    try refused("newer local copy", .newerHere, holds: []) {
+        copyFiles([smallFile, photos.appendingPathComponent(secretName)])
+        b.link.intercept = { _, message in
+            if case .fileFetch? = message { fetches += 1; if fetches == 2 { b.store.copy([[(type: "public.utf8-plain-text", data: Data("typed here".utf8))]]) } }
+            return false
+        }
+    }
     b.link.intercept = nil
-    try wait("batch removed") { listing(downloads) == settled }
-    try check(b.store.current.first?.first?.data == Data("typed here".utf8), "Files replaced a copy made here meanwhile")
+    try check(b.store.first == Data("typed here".utf8), "Files replaced a copy made here meanwhile")
+    // That copy here is now the newest: once this Mac sees it, the staged copy
+    // has left the clipboard and is kept for its ten minutes, not removed at once.
+    try wait("the new copy is seen") { staged.onClipboard == nil }
+    try check(staged.onClipboard == nil && staged.leftAt[stagedCopy] != nil && staged.present().contains(stagedCopy),
+              "The staged copy was removed at once, or its ten minutes did not start, when something else was copied")
     // Links and folders are refused by name.
     let linked = photos.appendingPathComponent("linked.jpg")
     try fm.createSymbolicLink(at: linked, withDestinationURL: photos.appendingPathComponent(secretName))
-    copy([linked])
-    try arrive("link refused") { if case .refusedBy("MacBook", _, .links) = $0 { return true }; return false }
-    copy([photos])
-    try arrive("folder refused") { if case .refusedBy("MacBook", _, .folders) = $0 { return true }; return false }
+    try refused("a link", .links) { copyFiles([linked]) }
+    try refused("a folder", .folders) { copyFiles([photos]) }
     // A hostile name from the other Mac never reaches the disk as sent.
     let hostile = photos.appendingPathComponent("..evil.txt")
     try Data("x".utf8).write(to: hostile)
-    copy([hostile])
-    try arrive("hostile name made safe", until: received)
-    try check(b.store.files.map(\.lastPathComponent) == ["evil.txt"] && listing(downloads).contains("evil.txt") && !listing(downloads).contains { $0.hasPrefix(".") },
-              "A hostile name reached the disk: \(listing(downloads))")
+    copyFiles([hostile])
+    try announced("hostile name announced")
+    try check(try bring("hostile name").phase == .done, "A file with a hostile name was not brought over")
+    try check(b.store.files.map(\.lastPathComponent) == ["evil.txt"] && !listing(b.store.files[0].deletingLastPathComponent()).contains { $0.hasPrefix(".") },
+              "A hostile name reached the disk: \(b.store.files)")
     // Filenames and exact sizes never reach the log.
-    for line in desk.logged where line.category == DeskClipboardDecision.category {
-        try check(!line.message.contains("CANARY") && !line.message.contains("evil") && !line.message.contains("700000") && !line.message.contains("700,000"),
-                  "The decision log revealed a file name or size: \(line.message)")
-    }
-    print("PASS: shared files end to end: brought into Downloads when the keyboard arrives, whole or not at all, beside existing files, marked as downloaded, then pasted as files; changed files, no room, too much, a stall, a newer local copy, links and folders refused by name with nothing left behind; hostile names made safe; the main thread never waits; no file names in the log")
-}
-
-/// Two Macs with file-capable fake pasteboards.
-private final class ClipboardFileDesk {
-    struct Mac { let id: UUID; let link: DeskClipboardFakeLink; let store: DeskClipboardFakeStore; let clipboard: DeskClipboard }
-    let a: Mac, b: Mac
-    var permitted: [UUID: Bool] = [:]
-    var logged: [PerchLog.Entry] = []
-    private let savedSink = PerchLog.sink
-    init() {
-        func make(_ name: String) -> Mac {
-            let link = DeskClipboardFakeLink(), store = DeskClipboardFakeStore()
-            let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 1))
-            clipboard.timings = .init(query: 0.3, reply: 0.8, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
-            link.names[link.localID] = name
-            return Mac(id: link.localID, link: link, store: store, clipboard: clipboard)
+    for mac in [a, b] {
+        for decision in mac.clipboard.decisions {
+            try check(!decision.line.contains("CANARY") && !decision.line.contains("evil") && !decision.line.contains("700000") && !decision.line.contains("700,000"),
+                      "The decision log revealed a file name or size: \(decision.line)")
         }
-        a = make("MacBook"); b = make("Studio")
-        for (mac, other) in [(a, b), (b, a)] {
-            mac.link.peers = [other.id]; mac.link.names[other.id] = other.link.names[other.id]
-            permitted[mac.id] = true
-            let id = mac.id
-            mac.clipboard.permitted = { [weak self] in self?.permitted[id] ?? false }
-            mac.link.deliver = { [weak self] to, data in
-                guard let self else { return }
-                (to == self.a.id ? self.a : self.b).clipboard.receive(data, peer: id)
-            }
-        }
-        PerchLog.reset()
-        PerchLog.sink = { [weak self] in self?.logged.append($0) }
     }
-    func start() { a.clipboard.start(); b.clipboard.start() }
-    func stop() { a.clipboard.stop(); b.clipboard.stop(); PerchLog.sink = savedSink; PerchLog.reset() }
+    print("PASS: shared files end to end: announced by count and size, brought over into Perch's staging folder with steady progress, whole or not at all, marked as downloaded and as received, then pasted as files; changed files, no room, too much, a stall, cancel, a newer local copy, links and folders refused by name with nothing left behind; hostile names made safe; the main thread never waits; no file names in the log")
 }

@@ -115,6 +115,10 @@ final class DeskRuntime: ObservableObject {
     let inputAdapter: DeskInputAdapter
     /// Copy on one Mac, paste on another. See `DeskClipboard`.
     let clipboard: DeskClipboard
+    /// What the menu bar icon will show about the desk and its clipboard.
+    @Published private(set) var shareStatus = DeskShareStatus.idle
+    /// The bring-over shortcut while no other Perch shortcut holds its keys.
+    private var bringOverShortcut: Shortcut?
     let model: DeskModel
     @Published var displays: [UUID: [DeskDetectedDisplay]] = [:]
     @Published var discoveryProblem: String?
@@ -151,26 +155,30 @@ final class DeskRuntime: ObservableObject {
         let input = KVMInputSession(node: node)
         input.optimisticMonitorInput = { [weak switching] monitor in switching?.optimisticInputs[monitor] }
         self.input = input; inputAdapter = DeskInputAdapter(session: input)
+        let adapter = inputAdapter
         // The general pasteboard is only held here; nothing reads it until
         // start(), which only the running app calls.
         let clipboard = DeskClipboard(link: DeskClipboardNodeLink(node), pasteboard: DeskPasteboardAccess(store: SystemDeskPasteboard(.general)))
         // Share on this Mac is the consent, and a Mac that is locked or lacks
         // access takes no part.
         clipboard.permitted = { [weak input] in input.map { $0.enabled && $0.ready() } ?? false }
-        clipboard.keyboardComputer = { [weak input] in input?.keyboardComputer }
-        // Typing can move inside the event tap's callback; ask on the next pass.
-        input.keyboardMoved = { [weak clipboard] in DispatchQueue.main.async { clipboard?.keyboardMoved() } }
+        clipboard.presenter = DeskPastePresenter()
+        // ⌃⌥⌘V brings the newest copy over to the Mac typing goes to, whichever
+        // Mac's keyboard pressed it (default (a), `DeskClipboard.bringOverTarget`).
+        adapter.bringOver = { [weak clipboard, weak input] in clipboard?.bringOver(keyboard: input?.keyboardComputer) }
         self.clipboard = clipboard
         let backend = DeskRuntimeBackend()
         model = DeskModel(backend: backend, group: node.group)
         backend.runtime = self
+        inputAdapter.bringOverShortcut = { [weak self] in self?.bringOverShortcut }
+        clipboard.waitingChanged = { [weak self] in DispatchQueue.main.async { self?.refreshShareStatus() } }
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         // Readiness arrives over the input session's polling channel. Retry
         // automatic focus when a peer becomes ready instead of making the
         // user reopen Desk or press a hidden test button.
         input.objectWillChange.sink { [weak self] in
-            DispatchQueue.main.async { self?.startInputForActivePresetIfNeeded() }
+            DispatchQueue.main.async { self?.startInputForActivePresetIfNeeded(); self?.refreshShareStatus() }
         }.store(in: &subscriptions)
         switching.execute = { [weak self] route, valid, completion in self?.execute(route, valid: valid, completion: completion) }
         switching.prepareDestination = { [weak self] request in
@@ -236,6 +244,8 @@ final class DeskRuntime: ObservableObject {
             automaticInputStart = nil
         }
         registerShortcuts()
+        refreshBringOverShortcut()
+        refreshShareStatus()
         // A Mac that has just updated says so the moment it can reach another,
         // rather than waiting for the next display refresh: whoever is behind
         // then goes and fetches the release.
@@ -284,6 +294,21 @@ final class DeskRuntime: ObservableObject {
         if model.selected == nil { model.selected = node.group.monitors.first?.id }
         startInputForActivePresetIfNeeded()
         objectWillChange.send()
+    }
+    /// Recompute what the menu bar icon will show. Cheap; called on every change.
+    private func refreshShareStatus() {
+        let waiting = clipboard.waiting
+        let next = DeskShareStatus.make(waitingFrom: waiting.map { peer in node.group.computers.first { $0.id == peer.peer }?.name ?? "another Mac" },
+                                        waiting: waiting?.what, sharingOn: input.enabled, online: node.online, local: node.localID,
+                                        group: node.group, activePreset: switching.activePreset)
+        if next != shareStatus { shareStatus = next }
+    }
+    /// Look the bring-over shortcut up once per desk change rather than on every
+    /// key, and say when it steps aside for another Perch shortcut.
+    private func refreshBringOverShortcut() {
+        let active = DeskBringOverShortcut.active(in: ShortcutRegistry.perch)
+        bringOverShortcut = active
+        PerchLog.note("clipboard.shortcut", active == nil ? "⌃⌥⌘V is already used by another Perch shortcut, so bring over is off" : "⌃⌥⌘V brings over the newest copy")
     }
     /// One sentence of fact about keyboard and mouse control, never an instruction.
     private func inputStatus() -> String? {

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import CryptoKit
 
 /// A pasteboard in memory. The real one holds what the person copied, which may
@@ -18,6 +19,8 @@ final class DeskClipboardFakeStore: DeskPasteboardStore {
     var dataReads: Int { lock.lock(); defer { lock.unlock() }; return reads }
     var changeCount: Int { lock.lock(); defer { lock.unlock() }; return count }
     var current: [[(type: String, data: Data)]] { lock.lock(); defer { lock.unlock() }; return items }
+    /// The first item's first representation: what a paste of text would give.
+    var first: Data? { current.first?.first?.data }
     /// Someone copies on this Mac.
     func copy(_ value: [[(type: String, data: Data)]]) { lock.lock(); items = value; count += 1; lock.unlock() }
     func itemTypes() -> [[String]] { lock.lock(); defer { lock.unlock() }; return items.map { $0.map(\.type) } }
@@ -31,6 +34,8 @@ final class DeskClipboardFakeStore: DeskPasteboardStore {
     func replace(with value: [[(type: String, data: Data)]]) -> Int { lock.lock(); defer { lock.unlock() }; items = value; count += 1; return count }
     /// The files this pasteboard holds, as the file URLs any app pastes.
     var files: [URL] { current.compactMap { item in item.first { $0.type == DeskClipboardMarker.fileURL }.flatMap { URL(dataRepresentation: $0.data, relativeTo: nil) } } }
+    /// Whether what it holds carries Perch's received mark.
+    var marked: Bool { current.contains { $0.contains { $0.type == DeskClipboardMarker.received } } }
 }
 
 /// A desk link in memory. Delivers on the main queue, as the real transport does.
@@ -46,9 +51,14 @@ final class DeskClipboardFakeLink: DeskClipboardLink {
     var intercept: ((UUID, DeskClipboardMessage?) -> Bool)?
     /// Seconds to hold each chunk before delivering it: a slow peer.
     var chunkDelay: Double = 0
+    /// Replace a message on its way out: a peer that says one thing and sends another.
+    var rewrite: ((DeskClipboardMessage) -> DeskClipboardMessage?)?
     init(_ id: UUID = UUID()) { localID = id }
     func name(of peer: UUID) -> String { names[peer] ?? "Unknown" }
     func send(_ data: Data, to peer: UUID) -> Bool {
+        var data = data
+        if let rewrite, let original = DeskClipboardTests.peek(data), let changed = rewrite(original),
+           let envelope = try? DeskClipboardWire.encode(changed, format: 1) { data = DeskClipboardWire.prefix + envelope }
         sent.append((peer, data))
         let message = DeskClipboardTests.peek(data)
         if intercept?(peer, message) == true { return true }
@@ -61,6 +71,8 @@ final class DeskClipboardFakeLink: DeskClipboardLink {
     func queuedBytes(to peer: UUID) -> Int? { peers.contains(peer) ? queued : nil }
     /// Every message sent to `peer`, decoded without regard to format.
     func messages(to peer: UUID) -> [DeskClipboardMessage?] { sent.filter { $0.peer == peer }.map { DeskClipboardTests.peek($0.data) } }
+    /// How many messages of one kind this Mac sent to anyone.
+    func count(_ matches: (DeskClipboardMessage) -> Bool) -> Int { sent.compactMap { DeskClipboardTests.peek($0.data) }.filter(matches).count }
 }
 
 enum DeskClipboardTests {
@@ -72,27 +84,45 @@ enum DeskClipboardTests {
         }
         return nil
     }
+    static func isCopied(_ message: DeskClipboardMessage) -> Bool { if case .copied = message { return true }; return false }
+    static func isFetch(_ message: DeskClipboardMessage) -> Bool {
+        switch message { case .fetch, .fileFetch: return true; default: return false }
+    }
+    static func isContent(_ message: DeskClipboardMessage) -> Bool {
+        switch message { case .manifest, .chunk: return true; default: return false }
+    }
+}
+
+/// Stands in, on one Mac, for the popup.
+final class DeskPasteFakes: DeskPastePresenting {
+    var presented: [DeskPasteProgress] = []
+    var last: DeskPasteProgress? { presented.last }
+    func present(_ progress: DeskPasteProgress) { presented.append(progress) }
 }
 
 /// Two or three Macs of a desk, each with its own clipboard, in memory.
-private final class ClipboardDesk {
+final class DeskClipboardTestDesk {
     struct Mac {
         let id: UUID
         let link: DeskClipboardFakeLink
         let store: DeskClipboardFakeStore
         let clipboard: DeskClipboard
+        let fakes: DeskPasteFakes
     }
     var macs: [Mac] = []
     var permitted: [UUID: Bool] = [:]
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-clipboard-desk-" + UUID().uuidString).standardizedFileURL
     /// Macs outside `answering` behave like a Perch without clipboard support:
     /// the message reaches them and nothing handles it.
     init(names: [String], answering: Set<Int>? = nil) {
         for name in names {
-            let link = DeskClipboardFakeLink(), store = DeskClipboardFakeStore()
-            let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 0.3))
-            clipboard.timings = .init(query: 0.3, reply: 0.6, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
+            let link = DeskClipboardFakeLink(), store = DeskClipboardFakeStore(), fakes = DeskPasteFakes()
+            let staging = DeskFileStaging(root: root.appendingPathComponent(name + "-staging"))
+            let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 0.3), staging: staging)
+            clipboard.timings = .init(reply: 0.6, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
+            clipboard.presenter = fakes
             link.names[link.localID] = name
-            macs.append(.init(id: link.localID, link: link, store: store, clipboard: clipboard))
+            macs.append(.init(id: link.localID, link: link, store: store, clipboard: clipboard, fakes: fakes))
         }
         let handling = Set(macs.enumerated().filter { answering?.contains($0.offset) ?? true }.map(\.element.id))
         for mac in macs {
@@ -107,7 +137,24 @@ private final class ClipboardDesk {
         }
     }
     func start() { macs.forEach { $0.clipboard.start() } }
-    func stop() { macs.forEach { $0.clipboard.stop() } }
+    func stop() { macs.forEach { $0.clipboard.stop() }; try? FileManager.default.removeItem(at: root) }
+    /// Every Mac has greeted every other.
+    func greeted() -> Bool {
+        macs.allSatisfy { mac in macs.filter { $0.id != mac.id }.allSatisfy { other in mac.clipboard.decisions.contains(.peerSupports(other.link.names[other.id] ?? "", format: 1)) } }
+    }
+}
+
+/// Time that moves only when told, for the popup's timing.
+final class DeskManualTime {
+    var now = 0.0
+    private var pending: [(at: Double, work: () -> Void)] = []
+    func after(_ delay: Double, _ work: @escaping () -> Void) { pending.append((now + delay, work)) }
+    func advance(to time: Double) {
+        now = time
+        while let index = pending.indices.filter({ pending[$0].at <= now }).min(by: { pending[$0].at < pending[$1].at }) {
+            pending.remove(at: index).work()
+        }
+    }
 }
 
 func runDeskClipboardTests() throws {
@@ -160,6 +207,8 @@ func runDeskClipboardTests() throws {
     try check(DeskClipboardPolicy.assess([[tiff, png, text, "public.html", rtf]]) == .share([[.plainText, .richText, .html, .png]]),
               "Text did not keep every representation, or more than one image representation was chosen")
     try check(DeskClipboardPolicy.assess([[tiff]]) == .share([[.tiff]]), "A TIFF-only image was not shared")
+    try check(DeskClipboardPolicy.assess([[text, DeskClipboardMarker.received]]) == .withheld(.received), "A copy Perch received was offered again")
+    try check(DeskClipboardPolicy.assess([[text], [DeskClipboardMarker.fileURL, DeskClipboardMarker.received]]) == .withheld(.received), "A marked copy of files was offered again")
     do {
         let store = DeskClipboardFakeStore(), access = DeskPasteboardAccess(store: store, timeout: 1)
         store.copy([[(text, Data("hunter2".utf8)), (DeskClipboardMarker.concealed, Data())]])
@@ -169,14 +218,15 @@ func runDeskClipboardTests() throws {
         guard case .failure(.concealed)? = outcome else { throw AppError(message: "A concealed copy was read for sending: \(String(describing: outcome))") }
         try check(store.dataReads == 0, "A concealed copy's data was read into Perch (\(store.dataReads) reads)")
     }
-    print("PASS: shared clipboard never offers concealed, transient or generated copies, never a file's name or icon in place of the file; only text, rich text and one image representation")
+    print("PASS: shared clipboard never offers concealed, transient, generated or received copies, never a file's name or icon in place of the file; only text, rich text and one image representation")
 
     // MARK: The wire
 
     let transfer = UUID(), copyID = UUID(), key = SymmetricKey(size: .bits256)
     let messages: [DeskClipboardMessage] = [
-        .hello(formats: [1], reply: false), .ask(query: UUID()), .offer(query: UUID(), copy: copyID, age: 1234),
-        .withheld(query: UUID(), reason: .concealed, age: 9), .withheld(query: UUID(), reason: .noCopy, age: nil),
+        .hello(formats: [1], reply: false), .bringOver, .copied(copy: copyID, age: 1234, what: .init(kind: .image, count: 3, small: false, size: 4)),
+        .copied(copy: copyID, age: 5, what: .init(kind: .text, count: 1, small: true, size: 1)), .copied(copy: copyID, age: 9, what: nil),
+        .fileFetch(transfer: transfer, copy: copyID, index: 2, key: Data(repeating: 4, count: 32)),
         .fetch(transfer: transfer, copy: copyID, key: Data(repeating: 3, count: 32)), .ack(transfer: transfer, next: 4),
         .refuse(transfer: transfer, reason: .tooLarge), .cancel(transfer: transfer, reason: .timedOut)]
     for message in messages {
@@ -186,7 +236,7 @@ func runDeskClipboardTests() throws {
     }
     // Format negotiation: only the negotiated format is accepted, and before a
     // hello nothing but a hello is.
-    let ask = try DeskClipboardWire.encode(.ask(query: UUID()), format: 1)
+    let ask = try DeskClipboardWire.encode(.copied(copy: UUID(), age: 1, what: nil), format: 1)
     for format in [nil, UInt8(2)] {
         do { _ = try DeskClipboardWire.decode(ask, format: format); throw AppError(message: "A message in another format was accepted") }
         catch let failure as DeskClipboardWire.Failure { try check(failure == .format, "Another format was refused for the wrong reason: \(failure)") }
@@ -306,330 +356,515 @@ func runDeskClipboardTests() throws {
 
     // MARK: Version gating
 
-    try check(DeskClipboard.wireFormat(for: .ask(query: UUID()), negotiated: nil) == nil,
+    try check(DeskClipboard.wireFormat(for: .copied(copy: UUID(), age: 0, what: nil), negotiated: nil) == nil,
               "A clipboard message could be sent to a Mac that never said it shares copies")
     try check(DeskClipboard.wireFormat(for: .hello(formats: [1], reply: false), negotiated: nil) == 0, "A hello could not be sent to a new Mac")
-    try check(DeskClipboard.wireFormat(for: .ask(query: UUID()), negotiated: 1) == 1, "A negotiated format was not used")
+    try check(DeskClipboard.wireFormat(for: .bringOver, negotiated: 1) == 1, "A negotiated format was not used")
     do {
         // A Mac running a Perch without clipboard support (2.0.297 on the
         // Studio): it receives the hello and routes it nowhere.
-        let desk = ClipboardDesk(names: ["MacBook", "Studio"], answering: [0])
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"], answering: [0])
         let new = desk.macs[0], old = desk.macs[1]
-        new.store.copy([[(text, Data("never sent".utf8))]])
         new.clipboard.start()
         defer { desk.stop() }
         settle(0.2)
-        new.clipboard.keyboardArrived()
-        settle(0.2)
-        new.clipboard.keyboardArrived()
+        new.store.copy([[(text, Data("never sent".utf8))]])
+        settle(0.3)
+        new.store.copy([[(png, bytes(5000))]])
+        settle(0.3)
+        new.clipboard.bringOver(keyboard: old.id)
         let toOld = new.link.messages(to: old.id)
         try check(!toOld.isEmpty, "The older Mac was not even greeted")
         try check(toOld.allSatisfy { if case .hello? = $0 { return true }; return false },
                   "A clipboard message other than a hello was sent to a Mac that never said it shares copies: \(toOld)")
         try check(toOld.count == 1, "The older Mac was greeted more than once inside the greeting interval: \(toOld.count)")
-        try check(new.clipboard.lastDecision == .notAsking(.notSupported), "Not asking an older Mac was not decided and named: \(String(describing: new.clipboard.lastDecision))")
-        // A Mac that asks without having greeted is not answered at all.
-        let intruder = try DeskClipboardWire.encode(.ask(query: UUID()), format: 1)
+        try check(new.clipboard.decisions.contains(.peerCannot("Studio", .notSupported)), "Not sending to an older Mac was not named")
+        // A Mac that announces without having greeted is not listened to.
+        let intruder = try DeskClipboardWire.encode(.copied(copy: UUID(), age: 0, what: .init(kind: .text, count: 1, small: true)), format: 1)
         new.clipboard.receive(DeskClipboardWire.prefix + intruder, peer: old.id)
         settle(0.1)
-        try check(new.link.messages(to: old.id).allSatisfy { if case .hello? = $0 { return true }; return false },
-                  "A Mac that never greeted was answered")
+        try check(new.clipboard.waiting == nil && new.link.messages(to: old.id).allSatisfy { if case .hello? = $0 { return true }; return false },
+                  "A Mac that never greeted was listened to or answered")
         // A Mac that speaks only a newer format is treated the same way.
         new.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.hello(formats: [2], reply: false), format: 0)), peer: old.id)
         settle(0.1)
-        new.clipboard.keyboardArrived()
-        settle(0.1)
+        new.store.copy([[(text, Data("still never sent".utf8))]])
+        settle(0.3)
         try check(new.link.messages(to: old.id).allSatisfy { if case .hello? = $0 { return true }; return false },
                   "A Mac with no format in common was sent more than a hello")
         try check(new.clipboard.decisions.contains(.peerCannot("Studio", .format)), "A Mac with no format in common was not named")
     }
-    print("PASS: shared clipboard sends an older Perch nothing but a hello, ignores a Mac that never greeted, and refuses a Mac with no format in common")
+    print("PASS: shared clipboard sends an older Perch nothing but a hello, whatever is copied or brought over, ignores a Mac that never greeted, and refuses a Mac with no format in common")
 
-    // MARK: Copy here, paste there
+    // MARK: Small text goes straight onto the other Macs' clipboards
 
     do {
         // Only this scenario's decisions are compared with the log.
         PerchLog.reset(); logged = []
-        let desk = ClipboardDesk(names: ["MacBook", "Studio"])
-        let a = desk.macs[0], b = desk.macs[1]
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio", "Mini"])
+        let a = desk.macs[0], b = desk.macs[1], c = desk.macs[2]
+        // Default (d): the Mini's sharing is off, so no content reaches it.
+        desk.permitted[c.id] = false
         b.store.copy([[(text, Data("already on the Studio".utf8))]])
+        c.store.copy([[(text, Data("already on the Mini".utf8))]])
         desk.start()
         defer { desk.stop() }
-        try wait("both Macs greet") { a.link.messages(to: b.id).contains { if case .hello? = $0 { return true }; return false } && b.clipboard.decisions.contains(.peerSupports("MacBook", format: 1)) }
+        try wait("greetings") { desk.greeted() }
         let canary = "PERCH-CANARY-" + UUID().uuidString
         let canaryText = Data((canary + String(repeating: "q", count: 12_345 - canary.utf8.count)).utf8)
-        try check(canaryText.count == 12_345, "Canary fixture")
         let richText = Data("{\\rtf1 \(canary)}".utf8)
         a.store.copy([[(text, canaryText), (rtf, richText), ("com.example.private", Data("app private".utf8))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        // The pasteboard is written first, then the decision is made on the
-        // main thread; wait for the decision.
-        try wait("text arrives") { if case .received? = b.clipboard.lastDecision { return true }; return false }
+        try wait("small text arrives on its own") { b.store.first == canaryText }
         let arrived = b.store.current
-        try check(arrived.count == 1 && arrived[0].map(\.type) == [text, rtf] && arrived[0][1].data == richText,
-                  "The copy did not arrive whole, or an app's private type came with it: \(arrived.map { $0.map(\.type) })")
-        guard case .received(let from, _, let size)? = b.clipboard.lastDecision, from == "MacBook", size == "under 64 KB" else {
-            throw AppError(message: "Receiving was not decided and named: \(String(describing: b.clipboard.lastDecision))")
-        }
-        try wait("sender records it") { if case .sent? = a.clipboard.lastDecision { return true }; return false }
-        // The same copy is not fetched twice.
-        b.clipboard.keyboardArrived()
-        try wait("second arrival") { b.clipboard.lastDecision == .alreadyHere(from: "MacBook") }
-        // A password never travels, and its data is never read.
-        let before = b.store.current.first?.first?.data, reads = a.store.dataReads
-        a.store.copy([[(text, Data("correct horse battery staple".utf8)), (DeskClipboardMarker.concealed, Data())]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("concealed copy withheld") { b.clipboard.lastDecision == .notShared(from: "MacBook", .concealed) }
-        try check(b.store.current.first?.first?.data == before && a.store.dataReads == reads, "A concealed copy crossed the desk or was read")
-        try check(a.clipboard.lastDecision == .withheld(to: "Studio", .concealed), "Withholding was not named on the Mac that copied")
-        for (marker, reason) in [(DeskClipboardMarker.transient, DeskClipboardReason.transient), (DeskClipboardMarker.autoGenerated, .autoGenerated)] {
-            a.store.copy([[(text, Data("temporary".utf8)), (marker, Data())]])
+        try check(arrived.count == 1 && arrived[0].map(\.type) == [text, rtf, DeskClipboardMarker.received] && arrived[0][1].data == richText,
+                  "The copy did not arrive whole and marked, or an app's private type came with it: \(arrived.map { $0.map(\.type) })")
+        try check(b.fakes.presented.isEmpty, "Small text showed a popup")
+        try wait("what was waiting clears on the Studio") { b.clipboard.waiting == nil }
+        settle(0.2)
+        try check(c.store.first == Data("already on the Mini".utf8) && c.link.count(DeskClipboardTests.isFetch) == 0,
+                  "Small text reached a Mac whose sharing is off")
+        try check(a.link.count { if case .copied = $0 { return true }; return false } == 2, "A copy was not announced exactly once to each other Mac")
+        // Scott's line, 64 KB of text in all: exactly that moves on its own, one byte more waits.
+        a.store.copy([[(text, Data(repeating: 66, count: DeskClipboardDescriptor.smallText))]])
+        try wait("64 KB of text arrives") { b.store.first?.count == DeskClipboardDescriptor.smallText }
+        let fetchesBefore = b.link.count(DeskClipboardTests.isFetch)
+        a.store.copy([[(text, Data(repeating: 67, count: 16_000)), (rtf, Data(repeating: 68, count: DeskClipboardDescriptor.smallText - 15_999))]])
+        try wait("one byte over waits") { b.clipboard.waiting?.what.kind == .text }
+        settle(0.2)
+        try check(b.link.count(DeskClipboardTests.isFetch) == fetchesBefore && b.store.first?.count == DeskClipboardDescriptor.smallText,
+                  "Text over 64 KB in all moved without being brought over")
+        try check(b.clipboard.waiting?.what.small == false && b.clipboard.waiting?.what.sizeText == "64 KB to 1 MB", "What waits did not say its kind and size")
+
+        // Never a password, never anything temporary or generated: nothing about
+        // them leaves the Mac, and what was waiting elsewhere stays as it was.
+        let waitingBefore = b.clipboard.waiting
+        for (marker, reason) in [(DeskClipboardMarker.concealed, DeskClipboardReason.concealed), (DeskClipboardMarker.transient, .transient),
+                                 (DeskClipboardMarker.autoGenerated, .autoGenerated)] {
+            let announcements = a.link.count(DeskClipboardTests.isCopied), reads = a.store.dataReads
+            a.store.copy([[(text, Data("correct horse battery staple".utf8)), (marker, Data())]])
+            try wait("\(reason) copy kept here") { a.clipboard.lastDecision == .notAnnounced(reason) }
             settle(0.15)
-            b.clipboard.keyboardArrived()
-            try wait("\(reason) copy withheld") { b.clipboard.lastDecision == .notShared(from: "MacBook", reason) }
+            try check(a.link.count(DeskClipboardTests.isCopied) == announcements && a.store.dataReads == reads,
+                      "A copy marked \(marker) was announced or read")
+            try check(b.clipboard.waiting == waitingBefore && b.store.first?.count == DeskClipboardDescriptor.smallText, "A \(reason) copy changed another Mac")
         }
-        a.store.copy([[(DeskClipboardMarker.fileURL, URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)").dataRepresentation), (text, Data("x".utf8))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("missing file refused") { if case .refusedBy("MacBook", _, .unreadable)? = b.clipboard.lastDecision { return true }; return false }
-        try check(b.store.files.isEmpty && b.store.current.first?.first?.data != Data("x".utf8), "A copy of a missing file pasted its name instead")
-        // Something copied on this Mac later is never overwritten by an older copy.
-        a.store.copy([[(text, Data("older, from the MacBook".utf8))]])
-        settle(0.15)
-        b.store.copy([[(text, Data("newer, on the Studio".utf8))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("own newer copy wins") { b.clipboard.lastDecision == .newestHere }
-        try check(b.store.current.first?.first?.data == Data("newer, on the Studio".utf8), "An older copy replaced a newer one")
-        // An image big enough to need many chunks arrives byte for byte, paced.
-        let image = bytes(700_000)
-        a.store.copy([[(png, image), (tiff, bytes(900_000))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("image arrives", seconds: 10) { b.store.current.first?.first?.data == image }
-        try check(b.store.current[0].map(\.type) == [png], "More than one image representation crossed")
-        // Too large: named by the Mac that holds it.
-        a.store.copy([[(text, Data(repeating: 65, count: 3 * 1024 * 1024))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("too large refused") { if case .refusedBy("MacBook", _, .tooLarge)? = b.clipboard.lastDecision { return true }; return false }
-        // The copy changes between the offer and the fetch: refused, not mixed.
-        a.store.copy([[(text, Data("first".utf8))]])
-        settle(0.15)
-        a.link.intercept = nil
-        b.link.intercept = { _, message in
-            if case .fetch? = message { a.store.copy([[(text, Data("second".utf8))]]) }
-            return false
-        }
-        b.clipboard.keyboardArrived()
-        // Whether the MacBook notices the change before or while reading, the
-        // refusal names it: the copy offered is no longer the one there.
-        try wait("changed copy refused") {
-            if case .refusedBy("MacBook", _, let reason)? = b.clipboard.lastDecision { return reason == .changed || reason == .unknownCopy }
-            return false
-        }
-        b.link.intercept = nil
-        // Something copied on this Mac while a fetch is on its way wins.
-        settle(0.15)
-        a.link.intercept = { _, message in
-            if case .manifest? = message { b.store.copy([[(text, Data("typed here meanwhile".utf8))]]) }
-            return false
-        }
-        b.clipboard.keyboardArrived()
-        try wait("newer local copy wins during a fetch") { b.clipboard.lastDecision?.reason == .newerHere }
-        try check(b.store.current.first?.first?.data == Data("typed here meanwhile".utf8), "A fetched copy replaced one made here meanwhile")
-        a.link.intercept = nil
-        // Sharing off: on this Mac nothing is asked; on the other, it says so.
-        desk.permitted[b.id] = false
-        let sentBefore = b.link.sent.count
-        b.clipboard.keyboardArrived()
-        try check(b.clipboard.lastDecision == .notAsking(.sharingOffHere) && b.link.sent.count == sentBefore, "A Mac with sharing off asked the desk")
-        desk.permitted[b.id] = true
-        desk.permitted[a.id] = false
-        b.clipboard.keyboardArrived()
-        try wait("sharing off on the other Mac") { b.clipboard.lastDecision == .notShared(from: "MacBook", .sharingOff) }
-        desk.permitted[a.id] = true
+        // A newer copy nobody can bring over still clears what was waiting (default (b)).
+        a.store.copy([[("com.example.private", Data("app private".utf8))]])
+        try wait("an unsupported copy clears what waits") { b.clipboard.waiting == nil && b.clipboard.lastDecision == .newerElsewhere(from: "MacBook") }
 
         // Logs: never contents, never exact sizes, never types.
         let clipboardLines = logged.filter { $0.category == DeskClipboardDecision.category }.map(\.message)
         for line in clipboardLines {
-            for forbidden in [canary, "12345", "12,345", text, rtf, png, "hunter2", "horse", "700000", "700,000"] {
+            for forbidden in [canary, "12345", "12,345", "65536", "65,536", text, rtf, png, "horse", "com.example"] {
                 try check(!line.contains(forbidden), "The decision log revealed \(forbidden): \(line)")
             }
         }
         // Decision and log cannot disagree: every decision's own line is what
         // was logged, and every logged line is some decision's line.
-        let decided = Set((a.clipboard.decisions + b.clipboard.decisions).map(\.line))
-        for decision in a.clipboard.decisions + b.clipboard.decisions {
-            try check(clipboardLines.contains(decision.line), "A decision was not logged as decided: \(decision.line)")
-        }
+        let all = desk.macs.flatMap { $0.clipboard.decisions }
+        let decided = Set(all.map(\.line))
+        for decision in all { try check(clipboardLines.contains(decision.line), "A decision was not logged as decided: \(decision.line)") }
         for line in clipboardLines { try check(decided.contains(line), "A logged line matches no decision: \(line)") }
     }
     // Every reason reads distinctly, and every refusal names its own.
     let reasons = DeskClipboardReason.allCases
     try check(Set(reasons.map(\.text)).count == reasons.count, "Two reasons read the same")
     for reason in reasons {
-        for decision in [DeskClipboardDecision.notShared(from: "Studio", reason), .refusedBy("Studio", transfer: UUID(), reason),
-                         .failed(from: "Studio", transfer: UUID(), reason, detail: nil), .withheld(to: "Studio", reason),
-                         .refused(to: "Studio", transfer: UUID(), reason), .peerCannot("Studio", reason), .notAsking(reason)] {
+        for decision in [DeskClipboardDecision.notAnnounced(reason), .refusedBy("Studio", transfer: UUID(), reason),
+                         .failed(from: "Studio", transfer: UUID(), reason, detail: nil), .discarded(transfer: UUID(), reason),
+                         .notBringing(reason), .refused(to: "Studio", transfer: UUID(), reason), .peerCannot("Studio", reason)] {
             try check(decision.reason == reason && decision.line.hasSuffix(" because " + reason.text), "A decision's logged reason disagreed with it: \(decision.line)")
         }
+        let line = DeskPasteProgress.line(for: reason, from: "Studio")
+        try check(!line.isEmpty && line.count <= 48, "The popup's line for \(reason) is empty or long: \(line)")
     }
-    print("PASS: shared clipboard end to end: copy on one Mac, keyboard arrives on the other, the newest copy is fetched once; concealed, transient, generated, unreadable, oversized and changed copies are refused by name; newer local copies always win; logs hold no contents, types or exact sizes and always match the decision")
+    print("PASS: shared clipboard pushes small text: a copy of 64 KB of text or less lands on every other Mac with sharing on, silently and marked, one byte more only waits; passwords, temporary and generated copies leave no trace; logs hold no contents, types or exact sizes and always match the decision")
 
-    // MARK: A slow or dead Mac never hangs the paste or the main thread
+    // MARK: A received copy is never sent on
 
     do {
-        let desk = ClipboardDesk(names: ["MacBook", "Studio"])
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio", "Mini"])
+        let a = desk.macs[0], b = desk.macs[1], c = desk.macs[2]
+        desk.start()
+        defer { desk.stop() }
+        try wait("greetings") { desk.greeted() }
+        a.store.copy([[(text, Data("from the MacBook".utf8))]])
+        try wait("both receive it") { b.store.first == Data("from the MacBook".utf8) && c.store.first == Data("from the MacBook".utf8) }
+        let echoesBefore = b.link.count(DeskClipboardTests.isCopied) + c.link.count(DeskClipboardTests.isCopied)
+        settle(0.6)
+        try check(b.link.count(DeskClipboardTests.isCopied) + c.link.count(DeskClipboardTests.isCopied) == echoesBefore,
+                  "A received copy was announced again: it would echo back or be relayed")
+        try check(a.store.first == Data("from the MacBook".utf8) && a.link.count(DeskClipboardTests.isFetch) == 0, "A copy echoed back to the Mac it came from")
+        // Even when the clipboard's own count moves without Perch noticing the
+        // write (a slow clipboard), the mark alone stops it.
+        let stray = b.store.current
+        b.store.copy(stray)
+        settle(0.6)
+        try check(b.link.count(DeskClipboardTests.isCopied) + c.link.count(DeskClipboardTests.isCopied) == echoesBefore,
+                  "A marked copy was announced after its count changed")
+        // And it is never served: asking the Studio for it is refused.
+        let asked = UUID()
+        b.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.fetch(transfer: asked, copy: UUID(), key: Data(count: 32)), format: 1)), peer: c.id)
+        try wait("a received copy is not served") { b.clipboard.decisions.contains(.refused(to: "Mini", transfer: asked, .unknownCopy)) }
+        // Something copied fresh on the Studio is its own, and is announced.
+        b.store.copy([[(text, Data("typed on the Studio".utf8))]])
+        try wait("a fresh copy goes out") { a.store.first == Data("typed on the Studio".utf8) }
+    }
+    print("PASS: shared clipboard never echoes: a received copy carries Perch's mark and is never announced, relayed or served, even when the clipboard changes under it; a fresh copy on that Mac goes out as usual")
+
+    // MARK: Everything else is announced, not sent
+
+    do {
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"])
+        let a = desk.macs[0], b = desk.macs[1]
+        desk.start()
+        defer { desk.stop() }
+        try wait("greetings") { desk.greeted() }
+        let folder = desk.root.appendingPathComponent("announced")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let fileA = folder.appendingPathComponent("A.mov"), fileB = folder.appendingPathComponent("B.mov")
+        try bytes(300_000).write(to: fileA); try bytes(300_000).write(to: fileB)
+        let cases: [(String, [[(type: String, data: Data)]], DeskClipboardDescriptor.Kind, Int, String)] = [
+            ("a photo", [[(png, bytes(700_000)), (tiff, bytes(900_000))]], .image, 1, "64 KB to 1 MB"),
+            ("three photos", [[(png, bytes(2000))], [(png, bytes(2000))], [(tiff, bytes(2000))]], .image, 3, "under 64 KB"),
+            ("long text", [[(text, Data(repeating: 65, count: 2_000_000))]], .text, 1, "1 to 8 MB"),
+            ("two files", [[(DeskClipboardMarker.fileURL, fileA.dataRepresentation)], [(DeskClipboardMarker.fileURL, fileB.dataRepresentation)]], .files, 2, "64 KB to 1 MB")]
+        for (label, copied, kind, count, size) in cases {
+            let fetches = b.link.count(DeskClipboardTests.isFetch), content = a.link.count(DeskClipboardTests.isContent), before = b.store.first
+            let known = b.clipboard.waiting?.copy
+            a.store.copy(copied)
+            try wait(label) { b.clipboard.waiting?.what.kind == kind && b.clipboard.waiting?.copy != known }
+            settle(0.2)
+            try check(b.link.count(DeskClipboardTests.isFetch) == fetches && a.link.count(DeskClipboardTests.isContent) == content && b.store.first == before,
+                      "\(label) moved without being brought over")
+            try check(b.clipboard.waiting?.what.count == count && b.clipboard.waiting?.what.sizeText == size,
+                      "\(label) was announced as \(String(describing: b.clipboard.waiting?.what))")
+        }
+        try check(b.fakes.presented.isEmpty, "An announcement showed a popup")
+        // A Mac that says its copy is small text but sends more is refused.
+        a.link.rewrite = { message in
+            if case .copied(let copy, let age, _) = message { return .copied(copy: copy, age: age, what: .init(kind: .text, count: 1, small: true, size: 1)) }
+            return nil
+        }
+        a.store.copy([[(png, bytes(1000))]])
+        try wait("a picture claimed as small text is refused") {
+            if case .failed(_, _, .corrupt, "more than small text arrived unasked")? = b.clipboard.lastDecision { return true }; return false
+        }
+        a.store.copy([[(text, Data(repeating: 70, count: 100_000))]])
+        try wait("long text claimed as small is refused") {
+            if case .failed(_, _, .corrupt, let detail)? = b.clipboard.lastDecision { return detail?.contains("declares a size") == true }; return false
+        }
+        try check(!b.store.marked || b.store.first?.count != 100_000, "Content larger than small text landed unasked")
+        a.link.rewrite = nil
+    }
+    print("PASS: shared clipboard only announces everything else: photos, long text and files say their kind, count and size bucket and move nothing until brought over; a Mac that claims small text and sends more is refused")
+
+    // MARK: Bringing it over
+
+    do {
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"])
         let a = desk.macs[0], b = desk.macs[1]
         b.store.copy([[(text, Data("what the Studio had".utf8))]])
         desk.start()
         defer { desk.stop() }
-        try wait("greeting") { b.clipboard.decisions.contains(.peerSupports("MacBook", format: 1)) && a.clipboard.decisions.contains(.peerSupports("Studio", format: 1)) }
+        try wait("greetings") { desk.greeted() }
         let original = Data("what the Studio had".utf8)
-        // Dead: the other Mac never answers.
-        a.store.copy([[(text, Data("unreachable".utf8))]])
-        settle(0.15)
-        b.link.intercept = { _, message in if case .ask? = message { return true }; return false }
+        /// Copy on the MacBook and wait until the Studio knows of that copy.
+        func copyOnMacBook(_ label: String, _ items: [[(type: String, data: Data)]]) throws {
+            let before = b.clipboard.waiting?.copy
+            a.store.copy(items)
+            try wait(label) { b.clipboard.waiting != nil && b.clipboard.waiting?.copy != before }
+        }
+        // Default (c): nothing waiting, nothing happens.
+        let sentBefore = b.link.sent.count
+        b.clipboard.bringOverHere()
+        try check(b.clipboard.lastDecision == .nothingWaiting && b.fakes.presented.isEmpty && b.link.sent.count == sentBefore,
+                  "Bring over with nothing waiting did something")
+        let image = bytes(700_000)
+        try copyOnMacBook("photo waits", [[(png, image), (tiff, bytes(900_000))]])
         var gap = try mainGap {
-            b.clipboard.keyboardArrived()
-            try wait("no answer") { b.clipboard.lastDecision == .noAnswer }
+            b.clipboard.bringOverHere()
+            b.clipboard.bringOverHere()
+            try wait("photo arrives") { b.store.first == image }
         }
-        try check(gap < 0.3, "Waiting for a dead Mac stalled the main thread for \(gap) s")
-        b.link.intercept = nil
-        // Answers, then goes silent before sending anything.
-        a.link.intercept = { _, message in
-            switch message { case .manifest?, .chunk?: return true; default: return false }
-        }
-        gap = try mainGap {
-            b.clipboard.keyboardArrived()
-            try wait("reply timeout") { if case .failed(_, _, .timedOut, "no reply")? = b.clipboard.lastDecision { return true }; return false }
-        }
-        try check(gap < 0.3 && b.store.current.first?.first?.data == original, "A silent Mac stalled the main thread (\(gap) s) or changed the paste")
-        // Stalls halfway through.
-        a.store.copy([[(png, bytes(500_000))]])
-        settle(0.15)
-        a.link.intercept = { _, message in if case .chunk(_, let index, _, _)? = message { return index >= 2 }; return false }
-        b.clipboard.keyboardArrived()
-        try wait("stall timeout") { if case .failed(_, _, .timedOut, "stalled")? = b.clipboard.lastDecision { return true }; return false }
-        try check(b.store.current.first?.first?.data == original, "A stalled transfer left part of a copy behind")
-        try wait("sender stops") { if case .stoppedSending(_, _, .timedOut)? = a.clipboard.lastDecision { return true }; if case .stoppedSending(_, _, .cancelled)? = a.clipboard.lastDecision { return true }; return false }
-        // Slow: every chunk held back. The paste keeps what was there, at once,
-        // until the whole verified copy is in; the main thread never waits.
-        a.link.intercept = nil
-        a.link.chunkDelay = 0.12
+        try check(gap < 0.3, "Bringing a photo over stalled the main thread for \(gap) s")
+        try check(b.fakes.presented.count == 1, "Pressing twice showed two popups or none: \(b.fakes.presented.count)")
+        let popup = b.fakes.presented[0]
+        try check(popup.title == "A photo from MacBook", "The popup said \(popup.title)")
+        try check(b.store.current[0].map(\.type) == [png, DeskClipboardMarker.received], "More than one image representation, or no mark, arrived")
+        try wait("popup finishes and closes") { popup.phase == .done && popup.line == "Ready to paste" && popup.isClosed }
+        try check(b.clipboard.waiting == nil, "What was waiting stayed after it was brought over")
+        // Too large: named by the Mac that holds it; it will never come, so it stops waiting.
+        try copyOnMacBook("long text waits", [[(text, Data(repeating: 65, count: 3 * 1024 * 1024))]])
+        b.clipboard.bringOverHere()
+        try wait("too large refused") { b.fakes.last?.phase == .failed }
+        try check(b.fakes.last?.line == "Too large to bring over" && b.store.first == image && b.clipboard.waiting == nil,
+                  "Too large was not named, left something behind, or kept waiting")
+        // Failure pastes nothing: the other Mac leaves halfway.
+        let second = bytes(1_500_000)
+        try copyOnMacBook("second photo waits", [[(png, second)]])
+        a.link.chunkDelay = 0.05
+        b.clipboard.bringOverHere()
+        try wait("halfway") { (b.clipboard.bringOverProgress ?? 0) > 0.1 }
+        b.link.peers.remove(a.id); b.clipboard.peersChanged()
+        try wait("leaving is named") { b.fakes.last?.phase == .failed }
+        try check(b.fakes.last?.line == "Couldn’t reach MacBook" && b.store.first == image && b.clipboard.waiting == nil,
+                  "A Mac leaving mid-transfer left part of a copy, said something else, or kept waiting")
+        b.link.peers.insert(a.id); b.clipboard.peersChanged()
+        a.link.chunkDelay = 0
+        // Cancel stops it, on both Macs, and changes nothing here.
+        try copyOnMacBook("third photo waits", [[(png, bytes(1_600_000))]])
+        a.link.chunkDelay = 0.05
+        b.clipboard.bringOverHere()
+        try wait("moving") { (b.clipboard.bringOverProgress ?? 0) > 0.05 }
+        b.fakes.last?.cancel()
+        try check(b.fakes.last?.isClosed == true && b.fakes.last?.canCancel == false, "Cancel did not close the popup")
+        try wait("the sender stops") { a.clipboard.decisions.contains { if case .stoppedSending(_, _, .cancelled) = $0 { return true }; return false } }
+        settle(0.4)
+        try check(b.store.first == image && b.clipboard.waiting != nil, "Cancel left part of a copy, or forgot what waits")
+        a.link.chunkDelay = 0
+        // Slow: the main thread never waits, and nothing changes here until the verified copy is complete.
+        a.link.chunkDelay = 0.1
         let slow = bytes(1_500_000)
-        a.store.copy([[(png, slow)]])
-        settle(0.15)
-        var pastedMeanwhile: [Data?] = [], progress: [Double] = []
+        try copyOnMacBook("slow photo waits", [[(png, slow)]])
+        var seen: [Data?] = [], progress: [Double] = []
         gap = try mainGap {
-            b.clipboard.keyboardArrived()
-            try wait("slow transfer", seconds: 10) {
-                pastedMeanwhile.append(b.store.current.first?.first?.data)
-                if let value = b.clipboard.progress { progress.append(value) }
-                return b.store.current.first?.first?.data == slow
+            b.clipboard.bringOverHere()
+            try wait("slow photo arrives", seconds: 10) {
+                seen.append(b.store.first)
+                if let value = b.clipboard.bringOverProgress { progress.append(value) }
+                return b.store.first == slow
             }
         }
-        try check(progress.contains { $0 > 0 && $0 < 1 } && zip(progress, progress.dropFirst()).allSatisfy { $0 <= $1 },
-                  "A large copy on its way showed no steady progress: \(progress)")
-        try wait("progress ends with the transfer") { b.clipboard.progress == nil }
         try check(gap < 0.3, "A slow transfer stalled the main thread for \(gap) s")
-        try check(pastedMeanwhile.allSatisfy { $0 == original || $0 == slow }, "A paste during a transfer saw a partial copy")
-        try check(pastedMeanwhile.filter { $0 == original }.count > 5, "The fixture never pasted while the slow transfer was on its way")
+        try check(seen.allSatisfy { $0 == image || $0 == slow } && seen.filter { $0 == image }.count > 5, "A partial copy was visible, or the transfer was not slow")
+        try check(progress.contains { $0 > 0 && $0 < 1 } && zip(progress, progress.dropFirst()).allSatisfy { $0 <= $1 }, "Progress did not move steadily: \(progress)")
         a.link.chunkDelay = 0
-        // The app that copied is hung: its data never comes. Perch's main
-        // thread carries on, and the other Mac is told why.
-        a.store.readDelay = 1.2
-        a.store.copy([[(text, Data("promised by a hung app".utf8))]])
-        settle(0.15)
+        // Dead: asked, never answers.
+        try copyOnMacBook("dead photo waits", [[(png, bytes(200_000))]])
+        a.link.intercept = { _, message in switch message { case .manifest?, .chunk?: return true; default: return false } }
         gap = try mainGap {
-            b.clipboard.keyboardArrived()
-            try wait("hung app refused") { if case .refusedBy("MacBook", _, .readTimedOut)? = b.clipboard.lastDecision { return true }; return false }
+            b.clipboard.bringOverHere()
+            try wait("no reply is named") { b.fakes.last?.phase == .failed }
         }
-        try check(gap < 0.3, "A hung app stalled Perch's main thread for \(gap) s")
-        a.store.readDelay = 0
-        settle(1.3)
-        // Once the hung read finally returns, the pasteboard is usable again.
-        a.store.copy([[(text, Data("after the hang".utf8))]])
-        settle(0.15)
-        b.clipboard.keyboardArrived()
-        try wait("recovered after a hang") { b.store.current.first?.first?.data == Data("after the hang".utf8) }
+        try check(gap < 0.3 && b.fakes.last?.line == "Couldn’t reach MacBook" && b.clipboard.waiting != nil, "A silent Mac stalled the main thread, or was not named")
+        a.link.intercept = nil
         // Pacing: while the desk link's queue is full, no chunk is added to it.
         a.link.queued = DeskClipboard.paceLimit
-        a.store.copy([[(png, bytes(300_000))]])
-        settle(0.15)
-        let chunksBefore = a.link.messages(to: b.id).filter { if case .chunk? = $0 { return true }; return false }.count
-        b.clipboard.keyboardArrived()
-        let manifestsBefore = a.link.messages(to: b.id).filter { if case .manifest? = $0 { return true }; return false }.count
-        try wait("manifest while paced") { a.link.messages(to: b.id).filter { if case .manifest? = $0 { return true }; return false }.count > manifestsBefore }
+        let chunks = a.link.count { if case .chunk = $0 { return true }; return false }
+        b.clipboard.bringOverHere()
+        try wait("manifest while paced") { a.link.count { if case .manifest = $0 { return true }; return false } > 0 && b.fakes.last?.phase == .moving }
         settle(0.2)
-        try check(a.link.messages(to: b.id).filter { if case .chunk? = $0 { return true }; return false }.count == chunksBefore, "Chunks were queued onto a full desk link")
+        try check(a.link.count { if case .chunk = $0 { return true }; return false } == chunks, "Chunks were queued onto a full desk link")
         a.link.queued = 0
-        try wait("paced transfer resumes") { if case .received? = b.clipboard.lastDecision { return true }; return false }
+        try wait("paced transfer resumes") { b.fakes.last?.phase == .done }
     }
-    // One chunk as the desk link carries it fits the pacing allowance, which
-    // stays far below the size at which the transport closes a link.
     let chunkEnvelope = try DeskClipboardWire.encode(DeskClipboardWire.seal(bytes(200_000), transfer: transfer, copy: copyID, key: key, format: 1).chunk(0, key: key), format: 1)
     let onWire = try KVMMessageFramer.encode(JSONEncoder().encode(KVMDeskMessage.application(DeskClipboardWire.prefix + chunkEnvelope)))
     try check(onWire.count <= DeskClipboard.chunkWireBytes, "A chunk takes \(onWire.count) bytes on the desk link, more than the pacing allows for")
-    // A chunk is queued only if it still fits under the pacing limit, so the
-    // clipboard never holds more than half of what the link allows; the rest
-    // stays free for pointer traffic.
     try check(DeskClipboard.paceLimit <= KVMPeerTransport.sendLimit / 2, "Clipboard pacing leaves no room below the transport's limit")
-    print("PASS: shared clipboard never hangs: a dead, silent, stalled or slow Mac and a hung app cost a timeout with a named reason, the paste keeps its old content until a verified copy is complete, the main thread never waits, and the desk link is paced below its limit")
+    print("PASS: shared clipboard brings over with the popup: nothing waiting does nothing; a photo arrives marked with steady progress and the popup says Ready to paste and closes; too large, a Mac leaving, cancel and a silent Mac are named and change nothing; a slow Mac never stalls the main thread; the desk link is paced below its limit")
 
-    // MARK: Rate limits and keyboard arrival
+    // MARK: Which Mac brings it over, and when what waits clears
+
+    try check(DeskClipboard.bringOverTarget(keyboard: nil, local: copyID) == copyID, "Without sharing running, bring over did not act here")
+    let elsewhere = UUID()
+    try check(DeskClipboard.bringOverTarget(keyboard: elsewhere, local: copyID) == elsewhere, "Bring over did not act for the Mac typing goes to")
+    try check(DeskClipboard.bringOverTarget(keyboard: copyID, local: copyID) == copyID, "Bring over left the Mac typing goes to")
+    do {
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio", "Mini"])
+        let a = desk.macs[0], b = desk.macs[1], c = desk.macs[2]
+        desk.start()
+        defer { desk.stop() }
+        try wait("greetings") { desk.greeted() }
+        let photo = bytes(300_000)
+        a.store.copy([[(png, photo)]])
+        try wait("photo waits on both") { b.clipboard.waiting != nil && c.clipboard.waiting != nil }
+        // Default (a): ⌃⌥⌘V pressed on the Mini's keyboard while typing goes to
+        // the Studio brings it to the Studio, not the Mini.
+        c.clipboard.bringOver(keyboard: b.id)
+        try wait("the Studio brings it over") { b.store.first == photo }
+        try check(c.store.first != photo && c.fakes.presented.isEmpty && b.fakes.presented.count == 1,
+                  "Bring over acted on the Mac whose keyboard was pressed rather than where typing goes")
+        try check(c.clipboard.decisions.contains(.askedToBringOver(on: "Studio")) && c.clipboard.waiting != nil, "Asking the Studio was not named, or the Mini forgot what waits")
+        // Pressed where typing goes: here.
+        c.clipboard.bringOver(keyboard: c.id)
+        try wait("the Mini brings it over itself") { c.store.first == photo }
+        // Default (b): a newer copy anywhere clears what waits, small text included.
+        a.store.copy([[(png, bytes(3000))]])
+        try wait("new photo waits") { b.clipboard.waiting?.copy != nil && b.clipboard.waiting?.what.size == DeskClipboardPolicy.sizeIndex(3000) }
+        c.store.copy([[(text, Data("newer, from the Mini".utf8))]])
+        try wait("small text replaces it") { b.clipboard.waiting == nil && a.clipboard.waiting == nil && b.store.first == Data("newer, from the Mini".utf8) }
+        // A copy made here clears what waits here.
+        a.store.copy([[(png, bytes(4000))]])
+        try wait("waits again") { b.clipboard.waiting != nil }
+        b.store.copy([[(text, Data("typed on the Studio".utf8))]])
+        try wait("a copy here clears it") { b.clipboard.waiting == nil }
+        // The Mac holding it leaves: it clears.
+        a.store.copy([[(png, bytes(5000))]])
+        try wait("waits once more") { c.clipboard.waiting?.peer == a.id }
+        c.link.peers.remove(a.id); c.clipboard.peersChanged()
+        try check(c.clipboard.waiting == nil, "What waited stayed after the Mac holding it left")
+        c.link.peers.insert(a.id); c.clipboard.peersChanged()
+        // The same copy announced again, even as if a moment newer, changes nothing.
+        if let again = b.clipboard.waiting {
+            let fetches = b.link.count(DeskClipboardTests.isFetch)
+            b.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.copied(copy: again.copy, age: 0, what: again.what), format: 1)), peer: a.id)
+            settle(0.05)
+            try check(b.clipboard.waiting == again && b.link.count(DeskClipboardTests.isFetch) == fetches, "A copy announced again was taken for a new one")
+        }
+        // An announcement older than what this Mac already has changes nothing.
+        let known = b.clipboard.waiting
+        b.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.copied(copy: UUID(), age: 60_000, what: .init(kind: .image, count: 1, small: false, size: 2)), format: 1)), peer: a.id)
+        settle(0.05)
+        try check(b.clipboard.waiting == known, "An older copy replaced a newer one")
+        // Sharing off here: no bring over, and it says why.
+        desk.permitted[b.id] = false
+        b.clipboard.bringOverHere()
+        try check(b.clipboard.lastDecision == .notBringing(.sharingOffHere), "Bring over ran with sharing off")
+        desk.permitted[b.id] = true
+    }
+    print("PASS: shared clipboard brings over for the Mac typing goes to, whichever keyboard pressed ⌃⌥⌘V; what waits clears when anything newer is copied on any Mac, when a copy is made here, and when the Mac holding it leaves; an older announcement changes nothing")
+
+    // MARK: A hung app on the copying Mac
 
     do {
-        let desk = ClipboardDesk(names: ["MacBook", "Studio"])
+        let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"])
         let a = desk.macs[0], b = desk.macs[1]
         desk.start()
         defer { desk.stop() }
-        try wait("greeting") { a.clipboard.decisions.contains(.peerSupports("Studio", format: 1)) }
-        // Copied after Perch started, so its age is known and it is offered.
-        a.store.copy([[(text, Data("x".utf8))]])
-        settle(0.15)
-        for _ in 0..<25 { a.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.ask(query: UUID()), format: 1)), peer: b.id) }
-        try wait("rate limit") { a.clipboard.decisions.contains(.withheld(to: "Studio", .rateLimited)) }
-        // The twenty allowed questions share one look at the pasteboard, and
-        // every one is answered honestly.
-        try wait("questions answered") { a.link.messages(to: b.id).filter { if case .offer? = $0 { return true }; return false }.count == 20 }
-        try check(!a.clipboard.decisions.contains(.withheld(to: "Studio", .readTimedOut)), "A burst of questions was answered as a pasteboard timeout")
-        let fetches = (0..<2).map { _ in UUID() }
-        for id in fetches {
-            a.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.fetch(transfer: id, copy: UUID(), key: Data(count: 32)), format: 1)), peer: b.id)
+        try wait("greetings") { desk.greeted() }
+        a.store.readDelay = 1.2
+        let gap = mainGap {
+            a.store.copy([[(text, Data("promised by a hung app".utf8))]])
+            settle(0.8)
         }
-        try wait("unknown copy refused") { a.clipboard.decisions.contains { if case .refused(_, fetches[0], .unknownCopy) = $0 { return true }; return false } }
-        // One copy at a time to each Mac: a second fetch while one is being sent is refused.
-        guard let offered = a.link.messages(to: b.id).compactMap({ message -> UUID? in if case .offer(_, let copy, _)? = message { return copy }; return nil }).last else {
-            throw AppError(message: "No offer was made to the fixture")
-        }
-        let first = UUID(), second = UUID()
-        for id in [first, second] {
-            a.clipboard.receive(DeskClipboardWire.prefix + (try DeskClipboardWire.encode(.fetch(transfer: id, copy: offered, key: Data(count: 32)), format: 1)), peer: b.id)
-        }
-        try wait("busy refused") { a.clipboard.decisions.contains(.refused(to: "Studio", transfer: second, .busy)) }
-        try check(!a.clipboard.decisions.contains { if case .refused(_, first, _) = $0 { return true }; return false }, "The first fetch was refused too")
+        try check(gap < 0.3, "A hung app stalled Perch's main thread for \(gap) s")
+        try check(b.store.first != Data("promised by a hung app".utf8), "The fixture's app was not hung")
+        a.store.readDelay = 0
+        // Once the hung read returns, the copy goes out after all.
+        try wait("recovered after a hang", seconds: 4) { b.store.first == Data("promised by a hung app".utf8) }
     }
+    print("PASS: shared clipboard survives a hung app: the copying Mac's main thread never waits for it, and the copy goes out once the app hands it over")
+
+    // MARK: The popup, as logic
+
     do {
-        let link = DeskClipboardFakeLink(), store = DeskClipboardFakeStore()
-        let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 0.3))
-        clipboard.permitted = { true }
-        clipboard.timings.tick = 60
-        var keyboard: UUID?
-        clipboard.keyboardComputer = { keyboard }
-        clipboard.start(); defer { clipboard.stop() }
-        settle(0.1)
-        let other = UUID(), me = link.localID
-        func arrivals() -> Int { clipboard.decisions.filter { $0 == .notAsking(.notSupported) }.count }
-        for (value, expected) in [(nil, 0), (other, 0), (nil, 0), (me, 1), (me, 1), (nil, 1), (me, 1), (other, 1), (me, 2)] as [(UUID?, Int)] {
-            keyboard = value; clipboard.keyboardMoved()
-            try check(arrivals() == expected, "Keyboard arrival miscounted at \(String(describing: value)): \(arrivals()) not \(expected)")
+        let time = DeskManualTime()
+        func make(_ title: String = "A photo from Studio") -> (DeskPasteProgress, () -> Int, () -> Int) {
+            var changes = 0, closes = 0
+            let p = DeskPasteProgress(title: title, clock: { time.now }, after: { time.after($0, $1) })
+            p.changed = { changes += 1 }; p.closed = { closes += 1 }
+            return (p, { changes }, { closes })
         }
+        time.now = 10
+        var (p, changes, closes) = make()
+        p.advance(to: 0.001); p.advance(to: 0.005)
+        try check(changes() == 0, "The popup redrew for less than a percent")
+        p.advance(to: 0.5); p.advance(to: 0.4)
+        try check(p.fraction == 0.5 && changes() == 1, "Progress went backwards or did not redraw")
+        time.advance(to: 10.1)
+        p.finish()
+        try check(p.phase == .done && p.line == "Ready to paste" && p.fraction == 1 && !p.canCancel, "Finishing did not say it is ready")
+        time.advance(to: 11.05)
+        try check(closes() == 0, "The popup closed before it had been read")
+        time.advance(to: 11.1)
+        try check(closes() == 1 && p.isClosed, "The popup did not close itself once done")
+        p.fail("late"); p.close()
+        try check(p.line == "Ready to paste" && closes() == 1, "A finished popup changed or closed twice")
+        // Over the cable, done within one frame: still on screen for half a second.
+        time.now = 20
+        (p, changes, closes) = make()
+        time.advance(to: 20.01)
+        p.finish()
+        time.advance(to: 20.49)
+        try check(closes() == 0, "A fast transfer flashed the popup")
+        time.advance(to: 21.01)
+        try check(closes() == 1, "A fast transfer's popup stayed open")
+        // A failure: one line, three seconds, then gone.
+        time.now = 30
+        (p, _, closes) = make()
+        p.fail("Couldn’t reach Studio")
+        try check(p.phase == .failed && p.line == "Couldn’t reach Studio" && !p.canCancel, "A failure did not say what happened")
+        time.advance(to: 32.9)
+        try check(closes() == 0, "A failure closed before it could be read")
+        time.advance(to: 33)
+        try check(closes() == 1, "A failure's popup stayed open")
+        // Cancel: the person's one action. Stops at once.
+        time.now = 40
+        var cancelled = 0
+        (p, _, closes) = make()
+        p.onCancel = { cancelled += 1 }
+        try check(p.canCancel, "A popup on its way could not be cancelled")
+        p.cancel(); p.cancel()
+        try check(cancelled == 1 && closes() == 1 && p.phase == .cancelled, "Cancel did not stop and close exactly once")
+        try check(DeskPasteProgress.title(.init(kind: .image, count: 1, small: false), from: "Studio") == "A photo from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .image, count: 3, small: false), from: "Studio") == "3 photos from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .files, count: 1, small: false), from: "Studio") == "A file from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .files, count: 3, small: false), from: "Studio") == "3 files from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .text, count: 1, small: false), from: "Studio") == "Text from Studio",
+                  "The popup's words moved")
     }
-    print("PASS: shared clipboard rate-limits questions, refuses unknown copies, and asks exactly once each time the keyboard arrives from another Mac")
+    // The window: constructed, never shown, never key.
+    let panel = DeskPastePanel.make()
+    try check(!panel.canBecomeKey && !panel.canBecomeMain, "The popup could take focus")
+    try check(panel.styleMask.contains(.nonactivatingPanel) && panel.becomesKeyOnlyIfNeeded && !panel.hidesOnDeactivate && panel.level == .floating,
+              "The popup is not a floating, non-activating panel")
+    try check(!panel.isVisible, "Constructing the popup showed it")
+    print("PASS: shared clipboard popup: steady progress, Ready to paste, at least half a second on screen, closes itself, a failure's one line for three seconds, Cancel stops once and closes; the panel can never become key or activate Perch")
+
+    // MARK: The bring-over shortcut
+
+    var router = DeskKeyRouter()
+    let v = Int64(kVK_ANSI_V), chord: CGEventFlags = [.maskControl, .maskAlternate, .maskCommand]
+    func route(_ type: CGEventType, _ code: Int64, _ flags: CGEventFlags = [], repeating: Bool = false, sharing: Bool = true,
+               bringOver: Shortcut? = DeskBringOverShortcut.shortcut, perchOwned: Bool = true) -> DeskKeyDisposition {
+        router.route(type: type, keyCode: code, flags: flags, autorepeat: repeating, sharing: sharing, presets: [],
+                     localShortcut: { code, flags in perchOwned && code == v && flags.contains(chord) }, bringOver: bringOver)
+    }
+    // Registered like Perch's other shortcuts, it would stay on the Mac whose
+    // keyboard was pressed; bring over is recognised first, for the Mac typing goes to.
+    try check(route(.keyDown, v, chord) == .bringOver, "⌃⌥⌘V did not bring over")
+    try check(route(.keyDown, v, chord, repeating: true) == .consumed && route(.keyUp, v, chord) == .consumed,
+              "A held ⌃⌥⌘V repeated or leaked its release to an app")
+    try check(route(.keyDown, v, [.maskCommand]) == .forward && route(.keyUp, v) == .forward, "An ordinary paste was taken for bring over")
+    try check(route(.keyDown, v, chord, bringOver: nil) == .local, "With bring over stepped aside, the shortcut holding its keys lost them")
+    try check(route(.keyDown, v, chord, sharing: false) == .local, "Bring over acted with sharing off")
+    try check(router.consumedKeys.isEmpty || route(.keyUp, v) != .forward, "Key routing kept stale held keys")
+    // Its place among Perch's shortcuts: others see it, and it steps aside for one already there.
+    let registry = ShortcutRegistry()
+    registry.provide(ShortcutRegistry.Source.deskClipboard) { [unowned registry] in DeskBringOverShortcut.claims(in: registry) }
+    try check(registry.problem(with: DeskBringOverShortcut.shortcut, excluding: ShortcutRegistry.Source.emergency)?.contains(DeskBringOverShortcut.owner) == true,
+              "Another Perch shortcut could take ⌃⌥⌘V")
+    try check(DeskBringOverShortcut.active(in: registry) == DeskBringOverShortcut.shortcut, "Bring over stepped aside with nothing in its way")
+    registry.provide(ShortcutRegistry.Source.countdown) { [ShortcutClaim(owner: "the countdown", shortcut: DeskBringOverShortcut.shortcut)] }
+    try check(DeskBringOverShortcut.active(in: registry) == nil, "Bring over took keys another Perch shortcut already holds")
+    try check(registry.problem(with: DeskBringOverShortcut.shortcut, excluding: ShortcutRegistry.Source.countdown) == nil,
+              "A shortcut that held ⌃⌥⌘V first was reported as conflicting with bring over")
+    try check(DeskBringOverShortcut.shortcut.title.contains("V") && DeskBringOverShortcut.shortcut.modifiers == .standard, "Bring over is not ⌃⌥⌘V")
+    print("PASS: shared clipboard's ⌃⌥⌘V is recognised before Perch's other shortcuts so it acts for the Mac typing goes to, never reaches an app, leaves ⌘V alone, is claimed among Perch's shortcuts and steps aside for one already holding its keys")
+
+    // MARK: What the menu bar icon will read
+
+    do {
+        var group = KVMGroup.sample()
+        let local = group.computers[0].id, other = group.computers.count > 1 ? group.computers[1].id : UUID()
+        if group.computers.count < 2 { group.computers.append(.init(id: other, name: "Studio")) }
+        let preset = group.presets.first { preset in
+            preset.assignments.contains { a in group.connections.first { $0.id == a.connection }?.computer == other }
+        }
+        let what = DeskClipboardDescriptor(kind: .image, count: 1, small: false, size: 3)
+        let status = DeskShareStatus.make(waitingFrom: "Studio", waiting: what, sharingOn: true, online: [local, other], local: local, group: group, activePreset: preset?.id)
+        try check(status.waitingFrom == "Studio" && status.waiting == what && status.sharingOn && status.connected == 1, "The icon's state lost a fact: \(status)")
+        try check(status.onActiveDesk == (preset != nil), "Whether a connected Mac is in the active preset was wrong")
+        let alone = DeskShareStatus.make(waitingFrom: nil, waiting: nil, sharingOn: false, online: [local], local: local, group: group, activePreset: nil)
+        try check(alone == .init(waitingFrom: nil, waiting: nil, sharingOn: false, connected: 0, onActiveDesk: false), "A Mac alone showed company: \(alone)")
+        let noPreset = DeskShareStatus.make(waitingFrom: nil, waiting: nil, sharingOn: true, online: [local, other], local: local, group: group, activePreset: nil)
+        try check(noPreset.connected == 1 && !noPreset.onActiveDesk, "No active preset still counted a Mac as on it")
+        let half = DeskShareStatus.make(waitingFrom: "Studio", waiting: nil, sharingOn: true, online: [local], local: local, group: group, activePreset: nil)
+        try check(half.waitingFrom == nil && half.waiting == nil, "A name without a copy showed as waiting")
+    }
+    print("PASS: shared clipboard exposes one small state for the menu bar icon: what waits and from which Mac, Share on this Mac, how many Perches are connected and whether one is in the active preset")
 
     // MARK: The real pasteboard adapter, on a private pasteboard
 
@@ -647,11 +882,19 @@ func runDeskClipboardTests() throws {
     // What Perch writes is plain data, already there: nothing is promised, so a
     // paste never calls back into Perch.
     try check(board.pasteboardItems?.first?.data(forType: .init(text)) == plain, "Written data was not immediately readable")
+    // Written through the access layer, a received copy carries the mark and
+    // reads back as received.
+    let access = DeskPasteboardAccess(store: system, timeout: 1)
+    var written: Result<Int, DeskClipboardReason>?
+    access.write(DeskClipboardContent(items: [[.init(type: .plainText, data: plain)]]), marker: copyID, ifUnchanged: system.changeCount) { written = $0 }
+    try wait("marked write") { written != nil }
+    try check(DeskClipboardPolicy.assess(system.itemTypes()) == .withheld(.received) && system.data(item: 0, type: text) == plain,
+              "A received copy on a real pasteboard was not recognised as received")
     board.clearContents()
     let concealedItem = NSPasteboardItem()
     concealedItem.setString("s3cret", forType: .string)
     concealedItem.setData(Data(), forType: .init(DeskClipboardMarker.concealed))
     board.writeObjects([concealedItem])
     try check(DeskClipboardPolicy.assess(system.itemTypes()) == .withheld(.concealed), "A real concealed marker was not seen")
-    print("PASS: shared clipboard pasteboard adapter writes plain data only and sees a password manager's concealed marker, on a private pasteboard")
+    print("PASS: shared clipboard pasteboard adapter writes plain data only, marks what it received so it is recognised, and sees a password manager's concealed marker, on a private pasteboard")
 }

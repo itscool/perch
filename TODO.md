@@ -837,6 +837,119 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   Nearby proximity alone is not authentication. Review compression
   side channels and whether padding is warranted before implementing the protocol.
 
+  **Progress, September 27, 2026.** Built on branch `clipboard`, pushed, not
+  merged into main and not released. Scott is to review it before it lands.
+
+  *Stage 1, implemented* (`Sources/Desk/DeskClipboard.swift`,
+  `DeskClipboardWire.swift`, `DeskClipboardPolicy.swift`, `DeskPasteboard.swift`):
+  when the keyboard arrives on a Mac (a click moves it there), that Mac asks the
+  other Macs how long ago their newest copy was made and fetches the youngest,
+  only if it is newer than its own and not already there. Plain text, rich text,
+  HTML and one image representation per item (PNG, else JPEG, else TIFF) cross;
+  an app's private types never do. Copies marked concealed, transient or
+  generated automatically (nspasteboard.org, plus the older marks some password
+  managers and text expanders used) and copies of files are never offered, and
+  their data is never read. Every decision is one value whose own sentence is what
+  the shared decision log records (category `clipboard`): names of Macs,
+  reasons and size buckets, never contents, types or exact sizes.
+
+  *How the paste avoids deadlock.* Perch's desk links and its input event tap
+  both run on the main run loop, and a pasteboard promise is answered
+  synchronously on the main thread while the pasting app waits; one that waited
+  for network data arriving on that same thread would deadlock and freeze the
+  shared pointer. So Stage 1 promises nothing. The copy is fetched when the
+  keyboard arrives and written as ordinary data once it is complete and
+  verified. A paste only reads data already on the Mac: before the fetch
+  finishes it pastes what was there before. Pasteboard reads and writes run on
+  their own queue with deadlines (an app slow to hand over its copy is refused
+  by name), and compression, digests and decoding run off the main thread.
+
+  *Transport.* The desk's application channel over the pinned TLS 1.3 link,
+  tagged `Perch clipboard v1`. An older Perch routes that tag nowhere; checked
+  against the 2.0.297 sources (monitor switch, input session, devices, in that
+  order, and none of them matches). Each Mac greets every other with the
+  formats it speaks, and nothing but that greeting is ever sent to a Mac that
+  has not answered with a format both speak; one function enforces it. Neither
+  `KVMDeskProtocol.version` nor `KVMInputProtocol.version` changed, so the
+  Studio on 2.0.297 keeps its desk and its keyboard and mouse sharing.
+  Messages: a 1 KB envelope for every control message and a 64 KB envelope for
+  every chunk, zero-padded, in the smallest size that fits, with the copy's kind
+  inside the padded content. Content is compressed (LZFSE) only from 32 KB and
+  only when smaller, then always padded to a size bucket (four steps per
+  doubling, at least 4 KB). A manifest carries transfer, copy, lengths, chunk
+  count, compression and the SHA-256 of the content; it and every chunk carry
+  HMAC-SHA256 under a fresh key the asking Mac sends inside the TLS channel.
+  Chunks are accepted only in order, once each, for this transfer and index;
+  the digest is checked after bounded decompression into exactly the declared
+  length. The sender keeps its share of the link's send queue under 1 MB (the
+  link closes at 2 MB) with a window of eight chunks.
+
+  **Decided: no second encryption layer.** The only way in is the pinned,
+  mutually authenticated TLS 1.3 channel between Macs paired by hand, so
+  per-chunk keys derived with HKDF would add failure modes without answering a
+  threat that channel leaves open. What was added instead is integrity of the
+  reassembly (the authenticated manifest and chunks above), using CryptoKit.
+
+  *Automatically verified.* `--self-test` (`Tests/DeskClipboardTests.swift`,
+  seven PASS lines): marks and types; the wire (sizes, padding hiding length and
+  kind within a bucket, bounded compression, one negotiated format, strict
+  envelopes); reassembly refusing corruption, reordering, a replayed or missing
+  chunk, another transfer's chunk and a wrong digest; an older Perch receiving
+  only a greeting; copy-and-paste end to end with every refusal named; a dead,
+  silent, stalled or slow Mac and a hung app never stalling the main thread (a
+  10 ms timer measured throughout) while the paste keeps its old content until
+  a verified copy is complete; pacing; rate limits; keyboard arrival counted
+  once per arrival; logs free of contents, types and exact sizes and equal to
+  their decisions; and the real pasteboard adapter on a private, named
+  pasteboard, never the general one. `Tools/check-desk-network.py` adds two
+  real-TLS loopback cases: a 2.5 MB image fetched on keyboard arrival over the
+  same authenticated connection, paced below the link's limit, with a private
+  type and a concealed copy never crossing; and a Mac whose Perch routes the
+  clipboard tag nowhere being only ever greeted while its link stays up and its
+  signed edits keep syncing.
+
+  *Test debt found on the way, not caused by this work:* `check-desk-network`
+  fails now and then in sections that run before any clipboard code. Over 24
+  runs each, main failed once ("Timed out: scale pairing 2") and the branch
+  twice ("Refusal reason was not delivered to the refused Mac", "A redundant
+  route failure masked a working peer"). Each depends on a close or a route
+  racing a timer on loopback; they want a deterministic wait, not a retry.
+
+  *Needs the live two-Mac desk* (none of this can be proven headlessly): real
+  apps pasting what arrived (TextEdit, Pages, Safari, Mail, Preview, Photos,
+  Terminal); whether the copy is already there when Cmd-V follows a click, over
+  Wi-Fi and over the cable, for text and for a large image; password managers
+  on this macOS actually marking their copies concealed; Universal Clipboard
+  and clipboard managers alongside; AppKit's pasteboard used off the main thread
+  with real apps' promised data; and the Studio on 2.0.297 receiving greetings
+  through a long session with no effect.
+
+  *Decided on Scott's behalf, conservatively; each is his to change:*
+  - Consent is Share on this Mac, and a Mac that is locked or lacks access
+    takes no part; no new setting.
+  - The newest copy is fetched when the keyboard arrives even if it is never
+    pasted: once per new copy, and only the newest. The alternative, promised
+    data fetched at paste time, needs the desk transport off the main thread.
+  - Caps: plain text 2 MB, each rich text or HTML representation 8 MB, the one
+    image representation 32 MB, 40 MB per copy, 16 items.
+  - What was already on the pasteboard when Perch started is never offered,
+    because its age is unknown, and counts as older than any other copy.
+  - A copy not brought over is named only in the decision log, not on screen.
+  - A Mac whose Perch cannot share copies is greeted again every 30 seconds.
+  - A Mac sends one copy at a time to each Mac and two at most; it answers 20
+    questions per Mac per 10 seconds and 12 fetches per Mac per minute.
+
+  *Open questions for Scott:*
+  - Should a copy that was not brought over say so on screen (for example "The
+    newest copy on Studio is a password, so it stays there")? Today it is only
+    in the decision log.
+  - Are the caps right?
+  - Should a large copy show progress on screen, and where? Perch tracks it
+    (`DeskClipboard.progress`) but shows it nowhere.
+  - Is fetching on keyboard arrival acceptable, or should Perch move the desk
+    transport off the main thread so the paste itself can fetch?
+  - Does clipboard sharing need its own switch? None was built.
+
 - [ ] **Multiple saved Desk groups for traveling computers.** A Mac may belong to
   different groups at Home, Work or other places and return without re-pairing.
   Preserve separate membership/trust, monitors, connections, layouts, presets and

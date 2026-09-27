@@ -49,7 +49,16 @@ final class KVMInputSession: ObservableObject {
     @Published private(set) var enabled = false
     /// Where typing goes: the Mac last clicked on. The owner decides it; every
     /// Mac learns it with the status it already polls for.
-    private(set) var keyboardFocus: KVMInputFocus?
+    private(set) var keyboardFocus: KVMInputFocus? { didSet { if keyboardFocus != oldValue { keyboardMoved() } } }
+    /// Typing may have moved to another Mac. The shared clipboard listens: the
+    /// keyboard arriving is when a Mac asks for the desk's newest copy.
+    var keyboardMoved: () -> Void = {}
+    /// The Mac typing goes to while sharing is active, nil while it is not:
+    /// the last Mac clicked on, or the pointer's Mac before any click.
+    var keyboardComputer: UUID? {
+        guard active, let grant = lease.grant else { return nil }
+        return KVMInputRouting.target(.keyDown, pointer: focus ?? grant.focus, keyboard: keyboardFocus).computer
+    }
     @Published private(set) var focus: KVMInputFocus? {
         // Where control actually is, each time it moves. A lease that is
         // taken and dropped again leaves both lines here, which is what
@@ -60,6 +69,8 @@ final class KVMInputSession: ObservableObject {
             // pointer must place it before its own hardware or a delivered
             // event moves the cursor on from where it was parked.
             focusChanged()
+            // Before any click, typing follows the pointer.
+            keyboardMoved()
         }
     }
     /// Control moved. Called the instant focus changes, in both directions.

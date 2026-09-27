@@ -2,6 +2,22 @@ import Foundation
 import Network
 import Darwin
 
+/// A pasteboard in memory for the clipboard fixture. The real one is never touched.
+final class FixturePasteboard: DeskPasteboardStore {
+    private let lock = NSLock()
+    private var items: [[(type: String, data: Data)]] = []
+    private var count = 0
+    var changeCount: Int { lock.lock(); defer { lock.unlock() }; return count }
+    var current: [[(type: String, data: Data)]] { lock.lock(); defer { lock.unlock() }; return items }
+    func copy(_ value: [[(type: String, data: Data)]]) { lock.lock(); items = value; count += 1; lock.unlock() }
+    func itemTypes() -> [[String]] { lock.lock(); defer { lock.unlock() }; return items.map { $0.map(\.type) } }
+    func data(item: Int, type: String) -> Data? {
+        lock.lock(); defer { lock.unlock() }
+        return items.indices.contains(item) ? items[item].first { $0.type == type }?.data : nil
+    }
+    func replace(with value: [[(type: String, data: Data)]]) -> Int { lock.lock(); defer { lock.unlock() }; items = value; count += 1; return count }
+}
+
 @main struct DeskNetworkChecks {
     static func wait(_ message: String, seconds: TimeInterval = 8, until predicate: () -> Bool) throws {
         let end = Date().addingTimeInterval(seconds)
@@ -527,6 +543,7 @@ import Darwin
         b.retryConnections()
         try wait("matching version reconnects") { a.online.contains(b.localID) && a.peerProblems[b.localID] == nil && a.peerVersions[b.localID] == KVMDeskProtocol.version }
         print("PASS: desk protocol version refusal is named on both Macs, backs off, and recovers once versions match")
+        try clipboardChecks(a: a, b: b, switchesA: switchesA, switchesB: switchesB, inputA: inputA, inputB: inputB)
         try a.removePeer(b.localID)
         try wait("revocation") { a.online.count == 1 }
         b.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!), expected: a.localID)
@@ -540,6 +557,87 @@ import Darwin
         print("PASS: real TLS 1.3 loopback, matching comparison, two-sided approval, signed membership, durable cross-peer edit/receipt, pinned reconnect, offline conflict resolution and revoked certificate refusal. No Keychain, discovery, UI or hardware changes.")
         try scaleChecks(directory: directory.appendingPathComponent("large"))
     }
+    /// Copy on one Mac, paste on the other, over the real TLS desk link; and a
+    /// Mac whose Perch cannot share copies keeps its desk while being greeted.
+    static func clipboardChecks(a: KVMDeskNode, b: KVMDeskNode, switchesA: KVMMonitorSwitch, switchesB: KVMMonitorSwitch,
+                                inputA: KVMInputSession, inputB: KVMInputSession) throws {
+        let storeA = FixturePasteboard(), storeB = FixturePasteboard()
+        let clipA = DeskClipboard(link: DeskClipboardNodeLink(a), pasteboard: DeskPasteboardAccess(store: storeA))
+        let clipB = DeskClipboard(link: DeskClipboardNodeLink(b), pasteboard: DeskPasteboardAccess(store: storeB))
+        for clipboard in [clipA, clipB] { clipboard.permitted = { true }; clipboard.timings.tick = 0.05 }
+        switchesA.otherMessage = { peer, bytes in if clipA.receive(bytes, peer: peer) { return }; _ = inputA.receive(bytes, peer: peer) }
+        switchesB.otherMessage = { peer, bytes in if clipB.receive(bytes, peer: peer) { return }; _ = inputB.receive(bytes, peer: peer) }
+        clipA.start(); clipB.start()
+        defer { clipA.stop(); clipB.stop() }
+        try wait("both Macs agree a clipboard format over TLS") {
+            clipA.decisions.contains(.peerSupports(b.localName, format: 1)) && clipB.decisions.contains(.peerSupports(a.localName, format: 1))
+        }
+        guard let linkBefore = a.transport.links.values.first(where: { $0.ready })?.id else { throw KVMError("No authenticated route for the clipboard") }
+        // An image large enough to need many windows of chunks, so pacing and
+        // acknowledgements run over the real link.
+        var generator = SystemRandomNumberGenerator()
+        let image = Data((0..<2_500_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        storeA.copy([[(type: "public.png", data: image), (type: "com.example.private", data: Data("app private".utf8))]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        var peakQueue = 0
+        clipB.keyboardArrived()
+        try wait("real TLS clipboard round trip", seconds: 30) {
+            peakQueue = max(peakQueue, a.transport.links.values.map(\.queuedBytes).max() ?? 0)
+            return storeB.current.first?.first?.data == image
+        }
+        guard storeB.current.count == 1, storeB.current[0].map(\.type) == ["public.png"] else { throw KVMError("An app's private type crossed the desk") }
+        guard case .received? = clipB.lastDecision else { throw KVMError("Receiving over TLS was not decided: \(String(describing: clipB.lastDecision))") }
+        try wait("sender records the transfer") { if case .sent? = clipA.lastDecision { return true }; return false }
+        guard a.transport.links[linkBefore]?.ready == true, a.online.contains(b.localID) else { throw KVMError("The clipboard transfer disturbed the desk link") }
+        guard peakQueue <= DeskClipboard.paceLimit + 64 * 1024 else { throw KVMError("The clipboard queued \(peakQueue) bytes on the desk link") }
+        // A password never crosses.
+        storeA.copy([[(type: "public.utf8-plain-text", data: Data("hunter2".utf8)), (type: DeskClipboardMarker.concealed, data: Data())]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        clipB.keyboardArrived()
+        try wait("concealed copy withheld over TLS") { clipB.lastDecision == .notShared(from: a.localName, .concealed) }
+        guard storeB.current.first?.first?.data == image else { throw KVMError("A concealed copy crossed the desk") }
+        print("PASS: shared clipboard over real TLS: formats agreed, a 2.5 MB image fetched when the keyboard arrived, paced below the link's limit on the same connection, private types and a concealed copy never crossed")
+
+        // Now B is a Perch without clipboard support: clipboard-tagged messages
+        // reach it and are routed nowhere, exactly as in 2.0.297.
+        clipB.stop()
+        var clipboardMessagesAtB: [Data] = []
+        switchesB.otherMessage = { peer, bytes in
+            if bytes.starts(with: DeskClipboardWire.prefix) { clipboardMessagesAtB.append(bytes); return }
+            _ = inputB.receive(bytes, peer: peer)
+        }
+        let freshStore = FixturePasteboard()
+        let newer = DeskClipboard(link: DeskClipboardNodeLink(a), pasteboard: DeskPasteboardAccess(store: freshStore))
+        newer.permitted = { true }; newer.timings.tick = 0.05
+        switchesA.otherMessage = { peer, bytes in if newer.receive(bytes, peer: peer) { return }; _ = inputA.receive(bytes, peer: peer) }
+        newer.start()
+        defer { newer.stop() }
+        let eventsBefore = a.connectionEvents.count
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        freshStore.copy([[(type: "public.utf8-plain-text", data: Data("never offered to an older Perch".utf8))]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        newer.keyboardArrived()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        newer.keyboardArrived()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        guard !clipboardMessagesAtB.isEmpty else { throw KVMError("The older Mac was never greeted over TLS") }
+        for bytes in clipboardMessagesAtB {
+            guard case .hello? = try? DeskClipboardWire.decode(bytes.dropFirst(DeskClipboardWire.prefix.count), format: nil) else {
+                throw KVMError("A Mac without clipboard support was sent a clipboard message other than a hello")
+            }
+        }
+        guard newer.lastDecision == .notAsking(.notSupported) else { throw KVMError("Not asking an older Mac was not named: \(String(describing: newer.lastDecision))") }
+        // Its desk carries on: the same authenticated link, no disconnection,
+        // signed edits still sync, and keyboard sharing still hands over.
+        guard a.transport.links[linkBefore]?.ready == true, a.online.contains(b.localID), b.online.contains(a.localID),
+              !a.connectionEvents.dropFirst(eventsBefore).contains(where: { $0.unexpected }) else { throw KVMError("Greeting an older Mac disturbed its desk") }
+        var edited = b.group; edited.name = "Still syncing after a clipboard hello"
+        try b.edit(edited)
+        try wait("the older Mac's desk still syncs") { a.group.name == edited.name }
+        print("PASS: a Mac whose Perch cannot share copies is only ever greeted over TLS, keeps the same authenticated link, and its desk keeps syncing")
+    }
+
     static func scaleChecks(directory: URL) throws {
         let owner = try KVMDeskNode(identity: .fresh(), name: "Scale 1", storage: directory.appendingPathComponent("1.json"))
         var nodes = [owner]

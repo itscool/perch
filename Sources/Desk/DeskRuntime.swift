@@ -113,6 +113,8 @@ final class DeskRuntime: ObservableObject {
     let switching: KVMMonitorSwitch
     let input: KVMInputSession
     let inputAdapter: DeskInputAdapter
+    /// Copy on one Mac, paste on another. See `DeskClipboard`.
+    let clipboard: DeskClipboard
     let model: DeskModel
     @Published var displays: [UUID: [DeskDetectedDisplay]] = [:]
     @Published var discoveryProblem: String?
@@ -149,6 +151,16 @@ final class DeskRuntime: ObservableObject {
         let input = KVMInputSession(node: node)
         input.optimisticMonitorInput = { [weak switching] monitor in switching?.optimisticInputs[monitor] }
         self.input = input; inputAdapter = DeskInputAdapter(session: input)
+        // The general pasteboard is only held here; nothing reads it until
+        // start(), which only the running app calls.
+        let clipboard = DeskClipboard(link: DeskClipboardNodeLink(node), pasteboard: DeskPasteboardAccess(store: SystemDeskPasteboard(.general)))
+        // Share on this Mac is the consent, and a Mac that is locked or lacks
+        // access takes no part.
+        clipboard.permitted = { [weak input] in input.map { $0.enabled && $0.ready() } ?? false }
+        clipboard.keyboardComputer = { [weak input] in input?.keyboardComputer }
+        // Typing can move inside the event tap's callback; ask on the next pass.
+        input.keyboardMoved = { [weak clipboard] in DispatchQueue.main.async { clipboard?.keyboardMoved() } }
+        self.clipboard = clipboard
         let backend = DeskRuntimeBackend()
         model = DeskModel(backend: backend, group: node.group)
         backend.runtime = self
@@ -182,9 +194,11 @@ final class DeskRuntime: ObservableObject {
         }
         switching.otherMessage = { [weak self] peer, data in
             guard let self else { return }
+            if self.clipboard.receive(data, peer: peer) { return }
             if !self.input.receive(data, peer: peer) { self.receiveDevices(data, peer: peer) }
         }
         node.peersChanged = { [weak self] in
+            self?.clipboard.peersChanged()
             self?.refreshAllDisplays()
             self?.syncActiveMonitorIdentifications()
             self?.updateModel()
@@ -199,6 +213,7 @@ final class DeskRuntime: ObservableObject {
         // Input first: the session tells the owner it is releasing its lease
         // and posts held-key releases while the link is still open.
         input.stop()
+        clipboard.stop()
         desktopHandoff.stop()
         for (_, window) in identifyWindows.values { window.orderOut(nil) }; identifyWindows = [:]
         inputAdapter.stop()
@@ -210,6 +225,7 @@ final class DeskRuntime: ObservableObject {
         try node.start()
         guard node.isMember else { return }
         desktopHandoff.start()
+        clipboard.start()
         refreshDisplays()
         let timer = MainTimer.every(20) { [weak self] in self?.refreshDisplays() }
         timer.tolerance = 3; refreshTimer = timer

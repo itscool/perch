@@ -599,6 +599,30 @@ final class FixturePasteboard: DeskPasteboardStore {
         guard storeB.current.first?.first?.data == image else { throw KVMError("A concealed copy crossed the desk") }
         print("PASS: shared clipboard over real TLS: formats agreed, a 2.5 MB image fetched when the keyboard arrived, paced below the link's limit on the same connection, private types and a concealed copy never crossed")
 
+        // Files, over the same link, into this Mac's Downloads folder (a
+        // temporary one here), then onto the pasteboard as files.
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("perch-file-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("from"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Downloads"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        clipB.receiveFolder = { folder.appendingPathComponent("Downloads") }
+        let original = folder.appendingPathComponent("from/Holiday.mov")
+        let movie = Data((0..<3_000_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        try movie.write(to: original)
+        try Data("notes".utf8).write(to: folder.appendingPathComponent("from/Notes.txt"))
+        storeA.copy([[(type: DeskClipboardMarker.fileURL, data: original.dataRepresentation)],
+                     [(type: DeskClipboardMarker.fileURL, data: folder.appendingPathComponent("from/Notes.txt").dataRepresentation)]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        clipB.keyboardArrived()
+        try wait("files arrive over TLS", seconds: 30) { storeB.current.count == 2 && storeB.current.allSatisfy { $0.first?.type == DeskClipboardMarker.fileURL } }
+        let landed = storeB.current.compactMap { $0.first.flatMap { URL(dataRepresentation: $0.data, relativeTo: nil) } }
+        guard landed.map(\.lastPathComponent) == ["Holiday.mov", "Notes.txt"], (try? Data(contentsOf: landed[0])) == movie,
+              (try? FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("Downloads").path))?.sorted() == ["Holiday.mov", "Notes.txt"] else {
+            throw KVMError("Files did not arrive whole over TLS: \(landed)")
+        }
+        guard a.transport.links[linkBefore]?.ready == true else { throw KVMError("The file transfer disturbed the desk link") }
+        print("PASS: shared files over real TLS: two files brought into Downloads when the keyboard arrived, whole, then put on the pasteboard as files, on the same connection")
+
         // Now B is a Perch without clipboard support: clipboard-tagged messages
         // reach it and are routed nowhere, exactly as in 2.0.297.
         clipB.stop()

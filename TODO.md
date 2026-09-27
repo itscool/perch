@@ -848,8 +848,9 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   HTML and one image representation per item (PNG, else JPEG, else TIFF) cross;
   an app's private types never do. Copies marked concealed, transient or
   generated automatically (nspasteboard.org, plus the older marks some password
-  managers and text expanders used) and copies of files are never offered, and
-  their data is never read. Every decision is one value whose own sentence is what
+  managers and text expanders used) are never offered, and their data is never
+  read; a copy of files is never pasted as the files' names and icons (Stage 2
+  below carries the files themselves). Every decision is one value whose own sentence is what
   the shared decision log records (category `clipboard`): names of Macs,
   reasons and size buckets, never contents, types or exact sizes.
 
@@ -881,8 +882,10 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   HMAC-SHA256 under a fresh key the asking Mac sends inside the TLS channel.
   Chunks are accepted only in order, once each, for this transfer and index;
   the digest is checked after bounded decompression into exactly the declared
-  length. The sender keeps its share of the link's send queue under 1 MB (the
-  link closes at 2 MB) with a window of eight chunks.
+  length. Pointer messages share the connection and queue behind whatever a
+  transfer has in flight, so the sender keeps at most four chunks unacknowledged
+  and its share of the link's send queue under 256 KB (the link closes at 2 MB):
+  about a quarter of a megabyte ahead of the pointer, some 15 ms over Wi-Fi.
 
   **Decided: no second encryption layer.** The only way in is the pinned,
   mutually authenticated TLS 1.3 channel between Macs paired by hand, so
@@ -949,6 +952,79 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   - Is fetching on keyboard arrival acceptable, or should Perch move the desk
     transport off the main thread so the paste itself can fetch?
   - Does clipboard sharing need its own switch? None was built.
+
+  *Stage 2, files, implemented* (`Sources/Desk/DeskFileTransfer.swift`, and the
+  file path in `DeskClipboard.swift`): a copy of files in Finder is offered like
+  any other copy. When the keyboard arrives, the other Mac sends the names and
+  sizes, then each file streams on the same desk link into a hidden temporary
+  file in this Mac's Downloads folder, created exclusively, written off the main
+  thread and checked against its length and SHA-256. Only when every file of
+  the copy is verified are they marked as downloaded (`com.apple.quarantine`,
+  through the system's quarantine properties) and moved into place, each with
+  one atomic rename that never replaces anything ("Report 2.pdf" and so on);
+  then the pasteboard holds them as plain file URLs, so Finder, Mail or any app
+  pastes them as files. A failed, stalled or cancelled copy, or something copied
+  on this Mac meanwhile, removes everything it wrote. Every received name is
+  made safe first (slashes, colons, control and direction-override characters
+  replaced; surrounding spaces and leading dots removed; empty or over 240
+  bytes refuses the whole copy). The sending Mac refuses links and Finder
+  aliases, folders, unreadable files and anything over the caps, by name, and
+  sends a file only if it is still the same regular file it examined (device,
+  inode, size and modification time, opened without following a link). Files
+  are never compressed and are padded like everything else (sixteen steps per
+  doubling above 64 MB). Received files can be passed on to a third Mac.
+
+  *Why Downloads and not file promises.* The design expected paste-time file
+  promises (`NSFilePromiseProvider`), which would have fetched a file only when
+  pasted. They were built and then set aside: on an ordinary pasteboard, as
+  opposed to a drag, the standard receiver never asked the provider to write,
+  in one process or across two processes with real application event loops,
+  on private named pasteboards. Nothing here could show Finder's Paste
+  fulfilling one, so files come in the way AirDrop delivers them, which is also
+  the default place the plan named.
+
+  *Automatically verified.* `--self-test` (`Tests/DeskFileTransferTests.swift`,
+  five PASS lines): hostile names (`../../etc/passwd`, `..`, `.`, empty, blank,
+  leading dots, NUL, BEL, a line separator, a right-to-left override, 241
+  bytes, decomposed accents) and that nothing lands outside its folder; atomic
+  landing beside an existing file, the next free name, the quarantine mark,
+  nothing left after a wrong digest, a stop halfway or too many bytes, and a
+  link planted at the temporary path never written through; links, aliases,
+  folders, missing, oversized and too many files refused, and a file changed or
+  swapped for a link since it was examined never sent; received files readable
+  as files from a private pasteboard; and end to end: two files arriving whole
+  with progress while a 10 ms main-thread timer never waits, and a changed
+  file, no room, more than this Mac accepts, a stall on the second file, a newer
+  local copy, a link and a folder each refused by name with Downloads left
+  exactly as it was, a hostile name made safe, and no file names in the log.
+  `check-desk-network` adds two files brought over real TLS on the same
+  connection.
+
+  *Needs the live two-Mac desk:* pasting received files in Finder, Mail and
+  Messages; whether macOS asks once for access to the Downloads folder (Perch is
+  not sandboxed, and the first file received may raise that prompt); what
+  Gatekeeper shows opening a received app or script; a large file over Wi-Fi
+  and over the cable, and whether the pointer stays smooth during it; APFS,
+  external and network volumes as Downloads.
+
+  *Decided on Scott's behalf for files, conservatively:*
+  - Files land in Downloads, fetched when the keyboard arrives, as AirDrop does;
+    they are fetched once per copy even if never pasted, within the caps.
+  - Links and aliases are refused, never followed: a link would silently send
+    whatever it points at.
+  - Folders are refused in this version, by name.
+  - Caps: 1 GB per file, 2 GB per copy, 100 files, kept modest because files
+    move on a click rather than on paste; the receiving Mac also declines, by
+    name, anything that would leave under 64 MB free.
+  - A file that cannot be marked as downloaded is not delivered.
+  - Progress is tracked (`DeskClipboard.fileProgress`) but not shown anywhere.
+
+  *Open questions for Scott, files:*
+  - Downloads, or a folder of Perch's own, or ask the first time? And is
+    fetching files on keyboard arrival acceptable at these caps, or should
+    large copies wait for something more deliberate?
+  - Should folders be shared, and with what limits?
+  - Where should progress for a large copy show?
 
 - [ ] **Multiple saved Desk groups for traveling computers.** A Mac may belong to
   different groups at Home, Work or other places and return without re-pairing.

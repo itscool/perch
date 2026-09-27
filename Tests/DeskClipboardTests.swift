@@ -29,6 +29,8 @@ final class DeskClipboardFakeStore: DeskPasteboardStore {
         return items[item].first { $0.type == type }?.data
     }
     func replace(with value: [[(type: String, data: Data)]]) -> Int { lock.lock(); defer { lock.unlock() }; items = value; count += 1; return count }
+    /// The files this pasteboard holds, as the file URLs any app pastes.
+    var files: [URL] { current.compactMap { item in item.first { $0.type == DeskClipboardMarker.fileURL }.flatMap { URL(dataRepresentation: $0.data, relativeTo: nil) } } }
 }
 
 /// A desk link in memory. Delivers on the main queue, as the real transport does.
@@ -151,7 +153,7 @@ func runDeskClipboardTests() throws {
         try check(DeskClipboardPolicy.assess([[text, marker]]) == .withheld(reason), "A copy marked \(marker) was offered")
         try check(DeskClipboardPolicy.assess([[text, png], [text, marker]]) == .withheld(reason), "A mark on a second item did not withhold the copy (\(marker))")
     }
-    try check(DeskClipboardPolicy.assess([[text, DeskClipboardMarker.fileURL, tiff]]) == .withheld(.files),
+    try check(DeskClipboardPolicy.assess([[text, DeskClipboardMarker.fileURL, tiff]]) == .files,
               "A copy of files was offered as its name and icon")
     try check(DeskClipboardPolicy.assess([["com.example.private"]]) == .withheld(.unsupported), "An app's private type was offered")
     try check(DeskClipboardPolicy.assess([]) == .withheld(.noCopy), "An empty pasteboard was offered")
@@ -161,13 +163,13 @@ func runDeskClipboardTests() throws {
     do {
         let store = DeskClipboardFakeStore(), access = DeskPasteboardAccess(store: store, timeout: 1)
         store.copy([[(text, Data("hunter2".utf8)), (DeskClipboardMarker.concealed, Data())]])
-        var outcome: Result<DeskClipboardContent, DeskClipboardReason>?
-        access.read(expecting: store.changeCount, limits: .init()) { outcome = $0 }
+        var outcome: Result<DeskClipboardSnapshot, DeskClipboardReason>?
+        access.read(expecting: store.changeCount, limits: .init(), fileLimits: .init()) { outcome = $0 }
         try wait("concealed read") { outcome != nil }
         guard case .failure(.concealed)? = outcome else { throw AppError(message: "A concealed copy was read for sending: \(String(describing: outcome))") }
         try check(store.dataReads == 0, "A concealed copy's data was read into Perch (\(store.dataReads) reads)")
     }
-    print("PASS: shared clipboard never offers concealed, transient, generated or file copies; only text, rich text and one image representation")
+    print("PASS: shared clipboard never offers concealed, transient or generated copies, never a file's name or icon in place of the file; only text, rich text and one image representation")
 
     // MARK: The wire
 
@@ -361,7 +363,9 @@ func runDeskClipboardTests() throws {
         a.store.copy([[(text, canaryText), (rtf, richText), ("com.example.private", Data("app private".utf8))]])
         settle(0.15)
         b.clipboard.keyboardArrived()
-        try wait("text arrives") { b.store.current.first?.first?.data == canaryText }
+        // The pasteboard is written first, then the decision is made on the
+        // main thread; wait for the decision.
+        try wait("text arrives") { if case .received? = b.clipboard.lastDecision { return true }; return false }
         let arrived = b.store.current
         try check(arrived.count == 1 && arrived[0].map(\.type) == [text, rtf] && arrived[0][1].data == richText,
                   "The copy did not arrive whole, or an app's private type came with it: \(arrived.map { $0.map(\.type) })")
@@ -386,10 +390,11 @@ func runDeskClipboardTests() throws {
             b.clipboard.keyboardArrived()
             try wait("\(reason) copy withheld") { b.clipboard.lastDecision == .notShared(from: "MacBook", reason) }
         }
-        a.store.copy([[(DeskClipboardMarker.fileURL, Data("file:///x".utf8)), (text, Data("x".utf8))]])
+        a.store.copy([[(DeskClipboardMarker.fileURL, URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)").dataRepresentation), (text, Data("x".utf8))]])
         settle(0.15)
         b.clipboard.keyboardArrived()
-        try wait("files withheld") { b.clipboard.lastDecision == .notShared(from: "MacBook", .files) }
+        try wait("missing file refused") { if case .refusedBy("MacBook", _, .unreadable)? = b.clipboard.lastDecision { return true }; return false }
+        try check(b.store.files.isEmpty && b.store.current.first?.first?.data != Data("x".utf8), "A copy of a missing file pasted its name instead")
         // Something copied on this Mac later is never overwritten by an older copy.
         a.store.copy([[(text, Data("older, from the MacBook".utf8))]])
         settle(0.15)
@@ -472,7 +477,7 @@ func runDeskClipboardTests() throws {
             try check(decision.reason == reason && decision.line.hasSuffix(" because " + reason.text), "A decision's logged reason disagreed with it: \(decision.line)")
         }
     }
-    print("PASS: shared clipboard end to end: copy on one Mac, keyboard arrives on the other, the newest copy is fetched once; concealed, transient, generated, file, oversized and changed copies are refused by name; newer local copies always win; logs hold no contents, types or exact sizes and always match the decision")
+    print("PASS: shared clipboard end to end: copy on one Mac, keyboard arrives on the other, the newest copy is fetched once; concealed, transient, generated, unreadable, oversized and changed copies are refused by name; newer local copies always win; logs hold no contents, types or exact sizes and always match the decision")
 
     // MARK: A slow or dead Mac never hangs the paste or the main thread
 
@@ -529,7 +534,7 @@ func runDeskClipboardTests() throws {
         }
         try check(progress.contains { $0 > 0 && $0 < 1 } && zip(progress, progress.dropFirst()).allSatisfy { $0 <= $1 },
                   "A large copy on its way showed no steady progress: \(progress)")
-        try check(b.clipboard.progress == nil, "Progress outlived the transfer")
+        try wait("progress ends with the transfer") { b.clipboard.progress == nil }
         try check(gap < 0.3, "A slow transfer stalled the main thread for \(gap) s")
         try check(pastedMeanwhile.allSatisfy { $0 == original || $0 == slow }, "A paste during a transfer saw a partial copy")
         try check(pastedMeanwhile.filter { $0 == original }.count > 5, "The fixture never pasted while the slow transfer was on its way")

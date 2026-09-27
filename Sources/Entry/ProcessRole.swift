@@ -247,6 +247,7 @@ enum ProcessRole: Equatable {
             try runDeskHandoverTests()
             try runDeskCursorTests()
             try runDeskClipboardTests()
+            try runDeskFileTransferTests()
             try runDeskProfilePolicyTests()
             try runLidSettingsReviewTests()
             try runInputTests()

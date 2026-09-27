@@ -49,14 +49,20 @@ enum DeskClipboardWire {
         case format
     }
 
+    /// Above this, buckets are finer, so a large file is padded by at most a
+    /// sixteenth rather than a quarter.
+    static let fineBuckets = 64 * 1024 * 1024
+
     /// The padded length for content of `length` bytes: four steps per doubling
-    /// (1, 1.25, 1.5 and 1.75 times a power of two), never below 4 KB. Every
-    /// length inside a bucket produces exactly the same bytes on the wire.
+    /// (1, 1.25, 1.5 and 1.75 times a power of two), never below 4 KB, and
+    /// sixteen steps per doubling above 64 MB. Every length inside a bucket
+    /// produces exactly the same bytes on the wire.
     static func bucket(_ length: Int) -> Int {
         guard length > minimumBucket else { return minimumBucket }
         var base = minimumBucket
         while base <= length / 2 { base *= 2 }
-        for step in 4...8 where base / 4 * step >= length { return base / 4 * step }
+        let steps = base >= fineBuckets ? 16 : 4
+        for step in steps...(2 * steps) where base / steps * step >= length { return base / steps * step }
         return base * 2
     }
 
@@ -146,6 +152,17 @@ enum DeskClipboardWire {
                                              digest: Data(SHA256.hash(data: payload)), mac: Data())
         manifest.mac = manifestMAC(manifest, format: format, key: key)
         return Parcel(manifest: manifest, stream: stream, format: format)
+    }
+
+    /// The manifest for one file, sent as it is on disk: never compressed,
+    /// padded to its bucket, with the digest taken from a first read.
+    static func fileManifest(transfer: UUID, copy: UUID, size: UInt64, digest: Data, key: SymmetricKey, format: UInt8) -> DeskClipboardManifest {
+        let padded = UInt64(bucket(Int(clamping: size)))
+        var manifest = DeskClipboardManifest(transfer: transfer, copy: copy, payloadLength: size, encodedLength: size, paddedLength: padded,
+                                             chunkCount: UInt32((padded + UInt64(chunkSize) - 1) / UInt64(chunkSize)), compressed: false,
+                                             digest: digest, mac: Data())
+        manifest.mac = manifestMAC(manifest, format: format, key: key)
+        return manifest
     }
 
     static let manifestDomain = Data("Perch clipboard manifest v1\0".utf8)
@@ -253,6 +270,8 @@ enum DeskClipboardMessage: Equatable {
     case offer(query: UUID, copy: UUID, age: UInt32)
     case withheld(query: UUID, reason: DeskClipboardReason, age: UInt32?)
     case fetch(transfer: UUID, copy: UUID, key: Data)
+    /// One of a copy's files, asked for one by one once their names are in.
+    case fileFetch(transfer: UUID, copy: UUID, index: UInt32, key: Data)
     case manifest(DeskClipboardManifest)
     case chunk(transfer: UUID, index: UInt32, data: Data, mac: Data)
     /// Everything below `next` has arrived; up to a window beyond it may follow.
@@ -273,6 +292,7 @@ enum DeskClipboardMessage: Equatable {
         case .ack(let transfer, let next): w.u8(8); w.uuid(transfer); w.u32(next)
         case .refuse(let transfer, let reason): w.u8(9); w.uuid(transfer); w.u8(reason.rawValue)
         case .cancel(let transfer, let reason): w.u8(10); w.uuid(transfer); w.u8(reason.rawValue)
+        case .fileFetch(let transfer, let copy, let index, let key): w.u8(11); w.uuid(transfer); w.uuid(copy); w.u32(index); w.fixed(key)
         }
     }
 
@@ -308,6 +328,7 @@ enum DeskClipboardMessage: Equatable {
         case 8: return .ack(transfer: try r.uuid(), next: try r.u32())
         case 9: return .refuse(transfer: try r.uuid(), reason: try reason())
         case 10: return .cancel(transfer: try r.uuid(), reason: try reason())
+        case 11: return .fileFetch(transfer: try r.uuid(), copy: try r.uuid(), index: try r.u32(), key: try r.fixed(32))
         default: throw DeskClipboardWire.Failure.malformed("unknown message")
         }
     }
@@ -322,19 +343,26 @@ final class DeskClipboardAssembly {
         case manifest(String)
         case chunk(String)
         case content(String)
+        /// Whole and intact, but more than this Mac accepts.
+        case declined(DeskClipboardReason)
         var detail: String {
-            switch self { case .manifest(let d), .chunk(let d), .content(let d): return d }
+            switch self {
+            case .manifest(let d), .chunk(let d), .content(let d): return d
+            case .declined(let reason): return reason.text
+            }
         }
     }
     let manifest: DeskClipboardManifest
     let format: UInt8
+    /// A file is written to disk as it arrives rather than kept here.
+    let streaming: Bool
     private let key: SymmetricKey
     private(set) var next: UInt32 = 0
     private var stream = Data()
     var complete: Bool { next == manifest.chunkCount }
     var fraction: Double { manifest.chunkCount == 0 ? 1 : Double(next) / Double(manifest.chunkCount) }
 
-    init(_ manifest: DeskClipboardManifest, transfer: UUID, copy: UUID, key: SymmetricKey, format: UInt8, maximumPayload: Int) throws {
+    init(_ manifest: DeskClipboardManifest, transfer: UUID, copy: UUID, key: SymmetricKey, format: UInt8, maximumPayload: Int, streaming: Bool = false) throws {
         guard manifest.transfer == transfer else { throw Failure.manifest("belongs to another transfer") }
         guard manifest.copy == copy else { throw Failure.manifest("describes a different copy") }
         guard DeskClipboardWire.validMAC(DeskClipboardWire.manifestMAC(manifest, format: format, key: key), manifest.mac) else {
@@ -342,18 +370,22 @@ final class DeskClipboardAssembly {
         }
         // Checked as 64-bit numbers before any becomes an Int, so a hostile
         // length can neither trap nor wrap.
-        guard manifest.payloadLength > 0, manifest.payloadLength <= UInt64(maximumPayload) else { throw Failure.manifest("declares a size Perch does not accept") }
+        // A file may be empty; a copy never is. A file is never compressed.
+        guard manifest.payloadLength > 0 || streaming, manifest.payloadLength <= UInt64(maximumPayload) else { throw Failure.manifest("declares a size Perch does not accept") }
+        guard !streaming || !manifest.compressed else { throw Failure.manifest("compresses a file") }
         guard manifest.compressed ? (manifest.encodedLength < manifest.payloadLength) : (manifest.encodedLength == manifest.payloadLength),
               manifest.paddedLength <= 2 * manifest.payloadLength + UInt64(DeskClipboardWire.minimumBucket) else { throw Failure.manifest("lengths disagree") }
         let payload = Int(manifest.payloadLength), encoded = Int(manifest.encodedLength), padded = Int(manifest.paddedLength)
         guard !manifest.compressed || payload >= DeskClipboardWire.compressionThreshold else { throw Failure.manifest("compressed below the threshold") }
         guard padded == DeskClipboardWire.bucket(encoded) else { throw Failure.manifest("not padded to its size bucket") }
         guard Int(manifest.chunkCount) == (padded + DeskClipboardWire.chunkSize - 1) / DeskClipboardWire.chunkSize else { throw Failure.manifest("chunk count disagrees with its length") }
-        self.manifest = manifest; self.key = key; self.format = format
-        stream.reserveCapacity(padded)
+        self.manifest = manifest; self.key = key; self.format = format; self.streaming = streaming
+        if !streaming { stream.reserveCapacity(padded) }
     }
 
-    func accept(transfer: UUID, index: UInt32, data: Data, mac: Data) throws {
+    /// Verify one chunk and return the part of it that is content, not padding.
+    @discardableResult
+    func accept(transfer: UUID, index: UInt32, data: Data, mac: Data) throws -> Data {
         guard transfer == manifest.transfer else { throw Failure.chunk("belongs to another transfer") }
         guard index >= next else { throw Failure.chunk("chunk \(index) arrived again") }
         guard index == next else { throw Failure.chunk("chunk \(index) arrived before chunk \(next)") }
@@ -362,8 +394,14 @@ final class DeskClipboardAssembly {
         guard DeskClipboardWire.validMAC(DeskClipboardWire.chunkMAC(format: format, transfer: transfer, index: index, count: manifest.chunkCount, data: data, key: key), mac) else {
             throw Failure.chunk("chunk \(index) failed authentication")
         }
-        stream.append(data)
+        let start = UInt64(index) * UInt64(DeskClipboardWire.chunkSize)
+        let content = Int(min(UInt64(data.count), manifest.encodedLength > start ? manifest.encodedLength - start : 0))
+        if streaming {
+            // Padding is checked here, since nothing is kept to check later.
+            guard data[data.startIndex + content..<data.endIndex].allSatisfy({ $0 == 0 }) else { throw Failure.chunk("chunk \(index) padding not empty") }
+        } else { stream.append(data) }
         next += 1
+        return data.prefix(content)
     }
 
     /// The content, once every chunk is in. Heavy work: run it off the main thread.
@@ -379,6 +417,19 @@ final class DeskClipboardAssembly {
         } else { payload = Data(body) }
         guard DeskClipboardWire.validMAC(Data(SHA256.hash(data: payload)), manifest.digest) else { throw Failure.content("content digest does not match") }
         return payload
+    }
+}
+
+/// What arrived, by the kind byte inside the padded content.
+enum DeskClipboardPayload {
+    case content(DeskClipboardContent)
+    case files(DeskFileList)
+    static func decode(_ payload: Data, limits: DeskClipboardLimits, fileLimits: DeskFileLimits) throws -> Self {
+        switch payload.first {
+        case DeskClipboardContent.kind: return .content(try DeskClipboardContent.decode(payload, limits: limits))
+        case DeskFileList.kind: return .files(try DeskFileList.decode(payload, limits: fileLimits))
+        default: throw DeskClipboardWire.Failure.malformed("content kind")
+        }
     }
 }
 

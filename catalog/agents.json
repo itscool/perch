@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedOn": "2026-09-04",
+  "reviewedOn": "2026-11-01",
   "entries": [
     {
       "target": {
@@ -13,7 +13,7 @@
       "category": "agent host",
       "note": "Stops the whole editor, not only agent sessions.",
       "sources": [
-        "https://docs.cursor.com/en/agent/tools"
+        "https://cursor.com/docs/agent/overview"
       ]
     },
     {
@@ -25,9 +25,10 @@
         "enabled": false
       },
       "category": "agent",
-      "note": "Native named process matching; use a custom executable if your launcher differs.",
+      "note": "Retains the specific cursor-agent match. Current vendor docs launch via agent; that launcher is not automatically covered. Verify its executable identity before adding a target; no generic agent match is added.",
       "sources": [
-        "https://docs.cursor.com/en/cli/using"
+        "https://cursor.com/docs/cli/overview",
+        "https://docs.cursor.com/en/cli/overview"
       ]
     },
     {
@@ -39,9 +40,10 @@
         "enabled": false
       },
       "category": "agent host",
-      "note": "Cascade can run shell commands. Stops the entire editor.",
+      "note": "Legacy Windsurf app-name match. Vendor now calls the product Devin Desktop; renamed installations are not confirmed covered. Verify the installed app identity before adding it. Stops the entire editor, not cloud work.",
       "sources": [
-        "https://docs.windsurf.com/ja/windsurf/terminal"
+        "https://docs.devin.ai/desktop/terminal",
+        "https://docs.devin.ai/desktop/getting-started"
       ]
     },
     {
@@ -69,7 +71,7 @@
       "category": "shared host",
       "note": "Agentic terminal; stopping it affects ordinary sessions too. Cloud work requires separate cancellation.",
       "sources": [
-        "https://docs.warp.dev/reference/cli"
+        "https://docs.warp.dev/agents/capabilities/full-terminal-use/"
       ]
     },
     {

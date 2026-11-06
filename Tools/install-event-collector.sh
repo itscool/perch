@@ -35,21 +35,33 @@ trap '/bin/rm -f "$perch_staged" "$perch_staged_job"' EXIT
 /usr/sbin/chown root:wheel "$perch_staged"
 /bin/chmod 755 "$perch_staged"
 /usr/bin/codesign --verify --strict --test-requirement "=$perch_requirement" "$perch_staged"
-[ ! -L "$perch_dir/events.pipe" ] || exit 2
-if [ -e "$perch_dir/events.pipe" ]; then
-    [ -p "$perch_dir/events.pipe" ] || exit 2
-else
-    /usr/bin/mkfifo -m 600 "$perch_dir/events.pipe"
-fi
-/bin/chmod 600 "$perch_dir/events.pipe"
-/usr/sbin/chown "$perch_uid" "$perch_dir/events.pipe"
+# The launcher opens events.pipe itself and refuses anything but this FIFO, so
+# nothing creates it at boot. An ordinary file there is what launchd's old
+# StandardOutPath made when the FIFO was missing (EVENT-COLLECTOR.md, "The
+# events.pipe incident"): repair replaces it. A symlink or other type refuses.
+# Tools/check-collector-identity.py runs this function in a fixture directory.
+perch_prepare_pipe() {
+    perch_pipe="$1/events.pipe"
+    [ ! -L "$perch_pipe" ] || exit 2
+    if [ -f "$perch_pipe" ]; then
+        echo "Replacing the ordinary file at $perch_pipe with the collector's pipe."
+        /bin/rm -f "$perch_pipe"
+    fi
+    if [ -e "$perch_pipe" ]; then
+        [ -p "$perch_pipe" ] || exit 2
+    else
+        /usr/bin/mkfifo -m 600 "$perch_pipe"
+    fi
+    /bin/chmod 600 "$perch_pipe"
+    /usr/sbin/chown "$2" "$perch_pipe"
+}
+perch_prepare_pipe "$perch_dir" "$perch_uid"
 /bin/cat > "$perch_staged_job" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>local.scott.perch.events</string>
 <key>ProgramArguments</key><array><string>/Library/Application Support/Perch Events/PerchEventLauncher</string></array>
-<key>StandardOutPath</key><string>/Library/Application Support/Perch Events/events.pipe</string>
 <key>ProcessType</key><string>Interactive</string>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
 <key>ThrottleInterval</key><integer>30</integer>

@@ -1,5 +1,6 @@
-// A startup-only identity writer. execve replaces this process with Apple's
-// collector: no shell, monitoring loop, extra child, or Endpoint Security client.
+// A startup-only pipe opener and identity writer. execve replaces this process
+// with Apple's collector: no shell, monitoring loop, extra child, or Endpoint
+// Security client.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
@@ -19,6 +20,25 @@
 #ifndef PERCH_LAUNCHER_OWNER_UID
 #define PERCH_LAUNCHER_OWNER_UID 0
 #endif
+#define PERCH_EVENT_PIPE PERCH_IDENTITY_DIRECTORY "/events.pipe"
+// The launcher, not launchd, opens the event pipe. launchd creates a missing
+// StandardOutPath as an ordinary file, and eslogger then appended every event on
+// the Mac to disk (EVENT-COLLECTOR.md, "The events.pipe incident"). Without
+// O_CREAT nothing is ever created; a wrong path is refused and eslogger never
+// starts. The blocking write-only open is the one launchd made for
+// StandardOutPath: it waits here until Perch's reader attaches.
+static const char *open_event_pipe(int *descriptor) {
+    int fd;
+    do fd = open(PERCH_EVENT_PIPE, O_WRONLY | O_NOFOLLOW | O_NOCTTY); while (fd < 0 && errno == EINTR);
+    if (fd < 0) return errno == ENOENT ? "is missing" : errno == ELOOP ? "is a symbolic link" : "cannot be opened";
+    struct stat st;
+    const char *problem = fstat(fd, &st) ? "cannot be inspected" : !S_ISFIFO(st.st_mode) ? "is not a named pipe" :
+        (st.st_mode & 07777) != 0600 ? "is not mode 0600" : st.st_uid == 0 ? "is owned by root" :
+        st.st_nlink != 1 ? "has more than one link" : NULL;
+    if (problem) { close(fd); return problem; }
+    *descriptor = fd;
+    return NULL;
+}
 static int record_identity(void) {
     int directory = open(PERCH_IDENTITY_DIRECTORY, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (directory < 0) return -1;
@@ -54,6 +74,14 @@ static int record_identity(void) {
 int main(int argc, char **argv) {
     (void)argv;
     if (argc != 1 || getuid() != PERCH_LAUNCHER_OWNER_UID || geteuid() != PERCH_LAUNCHER_OWNER_UID) return 64;
+    int events = -1;
+    const char *problem = open_event_pipe(&events);
+    if (problem) { fprintf(stderr, "Perch collector refused: %s %s.\n", PERCH_EVENT_PIPE, problem); return 78; }
+    // eslogger inherits the pipe as stdout; it must survive exec.
+    if (events != STDOUT_FILENO && (dup2(events, STDOUT_FILENO) != STDOUT_FILENO || close(events))) {
+        fputs("Perch collector could not attach its event pipe.\n", stderr);
+        return 78;
+    }
     // CPU accounting must not stop event collection if a diagnostic write fails.
     if (record_identity()) fputs("Perch collector identity unavailable.\n", stderr);
     char *const arguments[] = {PERCH_COLLECTOR_EXECUTABLE, "fork", "exec", "exit", NULL};

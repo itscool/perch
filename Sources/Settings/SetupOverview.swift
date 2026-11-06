@@ -38,7 +38,8 @@ struct SetupSnapshot {
     var deskInputProblem: String?
     var deskInputAccessNeeded = false
     var collectorInstalled = false
-    var collectorNeedsRepair = false
+    var collectorRepairReason: String?
+    var collectorNeedsRepair: Bool { collectorRepairReason != nil }
     var collectorWaitingForSession = false
     var lidDisabled: Bool?
     var lidWanted = false
@@ -145,6 +146,8 @@ struct SetupSnapshot {
             add("events", "Live agent tracking", .checking, "Waiting for the collector’s current access and event checks to finish.", "View progress…", .events)
         } else if !collectorInstalled {
             add("events", "Live agent tracking", .optional, "Improves tracking of short-lived agent subprocesses. Setup uses Full Disk Access for Apple’s eslogger.", "Set up tracking…", .events)
+        } else if let reason = collectorRepairReason {
+            add("events", "Live agent tracking", .attention, reason, "Update collector…", .events)
         } else if !guardianReady {
             add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Background helpers…", .maintenance)
         } else if EventCollectorSetup.collectionReady(guardian, installed: collectorInstalled, needsRepair: collectorNeedsRepair, waitingForSession: collectorWaitingForSession) {
@@ -280,7 +283,7 @@ extension AppDelegate {
         }
 
         result.collectorInstalled = EventCollectorSetup.shared.installed
-        result.collectorNeedsRepair = EventCollectorSetup.shared.needsRepair
+        result.collectorRepairReason = EventCollectorSetup.shared.repairReason
         result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
         result.collectorChecking = EventCollectorSetup.shared.checking
         result.helperRecoveryFailure = BackgroundHelperRecovery.shared.failure

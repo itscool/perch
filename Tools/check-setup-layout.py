@@ -45,8 +45,8 @@ final class PerchUpdater { static let shared=PerchUpdater(); let busy=false }
 enum GuardianInstall { static let inputPermissionApp: URL?=nil }
 enum SafetyFiles { static let helperApp=URL(fileURLWithPath:"/fixture/Perch Helper.app") }
 struct InputReadiness { var ready: Bool; var title: String; var message: String; var route: String }
-enum CollectorIdentity { static let launcher="/Applications/Perch.app/Contents/MacOS/PerchEventLauncher" }
-enum ProcessEventStream { static let pipePath="/fixture/pipe" }
+enum CollectorIdentity { static let launcher="/Applications/Perch.app/Contents/MacOS/PerchEventLauncher"; static let job="/fixture/job.plist" }
+enum ProcessEventStream { static let pipePath="/fixture/pipe"; static func pipeProblem(at path: String) -> String? { nil } }
 enum StatusColors { static let warning=NSColor.systemOrange; static let success=NSColor.systemGreen }
 ''')
     (root/'main.swift').write_text(r'''

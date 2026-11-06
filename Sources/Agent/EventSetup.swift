@@ -41,15 +41,20 @@ final class EventCollectorSetup: NSObject {
             }
         }
     }
-    var installed: Bool {
-        FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/local.scott.perch.events.plist") && FileManager.default.fileExists(atPath: ProcessEventStream.pipePath)
-    }
+    // An installed job with a missing or wrong pipe is a broken collector, not an uninstalled one.
+    var installed: Bool { FileManager.default.fileExists(atPath: CollectorIdentity.job) }
     var repairReason: String? {
         guard installed else { return nil }
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: "/Library/LaunchDaemons/local.scott.perch.events.plist")),
+        if let problem = ProcessEventStream.pipeProblem(at: ProcessEventStream.pipePath) {
+            return problem + " The collector is broken. Update it to recreate the pipe."
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: CollectorIdentity.job)),
               let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else { return "The collector configuration cannot be read. Update it to restore the supported configuration." }
         if !Self.supportedArguments(job["ProgramArguments"] as? [String]) {
             return "The collector uses an unsupported launcher or command. Update it to restore the fixed collector command."
+        }
+        if !Self.supportedOutput(job) {
+            return "The collector lets launchd create its event pipe, which can become an ordinary file that fills the disk. Updating makes the launcher open the existing pipe itself and refuse anything else. It restarts the collector and begins a new verified observation session; earlier gaps cannot be recovered."
         }
         if job["ProcessType"] as? String != "Interactive" {
             return "The collector uses macOS’s default CPU and I/O throttling. Updating removes that throttling so process events can be delivered promptly. It restarts the collector and begins a new verified observation session; earlier gaps cannot be recovered."
@@ -59,6 +64,10 @@ final class EventCollectorSetup: NSObject {
     var needsRepair: Bool { repairReason != nil }
     static func supportedArguments(_ arguments: [String]?) -> Bool {
         arguments == [CollectorIdentity.launcher]
+    }
+    // launchd creates a missing StandardOutPath as an ordinary file; the launcher opens the pipe instead.
+    static func supportedOutput(_ job: [String: Any]) -> Bool {
+        job["StandardOutPath"] == nil
     }
     override init() {
         super.init()

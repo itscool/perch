@@ -77,10 +77,10 @@ func runSetupOverviewTests() throws {
     try check(item("events").state == .attention, "Stale collector events prove access")
     guardian.eventLastSeen = Date(); snapshot.guardian = guardian
     try check(item("events").state == .ready && item("agents").detail.contains("physical keys"), "Registration and physical key testing are conflated")
-    snapshot.collectorNeedsRepair = true
-    try check(item("events").state == .attention, "Setup declared a collector requiring repair ready")
+    snapshot.collectorRepairReason = "The collector’s event pipe has been replaced by an ordinary file, so no events can arrive."
+    try check(item("events").state == .attention && item("events").detail == snapshot.collectorRepairReason && item("events").action == "Update collector…", "Setup declared a collector requiring repair ready or hid why")
     try check(!EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: true, waitingForSession: false), "Collector page hid its required repair behind Ready")
-    snapshot.collectorNeedsRepair = false; snapshot.collectorWaitingForSession = true
+    snapshot.collectorRepairReason = nil; snapshot.collectorWaitingForSession = true
     try check(item("events").state == .attention, "Setup ignored a pending replacement observation session")
     snapshot.collectorWaitingForSession = false
     guardian.eventConnected = false; snapshot.guardian = guardian

@@ -41,5 +41,22 @@ func runCollectorIdentityTests() throws {
     try write(Data("{broken".utf8))
     try check(CollectorIdentity.read(directory: root.path, owner: getuid()) == nil, "Malformed identity trusted")
     try check(!EventCollectorSetup.supportedArguments(["/usr/bin/eslogger", "fork", "exec", "exit"]) && EventCollectorSetup.supportedArguments([CollectorIdentity.launcher]) && !EventCollectorSetup.supportedArguments(["/bin/sh", "collector.sh"]) && !EventCollectorSetup.supportedArguments([CollectorIdentity.launcher, "override"]), "Unsupported collector command accepted")
-    print("PASS: collector boot/birth identity, PID reuse/exit, optional/missing/unreadable accounting, ownership/mode/link/FIFO/size validation and fixed launcher command; fixture storage only")
+    try check(!EventCollectorSetup.supportedOutput(["StandardOutPath": ProcessEventStream.pipePath, "StandardErrorPath": "/dev/null"]) && EventCollectorSetup.supportedOutput(["StandardErrorPath": "/dev/null"]), "A job that lets launchd create the event pipe was accepted")
+    // A pipe that is not this user's private FIFO is a broken collector, reported and never read.
+    let pipe = root.appendingPathComponent("events.pipe").path
+    try check(ProcessEventStream.pipeProblem(at: pipe)?.contains("missing") == true, "Missing event pipe was not reported")
+    try check(mkfifo(pipe, 0o600) == 0 && ProcessEventStream.pipeProblem(at: pipe) == nil, "Private event FIFO was refused")
+    chmod(pipe, 0o644)
+    try check(ProcessEventStream.pipeProblem(at: pipe)?.contains("not private") == true, "Shared event FIFO was accepted")
+    unlink(pipe)
+    try Data("eslogger output\n".utf8).write(to: URL(fileURLWithPath: pipe))
+    try check(ProcessEventStream.pipeProblem(at: pipe)?.contains("ordinary file") == true, "Ordinary file at the event pipe was accepted")
+    let stream = ProcessEventStream(path: pipe)
+    stream.connect()
+    try check(stream.fd < 0 && stream.reader == nil && stream.failure?.contains("ordinary file") == true && stream.failure?.contains("broken") == true, "Ordinary file was read as the event stream or not reported")
+    unlink(pipe); symlink(file.path, pipe)
+    try check(ProcessEventStream.pipeProblem(at: pipe)?.contains("symbolic link") == true, "Event pipe symlink was accepted")
+    unlink(pipe); mkdir(pipe, 0o700)
+    try check(ProcessEventStream.pipeProblem(at: pipe)?.contains("not a named pipe") == true, "Directory at the event pipe was accepted")
+    print("PASS: collector boot/birth identity, PID reuse/exit, optional/missing/unreadable accounting, ownership/mode/link/FIFO/size validation, fixed launcher command, no launchd-created output, and a missing, shared, ordinary-file, symlink or directory event pipe reported and never read; fixture storage only")
 }

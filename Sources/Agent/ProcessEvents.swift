@@ -117,13 +117,33 @@ final class ProcessEventStream {
     var nextOpen = Date.distantPast
     var probe: Process?
     var healthy: Bool { failure == nil && Date().timeIntervalSince(lastProof) < 45 }
+    /// Why the collector's pipe cannot carry events, or nil for a FIFO private to this user.
+    static func pipeProblem(of info: stat) -> String? {
+        switch info.st_mode & S_IFMT {
+        case S_IFIFO: return info.st_uid == getuid() && info.st_mode & 0o077 == 0 ? nil : "The collector’s event pipe is not private to this user."
+        case S_IFREG: return "The collector’s event pipe has been replaced by an ordinary file, so no events can arrive."
+        case S_IFLNK: return "The collector’s event pipe has been replaced by a symbolic link."
+        default: return "The collector’s event pipe is not a named pipe."
+        }
+    }
+    static func pipeProblem(at path: String) -> String? {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return errno == ENOENT ? "The collector’s event pipe is missing." : "The collector’s event pipe cannot be inspected." }
+        return pipeProblem(of: info)
+    }
     func connect() {
         guard fd < 0, Date() >= nextOpen else { return }
         nextOpen = Date().addingTimeInterval(5)
+        // Anything but this user's private FIFO is a broken collector: say why and
+        // never read it. A missing pipe keeps the setup or disconnect reason.
         var info = stat()
-        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFIFO, info.st_uid == getuid(), info.st_mode & 0o077 == 0 else { return }
-        fd = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { return }
+        guard lstat(path, &info) == 0 else { return }
+        if let problem = Self.pipeProblem(of: info) { failure = problem + " The collector is broken. Update it in Agent tracking setup."; return }
+        let opened = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard opened >= 0 else { return }
+        var actual = stat()
+        guard fstat(opened, &actual) == 0, actual.st_dev == info.st_dev, actual.st_ino == info.st_ino, Self.pipeProblem(of: actual) == nil else { close(opened); return }
+        fd = opened
         let id = UUID(); connectionID = id
         reader = EventPipeReader(descriptor: fd, readable: { [weak self] in
             guard let self, self.connectionID == id else { return }; self.drain()

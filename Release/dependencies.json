@@ -181,7 +181,7 @@
   {
    "source": "catalog/agents.json",
    "resource": "agents.json",
-   "sha256": "2104817d871bf10e2eb3a4613359d4230e61163f803569dee4d4977b2de099db",
+   "sha256": "03d7d3d101e7de41b44e0905c011cc0d42f288debe2474c327896cf223aa12eb",
    "records": 8
   }
  ],

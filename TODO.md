@@ -844,8 +844,10 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   before anything of it was committed):
   1. A copy that is only text, 64 KB or less in all representations together,
      goes onto every other connected Mac's clipboard when it is copied.
-  2. Anything else is announced, not sent: its kind, a size bucket and which Mac
-     has it. Never contents or names.
+  2. Anything else that can be brought over is announced, not sent: its kind, a
+     size bucket where one is known without reading it, and which Mac has it.
+     Never contents or names. What cannot be brought over is not announced at
+     all (November 2026, below).
   3. ⌃⌥⌘V ("bring over") brings the waiting copy onto this Mac's clipboard with
      a small progress popup that closes itself. After that every ordinary paste
      works: keyboard, Edit → Paste, right-click. The Edit → Paste gap is gone.
@@ -853,26 +855,101 @@ launch, existing-install replacement and uninstall/recovery as one journey.
      newest copy, cleared once that Mac brings it over. The icon is not changed
      yet; Perch exposes the state it will read (`DeskShareStatus`).
 
-  *Defaults built for gaps Scott has not answered, each in one documented place,
-  all pending his confirmation:*
+  *Confirmed by Scott, November 2026* (these were defaults pending his word):
   - (a) Bring over acts for the Mac typing goes to (keyboard focus, set by the
     last click), not the Mac whose keyboard was pressed. Perch's other shortcuts
     stay on the Mac whose keyboard was pressed (the existing rule, still pinned);
     this one is recognised before them in the input tap and, when typing goes
     elsewhere, sent as a request to that Mac. `DeskClipboard.bringOverTarget`,
     `DeskKeyRouter`.
-  - (b) What is waiting clears everywhere when a newer copy appears on any Mac,
-    small text included, and when the Mac holding it goes offline.
-    `DeskClipboard.consider`, `peersChanged`.
-  - (c) Bring over with nothing waiting does nothing. `bringOverHere`.
+  - (b) What is waiting clears everywhere when a newer copy that can be brought
+    over is announced on any Mac, small text included, when a copy is made
+    here, and when the Mac holding it goes offline. A copy that cannot be
+    brought over is invisible, so it clears nothing elsewhere; ⌃⌥⌘V finds it.
+    `DeskClipboard.consider`, `observe`, `peersChanged`.
+  - The popup shows during ⌃⌥⌘V, as built. With nothing newer anywhere, ⌃⌥⌘V
+    asks the other Macs and does nothing. `settleBringOver`.
   - (d) Small text reaches only connected desk Macs with sharing on: the copying
     Mac announces, and each other Mac fetches only while its own sharing is on.
-    Concealed, transient and generated copies are never announced at all.
     `consider`, `announceCopy`.
-  - (e) ⌃⌥⌘V is claimed in `ShortcutRegistry` beside Perch's other shortcuts, so
-    their editors refuse it, and steps aside (logged) if another Perch shortcut
-    already holds those keys. It is fixed: changing it needs an editor on the
-    Hotkeys page, which is Scott's to decide. `DeskBringOverShortcut`.
+  - (e) ⌃⌥⌘V stays fixed: no editor on the Hotkeys page. It is claimed in
+    `ShortcutRegistry` beside Perch's other shortcuts, so their editors refuse
+    it, and steps aside (logged) if another Perch shortcut already holds those
+    keys. `DeskBringOverShortcut`.
+  - The waiting envelope in the icon shows only while sharing is on.
+  - The caps stand (below), with folders added.
+
+  **Folders, November 2026** (Scott: "why can't we do folders, let's do
+  folders"). `DeskFileTransfer.swift`.
+  - A folder keeps its shape, empty folders and hidden files included: one list
+    of every folder, file and link (parents first), then all the files' bytes as
+    one stream in that order, padded once, each file's SHA-256 sent right after
+    the chunk holding its last byte, the stream bound to the list by the list's
+    own SHA-256 in its authenticated manifest.
+  - Limits per copy: 2 GB in all, 1 GB a file, 10,000 items (files, folders and
+    links, replacing the 100-file cap, and applying to every copy of files),
+    32 levels deep.
+  - On the sending Mac nothing is ever followed: the walk uses `lstat`, reads a
+    link's target with `readlink` and never goes there, and every file is opened
+    with `O_NOFOLLOW` and checked unchanged (device, inode, size, time) when the
+    stream reaches it and after. A link inside a copied folder is sent as a link
+    only when it is relative and resolves, within the copy's own list, to
+    something that exists inside its own top-level folder; one that is absolute,
+    climbs out (even to come back in, as `../Project/x`), leads nowhere, goes
+    through a file or loops refuses the whole copy. A link or alias selected
+    directly is refused. An alias inside a folder is an ordinary file and goes
+    as one (without the Finder flag that makes it an alias).
+  - On the receiving Mac a hostile list is refused before anything is written
+    (`DeskTreePlan`): everything below the top must sit inside a folder named
+    earlier in the list, so a file can never be written through a link or a file
+    (the tar attack: `a -> /Users/x/.ssh`, then `a/authorized_keys`); every name
+    at every level is made safe (inner names keep a leading dot; "." and ".."
+    are refused), names that collide once made safe are refused, and every link
+    is checked again here against the copy as it will be written. Then the
+    writer (`DeskTreeWriter`) reaches every folder and file through descriptors
+    opened from the copy's own staging folder with `O_NOFOLLOW`, so no component
+    can be a link whatever appears on disk meanwhile; folders first, then each
+    file into a hidden temporary file created exclusively, checked against its
+    length and SHA-256, marked as downloaded, given its permission bits (without
+    setuid, setgid or sticky) and renamed into place without replacing anything;
+    links last, after every file is in place. The whole tree is staged before
+    anything goes on the clipboard; a failure removes all of it. Every file and
+    folder carries the download mark. Memory stays at about a chunk on each side,
+    with at most one file open at a time.
+
+  **Invisible when copied, explained on ⌃⌥⌘V, November 2026** (Scott: "they
+  need to be invisible on copy but shown on the screen if you try to paste them
+  anyway"). `DeskClipboard.judge`, `announceCopy`, `bringOverHere`.
+  - A copy that cannot be brought over (private, temporary, generated, an app's
+    private type, too large, a link, a folder with a link leading out) sends
+    nothing at all: no announcement, no envelope anywhere.
+  - ⌃⌥⌘V now asks every other Mac for its newest copy, even when nothing waits
+    (about a second at most). The youngest copy on the desk wins, this Mac's own
+    included. If it is already here (small text pushed earlier, say), nothing
+    happens. If it cannot come, the popup says why in one sentence for three
+    seconds: "The newest copy on Studio is private, so it stays there." or "The
+    newest copy on Studio is 3.4 GB; the limit is 2 GB." Sizes on screen are in
+    binary units, rounded up so an amount over a limit never reads as the limit.
+    Otherwise it comes, with the progress popup as before.
+  - Trade-off, recorded: the existence of a private copy (and how long ago it
+    was made, and why it stays) leaves its Mac only in answer to ⌃⌥⌘V from a Mac
+    of the same desk with sharing on, over the pinned link. Its contents never do.
+  - A plain ⌘V on the other Mac cannot explain anything: Perch does not watch ⌘V
+    (that was tried and removed in September), so it pastes whatever that Mac
+    already has. Only ⌃⌥⌘V explains.
+  - An image is never read to be announced, so one over the image cap is
+    announced and found too large only when brought over; the popup then says
+    so with its size and the limit, and it stops waiting. Text is read only
+    until it passes 64 KB, so text over its cap is caught when copied when its
+    plain text alone is over (the usual case) and otherwise when brought over.
+
+  **Not a system hog, November 2026.** Four times a second Perch reads the
+  clipboard's change count and nothing else. For a new copy it reads its types
+  (markers first), and then: for an image, nothing more; for text, one
+  representation at a time, plain first, stopping as soon as the total passes
+  64 KB; for files and folders, a walk of names and sizes (no contents, at most
+  10,000 items) on the files queue. Each copy is judged once; later questions
+  reuse the answer.
 
   **Progress, September 27, 2026.** On branch `clipboard`, pushed, not merged
   into main and not released. Scott is to review it before it lands. Commits:
@@ -896,19 +973,20 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     identity. It is never announced, relayed or served again, even if the
     clipboard's count moves under it: no echo loops.
   - Bring over fetches onto the clipboard with the popup ("A photo from Studio",
-    "3 files from Studio"), a progress bar and Cancel, the one action only the
+    "3 files from Studio", "A folder from Studio"), a progress bar and Cancel, the one action only the
     person can take. It says "Ready to paste" and closes after at least half a
     second; a failure shows one line ("Couldn't reach Studio") for three seconds.
     The popup is a non-activating floating panel that can never become key.
   - Files are staged in `~/Library/Application Support/Perch/Desk/Clipboard`,
     one private folder per copy, kept out of backups, on the same volume as the
     person's files so Finder's paste clones rather than copies; then their URLs
-    go on the clipboard. Every received name is made safe; each file arrives in
-    a hidden temporary file, created exclusively, never through a link, checked
-    against its length and SHA-256, then marked as downloaded (quarantine) and
-    moved into place by an atomic rename that never replaces anything. The
-    sending Mac refuses links, aliases, folders, unreadable and oversized files
-    and anything changed since it was listed.
+    go on the clipboard. Folders keep their shape (above). Every received name
+    is made safe; each file arrives in a hidden temporary file, created
+    exclusively, never through a link, checked against its length and SHA-256,
+    then marked as downloaded (quarantine) and moved into place by an atomic
+    rename that never replaces anything. The sending Mac refuses a selected
+    link or alias, links leading out, unreadable and special files, anything
+    over the limits, and anything changed since it was listed.
   - Staging cleanup rule (`DeskFileStaging`): a failed or cancelled copy goes at
     once; the copy the clipboard holds stays; one that left the clipboard goes
     ten minutes later, so a paste still copying out of it can finish; anything
@@ -936,23 +1014,35 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   Bring over plus a staging folder replaces them.
 
   *Automatically verified.* `--self-test`: `Tests/DeskClipboardTests.swift`
-  (thirteen PASS lines) and `Tests/DeskFileTransferTests.swift` (six), covering
-  the markers and types; the wire and its padding; reassembly refusing
-  corruption, reordering, replay, missing chunks and a wrong digest; an older
-  Perch receiving only a greeting; small text pushed silently only to Macs with
-  sharing on, with the 64 KB line exactly; passwords leaving no trace; no echo
-  or relay of a received copy; everything else only announced; a peer claiming
-  small text and sending more refused; bring over with nothing waiting doing
-  nothing, and bringing a photo with progress, failing by name and cancelling;
-  bring over acting for the Mac typing goes to; what waits clearing on a newer
-  copy anywhere, a copy here, and the holder leaving; a hung app never stalling
-  the main thread; the popup's timing on a virtual clock; the panel never key;
-  the shortcut routed before Perch's other shortcuts and yielding to one already
-  there; the icon's state; the staging rule; hostile names; atomic landing and
-  cleanup. `Tools/check-desk-network.py` over real TLS: small text pushed and not
-  echoed; a 2.5 MB image announced and brought over, from one Mac's keyboard to
-  the Mac typing goes to; two files staged; an older Perch only greeted while
-  its desk keeps syncing.
+  (thirteen PASS lines) and `Tests/DeskFileTransferTests.swift` (ten), covering
+  the markers and types; what judging a copy reads (an image's data never, text
+  only to the 64 KB line, each copy once); the wire and its padding; reassembly
+  refusing corruption, reordering, replay, missing chunks and a wrong digest;
+  an older Perch receiving only a greeting; small text pushed silently only to
+  Macs with sharing on, with the 64 KB line exactly; passwords, temporary,
+  generated and unsupported copies sending nothing at all; no echo or relay of
+  a received copy; everything else only announced; a peer claiming small text
+  and sending more refused; ⌃⌥⌘V asking and doing nothing when nothing is
+  newer, explaining a copy too large when copied, refusing with sizes an image
+  found too large when brought over, and bringing a photo with progress,
+  failing by name and cancelling; bring over acting for the Mac typing goes to;
+  what waits clearing on a newer copy anywhere, a copy here, and the holder
+  leaving; a hung app never stalling the main thread; the popup's timing and
+  explanations on a virtual clock; the panel never key; the shortcut routed
+  before Perch's other shortcuts and yielding to one already there; the icon's
+  state; names made safe at the top and inside folders; the list's wire and
+  limits; links resolved within the copy alone; the sending walk never
+  following a link; the stream and its per-file digests stopping at a changed
+  or swapped file; hostile lists refused (the tar attack both ways, files
+  through files, unlisted folders, ".", "..", collisions, links leading out);
+  the writer keeping shape, empty folders, permissions and links, marking every
+  item, creating links last, and never writing through a link planted where a
+  folder was; the staging rule; folders, links leading out and copies over the
+  sender's limit end to end. `Tools/check-desk-network.py` over real TLS: small
+  text pushed and not echoed; a 2.5 MB image announced and brought over, from
+  one Mac's keyboard to the Mac typing goes to; a password never announced and
+  explained on ⌃⌥⌘V; a file and a folder (with an empty folder and an inner
+  link) staged; an older Perch only greeted while its desk keeps syncing.
 
   *Needs the live two-Mac desk* (not provable headlessly):
   - Real apps pasting what arrives (TextEdit, Pages, Safari, Mail, Terminal) and
@@ -963,8 +1053,11 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   - ⌃⌥⌘V from both keyboards, with typing on either Mac; the popup's look in
     Light and Dark, its place on screen, and Cancel clicked without taking focus.
   - Password managers on this macOS actually marking their copies concealed.
-  - Reading an image's data on every image copy, to announce its size: whether
-    that is noticeable with apps that render copies lazily.
+  - ⌃⌥⌘V asking the other Macs first: how long the answer takes over Wi-Fi and
+    the cable before the popup appears, and the explanation popup's look.
+  - Real folders through Finder: an app bundle (its inner links), a Git
+    checkout, a photo library export; pasting them with Finder, and what
+    Gatekeeper shows opening an executable from a received folder.
   - Whether macOS asks for access when Perch writes its staging folder or when
     Finder pastes from it, and what Gatekeeper shows opening a received file.
   - The Studio on 2.0.297 receiving greetings through a long session unharmed.
@@ -972,29 +1065,32 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   *Decided on Scott's behalf, conservatively; each is his to change:*
   - Consent stays Share on this Mac, and a locked Mac or one without access
     takes no part; no new setting.
-  - Caps: plain text 2 MB, each rich text or HTML representation 8 MB, one
-    image representation 32 MB, 40 MB per copy, 16 items; files 1 GB each,
-    2 GB per copy, 100 files, and 64 MB left free.
-  - What was on the clipboard when Perch started is never announced.
-  - A copy that cannot be brought over (an app's private type) still clears
-    what waits elsewhere; a concealed, transient or generated one does not.
-  - A bring over that fails for good (too large, a link, a folder, changed)
-    stops waiting; one that fails for a passing reason (unreachable, cancelled,
-    no room) stays waiting, and pressing again retries.
+  - Caps (confirmed): plain text 2 MB, each rich text or HTML representation
+    8 MB, one image representation 32 MB, 40 MB per copy, 16 items; files and
+    folders 1 GB a file, 2 GB per copy, 10,000 items, 32 levels, and 64 MB left
+    free.
+  - What was on the clipboard when Perch started is never announced, and is
+    answered as "nothing copied" when ⌃⌥⌘V asks.
+  - A bring over that fails for good (too large, a link, changed) stops
+    waiting; one that fails for a passing reason (unreachable, cancelled, no
+    room) stays waiting, and pressing again retries.
   - A newer copy announced while a bring over is on its way stops it ("Something
     newer was copied on another Mac").
-  - Links and folders are refused, never followed; received files are marked as
-    downloaded, and one that cannot be is not delivered.
-  - The copying Mac reads an image's data once to announce its size bucket.
+  - Received files are marked as downloaded, and one that cannot be is not
+    delivered. Folders are created 0755; files keep their own bits.
+  - Inside a copied folder a leading dot stays (".git"); at the top it goes, so
+    nothing pasted is hidden.
+  - A dangling link inside a folder refuses the copy (named as a link leading
+    outside it), rather than being sent broken.
+  - A received copy is never brought over from the Mac that received it: ⌃⌥⌘V
+    leaves it to the Mac it was copied on.
+  - Long text is announced without a size bucket, since it is read only up to
+    64 KB; images likewise.
 
   *Open questions for Scott:*
-  - Confirm or change defaults (a) to (e) above.
-  - Should ⌃⌥⌘V be editable on the Hotkeys page? That needs a new editor there.
-  - Are the caps right? Should folders be shared, and with what limits?
-  - Should a copy that was not shared (a password, too large) say so anywhere,
-    or stay only in the decision log as now?
-  - The icon: the envelope's look, and whether it shows while sharing is off
-    (the state says both).
+  - The icon (below): its look at menu bar size.
+  - Should a dangling link inside a folder be sent as a broken link instead of
+    refusing the copy? Projects sometimes hold one.
 
   *Test debt found on the way, not caused by this work:* `check-desk-network`
   fails now and then in sections that run before any clipboard code. Over 24

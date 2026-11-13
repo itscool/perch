@@ -154,19 +154,29 @@ enum DeskClipboardWire {
         return Parcel(manifest: manifest, stream: stream, format: format)
     }
 
-    /// The manifest for one file, sent as it is on disk: never compressed,
-    /// padded to its bucket, with the digest taken from a first read.
-    static func fileManifest(transfer: UUID, copy: UUID, size: UInt64, digest: Data, key: SymmetricKey, format: UInt8) -> DeskClipboardManifest {
-        let padded = UInt64(bucket(Int(clamping: size)))
-        var manifest = DeskClipboardManifest(transfer: transfer, copy: copy, payloadLength: size, encodedLength: size, paddedLength: padded,
+    /// The manifest for the stream of a copy's files: their bytes one after
+    /// another, as they are on disk, never compressed, padded to their bucket.
+    /// Its digest is the SHA-256 of the list the receiving Mac already checked,
+    /// binding the stream to exactly that list; each file's own SHA-256 follows
+    /// it as a `fileDigest` message.
+    static func treeManifest(transfer: UUID, copy: UUID, total: UInt64, list: Data, key: SymmetricKey, format: UInt8) -> DeskClipboardManifest {
+        let padded = UInt64(bucket(Int(clamping: total)))
+        var manifest = DeskClipboardManifest(transfer: transfer, copy: copy, payloadLength: total, encodedLength: total, paddedLength: padded,
                                              chunkCount: UInt32((padded + UInt64(chunkSize) - 1) / UInt64(chunkSize)), compressed: false,
-                                             digest: digest, mac: Data())
+                                             digest: Data(SHA256.hash(data: list)), mac: Data())
         manifest.mac = manifestMAC(manifest, format: format, key: key)
         return manifest
     }
 
     static let manifestDomain = Data("Perch clipboard manifest v1\0".utf8)
     static let chunkDomain = Data("Perch clipboard chunk v1\0".utf8)
+    static let fileDigestDomain = Data("Perch clipboard file digest v1\0".utf8)
+
+    static func fileDigestMAC(format: UInt8, transfer: UUID, index: UInt32, digest: Data, key: SymmetricKey) -> Data {
+        var w = Writer()
+        w.fixed(fileDigestDomain); w.u8(format); w.uuid(transfer); w.u32(index); w.fixed(digest)
+        return Data(HMAC<SHA256>.authenticationCode(for: w.data, using: key))
+    }
 
     static func manifestMAC(_ m: DeskClipboardManifest, format: UInt8, key: SymmetricKey) -> Data {
         var w = Writer()
@@ -263,49 +273,59 @@ enum DeskClipboardMessage: Equatable {
     /// The formats this Mac speaks. The only message ever sent to a Mac that
     /// has not answered with one of its own.
     case hello(formats: [UInt8], reply: Bool)
-    /// "Something was just copied on this Mac." Sent once per copy, by the Mac
-    /// it was copied on only, never by a Mac that received it. Its age in
-    /// milliseconds is measured on the sender's own clock, so the two Macs'
-    /// clocks never need to agree. `what` is its kind, count and size bucket,
-    /// never its contents or names; nil for a copy that cannot be brought over.
-    /// Inside the padded 1 KB envelope, so it changes nothing an observer sees.
-    case copied(copy: UUID, age: UInt32, what: DeskClipboardDescriptor?)
+    /// "Something that can be brought over was just copied on this Mac." Sent
+    /// once per copy, by the Mac it was copied on only, never by a Mac that
+    /// received it, and never for a copy that cannot be brought over (Scott:
+    /// those are invisible on copy). Its age in milliseconds is measured on the
+    /// sender's own clock, so the Macs' clocks never need to agree. `what` is
+    /// its kind, count and size bucket, never its contents or names. Inside
+    /// the padded 1 KB envelope, so it changes nothing an observer sees.
+    case copied(copy: UUID, age: UInt32, what: DeskClipboardDescriptor)
     /// "Bring over the newest copy": sent to the Mac typing goes to by the Mac
     /// whose keyboard pressed ⌃⌥⌘V.
     case bringOver
+    /// "What is your newest copy?" Asked only when ⌃⌥⌘V is pressed.
+    case ask(query: UUID)
+    /// The answer: this Mac's newest copy, how long ago it was made, and what
+    /// it is or why it cannot be brought over. The only way an unshareable
+    /// copy's existence ever leaves its Mac.
+    case newest(query: UUID, copy: UUID?, age: UInt32, answer: DeskClipboardAnswer)
     case fetch(transfer: UUID, copy: UUID, key: Data)
-    /// One of a copy's files, asked for one by one once their names are in.
-    case fileFetch(transfer: UUID, copy: UUID, index: UInt32, key: Data)
+    /// The contents of a copy's files, as one stream in the order its list
+    /// names them, asked for once the list is in and has been checked.
+    case treeFetch(transfer: UUID, copy: UUID, key: Data)
     case manifest(DeskClipboardManifest)
     case chunk(transfer: UUID, index: UInt32, data: Data, mac: Data)
+    /// The SHA-256 of one file of a stream, sent just after the chunk its last
+    /// byte is in, authenticated for that transfer and file.
+    case fileDigest(transfer: UUID, index: UInt32, digest: Data, mac: Data)
     /// Everything below `next` has arrived; up to a window beyond it may follow.
     case ack(transfer: UUID, next: UInt32)
-    case refuse(transfer: UUID, reason: DeskClipboardReason)
+    case refuse(transfer: UUID, refusal: DeskClipboardRefusal)
     case cancel(transfer: UUID, reason: DeskClipboardReason)
 
     func write(into w: inout DeskClipboardWire.Writer) {
         switch self {
         case .hello(let formats, let reply):
             w.u8(1); w.u8(UInt8(min(formats.count, 16))); formats.prefix(16).forEach { w.u8($0) }; w.u8(reply ? 1 : 0)
-        case .copied(let copy, let age, let what):
-            w.u8(12); w.uuid(copy); w.u32(age); w.u8(what == nil ? 0 : 1)
-            if let what { w.u8(what.kind.rawValue); w.u32(UInt32(clamping: what.count)); w.u8(what.small ? 1 : 0); w.u8(what.size) }
-        case .bringOver: w.u8(13)
         case .fetch(let transfer, let copy, let key): w.u8(5); w.uuid(transfer); w.uuid(copy); w.fixed(key)
         case .manifest(let m): w.u8(6); m.writeFields(into: &w); w.fixed(m.mac)
         case .chunk(let transfer, let index, let data, let mac): w.u8(7); w.uuid(transfer); w.u32(index); w.bytes(data); w.fixed(mac)
         case .ack(let transfer, let next): w.u8(8); w.uuid(transfer); w.u32(next)
-        case .refuse(let transfer, let reason): w.u8(9); w.uuid(transfer); w.u8(reason.rawValue)
+        case .refuse(let transfer, let refusal): w.u8(9); w.uuid(transfer); refusal.write(into: &w)
         case .cancel(let transfer, let reason): w.u8(10); w.uuid(transfer); w.u8(reason.rawValue)
-        case .fileFetch(let transfer, let copy, let index, let key): w.u8(11); w.uuid(transfer); w.uuid(copy); w.u32(index); w.fixed(key)
+        case .copied(let copy, let age, let what): w.u8(12); w.uuid(copy); w.u32(age); what.write(into: &w)
+        case .bringOver: w.u8(13)
+        case .ask(let query): w.u8(14); w.uuid(query)
+        case .newest(let query, let copy, let age, let answer):
+            w.u8(15); w.uuid(query); w.u8(copy == nil ? 0 : 1); w.uuid(copy ?? UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))); w.u32(age)
+            answer.write(into: &w)
+        case .treeFetch(let transfer, let copy, let key): w.u8(16); w.uuid(transfer); w.uuid(copy); w.fixed(key)
+        case .fileDigest(let transfer, let index, let digest, let mac): w.u8(17); w.uuid(transfer); w.u32(index); w.fixed(digest); w.fixed(mac)
         }
     }
 
     static func read(from r: inout DeskClipboardWire.Reader) throws -> Self {
-        func reason() throws -> DeskClipboardReason {
-            guard let value = DeskClipboardReason(rawValue: try r.u8()) else { throw DeskClipboardWire.Failure.malformed("unknown reason") }
-            return value
-        }
         func flag() throws -> Bool {
             let value = try r.u8()
             guard value <= 1 else { throw DeskClipboardWire.Failure.malformed("flag") }
@@ -317,16 +337,6 @@ enum DeskClipboardMessage: Equatable {
             guard (1...16).contains(count) else { throw DeskClipboardWire.Failure.malformed("hello formats") }
             let formats = try (0..<count).map { _ in try r.u8() }
             return .hello(formats: formats, reply: try flag())
-        case 12:
-            let copy = try r.uuid(), age = try r.u32()
-            guard try flag() else { return .copied(copy: copy, age: age, what: nil) }
-            guard let kind = DeskClipboardDescriptor.Kind(rawValue: try r.u8()) else { throw DeskClipboardWire.Failure.malformed("unknown kind") }
-            let count = Int(try r.u32()), small = try flag(), size = try r.u8()
-            guard (1...100_000).contains(count), !small || kind == .text, Int(size) <= DeskClipboardPolicy.sizeBuckets.count else {
-                throw DeskClipboardWire.Failure.malformed("description")
-            }
-            return .copied(copy: copy, age: age, what: .init(kind: kind, count: count, small: small, size: size))
-        case 13: return .bringOver
         case 5: return .fetch(transfer: try r.uuid(), copy: try r.uuid(), key: try r.fixed(32))
         case 6:
             let manifest = DeskClipboardManifest(transfer: try r.uuid(), copy: try r.uuid(), payloadLength: try r.u64(),
@@ -335,11 +345,84 @@ enum DeskClipboardMessage: Equatable {
             return .manifest(manifest)
         case 7: return .chunk(transfer: try r.uuid(), index: try r.u32(), data: try r.bytes(max: DeskClipboardWire.chunkSize), mac: try r.fixed(32))
         case 8: return .ack(transfer: try r.uuid(), next: try r.u32())
-        case 9: return .refuse(transfer: try r.uuid(), reason: try reason())
-        case 10: return .cancel(transfer: try r.uuid(), reason: try reason())
-        case 11: return .fileFetch(transfer: try r.uuid(), copy: try r.uuid(), index: try r.u32(), key: try r.fixed(32))
+        case 9: return .refuse(transfer: try r.uuid(), refusal: try DeskClipboardRefusal.read(from: &r))
+        case 10: return .cancel(transfer: try r.uuid(), reason: try DeskClipboardRefusal.reason(from: &r))
+        case 12: return .copied(copy: try r.uuid(), age: try r.u32(), what: try DeskClipboardDescriptor.read(from: &r))
+        case 13: return .bringOver
+        case 14: return .ask(query: try r.uuid())
+        case 15:
+            let query = try r.uuid(), known = try flag(), copy = try r.uuid(), age = try r.u32()
+            let answer = try DeskClipboardAnswer.read(from: &r)
+            guard known || answer == .nothing else { throw DeskClipboardWire.Failure.malformed("answer without a copy") }
+            return .newest(query: query, copy: known ? copy : nil, age: age, answer: answer)
+        case 16: return .treeFetch(transfer: try r.uuid(), copy: try r.uuid(), key: try r.fixed(32))
+        case 17: return .fileDigest(transfer: try r.uuid(), index: try r.u32(), digest: try r.fixed(32), mac: try r.fixed(32))
         default: throw DeskClipboardWire.Failure.malformed("unknown message")
         }
+    }
+}
+
+/// A Mac's newest copy, as it answers ⌃⌥⌘V.
+enum DeskClipboardAnswer: Equatable {
+    /// Nothing was copied there since Perch started.
+    case nothing
+    case shareable(DeskClipboardDescriptor)
+    case unshareable(DeskClipboardRefusal)
+    /// A copy that came from another Mac: never brought over from here.
+    case received
+
+    func write(into w: inout DeskClipboardWire.Writer) {
+        switch self {
+        case .nothing: w.u8(0)
+        case .shareable(let what): w.u8(1); what.write(into: &w)
+        case .unshareable(let refusal): w.u8(2); refusal.write(into: &w)
+        case .received: w.u8(3)
+        }
+    }
+    static func read(from r: inout DeskClipboardWire.Reader) throws -> Self {
+        switch try r.u8() {
+        case 0: return .nothing
+        case 1: return .shareable(try DeskClipboardDescriptor.read(from: &r))
+        case 2: return .unshareable(try DeskClipboardRefusal.read(from: &r))
+        case 3: return .received
+        default: throw DeskClipboardWire.Failure.malformed("answer")
+        }
+    }
+}
+
+extension DeskClipboardDescriptor {
+    func write(into w: inout DeskClipboardWire.Writer) {
+        w.u8(kind.rawValue); w.u32(UInt32(clamping: count)); w.u8(small ? 1 : 0); w.u8(size)
+    }
+    static func read(from r: inout DeskClipboardWire.Reader) throws -> Self {
+        guard let kind = Kind(rawValue: try r.u8()) else { throw DeskClipboardWire.Failure.malformed("unknown kind") }
+        let count = Int(try r.u32()), small = try r.u8(), size = try r.u8()
+        guard (1...100_000).contains(count), small <= 1, small == 0 || kind == .text, Int(size) <= DeskClipboardPolicy.sizeBuckets.count else {
+            throw DeskClipboardWire.Failure.malformed("description")
+        }
+        return .init(kind: kind, count: count, small: small == 1, size: size)
+    }
+}
+
+extension DeskClipboardRefusal {
+    func write(into w: inout DeskClipboardWire.Writer) {
+        w.u8(reason.rawValue)
+        w.u8(amount == nil ? 0 : 1); w.u64(amount ?? 0)
+        w.u8(limit == nil ? 0 : 1); w.u64(limit ?? 0)
+    }
+    static func reason(from r: inout DeskClipboardWire.Reader) throws -> DeskClipboardReason {
+        guard let value = DeskClipboardReason(rawValue: try r.u8()) else { throw DeskClipboardWire.Failure.malformed("unknown reason") }
+        return value
+    }
+    static func read(from r: inout DeskClipboardWire.Reader) throws -> Self {
+        let why = try reason(from: &r)
+        func optional() throws -> UInt64? {
+            let known = try r.u8(), value = try r.u64()
+            guard known <= 1, known == 1 || value == 0 else { throw DeskClipboardWire.Failure.malformed("amount") }
+            return known == 1 ? value : nil
+        }
+        let amount = try optional(), limit = try optional()
+        return .init(why, amount: amount, limit: limit)
     }
 }
 
@@ -432,11 +515,13 @@ final class DeskClipboardAssembly {
 /// What arrived, by the kind byte inside the padded content.
 enum DeskClipboardPayload {
     case content(DeskClipboardContent)
-    case files(DeskFileList)
+    /// The list of a copy's files and folders, and its own encoding, which the
+    /// stream of their contents is bound to.
+    case files(DeskTreeList, encoded: Data)
     static func decode(_ payload: Data, limits: DeskClipboardLimits, fileLimits: DeskFileLimits) throws -> Self {
         switch payload.first {
         case DeskClipboardContent.kind: return .content(try DeskClipboardContent.decode(payload, limits: limits))
-        case DeskFileList.kind: return .files(try DeskFileList.decode(payload, limits: fileLimits))
+        case DeskTreeList.kind: return .files(try DeskTreeList.decode(payload, limits: fileLimits), encoded: payload)
         default: throw DeskClipboardWire.Failure.malformed("content kind")
         }
     }

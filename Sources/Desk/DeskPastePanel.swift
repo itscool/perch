@@ -37,10 +37,12 @@ final class DeskPasteViewModel: ObservableObject {
     @Published var line: String?
     @Published var failed = false
     @Published var canCancel = false
+    /// Only a sentence saying why nothing is coming: no progress bar.
+    @Published var informing = false
     var cancel: () -> Void = {}
     func update(from progress: DeskPasteProgress) {
         title = progress.title; fraction = progress.fraction; line = progress.line
-        failed = progress.phase == .failed; canCancel = progress.canCancel
+        failed = progress.phase == .failed; canCancel = progress.canCancel; informing = progress.phase == .informed
     }
 }
 
@@ -59,7 +61,7 @@ struct DeskPasteOverlay: View {
             Text(model.title).font(.callout)
             if let line = model.line {
                 Text(line).font(.caption).foregroundStyle(model.failed ? Color.orange : Color.secondary)
-            } else {
+            } else if !model.informing {
                 ProgressView(value: model.fraction).tint(.indigo)
             }
         }

@@ -64,10 +64,20 @@ final class DeskClipboardFakeLink: DeskClipboardLink {
         if intercept?(peer, message) == true { return true }
         let delay: Double
         if case .chunk? = message { delay = chunkDelay } else { delay = 0 }
-        let deliver = self.deliver
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { deliver?(peer, data) }
+        // In order, as the desk's TLS link delivers: nothing overtakes a
+        // delayed chunk. Each delivery hands over the oldest message waiting.
+        let at = max(ProcessInfo.processInfo.systemUptime + delay, lastDelivery)
+        lastDelivery = at
+        inFlight.append((peer, data))
+        DispatchQueue.main.asyncAfter(deadline: .now() + (at - ProcessInfo.processInfo.systemUptime)) { [weak self] in
+            guard let self, !self.inFlight.isEmpty else { return }
+            let next = self.inFlight.removeFirst()
+            self.deliver?(next.peer, next.data)
+        }
         return true
     }
+    private var lastDelivery = 0.0
+    private var inFlight: [(peer: UUID, data: Data)] = []
     func queuedBytes(to peer: UUID) -> Int? { peers.contains(peer) ? queued : nil }
     /// Every message sent to `peer`, decoded without regard to format.
     func messages(to peer: UUID) -> [DeskClipboardMessage?] { sent.filter { $0.peer == peer }.map { DeskClipboardTests.peek($0.data) } }
@@ -86,8 +96,9 @@ enum DeskClipboardTests {
     }
     static func isCopied(_ message: DeskClipboardMessage) -> Bool { if case .copied = message { return true }; return false }
     static func isFetch(_ message: DeskClipboardMessage) -> Bool {
-        switch message { case .fetch, .fileFetch: return true; default: return false }
+        switch message { case .fetch, .treeFetch: return true; default: return false }
     }
+    static func isAsk(_ message: DeskClipboardMessage) -> Bool { if case .ask = message { return true }; return false }
     static func isContent(_ message: DeskClipboardMessage) -> Bool {
         switch message { case .manifest, .chunk: return true; default: return false }
     }
@@ -119,7 +130,7 @@ final class DeskClipboardTestDesk {
             let link = DeskClipboardFakeLink(), store = DeskClipboardFakeStore(), fakes = DeskPasteFakes()
             let staging = DeskFileStaging(root: root.appendingPathComponent(name + "-staging"))
             let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 0.3), staging: staging)
-            clipboard.timings = .init(reply: 0.6, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
+            clipboard.timings = .init(query: 0.5, reply: 0.6, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
             clipboard.presenter = fakes
             link.names[link.localID] = name
             macs.append(.init(id: link.localID, link: link, store: store, clipboard: clipboard, fakes: fakes))
@@ -212,11 +223,44 @@ func runDeskClipboardTests() throws {
     do {
         let store = DeskClipboardFakeStore(), access = DeskPasteboardAccess(store: store, timeout: 1)
         store.copy([[(text, Data("hunter2".utf8)), (DeskClipboardMarker.concealed, Data())]])
-        var outcome: Result<DeskClipboardSnapshot, DeskClipboardReason>?
-        access.read(expecting: store.changeCount, limits: .init(), fileLimits: .init()) { outcome = $0 }
+        var outcome: Result<DeskClipboardSnapshot, DeskClipboardRefusal>?
+        access.read(expecting: store.changeCount, limits: .init()) { outcome = $0 }
         try wait("concealed read") { outcome != nil }
-        guard case .failure(.concealed)? = outcome else { throw AppError(message: "A concealed copy was read for sending: \(String(describing: outcome))") }
+        guard case .failure(let refusal)? = outcome, refusal.reason == .concealed else { throw AppError(message: "A concealed copy was read for sending: \(String(describing: outcome))") }
+        var looked: DeskPasteboardAccess.Inspection?
+        access.inspect(limits: .init()) { looked = $0 }
+        try wait("concealed inspection") { looked != nil }
+        try check(looked?.verdict == .unshareable(.init(.concealed)), "A concealed copy was judged \(String(describing: looked))")
         try check(store.dataReads == 0, "A concealed copy's data was read into Perch (\(store.dataReads) reads)")
+    }
+    // What a copy costs to judge (Scott: "not a system hog"): an image's data
+    // is never read; text is read only until it is past the small-text line.
+    do {
+        let store = DeskClipboardFakeStore(), access = DeskPasteboardAccess(store: store, timeout: 1)
+        func judged(_ items: [[(type: String, data: Data)]]) throws -> (DeskPasteboardAccess.Verdict?, Int) {
+            store.copy(items)
+            let reads = store.dataReads
+            var looked: DeskPasteboardAccess.Inspection?
+            access.inspect(limits: .init()) { looked = $0 }
+            try wait("inspection") { looked != nil }
+            return (looked?.verdict, store.dataReads - reads)
+        }
+        let (photo, photoReads) = try judged([[(png, bytes(4000)), (tiff, bytes(9000))], [(png, bytes(10))]])
+        try check(photo == .shareable(.init(kind: .image, count: 2, small: false, size: 0)) && photoReads == 0,
+                  "Judging photos read their data (\(photoReads) reads) or described them wrongly: \(String(describing: photo))")
+        let (long, longReads) = try judged([[(text, Data(repeating: 65, count: 70_000)), (rtf, Data(repeating: 66, count: 70_000)), ("public.html", Data(repeating: 67, count: 70_000))]])
+        try check(long == .shareable(.init(kind: .text, count: 1, small: false, size: 0)) && longReads == 1,
+                  "Judging long text read more than the plain text (\(longReads) reads), or described it wrongly: \(String(describing: long))")
+        let (small, smallReads) = try judged([[(text, Data(repeating: 65, count: 100)), (rtf, Data(repeating: 66, count: 100))]])
+        try check(small == .shareable(.init(kind: .text, count: 1, small: true, size: 1)) && smallReads == 2, "Small text was not judged small: \(String(describing: small))")
+        let (huge, _) = try judged([[(text, Data(repeating: 65, count: DeskClipboardLimits().plainText + 1))]])
+        try check(huge == .unshareable(.init(.tooLarge, amount: UInt64(DeskClipboardLimits().plainText + 1), limit: UInt64(DeskClipboardLimits().plainText))),
+                  "Text over the limit was not judged too large, with its size: \(String(describing: huge))")
+        let readsBefore = store.dataReads
+        var again: DeskPasteboardAccess.Inspection?
+        access.inspect(limits: .init()) { again = $0 }
+        try wait("second inspection") { again != nil }
+        try check(again?.verdict == huge && store.dataReads == readsBefore, "The same copy was read again to be judged again")
     }
     print("PASS: shared clipboard never offers concealed, transient, generated or received copies, never a file's name or icon in place of the file; only text, rich text and one image representation")
 
@@ -225,10 +269,17 @@ func runDeskClipboardTests() throws {
     let transfer = UUID(), copyID = UUID(), key = SymmetricKey(size: .bits256)
     let messages: [DeskClipboardMessage] = [
         .hello(formats: [1], reply: false), .bringOver, .copied(copy: copyID, age: 1234, what: .init(kind: .image, count: 3, small: false, size: 4)),
-        .copied(copy: copyID, age: 5, what: .init(kind: .text, count: 1, small: true, size: 1)), .copied(copy: copyID, age: 9, what: nil),
-        .fileFetch(transfer: transfer, copy: copyID, index: 2, key: Data(repeating: 4, count: 32)),
+        .copied(copy: copyID, age: 5, what: .init(kind: .text, count: 1, small: true, size: 1)),
+        .copied(copy: copyID, age: 9, what: .init(kind: .folders, count: 2, small: false, size: 6)),
+        .ask(query: transfer), .newest(query: transfer, copy: nil, age: 0, answer: .nothing),
+        .newest(query: transfer, copy: copyID, age: 77, answer: .shareable(.init(kind: .files, count: 1, small: false, size: 2))),
+        .newest(query: transfer, copy: copyID, age: 78, answer: .unshareable(.init(.tooLarge, amount: 3_650_722_201, limit: 2 << 30))),
+        .newest(query: transfer, copy: copyID, age: 79, answer: .unshareable(.init(.concealed))), .newest(query: transfer, copy: copyID, age: 80, answer: .received),
+        .treeFetch(transfer: transfer, copy: copyID, key: Data(repeating: 4, count: 32)),
+        .fileDigest(transfer: transfer, index: 9, digest: Data(repeating: 5, count: 32), mac: Data(repeating: 6, count: 32)),
         .fetch(transfer: transfer, copy: copyID, key: Data(repeating: 3, count: 32)), .ack(transfer: transfer, next: 4),
-        .refuse(transfer: transfer, reason: .tooLarge), .cancel(transfer: transfer, reason: .timedOut)]
+        .refuse(transfer: transfer, refusal: .init(.tooLarge)), .refuse(transfer: transfer, refusal: .init(.fileTooLarge, amount: 5, limit: 4)),
+        .cancel(transfer: transfer, reason: .timedOut)]
     for message in messages {
         let envelope = try DeskClipboardWire.encode(message, format: 1)
         try check(envelope.count == DeskClipboardWire.controlSize, "A control message was not exactly one kilobyte: \(message)")
@@ -236,7 +287,7 @@ func runDeskClipboardTests() throws {
     }
     // Format negotiation: only the negotiated format is accepted, and before a
     // hello nothing but a hello is.
-    let ask = try DeskClipboardWire.encode(.copied(copy: UUID(), age: 1, what: nil), format: 1)
+    let ask = try DeskClipboardWire.encode(.ask(query: UUID()), format: 1)
     for format in [nil, UInt8(2)] {
         do { _ = try DeskClipboardWire.decode(ask, format: format); throw AppError(message: "A message in another format was accepted") }
         catch let failure as DeskClipboardWire.Failure { try check(failure == .format, "Another format was refused for the wrong reason: \(failure)") }
@@ -252,6 +303,12 @@ func runDeskClipboardTests() throws {
               "A control message padded to a chunk's size was accepted")
     var unknown = ask; unknown[2] = 99
     try check((try? DeskClipboardWire.decode(unknown, format: 1)) == nil, "An unknown message type was accepted")
+    // An answer that names no copy cannot claim one can be brought over.
+    var lying = DeskClipboardWire.Writer()
+    DeskClipboardMessage.newest(query: UUID(), copy: copyID, age: 0, answer: .received).write(into: &lying)
+    var claim = lying.data; claim[17] = 0
+    var claimReader = DeskClipboardWire.Reader(claim)
+    try check((try? DeskClipboardMessage.read(from: &claimReader)) == nil, "An answer without a copy claimed one")
 
     // Padding hides length inside a bucket: different lengths in one bucket put
     // exactly the same sizes on the wire, and a text copy looks like an image.
@@ -356,7 +413,8 @@ func runDeskClipboardTests() throws {
 
     // MARK: Version gating
 
-    try check(DeskClipboard.wireFormat(for: .copied(copy: UUID(), age: 0, what: nil), negotiated: nil) == nil,
+    try check(DeskClipboard.wireFormat(for: .copied(copy: UUID(), age: 0, what: .init(kind: .text, count: 1, small: true)), negotiated: nil) == nil &&
+              DeskClipboard.wireFormat(for: .ask(query: UUID()), negotiated: nil) == nil,
               "A clipboard message could be sent to a Mac that never said it shares copies")
     try check(DeskClipboard.wireFormat(for: .hello(formats: [1], reply: false), negotiated: nil) == 0, "A hello could not be sent to a new Mac")
     try check(DeskClipboard.wireFormat(for: .bringOver, negotiated: 1) == 1, "A negotiated format was not used")
@@ -433,24 +491,22 @@ func runDeskClipboardTests() throws {
         settle(0.2)
         try check(b.link.count(DeskClipboardTests.isFetch) == fetchesBefore && b.store.first?.count == DeskClipboardDescriptor.smallText,
                   "Text over 64 KB in all moved without being brought over")
-        try check(b.clipboard.waiting?.what.small == false && b.clipboard.waiting?.what.sizeText == "64 KB to 1 MB", "What waits did not say its kind and size")
+        try check(b.clipboard.waiting?.what.small == false && b.clipboard.waiting?.what.sizeText == nil, "Text over 64 KB was measured past the line, or said to be small")
 
-        // Never a password, never anything temporary or generated: nothing about
-        // them leaves the Mac, and what was waiting elsewhere stays as it was.
+        // Never a password, never anything temporary or generated, nor anything
+        // else that cannot be brought over: invisible when copied (Scott,
+        // November 2026). No message of any kind leaves the Mac, and what was
+        // waiting elsewhere stays as it was.
         let waitingBefore = b.clipboard.waiting
         for (marker, reason) in [(DeskClipboardMarker.concealed, DeskClipboardReason.concealed), (DeskClipboardMarker.transient, .transient),
-                                 (DeskClipboardMarker.autoGenerated, .autoGenerated)] {
-            let announcements = a.link.count(DeskClipboardTests.isCopied), reads = a.store.dataReads
-            a.store.copy([[(text, Data("correct horse battery staple".utf8)), (marker, Data())]])
+                                 (DeskClipboardMarker.autoGenerated, .autoGenerated), ("com.example.private", .unsupported)] {
+            let sent = a.link.sent.count, reads = a.store.dataReads
+            a.store.copy([[(text, Data("correct horse battery staple".utf8)), (marker, Data())]].map { reason == .unsupported ? [$0[1]] : $0 })
             try wait("\(reason) copy kept here") { a.clipboard.lastDecision == .notAnnounced(reason) }
             settle(0.15)
-            try check(a.link.count(DeskClipboardTests.isCopied) == announcements && a.store.dataReads == reads,
-                      "A copy marked \(marker) was announced or read")
+            try check(a.link.sent.count == sent && a.store.dataReads == reads, "A copy that cannot be brought over (\(reason)) was announced or read")
             try check(b.clipboard.waiting == waitingBefore && b.store.first?.count == DeskClipboardDescriptor.smallText, "A \(reason) copy changed another Mac")
         }
-        // A newer copy nobody can bring over still clears what was waiting (default (b)).
-        a.store.copy([[("com.example.private", Data("app private".utf8))]])
-        try wait("an unsupported copy clears what waits") { b.clipboard.waiting == nil && b.clipboard.lastDecision == .newerElsewhere(from: "MacBook") }
 
         // Logs: never contents, never exact sizes, never types.
         let clipboardLines = logged.filter { $0.category == DeskClipboardDecision.category }.map(\.message)
@@ -472,11 +528,16 @@ func runDeskClipboardTests() throws {
     for reason in reasons {
         for decision in [DeskClipboardDecision.notAnnounced(reason), .refusedBy("Studio", transfer: UUID(), reason),
                          .failed(from: "Studio", transfer: UUID(), reason, detail: nil), .discarded(transfer: UUID(), reason),
-                         .notBringing(reason), .refused(to: "Studio", transfer: UUID(), reason), .peerCannot("Studio", reason)] {
+                         .notBringing(reason), .refused(to: "Studio", transfer: UUID(), reason), .peerCannot("Studio", reason),
+                         .explained(from: "Studio", reason)] {
             try check(decision.reason == reason && decision.line.hasSuffix(" because " + reason.text), "A decision's logged reason disagreed with it: \(decision.line)")
         }
         let line = DeskPasteProgress.line(for: reason, from: "Studio")
         try check(!line.isEmpty && line.count <= 48, "The popup's line for \(reason) is empty or long: \(line)")
+        for refusal in [DeskClipboardRefusal(reason), DeskClipboardRefusal(reason, amount: 3_650_722_201, limit: 2 << 30)] {
+            let sentence = DeskPasteProgress.explain(refusal, from: "Studio")
+            try check(sentence.contains("Studio") && sentence.hasSuffix(".") && sentence.count <= 80, "The popup's explanation for \(reason) is wrong or long: \(sentence)")
+        }
     }
     print("PASS: shared clipboard pushes small text: a copy of 64 KB of text or less lands on every other Mac with sharing on, silently and marked, one byte more only waits; passwords, temporary and generated copies leave no trace; logs hold no contents, types or exact sizes and always match the decision")
 
@@ -524,11 +585,14 @@ func runDeskClipboardTests() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let fileA = folder.appendingPathComponent("A.mov"), fileB = folder.appendingPathComponent("B.mov")
         try bytes(300_000).write(to: fileA); try bytes(300_000).write(to: fileB)
-        let cases: [(String, [[(type: String, data: Data)]], DeskClipboardDescriptor.Kind, Int, String)] = [
-            ("a photo", [[(png, bytes(700_000)), (tiff, bytes(900_000))]], .image, 1, "64 KB to 1 MB"),
-            ("three photos", [[(png, bytes(2000))], [(png, bytes(2000))], [(tiff, bytes(2000))]], .image, 3, "under 64 KB"),
-            ("long text", [[(text, Data(repeating: 65, count: 2_000_000))]], .text, 1, "1 to 8 MB"),
-            ("two files", [[(DeskClipboardMarker.fileURL, fileA.dataRepresentation)], [(DeskClipboardMarker.fileURL, fileB.dataRepresentation)]], .files, 2, "64 KB to 1 MB")]
+        // Images and long text are not read to be described, so they carry no
+        // size; files are measured from the file system alone.
+        let cases: [(String, [[(type: String, data: Data)]], DeskClipboardDescriptor.Kind, Int, String?)] = [
+            ("a photo", [[(png, bytes(700_000)), (tiff, bytes(900_000))]], .image, 1, nil),
+            ("three photos", [[(png, bytes(2000))], [(png, bytes(2000))], [(tiff, bytes(2000))]], .image, 3, nil),
+            ("long text", [[(text, Data(repeating: 65, count: 2_000_000))]], .text, 1, nil),
+            ("two files", [[(DeskClipboardMarker.fileURL, fileA.dataRepresentation)], [(DeskClipboardMarker.fileURL, fileB.dataRepresentation)]], .files, 2, "64 KB to 1 MB"),
+            ("a folder", [[(DeskClipboardMarker.fileURL, folder.dataRepresentation)]], .folders, 1, "64 KB to 1 MB")]
         for (label, copied, kind, count, size) in cases {
             let fetches = b.link.count(DeskClipboardTests.isFetch), content = a.link.count(DeskClipboardTests.isContent), before = b.store.first
             let known = b.clipboard.waiting?.copy
@@ -568,18 +632,18 @@ func runDeskClipboardTests() throws {
         desk.start()
         defer { desk.stop() }
         try wait("greetings") { desk.greeted() }
-        let original = Data("what the Studio had".utf8)
         /// Copy on the MacBook and wait until the Studio knows of that copy.
         func copyOnMacBook(_ label: String, _ items: [[(type: String, data: Data)]]) throws {
             let before = b.clipboard.waiting?.copy
             a.store.copy(items)
             try wait(label) { b.clipboard.waiting != nil && b.clipboard.waiting?.copy != before }
         }
-        // Default (c): nothing waiting, nothing happens.
-        let sentBefore = b.link.sent.count
+        // Nothing newer anywhere: the other Macs are asked, and nothing happens.
+        let asksBefore = b.link.count(DeskClipboardTests.isAsk), sentBefore = b.link.sent.count
         b.clipboard.bringOverHere()
-        try check(b.clipboard.lastDecision == .nothingWaiting && b.fakes.presented.isEmpty && b.link.sent.count == sentBefore,
-                  "Bring over with nothing waiting did something")
+        try wait("nothing to bring over") { b.clipboard.lastDecision == .nothingWaiting }
+        try check(b.fakes.presented.isEmpty && b.link.count(DeskClipboardTests.isAsk) == asksBefore + 1 && b.link.sent.count == sentBefore + 1,
+                  "Bring over with nothing newer anywhere did more than ask")
         let image = bytes(700_000)
         try copyOnMacBook("photo waits", [[(png, image), (tiff, bytes(900_000))]])
         var gap = try mainGap {
@@ -594,12 +658,25 @@ func runDeskClipboardTests() throws {
         try check(b.store.current[0].map(\.type) == [png, DeskClipboardMarker.received], "More than one image representation, or no mark, arrived")
         try wait("popup finishes and closes") { popup.phase == .done && popup.line == "Ready to paste" && popup.isClosed }
         try check(b.clipboard.waiting == nil, "What was waiting stayed after it was brought over")
-        // Too large: named by the Mac that holds it; it will never come, so it stops waiting.
-        try copyOnMacBook("long text waits", [[(text, Data(repeating: 65, count: 3 * 1024 * 1024))]])
+        // Too large, known when copied: never announced; ⌃⌥⌘V says why, with sizes.
+        let sentByMacBook = a.link.sent.count
+        a.store.copy([[(text, Data(repeating: 65, count: 3 * 1024 * 1024))]])
+        try wait("too large kept on the MacBook") { a.clipboard.lastDecision == .notAnnounced(.tooLarge) }
+        try check(a.link.sent.count == sentByMacBook && b.clipboard.waiting == nil, "A copy too large to bring over was announced")
         b.clipboard.bringOverHere()
-        try wait("too large refused") { b.fakes.last?.phase == .failed }
-        try check(b.fakes.last?.line == "Too large to bring over" && b.store.first == image && b.clipboard.waiting == nil,
-                  "Too large was not named, left something behind, or kept waiting")
+        try wait("too large explained") { b.fakes.last?.phase == .informed }
+        try check(b.fakes.last?.title == "The newest copy on MacBook is 3 MB; the limit is 2 MB." && b.store.first == image && b.clipboard.waiting == nil,
+                  "Too large was not explained with its sizes, or left something behind: \(b.fakes.last?.title ?? "nothing")")
+        try check(b.clipboard.lastDecision == .explained(from: "MacBook", .tooLarge), "The explanation was not the decision")
+        // Too large, found only when brought over (an image is never read to be
+        // announced): refused with its sizes, and it stops waiting.
+        a.clipboard.limits.image = 100 * 1024
+        try copyOnMacBook("large photo waits", [[(png, bytes(150 * 1024))]])
+        b.clipboard.bringOverHere()
+        try wait("large photo refused") { b.fakes.last?.phase == .failed }
+        try check(b.fakes.last?.line == "The newest copy on MacBook is 150 KB; the limit is 100 KB." && b.store.first == image && b.clipboard.waiting == nil,
+                  "A photo over the limit was not named with its sizes, left something behind, or kept waiting: \(b.fakes.last?.line ?? "nothing")")
+        a.clipboard.limits = DeskClipboardLimits()
         // Failure pastes nothing: the other Mac leaves halfway.
         let second = bytes(1_500_000)
         try copyOnMacBook("second photo waits", [[(png, second)]])
@@ -692,7 +769,8 @@ func runDeskClipboardTests() throws {
         try wait("the Mini brings it over itself") { c.store.first == photo }
         // Default (b): a newer copy anywhere clears what waits, small text included.
         a.store.copy([[(png, bytes(3000))]])
-        try wait("new photo waits") { b.clipboard.waiting?.copy != nil && b.clipboard.waiting?.what.size == DeskClipboardPolicy.sizeIndex(3000) }
+        let photoBefore = b.clipboard.waiting?.copy
+        try wait("new photo waits") { b.clipboard.waiting?.copy != nil && b.clipboard.waiting?.copy != photoBefore }
         c.store.copy([[(text, Data("newer, from the Mini".utf8))]])
         try wait("small text replaces it") { b.clipboard.waiting == nil && a.clipboard.waiting == nil && b.store.first == Data("newer, from the Mini".utf8) }
         // A copy made here clears what waits here.
@@ -802,8 +880,37 @@ func runDeskClipboardTests() throws {
                   DeskPasteProgress.title(.init(kind: .image, count: 3, small: false), from: "Studio") == "3 photos from Studio" &&
                   DeskPasteProgress.title(.init(kind: .files, count: 1, small: false), from: "Studio") == "A file from Studio" &&
                   DeskPasteProgress.title(.init(kind: .files, count: 3, small: false), from: "Studio") == "3 files from Studio" &&
-                  DeskPasteProgress.title(.init(kind: .text, count: 1, small: false), from: "Studio") == "Text from Studio",
+                  DeskPasteProgress.title(.init(kind: .text, count: 1, small: false), from: "Studio") == "Text from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .folders, count: 1, small: false), from: "Studio") == "A folder from Studio" &&
+                  DeskPasteProgress.title(.init(kind: .folders, count: 4, small: false), from: "Studio") == "4 items from Studio",
                   "The popup's words moved")
+        // Nothing is coming: the sentence alone, no progress, no Cancel, three seconds.
+        time.now = 50
+        (p, changes, closes) = make(DeskPasteProgress.explain(.init(.concealed), from: "Studio"))
+        p.inform()
+        try check(p.phase == .informed && p.line == nil && !p.canCancel && p.title == "The newest copy on Studio is private, so it stays there." && changes() == 1,
+                  "An explanation did not show its one sentence alone: \(p.title)")
+        time.advance(to: 52.9)
+        try check(closes() == 0, "An explanation closed before it could be read")
+        time.advance(to: 53)
+        try check(closes() == 1, "An explanation's popup stayed open")
+        let sentences: [(DeskClipboardRefusal, String)] = [
+            (.init(.tooLarge, amount: 3_650_722_201, limit: 2 << 30), "The newest copy on Studio is 3.4 GB; the limit is 2 GB."),
+            (.init(.tooLarge, amount: 2_200_000_000, limit: 2 << 30), "The newest copy on Studio is 2.1 GB; the limit is 2 GB."),
+            (.init(.fileTooLarge, amount: 1_610_612_736, limit: 1 << 30), "A file in the newest copy on Studio is 1.5 GB; the limit is 1 GB."),
+            (.init(.tooMany, limit: 10_000), "The newest copy on Studio holds more than 10,000 items."),
+            (.init(.tooDeep, limit: 32), "The newest copy on Studio has folders more than 32 deep."),
+            (.init(.links), "The newest copy on Studio is a link or alias, so it stays there."),
+            (.init(.linkOutside), "The newest copy on Studio links to something outside it, so it stays there."),
+            (.init(.transient), "The newest copy on Studio was marked temporary by its app, so it stays there.")]
+        for (refusal, sentence) in sentences {
+            try check(DeskPasteProgress.explain(refusal, from: "Studio") == sentence, "The explanation \(DeskPasteProgress.explain(refusal, from: "Studio")) is not \(sentence)")
+        }
+        try check(DeskPasteProgress.amountText(52_428_800) == "50 MB" && DeskPasteProgress.amountText(1536) == "1.5 KB" && DeskPasteProgress.amountText(900) == "900 bytes" &&
+                  DeskPasteProgress.amountText(10_000_000_000) == "9.4 GB" &&
+                  DeskPasteProgress.grouped(1_234_567) == "1,234,567" && DeskPasteProgress.grouped(999) == "999" && DeskPasteProgress.amountText(UInt64(32) << 20) == "32 MB", "Sizes on screen moved")
+        try check(DeskPasteProgress.line(for: .init(.tooLarge, amount: 5 << 20, limit: 4 << 20), from: "Studio") == "The newest copy on Studio is 5 MB; the limit is 4 MB." &&
+                  DeskPasteProgress.line(for: .init(.tooLarge), from: "Studio") == "Too large to bring over", "A failure over a limit did not give its sizes")
     }
     // The window: constructed, never shown, never key.
     let panel = DeskPastePanel.make()

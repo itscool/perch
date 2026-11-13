@@ -609,30 +609,42 @@ final class FixturePopups: DeskPastePresenting {
         guard popups.presented.count == 1, popups.presented[0].title == "A photo from \(a.localName)" else { throw KVMError("The bring-over popup was not shown once, on the Mac typing goes to") }
         guard a.transport.links[linkBefore]?.ready == true, a.online.contains(b.localID) else { throw KVMError("The clipboard transfer disturbed the desk link") }
         guard peakQueue <= DeskClipboard.paceLimit + 64 * 1024 else { throw KVMError("The clipboard queued \(peakQueue) bytes on the desk link") }
-        // A password never crosses, and leaves what waits alone.
+        // A password never crosses and is never announced; ⌃⌥⌘V on B says why it stays on A.
         storeA.copy([[(type: "public.utf8-plain-text", data: Data("hunter2".utf8)), (type: DeskClipboardMarker.concealed, data: Data())]])
         try wait("concealed copy kept on A") { clipA.lastDecision == .notAnnounced(.concealed) }
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        guard storeB.current.first?.first?.data == image else { throw KVMError("A concealed copy crossed the desk") }
-        print("PASS: shared clipboard over real TLS: formats agreed, small text pushed on copy and never echoed back, a 2.5 MB image only announced until ⌃⌥⌘V on one Mac brought it over to the Mac typing goes to, with the popup there, paced below the link's limit on the same connection; private types and a concealed copy never crossed")
+        guard storeB.current.first?.first?.data == image, clipB.waiting == nil else { throw KVMError("A concealed copy crossed the desk, or was announced") }
+        clipB.bringOverHere()
+        try wait("the concealed copy explained over TLS") { popups.presented.last?.phase == .informed }
+        guard popups.presented.last?.title == "The newest copy on \(a.localName) is private, so it stays there.", storeB.current.first?.first?.data == image else {
+            throw KVMError("⌃⌥⌘V did not say a private copy stays where it is: \(popups.presented.last?.title ?? "nothing")")
+        }
+        print("PASS: shared clipboard over real TLS: formats agreed, small text pushed on copy and never echoed back, a 2.5 MB image only announced until ⌃⌥⌘V on one Mac brought it over to the Mac typing goes to, with the popup there, paced below the link's limit on the same connection; private types and a concealed copy never crossed, and ⌃⌥⌘V said why the password stayed")
 
-        // Files, over the same link, into B's staging folder, then onto its clipboard as files.
+        // A file and a folder, over the same link, into B's staging folder, then onto its clipboard as files.
         let original = folder.appendingPathComponent("from/Holiday.mov")
         let movie = Data((0..<3_000_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
         try movie.write(to: original)
-        try Data("notes".utf8).write(to: folder.appendingPathComponent("from/Notes.txt"))
-        storeA.copy([[(type: DeskClipboardMarker.fileURL, data: original.dataRepresentation)],
-                     [(type: DeskClipboardMarker.fileURL, data: folder.appendingPathComponent("from/Notes.txt").dataRepresentation)]])
-        try wait("files announced over TLS") { clipB.waiting?.what.kind == .files && clipB.waiting?.what.count == 2 }
+        let album = folder.appendingPathComponent("from/Album")
+        try FileManager.default.createDirectory(at: album.appendingPathComponent("Day 1"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: album.appendingPathComponent("Empty"), withIntermediateDirectories: true)
+        let photo = Data((0..<400_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        try photo.write(to: album.appendingPathComponent("Day 1/IMG_0001.jpg"))
+        try FileManager.default.createSymbolicLink(atPath: album.appendingPathComponent("first").path, withDestinationPath: "Day 1/IMG_0001.jpg")
+        storeA.copy([[(type: DeskClipboardMarker.fileURL, data: original.dataRepresentation)], [(type: DeskClipboardMarker.fileURL, data: album.dataRepresentation)]])
+        try wait("a file and a folder announced over TLS") { clipB.waiting?.what.kind == .folders && clipB.waiting?.what.count == 2 }
         clipB.bringOverHere()
-        try wait("files brought over TLS", seconds: 30) { storeB.current.count == 2 && storeB.current.allSatisfy { $0.first?.type == DeskClipboardMarker.fileURL } }
+        try wait("a file and a folder brought over TLS", seconds: 30) { storeB.current.count == 2 && storeB.current.allSatisfy { $0.first?.type == DeskClipboardMarker.fileURL } }
         let landed = storeB.current.compactMap { $0.first.flatMap { URL(dataRepresentation: $0.data, relativeTo: nil) } }
-        guard landed.map(\.lastPathComponent) == ["Holiday.mov", "Notes.txt"], (try? Data(contentsOf: landed[0])) == movie,
+        guard landed.map(\.lastPathComponent) == ["Holiday.mov", "Album"], (try? Data(contentsOf: landed[0])) == movie,
+              (try? Data(contentsOf: landed[1].appendingPathComponent("Day 1/IMG_0001.jpg"))) == photo,
+              (try? FileManager.default.contentsOfDirectory(atPath: landed[1].appendingPathComponent("Empty").path)) == [],
+              (try? FileManager.default.destinationOfSymbolicLink(atPath: landed[1].appendingPathComponent("first").path)) == "Day 1/IMG_0001.jpg",
               landed.allSatisfy({ $0.standardizedFileURL.path.hasPrefix(clipB.staging.root.path) }) else {
-            throw KVMError("Files did not arrive whole in staging over TLS: \(landed)")
+            throw KVMError("A file and a folder did not arrive whole in staging over TLS: \(landed)")
         }
         guard a.transport.links[linkBefore]?.ready == true else { throw KVMError("The file transfer disturbed the desk link") }
-        print("PASS: shared files over real TLS: two files announced by count, brought over into Perch's staging folder, whole, then put on the clipboard as files, on the same connection")
+        print("PASS: shared files and folders over real TLS: a file and a folder announced by count, brought over into Perch's staging folder, whole, the folder with its empty folder and inner link, then put on the clipboard as files, on the same connection")
 
         // Now B is a Perch without clipboard support: clipboard-tagged messages
         // reach it and are routed nowhere, exactly as in 2.0.297.

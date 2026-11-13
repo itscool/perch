@@ -610,35 +610,27 @@ final class KVMMonitorSwitch: ObservableObject {
         invalidateDesktop(request, finished: true)
         for peer in node.online where peer != node.localID { send(.desktopInvalidation(request, true), peer: peer) }
     }
-    /// Which Macs can see a screen right now, from their reported displays. A
-    /// screen only one Mac can see is the screen that Mac is showing.
-    var seenBy: ((UUID) -> Set<UUID>)?
-    /// A monitor that cannot report its input leaves the command as the only
-    /// evidence, and a command can fail while the screen still ends up right:
-    /// the Mac on the chosen input can see the screen, and no other Mac can.
-    /// Believe the screens over the command.
-    private func showing(_ route: KVMMonitorRoute, in request: KVMMonitorRequest) -> UUID? {
-        let owner = node.group.connections.first { $0.monitor == route.monitor && $0.inputCode == route.input }?.computer
-        guard Self.showsExpected(seen: seenBy?(route.monitor) ?? [], owner: owner) else { return nil }
-        return owner
-    }
-    /// Only one Mac can see the screen, and it is the Mac on the input this
-    /// preset asked for. Two Macs seeing it proves nothing: some monitors keep
-    /// a connection alive on an input they are not showing.
-    static func showsExpected(seen: Set<UUID>, owner: UUID?) -> Bool {
-        guard let owner else { return false }
-        return seen == [owner]
+    /// A monitor that cannot report its input leaves the command as its only
+    /// word, and a command can fail while the screen still ends up right. The
+    /// Mac this switch put on a screen seeing it, with no other Mac seeing it,
+    /// settles it: believe the screens over the monitor and the command. Only
+    /// routes that have answered are settled, so a switch is never finished
+    /// early by a screen that was already right.
+    private func confirmFromScreens(_ request: KVMMonitorRequest) {
+        for route in request.routes {
+            guard let result = results[route.monitor], result.state != .confirmed,
+                  let owner = node.group.connections.first(where: { $0.monitor == route.monitor && $0.inputCode == route.input })?.computer,
+                  screenState?(route.monitor) == .showing(owner) else { continue }
+            let name = node.group.computers.first { $0.id == owner }?.name ?? "That Mac"
+            let screen = node.group.monitors.first { $0.id == route.monitor }?.name ?? "The screen"
+            results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .confirmed,
+                                           detail: "\(name) sees this screen and no other Mac does, which is what this switch asked for.")
+            PerchLog.record("switch.confirmed", "\(screen) confirmed: \(name) sees it and no other Mac does" + (result.state == .failed ? ", although the command failed" : ""))
+        }
     }
     private func finishIfReady() {
         guard let request, results.count == request.routes.count, verifyingMonitors.isEmpty else { return }
-        for route in request.routes where results[route.monitor]?.state == .failed {
-            guard let owner = showing(route, in: request) else { continue }
-            let name = node.group.computers.first { $0.id == owner }?.name ?? "that Mac"
-            let screen = node.group.monitors.first { $0.id == route.monitor }?.name ?? "The screen"
-            PerchLog.record("switch.write", "\(screen) is showing \(name), the input this preset asked for, although the command failed")
-            results[route.monitor] = .init(request: request.id, monitor: route.monitor, input: route.input, state: .unverified,
-                                           detail: "\(screen) is showing \(name). Perch could not confirm the command, but only \(name) can see this screen, which is what this preset asked for.")
-        }
+        confirmFromScreens(request)
         for route in request.routes where results[route.monitor]?.state == .confirmed || results[route.monitor]?.state == .unverified {
             // Permit KVM and desktop reconciliation for an accepted route even
             // when its current input cannot be read. A later contradictory
@@ -694,11 +686,29 @@ final class KVMMonitorSwitch: ObservableObject {
     }
     private func deriveActive() {
         observations = observations.filter { $0.value.revision == node.revision && now - $0.value.time <= 45 && node.online.contains($0.value.peer) }
-        let matches = node.group.presets.filter { preset in
+        // The screens decide: what the Macs see is the desk. The monitor's own
+        // report, and failing that the last command, only fill in a screen the
+        // Macs cannot settle. See `DeskObservedDesk`.
+        let screens = Dictionary(uniqueKeysWithValues: node.group.monitors.map { ($0.id, screenState?($0.id) ?? DeskScreenState.unknown) })
+        let perch = Set(node.membership.peers.map(\.id))
+        func fallback(_ monitor: UUID) -> UInt16? { observations[monitor]?.input ?? optimisticInputs[monitor] }
+        var matches = node.group.presets.filter { preset in
             !preset.assignments.isEmpty && preset.assignments.allSatisfy { assignment in
-                guard let expected = node.group.connections.first(where: { $0.id == assignment.connection })?.inputCode else { return false }
-                return (observations[assignment.monitor]?.input ?? optimisticInputs[assignment.monitor]) == expected
+                guard let connection = node.group.connections.first(where: { $0.id == assignment.connection }) else { return false }
+                return DeskObservedDesk.agrees(screens[assignment.monitor] ?? .unknown, computer: connection.computer, perch: perch,
+                                               input: connection.inputCode, fallback: fallback(assignment.monitor))
             }
+        }
+        // Two presets can differ only in which PC a screen no Mac sees is on;
+        // the monitor's report, else the last command, picks between them.
+        if matches.count > 1 {
+            let narrowed = matches.filter { preset in
+                preset.assignments.allSatisfy { assignment in
+                    guard screens[assignment.monitor] == .elsewhere, let known = fallback(assignment.monitor) else { return true }
+                    return node.group.connections.first { $0.id == assignment.connection }?.inputCode == known
+                }
+            }
+            if narrowed.count == 1 { matches = narrowed }
         }
         if let request, request.revision == node.revision, request.epoch == node.graph.roster.epoch {
             for route in request.routes where results[route.monitor]?.state != .confirmed {
@@ -707,12 +717,24 @@ final class KVMMonitorSwitch: ObservableObject {
                                                   detail: "A fresh monitor read now confirms this input.")
                 }
             }
+            if !busy { confirmFromScreens(request) }
             if !results.isEmpty && results.values.allSatisfy({ $0.state == .confirmed }) { if problem != nil { problem = nil }; if caution != nil { caution = nil } }
+        }
+        defer {
+            let named = node.group.monitors.map { (name: $0.name, state: screens[$0.id] ?? .unknown) }
+            let preset = activePreset.flatMap { id in node.group.presets.first { $0.id == id }?.name }
+            PerchLog.note("desk.state", DeskObservedDesk.summary(named, name: { id in node.group.computers.first { $0.id == id }?.name ?? "another Mac" }, preset: preset))
         }
         if let activePreset, matches.contains(where: { $0.id == activePreset }) { return }
         activePreset = matches.count == 1 ? matches.first?.id : nil
         activeGroup = activePreset == nil ? nil : node.group
     }
+    /// What each screen shows, from the Macs' own display reports. Set by the
+    /// desk runtime; nil leaves every screen to the monitor's report or the
+    /// last command, as before.
+    var screenState: ((UUID) -> DeskScreenState)?
+    /// A Mac's displays changed: look at the desk again.
+    func screensChanged() { if !busy { deriveActive() } }
     /// The user says the picture did not move: forget the accepted-but-
     /// unconfirmed state on every Mac so desktops reconnect, then look again.
     func revert() {

@@ -366,15 +366,65 @@ final class FixturePopups: DeskPastePresenting {
         guard switchesA.desktopInputs.isEmpty else { throw KVMError("Expired observations still authorize desktop disconnection") }
         print("PASS: named per-screen failures, stale-read refusal and read-only reconciliation after recovery")
 
+        // The screens settle the desk. Neither monitor can report its input, so
+        // each switch is only accepted; which Mac sees each screen confirms it,
+        // and the active preset follows the screens, also when someone changes
+        // a monitor's input by its own buttons.
+        var seen: [UUID: Set<UUID>] = [:]
+        let macs: Set<UUID> = [a.localID, b.localID]
+        switchesA.screenState = { monitor in DeskObservedDesk.state(seenBy: seen[monitor] ?? [], cabled: macs, reporting: macs) }
+        for service in [switchesA, switchesB] {
+            service.execute = { _, valid, complete in
+                guard valid() else { complete(.failed, "Expired"); return }
+                writes += 1; complete(.unverified, "The monitor did not return its current input.")
+            }
+            service.readForVerification = { _, complete in complete(nil) }
+        }
+        let screenIDs = desk.monitors.map(\.id)
+        for monitor in screenIDs { seen[monitor] = [b.localID] }
+        fakeTime += 1
+        switchesA.activate(desk.presets[1].id)
+        try wait("a switch the screens already show") { !switchesA.busy && switchesA.results.count == 2 }
+        guard switchesA.results.values.allSatisfy({ $0.state == .confirmed }), switchesA.caution == nil, switchesA.activePreset == desk.presets[1].id else {
+            throw KVMError("A switch the screens show was left accepted without readback: \(switchesA.results.values.map(\.state)), caution \(switchesA.caution ?? "none")") }
+        seen[screenIDs[0]] = [a.localID]; switchesA.screensChanged()
+        guard switchesA.activePreset == nil else { throw KVMError("A screen moved by its own buttons left the old preset showing as active") }
+        seen[screenIDs[0]] = [b.localID]; switchesA.screensChanged()
+        guard switchesA.activePreset == desk.presets[1].id else { throw KVMError("The screens matching a preset again did not make it active") }
+        // Both Macs seeing a screen settles nothing; the last command, which put
+        // it on B, still stands.
+        seen[screenIDs[0]] = [a.localID, b.localID]; switchesA.screensChanged()
+        guard switchesA.activePreset == desk.presets[1].id else { throw KVMError("A screen both Macs see overruled the last command") }
+        // The screens arrive after the switch finishes, as they do on a real desk.
+        for monitor in screenIDs { seen[monitor] = [b.localID] }
+        fakeTime += 1
+        switchesA.activate(desk.presets[0].id)
+        try wait("a switch waiting on the screens") { !switchesA.busy && switchesA.results.count == 2 }
+        guard switchesA.results.values.allSatisfy({ $0.state == .unverified }), switchesA.caution != nil else {
+            throw KVMError("A switch was confirmed before the screens showed it") }
+        for monitor in screenIDs { seen[monitor] = [a.localID] }
+        switchesA.screensChanged()
+        guard switchesA.results.values.allSatisfy({ $0.state == .confirmed }), switchesA.caution == nil, switchesA.problem == nil,
+              switchesA.activePreset == desk.presets[0].id else {
+            throw KVMError("The screens showing the switch did not confirm it: \(switchesA.results.values.map(\.state)), active \(String(describing: switchesA.activePreset))") }
+        switchesA.screenState = nil
+        print("PASS: the screens settle the desk: a switch the right Mac alone sees is confirmed, also when the screens arrive after it finishes; the active preset follows the screens through a monitor's own buttons; a screen two Macs see falls back to the last command")
+
         // Production input coordinator over the same authenticated links. Native
         // capture/posting are never constructed: every event sink is injected.
         let inputA = KVMInputSession(node: a), inputB = KVMInputSession(node: b)
-        switchesA.otherMessage = { peer, bytes in _ = inputA.receive(bytes, peer: peer) }
+        // Version announcements on the wire, both ways, to prove they settle.
+        var versionsOnWire = 0
+        func countVersion(_ bytes: Data) {
+            if String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"version\"") { versionsOnWire += 1 }
+        }
+        switchesA.otherMessage = { peer, bytes in countVersion(bytes); _ = inputA.receive(bytes, peer: peer) }
         // Handoffs now finish within a round trip, too fast to observe. To prove input
         // typed during one is held and delivered, not leaked, the coordinator's
         // answers to B can be held back briefly, keeping B in the handoff barrier.
         var holdStateToB = false, heldStateToB: [(UUID, Data)] = []
         switchesB.otherMessage = { peer, bytes in
+            countVersion(bytes)
             if holdStateToB, String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"state\"") {
                 heldStateToB.append((peer, bytes)); return
             }
@@ -431,7 +481,12 @@ final class FixturePopups: DeskPastePresenting {
         let sameVersion = try JSONEncoder().encode(KVMInputMessage.version(KVMInputProtocol.version))
         _ = inputA.receive(KVMInputSession.wirePrefix + sameVersion, peer: b.localID)
         try wait("matching versions recover on their own") { inputA.readinessIssue(preset: arranged.presets[0].id, monitor: arranged.monitors[1].id) == nil }
-        print("PASS: keyboard and mouse sharing carries its own version; a mismatch is named on the Mac that sees it, leaves the desk working, and clears itself when the versions agree")
+        // Once both Macs know each other's version, announcements are the only
+        // version traffic: one per Mac every 5 seconds, never an echo.
+        versionsOnWire = 0
+        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        guard versionsOnWire <= 4 else { throw KVMError("Versions kept bouncing between the Macs: \(versionsOnWire) in 1.5 s") }
+        print("PASS: keyboard and mouse sharing carries its own version; a mismatch is named on the Mac that sees it, leaves the desk working, and clears itself when the versions agree; versions are answered only when news, so they never bounce")
         inputA.start(preset: UUID(), monitor: UUID())
         try wait("coordinator failure reaches peer") { inputB.problem != nil }
         inputA.refreshReadiness()

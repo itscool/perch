@@ -462,6 +462,13 @@ final class KVMInputSession: ObservableObject {
         guard let heard = peerHeard[computer], clock() - heard >= Self.versionGrace else { return nil }
         return name + " runs a version of Perch that shares the keyboard and mouse a different way. Update it to this Mac's version. The desk and its presets still work."
     }
+    /// Answer a version only when it is news: the first heard from that Mac, or
+    /// a change. Answering every one made the two Macs bounce a version back
+    /// and forth forever, and each 5-second announcement added another, until
+    /// the link was full and display reports, switches, the clipboard and the
+    /// pointer queued behind them. A Mac on 2.0.301 still answers every one;
+    /// this side not answering back is what ends it.
+    static func answersVersion(known: Int?, heard: Int) -> Bool { known != heard }
     private func pollNow() {
         let nonce = lease.challenge(now: clock())
         polls = polls.filter { clock() - $0.value < 2.5 }; polls[nonce] = clock()
@@ -512,12 +519,14 @@ final class KVMInputSession: ObservableObject {
                   let grant = lease.grant, grant.id == grantID, lease.alive(now: now) else { return }
             lease.renew(grant: grantID, now: now)
         case .version(let value):
-            if peerVersions[peer] != value {
+            let news = Self.answersVersion(known: peerVersions[peer], heard: value)
+            if news {
                 peerVersions[peer] = value
                 PerchLog.note("input.version", "Computer \(peer.uuidString.prefix(8)) shares input at version \(value); this Mac speaks \(KVMInputProtocol.version)")
+                // Answer at once, so the other Mac need not wait for the next
+                // announcement to learn this one's.
+                send(.version(KVMInputProtocol.version), to: peer)
             }
-            // Answer immediately, so neither Mac waits a cadence to learn the other's.
-            send(.version(KVMInputProtocol.version), to: peer)
         case .poll(let nonce, let available):
             guard node.isOwner else { return }
             let wasSharing = fresh(peer)

@@ -1246,6 +1246,58 @@ launch, existing-install replacement and uninstall/recovery as one journey.
    routing. Preserve native guest input ownership and handle stopped/locked guests
    explicitly. Deferred by the user; not part of this release.
 
+## Checkpoint: the version echo that filled the desk link; the desk read from the screens (November 13, 2026)
+
+**The link between the Macs was full.** Scott: the two Macs were "not reading
+each other again". Measured on the MacBook running 2.0.301: Perch sending about
+950 KB/s to the Studio and receiving about 530 KB/s, all on the one desk link,
+with around 20 KB queued unsent and 27% CPU. Cause: on hearing the other Mac's
+keyboard-and-mouse version, each Mac answered at once (6e8cc48), so one version
+message bounced between them forever, and each Mac's 5-second announcement put
+another into play. The number bouncing grew until the link was full, and display
+reports, switches, the clipboard and the pointer queued behind them; it fits the
+6-second "accepted without readback" switch and the input handoff churn seen at
+11:12. Fix: a version is answered only when it is news (first heard, or
+changed), `KVMInputSession.answersVersion`. One Mac with the fix ends the loop,
+because 2.0.301 echoes once and the new side does not echo back. Pinned: the
+desk network check counts version messages on the real TLS link once the
+versions agree (at most 4 in 1.5 s); with the old behaviour put back it fails
+with 48,759 in 1.5 s.
+
+**The desk is read from the screens.** Scott: "THE MAC KNOWS WHICH MONITORS ITS
+DISPLAYING ON." New `DeskObservedDesk`: a screen exactly one Perch Mac sees shows
+that Mac; a screen no Perch Mac sees, once every Mac cabled to it has reported,
+shows another source (a PC); a screen both see, or one a Mac cabled to it has not
+reported on, falls back to the monitor's report, then the last command. The
+active preset is the one whose choices agree with every screen, and a switch is
+confirmed when the Mac it put on a screen is the only one seeing it, whether the
+screens arrive before or after the switch finishes. Displays Perch let go of are
+marked `released` and not counted; offline Macs are not counted. Each Mac now
+reports its displays within half a second of macOS changing them, instead of on
+the 20-second refresh, and a refresh asked for during another runs again after
+it. Every change of the picture is logged once as `desk.state`, for example
+"Home Screen 1 shows Scott's MacBook Pro (only Scott's MacBook Pro sees it); Home
+screen 2 shows HQ-KP40Y76PT6 (…) → preset Preset 2". Scott's saved desk has both
+screens' maker, model and serial, which is what lets every Mac recognise them.
+Pinned: `runDeskObservedDeskTests` (Scott's desk: Work, PC, Swapped) and a desk
+network check scenario that switches unreadable monitors, moves a screen by its
+own buttons, and lets the screens arrive after a switch finishes.
+
+Verified: `./build.sh --no-bump`, `--self-test` 68 PASS, all twelve headless
+gates including the desk network check (19 PASS). Candidate 2.0.302 (build 302)
+installed on disk on the MacBook by `Tools/install-candidate.py`; the running
+Perch is still 2.0.301 (PID 41421, started 11:05:26) and was not restarted. The
+Studio runs 2.0.301. **Native acceptance:** restart Perch on the MacBook; Perch's
+traffic to the Studio falls to near idle (`nettop -p Perch`); `desk.state` names
+Preset 2 with the MacBook on Home Screen 1 and the Studio on Home screen 2; a
+switch is confirmed in about the time the screens take to change.
+
+**Clipboard findings from the same logs.** Copies from the MacBook reached the
+Studio's clipboard (⌘V pasted them). ⌃⌥⌘V on the Studio then said nothing at all,
+because the newest copy was already there, which broke the rule that every
+refusal says why. Scott chose that ⌃⌥⌘V pastes from the desk: bring the newest
+copy over if needed, then paste it into the app in front. Next.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

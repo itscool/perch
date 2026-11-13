@@ -26,6 +26,10 @@ struct DeskDetectedDisplay: Codable, Equatable, Identifiable {
     var reportedPorts: [MonitorInput]? = nil
     var reportedModel: String? = nil
     var reportedPortMode: String? = nil
+    /// Perch let go of this display because another Mac is showing on its
+    /// monitor. It stays listed so its identity is kept, but it is no evidence
+    /// that this Mac is showing there. Older Perch never sends it.
+    var released: Bool? = nil
     var displayLabel: String { reportedModel ?? name }
     var validInspectionMetadata: Bool {
         (reportedModel.map { !$0.isEmpty && $0.utf8.count <= 80 } ?? true) &&
@@ -129,6 +133,10 @@ final class DeskRuntime: ObservableObject {
     private var remoteDisplayProblems: [UUID: String] = [:]
     func remoteDisplayProblem(_ computer: UUID) -> String? { remoteDisplayProblems[computer] }
     @Published var discovering = false
+    /// macOS changed the displays while a refresh was already reading them.
+    private var refreshAgain = false
+    private var screenObserver: NSObjectProtocol?
+    private var screenChangeQueued = false
     @Published var usbDevices: [MonitorUSBDevice] = []
     @Published var shortcutProblem: String?
     @Published var sharingShortcutError: String?
@@ -194,7 +202,7 @@ final class DeskRuntime: ObservableObject {
             }
         }
         switching.readForVerification = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
-        switching.seenBy = { [weak self] monitor in self?.computersSeeing(monitor) ?? [] }
+        switching.screenState = { [weak self] monitor in self?.screenState(monitor) ?? .unknown }
         input.readMonitor = { [weak self] monitor, completion in self?.read(monitor, completion: completion) }
         input.motionScale = { [weak self] focus in
             guard let self, let geometry = self.node.group.monitors.first(where: { $0.id == focus.monitor })?.geometry,
@@ -230,6 +238,7 @@ final class DeskRuntime: ObservableObject {
         for (_, window) in identifyWindows.values { window.orderOut(nil) }; identifyWindows = [:]
         inputAdapter.stop()
         refreshTimer?.invalidate(); refreshTimer = nil
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver); self.screenObserver = nil }
         presetHotKeys = [:]; sharingHotKey.unregister(); shortcutMemory.reset()
         node.stop()
     }
@@ -239,6 +248,14 @@ final class DeskRuntime: ObservableObject {
         desktopHandoff.start()
         clipboard.start()
         refreshDisplays()
+        // A monitor switching away from this Mac drops its display. Report that
+        // within a moment, not on the next 20-second refresh: the other Macs
+        // work out the whole desk from these reports.
+        screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let self, !self.screenChangeQueued else { return }
+            self.screenChangeQueued = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.screenChangeQueued = false; self?.refreshDisplays() }
+        }
         let timer = MainTimer.every(20) { [weak self] in self?.refreshDisplays() }
         timer.tolerance = 3; refreshTimer = timer
     }
@@ -507,11 +524,12 @@ final class DeskRuntime: ObservableObject {
         let queue = DispatchQueue(label: "local.perch.desk.monitor." + id, qos: .userInitiated); queues[id] = queue; return queue
     }
     func refreshDisplays() {
-        guard !discovering else { return }; discovering = true
+        guard !discovering else { refreshAgain = true; return }; discovering = true
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let result = Result { try JSONDecoder().decode([MonitorDescriptor].self, from: MonitorDisplayBackend().run(["list"])) }
             DispatchQueue.main.async {
                 guard let self else { return }; self.discovering = false
+                defer { if self.refreshAgain { self.refreshAgain = false; self.refreshDisplays() } }
                 switch result {
                 case .success(let values):
                     self.discoveryProblem = nil
@@ -537,9 +555,9 @@ final class DeskRuntime: ObservableObject {
                         detected.retainIdentity(from: self.displays[self.node.localID]?.first { $0.id == display.id })
                         return detected
                     }
-                    self.displays[self.node.localID, default: []].append(contentsOf: retained)
+                    self.displays[self.node.localID, default: []].append(contentsOf: retained.map { var display = $0; display.released = true; return display })
                     self.logDisplays(self.node.localID, self.displays[self.node.localID] ?? [])
-                    self.resolvePendingDisplays(); self.publishDisplays(); self.announceBuild()
+                    self.resolvePendingDisplays(); self.publishDisplays(); self.announceBuild(); self.switching.screensChanged()
                 case .failure(let error):
                     self.discoveryProblem = "Could not refresh connected screens. " + error.localizedDescription
                     if let data = DeskDeviceMessage.displayProblem(String(self.discoveryProblem!.prefix(800))).wire {
@@ -724,18 +742,28 @@ final class DeskRuntime: ObservableObject {
         // side effect of another Mac being newer.
         PerchUpdater.shared.checkQuietly()
     }
-    /// Which Macs currently report a display that is this screen, by the screen's
-    /// own identity or by the display recorded for that Mac.
+    /// Which online Macs currently report a live display that is this screen,
+    /// by the screen's own identity or by the display recorded for that Mac. A
+    /// display Perch let go of is not counted, and neither is a Mac that has
+    /// gone offline: neither is showing there.
     private func computersSeeing(_ monitor: UUID) -> Set<UUID> {
         let identity = node.group.monitors.first { $0.id == monitor }?.identity
         var found: Set<UUID> = []
-        for (computer, values) in displays {
+        for (computer, values) in displays where node.online.contains(computer) {
             let recorded = node.group.connections.first { $0.monitor == monitor && $0.computer == computer }?.localDisplay
             if values.contains(where: { display in
-                display.id == recorded || identity?.matches(vendor: display.vendor, model: display.model, serial: display.serial) == true
+                display.released != true &&
+                (display.id == recorded || identity?.matches(vendor: display.vendor, model: display.model, serial: display.serial) == true)
             }) { found.insert(computer) }
         }
         return found
+    }
+    /// What this screen is showing, from what the Macs see. See `DeskObservedDesk`.
+    func screenState(_ monitor: UUID) -> DeskScreenState {
+        let perch = Set(node.membership.peers.map(\.id))
+        let cabled = Set(node.group.connections.filter { $0.monitor == monitor }.compactMap(\.computer)).intersection(perch)
+        let reporting = Set(displays.keys).intersection(node.online)
+        return DeskObservedDesk.state(seenBy: computersSeeing(monitor), cabled: cabled, reporting: reporting)
     }
     private func publishDisplays() {
         guard let data = DeskDeviceMessage.displays(displays[node.localID] ?? []).wire else { return }
@@ -755,7 +783,7 @@ final class DeskRuntime: ObservableObject {
                   values.allSatisfy({ UUID(uuidString: $0.id) != nil && !$0.name.isEmpty && $0.name.utf8.count <= 100 && $0.inputs.count <= 16 && $0.inputs.allSatisfy(\.valid) && $0.width.isFinite && $0.height.isFinite && (1...10000).contains($0.width) && (1...10000).contains($0.height) && ["standard", "lg"].contains($0.mode) }) else { return }
             guard values.allSatisfy({ $0.panelAspect.map { $0.isFinite && (0.1...10).contains($0) } ?? true }) else { return }
             guard values.allSatisfy({ value in [value.pointWidth, value.pointHeight].allSatisfy { $0.map { $0.isFinite && (1...100_000).contains($0) } ?? true } }) else { return }
-            displays[peer] = values; remoteDisplayProblems[peer] = nil; logDisplays(peer, values); resolvePendingDisplays(); updateModel()
+            displays[peer] = values; remoteDisplayProblems[peer] = nil; logDisplays(peer, values); resolvePendingDisplays(); switching.screensChanged(); updateModel()
         case .displayProblem(let problem):
             remoteDisplayProblems[peer] = String(problem.prefix(800)); updateModel()
         case .running(let build, let version):

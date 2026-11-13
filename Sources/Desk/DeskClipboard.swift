@@ -88,7 +88,9 @@ final class DeskPasteboardAccess {
         pending += 1
         let once = Once(), store = self.store
         queue.async { [weak self] in
-            let value = work(store)
+            // What AppKit hands back is autoreleased: drain it now, so a large
+            // copy read once is not kept alive on this thread afterwards.
+            let value = autoreleasepool { work(store) }
             DispatchQueue.main.async { [weak self] in
                 if let self { self.pending -= 1; if self.pending == 0 { self.stuck = false } }
                 guard !once.done else { return }
@@ -410,8 +412,10 @@ final class DeskClipboard {
         var written: UInt32 = 0
         var verified = 0
         var received: UInt64 = 0
-        let started: Double
         var lastProgress: Double
+        /// Writes and checks queued on this Mac's own disk. While any are, a
+        /// quiet link is this Mac's doing, not a stall of the other Mac's.
+        var diskWork = 0
         /// Everything is here and being put in place. From here the copy
         /// finishes on its own terms: its pasteboard write already refuses if
         /// anything newer was copied, and then removes what it placed.
@@ -425,6 +429,7 @@ final class DeskClipboard {
     private var bringTimes: [UUID: [Double]] = [:]
     private var askTimes: [UUID: [Double]] = [:]
     private var inbound: [UUID: (start: Double, count: Int)] = [:]
+    private var inboundFlow: [UUID: (start: Double, count: Int)] = [:]
     private var timer: Timer?
     private var nextSweep: Double = 0
 
@@ -509,7 +514,7 @@ final class DeskClipboard {
     @discardableResult func receive(_ data: Data, peer: UUID) -> Bool {
         guard data.starts(with: DeskClipboardWire.prefix) else { return false }
         guard data.count <= DeskClipboardWire.prefix.count + DeskClipboardWire.chunkEnvelopeSize,
-              peer != link.localID, link.peers.contains(peer), admit(peer) else { return true }
+              peer != link.localID, link.peers.contains(peer), admit(peer, Self.budget(of: data)) else { return true }
         do {
             handle(try DeskClipboardWire.decode(data.dropFirst(DeskClipboardWire.prefix.count), format: formats[peer]), from: peer)
         } catch DeskClipboardWire.Failure.format {
@@ -521,14 +526,31 @@ final class DeskClipboard {
         return true
     }
 
-    /// A paired Mac may send at most this many clipboard messages a second.
-    private func admit(_ peer: UUID) -> Bool {
+    /// What a message counts against. Chunks and acknowledgements carry a
+    /// transfer and are already held back by its window, one acknowledged chunk
+    /// at a time, so they have a budget of their own, sized for the cable:
+    /// counted with everything else, a fast transfer's acknowledgements went
+    /// past the limit, the whole window's were dropped, and the transfer
+    /// stalled with both Macs waiting. Everything else keeps the strict limit.
+    enum Budget: Equatable {
+        case control, flow
+        /// Messages a second a paired Mac may send.
+        var perSecond: Int { self == .control ? 4000 : 25_000 }
+    }
+    static func budget(of data: Data) -> Budget {
+        let tag = data.startIndex + DeskClipboardWire.prefix.count + 2
+        guard data.endIndex > tag else { return .control }
+        return DeskClipboardMessage.flowTags.contains(data[tag]) ? .flow : .control
+    }
+
+    /// A paired Mac may send at most so many clipboard messages a second.
+    private func admit(_ peer: UUID, _ budget: Budget) -> Bool {
         let now = clock()
-        var entry = inbound[peer] ?? (now, 0)
+        var entry = (budget == .flow ? inboundFlow[peer] : inbound[peer]) ?? (now, 0)
         if now - entry.start >= 1 { entry = (now, 0) }
         entry.count += 1
-        inbound[peer] = entry
-        return entry.count <= 4000
+        if budget == .flow { inboundFlow[peer] = entry } else { inbound[peer] = entry }
+        return entry.count <= budget.perSecond
     }
 
     private func handle(_ message: DeskClipboardMessage, from peer: UUID) {
@@ -548,7 +570,7 @@ final class DeskClipboard {
         case .chunk(let transfer, let index, let data, let mac):
             if batch?.stream == transfer { streamChunkArrived(transfer, index: index, data: data, mac: mac, from: peer) }
             else { chunkArrived(transfer, index: index, data: data, mac: mac, from: peer) }
-        case .fileDigest(let transfer, let index, let digest, let mac): fileDigestArrived(transfer, index: index, digest: digest, mac: mac, from: peer)
+        case .fileDigests(let transfer, let first, let digests, let mac): fileDigestsArrived(transfer, first: first, digests: digests, mac: mac, from: peer)
         case .ack(let transfer, let next): acknowledged(transfer, next: next, by: peer)
         case .refuse(let transfer, let refusal):
             refused(transfer, refusal, by: peer)
@@ -1019,7 +1041,7 @@ final class DeskClipboard {
         let stream = UUID(), key = SymmetricKey(size: .bits256)
         batch = Batch(id: incoming.id, peer: incoming.peer, copy: incoming.copy, copyAt: incoming.copyAt, expected: incoming.expected,
                       folder: staging.folder(incoming.id), plan: plan, listDigest: listDigest, stream: stream, key: key,
-                      started: clock(), lastProgress: clock())
+                      lastProgress: clock())
         let staging = self.staging, id = incoming.id, folder = staging.folder(incoming.id), copyID = incoming.copy, peer = incoming.peer
         disk.async { [weak self] in
             let made: Result<DeskTreeWriter, DeskClipboardReason>
@@ -1032,6 +1054,8 @@ final class DeskClipboard {
                 case .failure(let reason): self.failBatch(.init(reason), tell: false)
                 case .success(let writer):
                     self.batch?.writer = writer
+                    // The other Mac's reply is timed from now, once this Mac's folders exist.
+                    self.batch?.lastProgress = self.clock()
                     guard self.send(.treeFetch(transfer: stream, copy: copyID, key: key.withUnsafeBytes { Data($0) }), to: peer) else {
                         self.failBatch(.init(.peerGone), tell: false); return
                     }
@@ -1044,9 +1068,11 @@ final class DeskClipboard {
     private func watchBatch(_ id: UUID) {
         after(max(0.02, min(timings.reply, timings.stall) / 5)) { [weak self] in
             guard let self, let batch = self.batch, batch.id == id, !batch.placing else { return }
-            let now = self.clock()
-            if batch.assembly == nil, now - batch.started > self.timings.reply { self.failBatch(.init(.timedOut), detail: "no reply"); return }
-            if batch.assembly != nil, now - batch.lastProgress > self.timings.stall { self.failBatch(.init(.timedOut), detail: "stalled"); return }
+            // Only the other Mac's silence counts: never while this Mac's own
+            // disk is still busy with what already arrived.
+            let now = self.clock(), quiet = batch.diskWork == 0 ? now - batch.lastProgress : 0
+            if batch.assembly == nil, quiet > self.timings.reply { self.failBatch(.init(.timedOut), detail: "no reply"); return }
+            if batch.assembly != nil, quiet > self.timings.stall { self.failBatch(.init(.timedOut), detail: "stalled"); return }
             self.watchBatch(id)
         }
     }
@@ -1089,6 +1115,7 @@ final class DeskClipboard {
         catch let failure as DeskClipboardAssembly.Failure { failBatch(.init(.corrupt), detail: failure.detail); return }
         catch { failBatch(.init(.corrupt), detail: "unreadable chunk"); return }
         self.batch?.lastProgress = clock()
+        self.batch?.diskWork += 1
         let id = batch.id
         // Written in order on the disk queue, and acknowledged once on disk, so
         // the window bounds what waits in memory.
@@ -1099,6 +1126,7 @@ final class DeskClipboard {
             catch { failure = .writeFailed }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.batch?.id == id else { return }
+                self.batch?.diskWork -= 1
                 if let failure { self.failBatch(.init(failure)); return }
                 self.batch?.written += 1
                 self.batch?.received += UInt64(part.count)
@@ -1110,22 +1138,25 @@ final class DeskClipboard {
         }
     }
 
-    private func fileDigestArrived(_ transfer: UUID, index: UInt32, digest: Data, mac: Data, from peer: UUID) {
+    private func fileDigestsArrived(_ transfer: UUID, first: UInt32, digests: [Data], mac: Data, from peer: UUID) {
         guard let batch, batch.peer == peer, batch.stream == transfer, !batch.placing, let writer = batch.writer,
-              let format = formats[peer], Int(index) < batch.plan.files.count else { return }
-        guard DeskClipboardWire.validMAC(DeskClipboardWire.fileDigestMAC(format: format, transfer: transfer, index: index, digest: digest, key: batch.key), mac) else {
+              let format = formats[peer], Int(first) + digests.count <= batch.plan.files.count else { return }
+        guard DeskClipboardWire.validMAC(DeskClipboardWire.fileDigestMAC(format: format, transfer: transfer, first: first, digests: digests, key: batch.key), mac) else {
             failBatch(.init(.corrupt), detail: "a file's digest failed authentication"); return
         }
         let id = batch.id
+        self.batch?.diskWork += 1
         disk.async { [weak self] in
             let failure: DeskClipboardReason?
-            do { try writer.verify(Int(index), digest: digest); failure = nil }
+            do { for (offset, digest) in digests.enumerated() { try writer.verify(Int(first) + offset, digest: digest) }; failure = nil }
             catch let reason as DeskClipboardReason { failure = reason }
             catch { failure = .writeFailed }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.batch?.id == id else { return }
+                self.batch?.diskWork -= 1
+                self.batch?.lastProgress = self.clock()
                 if let failure { self.failBatch(.init(failure), detail: failure == .corrupt ? "a file is not what was sent" : nil); return }
-                self.batch?.verified += 1
+                self.batch?.verified += digests.count
                 self.placeIfComplete()
             }
         }
@@ -1360,10 +1391,15 @@ final class DeskClipboard {
                             self.send(.chunk(transfer: transfer, index: index, data: next.data,
                                              mac: DeskClipboardWire.chunkMAC(format: current.format, transfer: transfer, index: index,
                                                                              count: manifest.chunkCount, data: next.data, key: key)), to: current.peer)
-                            for done in next.digests {
-                                self.send(.fileDigest(transfer: transfer, index: done.index, digest: done.digest,
-                                                      mac: DeskClipboardWire.fileDigestMAC(format: current.format, transfer: transfer, index: done.index,
-                                                                                           digest: done.digest, key: key)), to: current.peer)
+                            // The files finished in this chunk are consecutive: their
+                            // digests go in as few messages as fit.
+                            var done = next.digests[...]
+                            while let first = done.first?.index {
+                                let group = done.prefix(DeskClipboardWire.digestsPerMessage).map(\.digest)
+                                done = done.dropFirst(group.count)
+                                self.send(.fileDigests(transfer: transfer, first: first, digests: group,
+                                                       mac: DeskClipboardWire.fileDigestMAC(format: current.format, transfer: transfer, first: first,
+                                                                                            digests: group, key: key)), to: current.peer)
                             }
                             current.next += 1
                             self.outgoing[transfer] = current

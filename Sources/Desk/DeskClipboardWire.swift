@@ -158,7 +158,7 @@ enum DeskClipboardWire {
     /// another, as they are on disk, never compressed, padded to their bucket.
     /// Its digest is the SHA-256 of the list the receiving Mac already checked,
     /// binding the stream to exactly that list; each file's own SHA-256 follows
-    /// it as a `fileDigest` message.
+    /// it in a `fileDigests` message.
     static func treeManifest(transfer: UUID, copy: UUID, total: UInt64, list: Data, key: SymmetricKey, format: UInt8) -> DeskClipboardManifest {
         let padded = UInt64(bucket(Int(clamping: total)))
         var manifest = DeskClipboardManifest(transfer: transfer, copy: copy, payloadLength: total, encodedLength: total, paddedLength: padded,
@@ -170,11 +170,13 @@ enum DeskClipboardWire {
 
     static let manifestDomain = Data("Perch clipboard manifest v1\0".utf8)
     static let chunkDomain = Data("Perch clipboard chunk v1\0".utf8)
-    static let fileDigestDomain = Data("Perch clipboard file digest v1\0".utf8)
+    static let fileDigestDomain = Data("Perch clipboard file digests v1\0".utf8)
+    /// File digests in one message: 24 fill a 1 KB control envelope comfortably.
+    static let digestsPerMessage = 24
 
-    static func fileDigestMAC(format: UInt8, transfer: UUID, index: UInt32, digest: Data, key: SymmetricKey) -> Data {
+    static func fileDigestMAC(format: UInt8, transfer: UUID, first: UInt32, digests: [Data], key: SymmetricKey) -> Data {
         var w = Writer()
-        w.fixed(fileDigestDomain); w.u8(format); w.uuid(transfer); w.u32(index); w.fixed(digest)
+        w.fixed(fileDigestDomain); w.u8(format); w.uuid(transfer); w.u32(first); w.u8(UInt8(clamping: digests.count)); digests.forEach { w.fixed($0) }
         return Data(HMAC<SHA256>.authenticationCode(for: w.data, using: key))
     }
 
@@ -296,9 +298,12 @@ enum DeskClipboardMessage: Equatable {
     case treeFetch(transfer: UUID, copy: UUID, key: Data)
     case manifest(DeskClipboardManifest)
     case chunk(transfer: UUID, index: UInt32, data: Data, mac: Data)
-    /// The SHA-256 of one file of a stream, sent just after the chunk its last
-    /// byte is in, authenticated for that transfer and file.
-    case fileDigest(transfer: UUID, index: UInt32, digest: Data, mac: Data)
+    /// The SHA-256 of consecutive files of a stream, from `first`, sent just
+    /// after the chunk holding the last byte of the last of them, authenticated
+    /// for that transfer and those files. Up to `DeskClipboardWire.digestsPerMessage`
+    /// in one message, so a folder of thousands of small or empty files sends
+    /// hundreds of these, not thousands.
+    case fileDigests(transfer: UUID, first: UInt32, digests: [Data], mac: Data)
     /// Everything below `next` has arrived; up to a window beyond it may follow.
     case ack(transfer: UUID, next: UInt32)
     case refuse(transfer: UUID, refusal: DeskClipboardRefusal)
@@ -321,9 +326,14 @@ enum DeskClipboardMessage: Equatable {
             w.u8(15); w.uuid(query); w.u8(copy == nil ? 0 : 1); w.uuid(copy ?? UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))); w.u32(age)
             answer.write(into: &w)
         case .treeFetch(let transfer, let copy, let key): w.u8(16); w.uuid(transfer); w.uuid(copy); w.fixed(key)
-        case .fileDigest(let transfer, let index, let digest, let mac): w.u8(17); w.uuid(transfer); w.u32(index); w.fixed(digest); w.fixed(mac)
+        case .fileDigests(let transfer, let first, let digests, let mac):
+            w.u8(17); w.uuid(transfer); w.u32(first); w.u8(UInt8(clamping: digests.count)); digests.forEach { w.fixed($0) }; w.fixed(mac)
         }
     }
+
+    /// The tags of a transfer's chunks and acknowledgements, whose pace the
+    /// window already sets (`DeskClipboard.budget(of:)`).
+    static let flowTags: Set<UInt8> = [7, 8]
 
     static func read(from r: inout DeskClipboardWire.Reader) throws -> Self {
         func flag() throws -> Bool {
@@ -356,7 +366,10 @@ enum DeskClipboardMessage: Equatable {
             guard known || answer == .nothing else { throw DeskClipboardWire.Failure.malformed("answer without a copy") }
             return .newest(query: query, copy: known ? copy : nil, age: age, answer: answer)
         case 16: return .treeFetch(transfer: try r.uuid(), copy: try r.uuid(), key: try r.fixed(32))
-        case 17: return .fileDigest(transfer: try r.uuid(), index: try r.u32(), digest: try r.fixed(32), mac: try r.fixed(32))
+        case 17:
+            let transfer = try r.uuid(), first = try r.u32(), count = Int(try r.u8())
+            guard (1...DeskClipboardWire.digestsPerMessage).contains(count) else { throw DeskClipboardWire.Failure.malformed("digest count") }
+            return .fileDigests(transfer: transfer, first: first, digests: try (0..<count).map { _ in try r.fixed(32) }, mac: try r.fixed(32))
         default: throw DeskClipboardWire.Failure.malformed("unknown message")
         }
     }

@@ -300,9 +300,7 @@ struct DeskSourceTree {
                 // Depth first, parents before what they hold, names in order.
                 var stack: [(path: String, names: [String])] = [(url.path, [top])]
                 while let (folder, names) = stack.popLast() {
-                    let children: [String]
-                    do { children = try FileManager.default.contentsOfDirectory(atPath: folder).sorted() }
-                    catch { return .failure(.init(.unreadable)) }
+                    guard let children = DeskSourceTree.names(in: folder) else { return .failure(.init(.unreadable)) }
                     var below: [(path: String, names: [String])] = []
                     for child in children {
                         let path = folder + "/" + child, inner = names + [child]
@@ -332,13 +330,32 @@ struct DeskSourceTree {
             }
         }
         guard total <= limits.total else { return .failure(.init(.tooLarge, amount: total, limit: limits.total)) }
-        let table = Dictionary(entries.map { ($0.path, $0.kind) }, uniquingKeysWith: { first, _ in first })
-        for entry in entries {
-            if case .link(let target) = entry.kind, !DeskTreeLinks.resolvesInside(link: entry.path, target: target, table: table) {
-                return .failure(.init(.linkOutside))
+        // The table of the whole copy is built only when there is a link to resolve.
+        let links = entries.filter { if case .link = $0.kind { return true }; return false }
+        if !links.isEmpty {
+            let table = Dictionary(entries.map { ($0.path, $0.kind) }, uniquingKeysWith: { first, _ in first })
+            for entry in links {
+                if case .link(let target) = entry.kind, !DeskTreeLinks.resolvesInside(link: entry.path, target: target, table: table) {
+                    return .failure(.init(.linkOutside))
+                }
             }
         }
         return .success(.init(list: .init(entries: entries), files: files))
+    }
+
+    /// A folder's names, sorted, straight from the file system (cheaper than
+    /// FileManager for a folder of thousands). Nil when it cannot be read.
+    static func names(in path: String) -> [String]? {
+        guard let folder = opendir(path) else { return nil }
+        defer { closedir(folder) }
+        var names: [String] = []
+        while let entry = readdir(folder) {
+            let name = withUnsafeBytes(of: entry.pointee.d_name) { raw in
+                String(decoding: raw.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self)
+            }
+            if name != ".", name != ".." { names.append(name) }
+        }
+        return names.sorted()
     }
 }
 
@@ -500,6 +517,11 @@ final class DeskTreeWriter {
     /// Files whose bytes are all here, waiting for their digest.
     private var arrived: [Int: (digest: Data, temporary: String)] = [:]
     private(set) var verified = 0
+    /// The folder the last file was in, kept open for the next one: files
+    /// arrive folder by folder, so each folder is reached once, not twice per
+    /// file. A descriptor already open stays on the folder this copy created,
+    /// whatever is put at its path later.
+    private var folder: (path: [String], fd: Int32)?
 
     /// Opens the staging folder and creates every folder of the plan.
     init(root: URL, plan: DeskTreePlan) throws {
@@ -539,23 +561,32 @@ final class DeskTreeWriter {
         return fd
     }
 
+    /// The folder a file goes in: the root, the one kept open, or reached anew.
+    private func parent(_ path: [String]) throws -> Int32 {
+        guard !path.isEmpty else { return rootFD }
+        if let folder, folder.path == path { return folder.fd }
+        if let old = folder { Darwin.close(old.fd); folder = nil }
+        let fd = try open(path)
+        folder = (path, fd)
+        return fd
+    }
+
     private func stamp(_ fd: Int32) throws {
         guard mark.withUnsafeBytes({ fsetxattr(fd, "com.apple.quarantine", $0.baseAddress, mark.count, 0, 0) }) == 0 else { throw DeskClipboardReason.quarantine }
     }
 
     private func begin() throws {
         let entry = plan.files[index]
-        let parent = try open(Array(entry.path.dropLast()))
+        let parent = try self.parent(Array(entry.path.dropLast()))
         let temporary = ".perch-" + UUID().uuidString + ".partial"
         let fd = openat(parent, temporary, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        guard fd >= 0 else { if parent != rootFD { Darwin.close(parent) }; throw DeskClipboardReason.writeFailed }
+        guard fd >= 0 else { throw DeskClipboardReason.writeFailed }
         file = (fd, parent, temporary, 0, SHA256())
     }
 
     private func end() {
         guard let current = file else { return }
         Darwin.close(current.fd)
-        if current.parent != rootFD { Darwin.close(current.parent) }
         arrived[index] = (Data(current.hasher.finalize()), current.temporary)
         file = nil
         index += 1
@@ -595,8 +626,7 @@ final class DeskTreeWriter {
         guard let done = arrived.removeValue(forKey: fileIndex) else { throw DeskClipboardReason.corrupt }
         guard DeskClipboardWire.validMAC(done.digest, digest) else { throw DeskClipboardReason.corrupt }
         let entry = plan.files[fileIndex]
-        let parent = try open(Array(entry.path.dropLast()))
-        defer { if parent != rootFD { Darwin.close(parent) } }
+        let parent = try self.parent(Array(entry.path.dropLast()))
         let fd = openat(parent, done.temporary, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         guard fd >= 0 else { throw DeskClipboardReason.writeFailed }
         // Marked first: once a file is read-only, its mark could not be set.
@@ -616,15 +646,15 @@ final class DeskTreeWriter {
     func finish() throws -> [URL] {
         guard complete else { throw DeskClipboardReason.corrupt }
         for link in plan.links {
-            let parent = try open(Array(link.path.dropLast()))
-            defer { if parent != rootFD { Darwin.close(parent) } }
+            let parent = try self.parent(Array(link.path.dropLast()))
             guard symlinkat(link.target, parent, link.path.last!) == 0 else { throw DeskClipboardReason.writeFailed }
         }
         return plan.tops.map { root.appendingPathComponent($0) }
     }
 
     func close() {
-        if let current = file { Darwin.close(current.fd); if current.parent != rootFD { Darwin.close(current.parent) }; file = nil }
+        if let current = file { Darwin.close(current.fd); file = nil }
+        if let open = folder { Darwin.close(open.fd); folder = nil }
         if rootFD >= 0 { Darwin.close(rootFD); rootFD = -1 }
     }
 

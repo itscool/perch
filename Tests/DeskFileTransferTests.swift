@@ -512,6 +512,31 @@ func runDeskFileTransferTests() throws {
               "The folder lost its shape, an empty folder, a file, a permission or a link: \(listing(tripHere[0]))")
     try check(marked(tripHere[0]) && marked(tripHere[0].appendingPathComponent("Day 2")) && marked(tripHere[0].appendingPathComponent("Day 1/IMG_0001.jpg")),
               "A received folder or a file in it was not marked as downloaded")
+    // Thousands of empty files finish in one chunk: their digests go in
+    // batches, so the receiving Mac's limit on messages a second never stops them.
+    let empties = photos.appendingPathComponent("Empties")
+    try fm.createDirectory(at: empties, withIntermediateDirectories: true)
+    for index in 0..<4500 { _ = fm.createFile(atPath: empties.appendingPathComponent(String(format: "e%04d", index)).path, contents: nil) }
+    copyFiles([empties])
+    try announced("a folder of empty files announced", kind: .folders)
+    let emptiesPopup = try bring("a folder of empty files")
+    try check(emptiesPopup.phase == .done && b.store.files.count == 1 && listing(b.store.files[0]).count == 4500,
+              "A folder of 4,500 empty files did not come over: \(emptiesPopup.phase), \(emptiesPopup.line ?? "")")
+    // 4,500 files in batches of 24 is under 200 messages; one each would be 4,500.
+    try check(a.link.count { if case .fileDigests = $0 { return true }; return false } < 400,
+              "File digests were not sent in batches")
+    // A slow disk here is not the other Mac stalling: while this Mac is still
+    // writing what arrived, the link going quiet is this Mac's own doing.
+    var slowed = false
+    b.link.intercept = { _, message in
+        if case .treeFetch? = message, !slowed { slowed = true; b.clipboard.disk.async { Thread.sleep(forTimeInterval: 1.0) } }
+        return false
+    }
+    copyFiles([photos.appendingPathComponent(secretName)])
+    try announced("a copy for a slow disk announced")
+    let slowPopup = try bring("a slow disk here")
+    b.link.intercept = nil
+    try check(slowed && slowPopup.phase == .done, "A slow disk on this Mac was taken for the other Mac stalling: \(slowPopup.line ?? "")")
     let stagedCopy = staged.onClipboard!.id
     func refused(_ label: String, _ reason: DeskClipboardReason, holds expected: [URL]? = nil, prepare: () throws -> Void) throws {
         let before = staged.present(), holding = b.store.files
@@ -571,6 +596,9 @@ func runDeskFileTransferTests() throws {
     }
     b.link.intercept = nil
     try check(b.store.first == Data("typed here".utf8), "Files replaced a copy made here meanwhile")
+    // That small text is the newest copy on the desk now, so it lands on the
+    // MacBook too; wait for it, so nothing is still on its way below.
+    try wait("the typed text reaches the MacBook") { a.store.first == Data("typed here".utf8) && !a.clipboard.busy && !b.clipboard.busy }
     // That copy here is now the newest: once this Mac sees it, the staged copy
     // has left the clipboard and is kept for its ten minutes, not removed at once.
     try wait("the new copy is seen") { staged.onClipboard == nil }
@@ -617,5 +645,5 @@ func runDeskFileTransferTests() throws {
             }
         }
     }
-    print("PASS: shared files and folders end to end: announced by count and size, brought over into Perch's staging folder with steady progress, a folder with its shape, permissions and inner links, whole or not at all, marked as downloaded and as received, then pasted as files; changed files, no room, too much, a stall, cancel and a newer local copy refused by name with nothing left behind; a link, a folder with a link leading out and a copy over the sender's limit never announced and explained on ⌃⌥⌘V; hostile names made safe; the main thread never waits; no names or sizes in the log")
+    print("PASS: shared files and folders end to end: announced by count and size, brought over into Perch's staging folder with steady progress, a folder with its shape, permissions and inner links, whole or not at all, marked as downloaded and as received, then pasted as files; 4,500 empty files with their digests in batches; a slow disk here not taken for a stall; changed files, no room, too much, a stall, cancel and a newer local copy refused by name with nothing left behind; a link, a folder with a link leading out and a copy over the sender's limit never announced and explained on ⌃⌥⌘V; hostile names made safe; the main thread never waits; no names or sizes in the log")
 }

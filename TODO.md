@@ -883,9 +883,13 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   folders"). `DeskFileTransfer.swift`.
   - A folder keeps its shape, empty folders and hidden files included: one list
     of every folder, file and link (parents first), then all the files' bytes as
-    one stream in that order, padded once, each file's SHA-256 sent right after
-    the chunk holding its last byte, the stream bound to the list by the list's
-    own SHA-256 in its authenticated manifest.
+    one stream in that order, padded once, the stream bound to the list by the
+    list's own SHA-256 in its authenticated manifest. Each file's SHA-256
+    follows the chunk holding its last byte, up to 24 consecutive files in one
+    message: a folder of thousands of empty or tiny files finishes thousands of
+    files in one chunk, and one message each burst past the receiving Mac's
+    limit of 4,000 clipboard messages a second, so the copy stalled (measured
+    with 6,000 empty files; pinned with 4,500).
   - Limits per copy: 2 GB in all, 1 GB a file, 10,000 items (files, folders and
     links, replacing the 100-file cap, and applying to every copy of files),
     32 levels deep.
@@ -915,7 +919,18 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     links last, after every file is in place. The whole tree is staged before
     anything goes on the clipboard; a failure removes all of it. Every file and
     folder carries the download mark. Memory stays at about a chunk on each side,
-    with at most one file open at a time.
+    with at most one file open at a time, plus the folder it is in.
+  - A transfer's chunks and acknowledgements have their own budget, 25,000 a
+    second (room for a gigabyte a second over the cable); everything else
+    keeps 4,000. Counted together, a fast transfer's acknowledgements passed
+    4,000 a second, a whole window's were dropped, and both Macs waited until
+    "stopped answering" (a 512 MB folder failed so in one process; over the
+    cable it could have). The window already holds them to the receiving
+    Mac's pace.
+  - A stall means the other Mac. While this Mac's own disk is still writing or
+    checking what arrived, the link going quiet does not count toward "stopped
+    answering" (it did, and a folder of thousands of files failed as stalled
+    on a busy disk); the reply timer starts once this Mac's folders exist.
 
   **Invisible when copied, explained on ⌃⌥⌘V, November 2026** (Scott: "they
   need to be invisible on copy but shown on the screen if you try to paste them
@@ -976,8 +991,38 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   (markers first), and then: for an image, nothing more; for text, one
   representation at a time, plain first, stopping as soon as the total passes
   64 KB; for files and folders, a walk of names and sizes (no contents, at most
-  10,000 items) on the files queue. Each copy is judged once; later questions
-  reuse the answer.
+  10,000 items, listed with `readdir`) on the files queue. Each copy is judged
+  once; later questions reuse the answer.
+
+  *Measured, November 2026* (scratch harness, optimised like the app, this
+  Mac's side reading a private pasteboard written by another process; CPU is
+  Perch's own, not the pasteboard server's; bring over runs both Macs in one
+  process without TLS):
+  - Nothing copied: 0.7 ms of CPU a second for the four checks a second (the
+    same process idle: 0.01 ms).
+  - Copying a 30 MB image: nothing of it read; 1 to 3 ms of CPU; 0.6 MB more
+    memory; announced about 0.19 s after the copy (mostly the wait for the
+    next quarter-second check).
+  - Copying 1.5 MB of text: one read of it; 2 to 4 ms; 5 MB at the peak, 3.7 MB
+    while it stays on the clipboard. 20 MB of text (over the 2 MB cap, so kept
+    to itself): one read; 4 to 8 ms; 61 MB at the peak, 41 MB after (below).
+  - Copying a 1.8 GB folder of three files: 2 to 4 ms; 0.7 MB; no contents read.
+  - Copying a folder of 10,000 items: about 175 ms of CPU on the files queue
+    (290 ms before listing with `readdir`), announced 0.36 s after the copy,
+    5 MB at the peak.
+  - Bringing a 512 MB folder over: 1.1 s, 1.9 s of CPU for both Macs together,
+    memory up 3.8 MB at most. A folder of 10,000 items (9.7 MB): 1.7 s, 2 s of
+    CPU (file system work: creating, marking and naming each file), 8 MB.
+    6,000 empty files: 1 s.
+  - Text is the one copy read when copied, to tell small text from the rest.
+    What it costs in memory is not Perch's to free: AppKit keeps the current
+    copy's data for as long as it is on the clipboard (gone once something else
+    is copied), and the allocator keeps one copy's worth of freed memory to
+    reuse. Shown with the allocator's large cache turned off for a probe: a
+    read through the Pasteboard Manager then keeps nothing, NSPasteboard keeps
+    its one copy until the clipboard changes. Reading the system clipboard
+    another way was not tried: it cannot be tested without touching the real
+    clipboard.
 
   **Progress, September 27, 2026.** On branch `clipboard`, pushed, not merged
   into main and not released. Scott is to review it before it lands. Commits:
@@ -1088,6 +1133,11 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   - Real folders through Finder: an app bundle (its inner links), a Git
     checkout, a photo library export; pasting them with Finder, and what
     Gatekeeper shows opening an executable from a received folder.
+  - Bringing large folders over the real link, Wi-Fi and the cable: speed, CPU
+    on both Macs with TLS, and whether the pointer stays smooth meanwhile.
+  - The icon in the real menu bar on both Macs: whether the hearts and the
+    number read at that size, the 30-point width beside other menu extras,
+    and the greyed bird against a tinted menu bar.
   - Whether macOS asks for access when Perch writes its staging folder or when
     Finder pastes from it, and what Gatekeeper shows opening a received file.
   - The Studio on 2.0.297 receiving greetings through a long session unharmed.

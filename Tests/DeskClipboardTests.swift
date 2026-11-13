@@ -276,7 +276,9 @@ func runDeskClipboardTests() throws {
         .newest(query: transfer, copy: copyID, age: 78, answer: .unshareable(.init(.tooLarge, amount: 3_650_722_201, limit: 2 << 30))),
         .newest(query: transfer, copy: copyID, age: 79, answer: .unshareable(.init(.concealed))), .newest(query: transfer, copy: copyID, age: 80, answer: .received),
         .treeFetch(transfer: transfer, copy: copyID, key: Data(repeating: 4, count: 32)),
-        .fileDigest(transfer: transfer, index: 9, digest: Data(repeating: 5, count: 32), mac: Data(repeating: 6, count: 32)),
+        .fileDigests(transfer: transfer, first: 9, digests: [Data(repeating: 5, count: 32)], mac: Data(repeating: 6, count: 32)),
+        .fileDigests(transfer: transfer, first: 0, digests: (0..<DeskClipboardWire.digestsPerMessage).map { Data(repeating: UInt8($0), count: 32) },
+                     mac: Data(repeating: 6, count: 32)),
         .fetch(transfer: transfer, copy: copyID, key: Data(repeating: 3, count: 32)), .ack(transfer: transfer, next: 4),
         .refuse(transfer: transfer, refusal: .init(.tooLarge)), .refuse(transfer: transfer, refusal: .init(.fileTooLarge, amount: 5, limit: 4)),
         .cancel(transfer: transfer, reason: .timedOut)]
@@ -409,6 +411,21 @@ func runDeskClipboardTests() throws {
               "Plain text that is not UTF-8 was accepted")
     try check((try? DeskClipboardContent.decode(DeskClipboardContent(items: [[.init(type: .png, data: Data([1])), .init(type: .tiff, data: Data([2]))]]).encoded(), limits: limits)) == nil,
               "Two image representations of one item were accepted")
+    // A transfer's chunks and acknowledgements have a budget of their own, room
+    // for the cable; everything else keeps the strict one.
+    func budget(_ message: DeskClipboardMessage) throws -> DeskClipboard.Budget {
+        DeskClipboard.budget(of: DeskClipboardWire.prefix + (try DeskClipboardWire.encode(message, format: 1)))
+    }
+    try check(try budget(good.chunk(0, key: key)) == .flow && budget(.ack(transfer: transfer, next: 3)) == .flow,
+              "A transfer's chunks or acknowledgements count against the strict limit")
+    for message in messages {
+        switch message {
+        case .chunk, .ack: continue
+        default: try check(try budget(message) == .control, "\(message) escaped the strict limit")
+        }
+    }
+    try check(DeskClipboard.Budget.flow.perSecond * DeskClipboardWire.chunkSize >= 1_000_000_000 && DeskClipboard.Budget.control.perSecond == 4000,
+              "The transfer budget leaves no room for a gigabyte a second over the cable")
     print("PASS: shared clipboard wire: one kilobyte control and 64 KB chunk envelopes, padding hides length and kind, bounded compression, one negotiated format; reassembly refuses corruption, reordering, replay, missing chunks, other transfers and a wrong digest")
 
     // MARK: Version gating
@@ -780,7 +797,8 @@ func runDeskClipboardTests() throws {
         try wait("a copy here clears it") { b.clipboard.waiting == nil }
         // The Mac holding it leaves: it clears.
         a.store.copy([[(png, bytes(5000))]])
-        try wait("waits once more") { c.clipboard.waiting?.peer == a.id }
+        // Both Macs, not just one: the announcement reaches them one after the other.
+        try wait("waits once more") { c.clipboard.waiting?.peer == a.id && b.clipboard.waiting?.peer == a.id }
         c.link.peers.remove(a.id); c.clipboard.peersChanged()
         try check(c.clipboard.waiting == nil, "What waited stayed after the Mac holding it left")
         c.link.peers.insert(a.id); c.clipboard.peersChanged()

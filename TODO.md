@@ -1292,11 +1292,25 @@ traffic to the Studio falls to near idle (`nettop -p Perch`); `desk.state` names
 Preset 2 with the MacBook on Home Screen 1 and the Studio on Home screen 2; a
 switch is confirmed in about the time the screens take to change.
 
-**Clipboard findings from the same logs.** Copies from the MacBook reached the
-Studio's clipboard (⌘V pasted them). ⌃⌥⌘V on the Studio then said nothing at all,
-because the newest copy was already there, which broke the rule that every
-refusal says why. Scott chose that ⌃⌥⌘V pastes from the desk: bring the newest
-copy over if needed, then paste it into the app in front. Next.
+**⌃⌥⌘V pastes from the desk.** Copies from the MacBook reached the Studio's
+clipboard (⌘V pasted them, Scott confirmed), but ⌃⌥⌘V on the Studio then did
+nothing visible, because the newest copy was already there. Scott chose (a):
+⌃⌥⌘V brings the newest copy over if needed and pastes it into the app in front.
+Now: already here or nothing newer anywhere, it pastes at once; brought over,
+it pastes once the copy is on the clipboard; too large, refused, cancelled, a
+Mac leaving or not answering, and sharing off paste nothing, and the popup says
+why as before. Pressed on one Mac while typing goes to another, that other Mac
+pastes (both need this version for that). Small text pushed on copy is never
+pasted. The ⌘V waits up to a second for ⌃ and ⌥ to be let go, so the app sees
+⌘V; it uses the key that types "v" with ⌘ in the current layout, and carries
+Perch's own tag so Perch's capture never forwards it (`DeskPasteKey`). Hotkeys
+lists it under Fixed shortcuts, "off" when another Perch shortcut uses ⌃⌥⌘V.
+Pinned in the clipboard self-test: what was on the clipboard at each paste,
+and on which Mac. The homepage and release notes still describe the 2.0.301
+behaviour; update them with the next release. **Native acceptance:** copy a
+photo on the MacBook, ⌃⌥⌘V in a document on the Studio; it lands without ⌘V.
+Candidate 2.0.303 (build 303) installed on disk on the MacBook; running is
+still 2.0.301.
 
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 

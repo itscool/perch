@@ -36,7 +36,7 @@ extension KVMShortcut {
 /// tap (sharing off on this Mac) there is nothing to bring over.
 enum DeskBringOverShortcut {
     static let shortcut = Shortcut(key: UInt32(kVK_ANSI_V))
-    static let owner = "Bring over the other Mac's copy"
+    static let owner = "Paste the newest copy from any Mac on the desk"
     /// The shortcut while no other Perch shortcut holds the same keys, else nil:
     /// the one already there keeps working and this one steps aside.
     static func active(in registry: ShortcutRegistry) -> Shortcut? {

@@ -303,6 +303,10 @@ final class DeskClipboard {
     var permitted: () -> Bool = { false }
     /// Draws the bring-over popup. Nil draws nothing.
     var presenter: DeskPastePresenting?
+    /// Presses ⌘V in the app in front. ⌃⌥⌘V pastes from the desk: once the
+    /// newest copy is on this Mac's clipboard, whether it came over or was
+    /// already here, Perch pastes it. Nothing is pasted when it cannot come.
+    var paste: (() -> Void)?
     /// What is waiting changed; the menu bar's status follows it.
     var waitingChanged: () -> Void = {}
     var clock: () -> Double = { ProcessInfo.processInfo.systemUptime }
@@ -358,6 +362,8 @@ final class DeskClipboard {
         var answers: [UUID: (copy: UUID?, at: Double, answer: DeskClipboardAnswer)]
     }
     private var asking: Asking?
+    /// A ⌃⌥⌘V is under way and pastes when the newest copy is here.
+    private var pasting = false
 
     private enum Mode { case silent, bringOver }
     private struct Incoming {
@@ -774,17 +780,19 @@ final class DeskClipboard {
         if send(.bringOver, to: target) { decide(.askedToBringOver(on: link.name(of: target))) }
     }
 
-    /// Bring the desk's newest copy onto this Mac's clipboard, with the popup.
+    /// Bring the desk's newest copy onto this Mac's clipboard, with the popup,
+    /// and paste it into the app in front.
     /// The other Macs are asked first, even with nothing waiting, so that a
     /// newest copy that cannot come is explained rather than silently skipped.
     func bringOverHere() {
         guard permitted() else { decide(.notBringing(.sharingOffHere)); return }
         // One at a time; a second press while one is coming is the same request.
         guard progress == nil, asking == nil, batch == nil else { return }
+        pasting = true
         let id = UUID()
         let asked = Set(link.peers.filter { send(.ask(query: id), to: $0) })
         guard !asked.isEmpty else {
-            if let waiting { unreachable(waiting) } else { decide(.nothingWaiting) }
+            if let waiting { unreachable(waiting) } else { decide(.nothingWaiting); pasteNow() }
             return
         }
         asking = Asking(id: id, waiting: asked, answers: [:])
@@ -799,12 +807,13 @@ final class DeskClipboard {
     }
 
     /// The desk has answered ⌃⌥⌘V. The youngest copy wins, this Mac's own
-    /// included: already here, nothing happens; it cannot come, the popup says
-    /// why in one line; otherwise it comes, with the popup.
+    /// included: already here, it is pasted; it cannot come, the popup says
+    /// why in one line and nothing is pasted; otherwise it comes, with the
+    /// popup, and is pasted once it is on the clipboard.
     private func settleBringOver(_ id: UUID) {
         guard let asking, asking.id == id else { return }
         self.asking = nil
-        guard permitted() else { decide(.notBringing(.sharingOffHere)); return }
+        guard permitted() else { pasting = false; decide(.notBringing(.sharingOffHere)); return }
         // A received copy is never brought over from the Mac that received it:
         // its own Mac answers for it.
         let candidates = asking.answers.compactMap { peer, value -> (peer: UUID, copy: UUID, at: Double, answer: DeskClipboardAnswer)? in
@@ -815,21 +824,22 @@ final class DeskClipboard {
             }
         }
         guard let best = candidates.max(by: { $0.at < $1.at }) else {
-            if let waiting, asking.answers[waiting.peer] == nil { unreachable(waiting) } else { decide(.nothingWaiting) }
+            if let waiting, asking.answers[waiting.peer] == nil { unreachable(waiting) } else { decide(.nothingWaiting); pasteNow() }
             return
         }
         let from = link.name(of: best.peer)
-        if best.copy == copy?.id { decide(.newestHere); return }
-        if let own = copy?.at, own >= best.at { decide(.newestHere); return }
+        if best.copy == copy?.id { decide(.newestHere); pasteNow(); return }
+        if let own = copy?.at, own >= best.at { decide(.newestHere); pasteNow(); return }
         switch best.answer {
         case .unshareable(let refusal):
+            pasting = false
             waiting = nil
             show(DeskPasteProgress.explain(refusal, from: from))
             decide(.explained(from: from, refusal.reason))
         case .shareable(let what):
             if waiting?.copy != best.copy { waiting = Waiting(peer: best.peer, copy: best.copy, at: best.at, what: what) }
             newest = (best.peer, best.at)
-            guard let waiting else { return }
+            guard let waiting else { pasting = false; return }
             // Small text already on its way silently comes with the popup instead.
             if incoming != nil { fail(.cancelled) }
             let shown = DeskPasteProgress(title: DeskPasteProgress.title(waiting.what, from: from), clock: clock, after: after)
@@ -838,12 +848,21 @@ final class DeskClipboard {
             presenter?.present(shown)
             decide(.bringing(from: from))
             fetch(waiting.copy, at: waiting.at, from: waiting.peer, mode: .bringOver)
-        case .nothing, .received: decide(.nothingWaiting)
+        case .nothing, .received: decide(.nothingWaiting); pasteNow()
         }
+    }
+
+    /// The newest copy is on this Mac's clipboard: paste it, if ⌃⌥⌘V asked.
+    private func pasteNow() {
+        guard pasting else { return }
+        pasting = false
+        paste?()
+        decide(.pasted)
     }
 
     /// What was waiting cannot be asked for: its Mac did not answer.
     private func unreachable(_ waiting: Waiting) {
+        pasting = false
         show(DeskPasteProgress.line(for: .init(.peerGone), from: link.name(of: waiting.peer)))
         decide(.notBringing(.peerGone))
     }
@@ -879,6 +898,9 @@ final class DeskClipboard {
             if waiting?.copy == copyID { waiting = nil }
         case .failure(let refusal):
             if Self.stopsWaiting(refusal.reason), waiting?.copy == copyID { waiting = nil }
+        }
+        if mode == .bringOver {
+            if case .success = outcome { pasteNow() } else { pasting = false }
         }
         guard mode == .bringOver, let shown = progress else { return }
         progress = nil

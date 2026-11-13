@@ -175,6 +175,7 @@ final class DeskRuntime: ObservableObject {
         // access takes no part.
         clipboard.permitted = { [weak input] in input.map { $0.enabled && $0.ready() } ?? false }
         clipboard.presenter = DeskPastePresenter()
+        clipboard.paste = { DeskPasteKey.paste() }
         // ⌃⌥⌘V brings the newest copy over to the Mac typing goes to, whichever
         // Mac's keyboard pressed it (default (a), `DeskClipboard.bringOverTarget`).
         adapter.bringOver = { [weak clipboard, weak input] in clipboard?.bringOver(keyboard: input?.keyboardComputer) }

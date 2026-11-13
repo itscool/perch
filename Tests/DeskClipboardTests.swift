@@ -107,6 +107,8 @@ enum DeskClipboardTests {
 /// Stands in, on one Mac, for the popup.
 final class DeskPasteFakes: DeskPastePresenting {
     var presented: [DeskPasteProgress] = []
+    /// What was on this Mac's clipboard each time ⌃⌥⌘V pasted.
+    var pasted: [Data?] = []
     var last: DeskPasteProgress? { presented.last }
     func present(_ progress: DeskPasteProgress) { presented.append(progress) }
 }
@@ -132,6 +134,7 @@ final class DeskClipboardTestDesk {
             let clipboard = DeskClipboard(link: link, pasteboard: DeskPasteboardAccess(store: store, timeout: 0.3), staging: staging)
             clipboard.timings = .init(query: 0.5, reply: 0.6, stall: 0.6, total: 20, serveStall: 1.5, hello: 30, tick: 0.05)
             clipboard.presenter = fakes
+            clipboard.paste = { [unowned fakes, unowned store] in fakes.pasted.append(store.first) }
             link.names[link.localID] = name
             macs.append(.init(id: link.localID, link: link, store: store, clipboard: clipboard, fakes: fakes))
         }
@@ -642,6 +645,19 @@ func runDeskClipboardTests() throws {
 
     // MARK: Bringing it over
 
+    // ⌃⌥⌘V pastes with ⌘V once ⌃ and ⌥ are let go, so the app sees ⌘V, and
+    // presses anyway if they stay held.
+    do {
+        var held: [CGEventFlags] = [[.maskControl, .maskAlternate, .maskCommand], [.maskAlternate, .maskCommand], [.maskCommand]]
+        var presses = 0, looks = 0
+        DeskPasteKey.paste(held: { looks += 1; return held.count > 1 ? held.removeFirst() : held[0] }, press: { presses += 1 }, after: { _, work in work() })
+        try check(presses == 1 && looks == 3, "⌘V was pressed before ⌃ and ⌥ were let go, or not exactly once")
+        presses = 0
+        DeskPasteKey.paste(held: { [.maskControl] }, press: { presses += 1 }, after: { _, work in work() })
+        try check(presses == 1, "⌘V never came while ⌃ stayed held")
+        try check(DeskPasteKey.ready([.maskCommand]) && !DeskPasteKey.ready([.maskAlternate]), "Held ⌘ stopped the paste, or held ⌥ did not")
+    }
+
     do {
         let desk = DeskClipboardTestDesk(names: ["MacBook", "Studio"])
         let a = desk.macs[0], b = desk.macs[1]
@@ -655,10 +671,13 @@ func runDeskClipboardTests() throws {
             a.store.copy(items)
             try wait(label) { b.clipboard.waiting != nil && b.clipboard.waiting?.copy != before }
         }
-        // Nothing newer anywhere: the other Macs are asked, and nothing happens.
+        // Nothing newer anywhere: the other Macs are asked, and what is here is
+        // pasted, as ⌘V would.
         let asksBefore = b.link.count(DeskClipboardTests.isAsk), sentBefore = b.link.sent.count
         b.clipboard.bringOverHere()
-        try wait("nothing to bring over") { b.clipboard.lastDecision == .nothingWaiting }
+        try wait("nothing to bring over") { b.clipboard.lastDecision == .pasted }
+        try check(b.clipboard.decisions.contains(.nothingWaiting) && b.fakes.pasted == [Data("what the Studio had".utf8)],
+                  "With nothing newer anywhere, ⌃⌥⌘V did not paste what was here: \(b.fakes.pasted)")
         try check(b.fakes.presented.isEmpty && b.link.count(DeskClipboardTests.isAsk) == asksBefore + 1 && b.link.sent.count == sentBefore + 1,
                   "Bring over with nothing newer anywhere did more than ask")
         let image = bytes(700_000)
@@ -675,6 +694,14 @@ func runDeskClipboardTests() throws {
         try check(b.store.current[0].map(\.type) == [png, DeskClipboardMarker.received], "More than one image representation, or no mark, arrived")
         try wait("popup finishes and closes") { popup.phase == .done && popup.line == "Ready to paste" && popup.isClosed }
         try check(b.clipboard.waiting == nil, "What was waiting stayed after it was brought over")
+        try check(b.fakes.pasted.dropFirst() == [image], "Pressing ⌃⌥⌘V twice did not paste the photo once, after it was on the clipboard: \(b.fakes.pasted.map { $0?.count })")
+        // Pressed again with the photo already here: pasted again, nothing moves.
+        let fetchesBefore = b.link.count(DeskClipboardTests.isFetch)
+        b.clipboard.bringOverHere()
+        try wait("already here") { b.fakes.pasted.count == 3 }
+        try check(b.clipboard.decisions.contains(.newestHere) && b.fakes.pasted.last == image && b.link.count(DeskClipboardTests.isFetch) == fetchesBefore,
+                  "With the newest copy already here, ⌃⌥⌘V fetched again or did not paste it")
+        let pastesBefore = b.fakes.pasted.count
         // Too large, known when copied: never announced; ⌃⌥⌘V says why, with sizes.
         let sentByMacBook = a.link.sent.count
         a.store.copy([[(text, Data(repeating: 65, count: 3 * 1024 * 1024))]])
@@ -685,6 +712,7 @@ func runDeskClipboardTests() throws {
         try check(b.fakes.last?.title == "The newest copy on MacBook is 3 MB; the limit is 2 MB." && b.store.first == image && b.clipboard.waiting == nil,
                   "Too large was not explained with its sizes, or left something behind: \(b.fakes.last?.title ?? "nothing")")
         try check(b.clipboard.lastDecision == .explained(from: "MacBook", .tooLarge), "The explanation was not the decision")
+        try check(b.fakes.pasted.count == pastesBefore, "A copy too large to come was explained and something was pasted anyway")
         // Too large, found only when brought over (an image is never read to be
         // announced): refused with its sizes, and it stops waiting.
         a.clipboard.limits.image = 100 * 1024
@@ -693,6 +721,7 @@ func runDeskClipboardTests() throws {
         try wait("large photo refused") { b.fakes.last?.phase == .failed }
         try check(b.fakes.last?.line == "The newest copy on MacBook is 150 KB; the limit is 100 KB." && b.store.first == image && b.clipboard.waiting == nil,
                   "A photo over the limit was not named with its sizes, left something behind, or kept waiting: \(b.fakes.last?.line ?? "nothing")")
+        try check(b.fakes.pasted.count == pastesBefore, "A refused photo was followed by a paste of the old copy")
         a.clipboard.limits = DeskClipboardLimits()
         // Failure pastes nothing: the other Mac leaves halfway.
         let second = bytes(1_500_000)
@@ -704,6 +733,7 @@ func runDeskClipboardTests() throws {
         try wait("leaving is named") { b.fakes.last?.phase == .failed }
         try check(b.fakes.last?.line == "Couldn’t reach MacBook" && b.store.first == image && b.clipboard.waiting == nil,
                   "A Mac leaving mid-transfer left part of a copy, said something else, or kept waiting")
+        try check(b.fakes.pasted.count == pastesBefore, "A transfer that failed halfway pasted the old copy")
         b.link.peers.insert(a.id); b.clipboard.peersChanged()
         a.link.chunkDelay = 0
         // Cancel stops it, on both Macs, and changes nothing here.
@@ -716,6 +746,7 @@ func runDeskClipboardTests() throws {
         try wait("the sender stops") { a.clipboard.decisions.contains { if case .stoppedSending(_, _, .cancelled) = $0 { return true }; return false } }
         settle(0.4)
         try check(b.store.first == image && b.clipboard.waiting != nil, "Cancel left part of a copy, or forgot what waits")
+        try check(b.fakes.pasted.count == pastesBefore, "Cancel pasted the old copy")
         a.link.chunkDelay = 0
         // Slow: the main thread never waits, and nothing changes here until the verified copy is complete.
         a.link.chunkDelay = 0.1
@@ -757,7 +788,7 @@ func runDeskClipboardTests() throws {
     let onWire = try KVMMessageFramer.encode(JSONEncoder().encode(KVMDeskMessage.application(DeskClipboardWire.prefix + chunkEnvelope)))
     try check(onWire.count <= DeskClipboard.chunkWireBytes, "A chunk takes \(onWire.count) bytes on the desk link, more than the pacing allows for")
     try check(DeskClipboard.paceLimit <= KVMPeerTransport.sendLimit / 2, "Clipboard pacing leaves no room below the transport's limit")
-    print("PASS: shared clipboard brings over with the popup: nothing waiting does nothing; a photo arrives marked with steady progress and the popup says Ready to paste and closes; too large, a Mac leaving, cancel and a silent Mac are named and change nothing; a slow Mac never stalls the main thread; the desk link is paced below its limit")
+    print("PASS: shared clipboard brings over with the popup and pastes: ⌘V waits for ⌃ and ⌥ to be let go; nothing waiting pastes what is here; a photo arrives marked with steady progress, the popup says Ready to paste and closes, and it is pasted once, after it is on the clipboard; already here, it is pasted with nothing moved; too large, a Mac leaving, cancel and a silent Mac are named, change nothing and paste nothing; a slow Mac never stalls the main thread; the desk link is paced below its limit")
 
     // MARK: Which Mac brings it over, and when what waits clears
 
@@ -781,6 +812,8 @@ func runDeskClipboardTests() throws {
         try check(c.store.first != photo && c.fakes.presented.isEmpty && b.fakes.presented.count == 1,
                   "Bring over acted on the Mac whose keyboard was pressed rather than where typing goes")
         try check(c.clipboard.decisions.contains(.askedToBringOver(on: "Studio")) && c.clipboard.waiting != nil, "Asking the Studio was not named, or the Mini forgot what waits")
+        try wait("the Studio pastes it") { b.fakes.pasted == [photo] }
+        try check(c.fakes.pasted.isEmpty && a.fakes.pasted.isEmpty, "A Mac other than where typing goes pasted")
         // Pressed where typing goes: here.
         c.clipboard.bringOver(keyboard: c.id)
         try wait("the Mini brings it over itself") { c.store.first == photo }
@@ -790,6 +823,7 @@ func runDeskClipboardTests() throws {
         try wait("new photo waits") { b.clipboard.waiting?.copy != nil && b.clipboard.waiting?.copy != photoBefore }
         c.store.copy([[(text, Data("newer, from the Mini".utf8))]])
         try wait("small text replaces it") { b.clipboard.waiting == nil && a.clipboard.waiting == nil && b.store.first == Data("newer, from the Mini".utf8) }
+        try check(b.fakes.pasted == [photo] && a.fakes.pasted.isEmpty, "Small text arriving on its own was pasted without ⌃⌥⌘V")
         // A copy made here clears what waits here.
         a.store.copy([[(png, bytes(4000))]])
         try wait("waits again") { b.clipboard.waiting != nil }
@@ -818,9 +852,10 @@ func runDeskClipboardTests() throws {
         desk.permitted[b.id] = false
         b.clipboard.bringOverHere()
         try check(b.clipboard.lastDecision == .notBringing(.sharingOffHere), "Bring over ran with sharing off")
+        try check(b.fakes.pasted == [photo], "⌃⌥⌘V pasted with sharing off")
         desk.permitted[b.id] = true
     }
-    print("PASS: shared clipboard brings over for the Mac typing goes to, whichever keyboard pressed ⌃⌥⌘V; what waits clears when anything newer is copied on any Mac, when a copy is made here, and when the Mac holding it leaves; an older announcement changes nothing")
+    print("PASS: shared clipboard brings over for the Mac typing goes to, whichever keyboard pressed ⌃⌥⌘V, and pastes there only; what waits clears when anything newer is copied on any Mac, when a copy is made here, and when the Mac holding it leaves; an older announcement changes nothing")
 
     // MARK: A hung app on the copying Mac
 

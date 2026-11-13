@@ -4,6 +4,13 @@ import SwiftUI
 struct HotkeySettings: View {
     var contentHeightChanged: (CGFloat) -> Void = { _ in }
     @ObservedObject var coordinator = DeskCoordinator.shared
+    /// Shortcuts that cannot be changed, listed so they can be found. ⌃⌥⌘V
+    /// steps aside when one of Perch's own shortcuts already uses it.
+    static func fixedShortcuts(pasteActive: Bool) -> [(name: String, keys: String)] {
+        [("Paste the newest copy from any Mac on the desk", pasteActive ? "⌃⌥⌘V" : "⌃⌥⌘V, off: another Perch shortcut uses it"),
+         ("Return keyboard and mouse control to this Mac", "⌃⌥Esc"),
+         ("Quit Perch while its menu is open", "⌘Q")]
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Keep-awake countdown · this Mac").font(.headline)
@@ -24,8 +31,9 @@ struct HotkeySettings: View {
             }
             Divider()
             Text("Fixed shortcuts").font(.headline)
-            LabeledContent("Return keyboard and mouse control to this Mac", value: "⌃⌥Esc")
-            LabeledContent("Quit Perch while its menu is open", value: "⌘Q")
+            ForEach(Self.fixedShortcuts(pasteActive: DeskBringOverShortcut.active(in: ShortcutRegistry.perch) != nil), id: \.name) { row in
+                LabeledContent(row.name, value: row.keys)
+            }
         }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             .background(GeometryReader { geometry in

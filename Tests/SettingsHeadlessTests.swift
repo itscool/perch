@@ -46,6 +46,11 @@ func runSettingsHeadlessTests() throws {
     try check(!views.compactMap { ($0 as? NSTextField)?.stringValue }.contains { $0.contains("every app in your macOS account") },
               "The Reset page still describes resetting every app")
 
+    // Hotkeys lists ⌃⌥⌘V among the fixed shortcuts, and says when it is off.
+    let fixed = HotkeySettings.fixedShortcuts(pasteActive: true)
+    try check(fixed.first?.keys == "⌃⌥⌘V" && fixed.first?.name.hasPrefix("Paste") == true, "Hotkeys does not list ⌃⌥⌘V: \(fixed.map(\.keys))")
+    try check(HotkeySettings.fixedShortcuts(pasteActive: false).first?.keys.contains("off") == true, "Hotkeys did not say ⌃⌥⌘V is off when another shortcut holds it")
+
     // Window tests skip the AGENT MODE banner only inside a virtual machine
     // nobody is using; a flag alone never does it on a physical Mac.
     try check(DesktopTestSession.unattended(flag: "1", virtualMachine: true), "Window tests could not run unattended in a virtual machine")
@@ -53,5 +58,5 @@ func runSettingsHeadlessTests() throws {
     try check(!DesktopTestSession.unattended(flag: nil, virtualMachine: true) && !DesktopTestSession.unattended(flag: "yes", virtualMachine: true),
               "Window tests skipped the banner without being asked to")
 
-    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; window tests skip the banner only when asked inside a virtual machine")
+    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; Hotkeys lists ⌃⌥⌘V; window tests skip the banner only when asked inside a virtual machine")
 }

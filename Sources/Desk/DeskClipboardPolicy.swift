@@ -131,6 +131,8 @@ enum DeskClipboardDecision: Equatable {
     case bringing(from: String)
     case nothingWaiting
     case newestHere
+    /// ⌃⌥⌘V pasted the newest copy into the app in front.
+    case pasted
     case explained(from: String, DeskClipboardReason)
     case notBringing(DeskClipboardReason)
     case askedToBringOver(on: String)
@@ -168,8 +170,9 @@ enum DeskClipboardDecision: Equatable {
             return "Stopped bringing the copy from \(from), transfer\(id(transfer))" + because(reason) + (detail.map { " (\($0))" } ?? "")
         case .discarded(let transfer, let reason): return "Did not use transfer\(id(transfer))" + because(reason)
         case .bringing(let from): return "Bringing over the newest copy, from \(from)"
-        case .nothingWaiting: return "Bring over did nothing: no newer copy is waiting on another Mac"
-        case .newestHere: return "Bring over did nothing: the newest copy on the desk is already here"
+        case .nothingWaiting: return "Nothing to bring over: no newer copy is waiting on another Mac"
+        case .newestHere: return "Nothing to bring over: the newest copy on the desk is already here"
+        case .pasted: return "Pasted the newest copy on the desk into the app in front"
         case .explained(let from, let reason): return "Said why the newest copy, on \(from), stays there" + because(reason)
         case .notBringing(let reason): return "Did not bring over the newest copy" + because(reason)
         case .askedToBringOver(let on): return "Asked \(on), where typing goes, to bring over the newest copy"

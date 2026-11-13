@@ -784,6 +784,22 @@ median 16.7 ms, 95th percentile 69.8 ms, worst 101.4 ms, and over Thunderbolt
 median 0.9 ms, 95th percentile 1.2 ms, worst 1.3 ms, and Bonjour already
 advertises the peer on bridge0 (interface 13) as well as en0.
 
+Perch 2.0.301 was published on November 13, 2026. Apple accepted the app
+(7447628f-ca53-498a-822c-db967c3dc859) and the DMG
+(235ff549-5b5e-47fe-8406-0141a9ffe49f); the GitHub release at v2.0.301, the
+stable Sparkle feed and the SHA256SUMS checksums for the DMG, ZIP and appcast
+were verified from the public URLs. The `itscool/tap` cask was updated to
+2.0.301; `brew style` passes and the cask's own download URL matches its
+SHA-256, but `brew fetch` and `brew info` refuse to load casks from the tap
+until Scott chooses to trust it (`brew trust`). Every Mac on the desk needs this
+version. Native acceptance is open on the live two-Mac desk: the shared
+clipboard, including pasting a brought-over file into Mail and Messages as well
+as Finder; the new menu bar icon at real size; removing the Old process watcher
+from Setup; the disk line; "Update Perch on <Mac>", which needs both Macs on
+2.0.301 first, so its first live use is the next release (the Studio's update to
+2.0.301 is still a manual click there); and, last as Scott asked, the pointer
+test over the cable.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

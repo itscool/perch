@@ -384,15 +384,33 @@ final class KVMPeerTransport {
             else if done { self.close(link, reason: .remote) } else { self.read(link) }
         }
     }
+    /// Read and discard whatever the peer still sends after this side said
+    /// goodbye, and cancel once it closes its side. Nothing read here reaches
+    /// the desk: the link is already gone.
+    private static func drainUntilClosed(_ connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { _, _, done, error in
+            if done || error != nil { connection.cancel() } else { drainUntilClosed(connection) }
+        }
+    }
     func close(_ link: Link, reason: KVMCloseReason = .local) {
         guard links.removeValue(forKey: link.id) != nil else { return }
         link.closeReason = reason
         link.connection.stateUpdateHandler = nil
         let connection = link.connection
         if link.ready, reason.announced, let data = goodbye?(reason), let frame = try? KVMMessageFramer.encode(data) {
-            // Tell the peer why, then cancel once the frame has left (or after a
-            // bounded wait). The local state is already closed either way.
-            connection.send(content: frame, completion: .contentProcessed { _ in connection.cancel() })
+            // Tell the peer why and end this side of the stream, then keep
+            // reading until the peer closes too, or a bounded wait passes. The
+            // local state is already closed either way.
+            //
+            // This used to cancel the moment the goodbye was handed to the
+            // network. By then the other Mac had usually sent more messages
+            // that nothing here would read, and cancelling with unread data
+            // makes macOS reset the connection. A reset can discard the goodbye
+            // on the other Mac before Perch there reads it, so a Mac refused for
+            // running a different version sometimes showed "connection reset"
+            // instead of being told to update.
+            connection.send(content: frame, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
+            Self.drainUntilClosed(connection)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { connection.cancel() }
         } else { connection.cancel() }
         disconnected?(link)

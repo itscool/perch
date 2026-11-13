@@ -8,6 +8,32 @@ import Darwin
         while !predicate(), Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.025)) }
         guard predicate() else { throw KVMError("Timed out: " + message) }
     }
+    /// Start a fixture Mac listening on a port macOS chooses, and return that
+    /// port once the listener is actually accepting connections.
+    ///
+    /// The fixtures used to pick random ports between 54000 and 59000. That is
+    /// inside macOS's range for the local end of outgoing connections
+    /// (49152–65535), which this check fills with hundreds of loopback
+    /// connections, and the first two fixture Macs were still listening when
+    /// the sixteen-Mac section picked its own. Now and then a chosen port was
+    /// already taken, so a Mac dialled a listener that was not the one meant —
+    /// "Timed out: scale pairing 2" — and the wait only checked that a port had
+    /// been requested, never that the listener came up. Letting macOS assign a
+    /// free port removes every such collision, including with other processes
+    /// and with checks running side by side.
+    static func listen(_ node: KVMDeskNode, _ label: String) throws -> UInt16 {
+        try node.start(localOnly: true, port: .any)
+        return try listening(node.transport, label)
+    }
+    static func listening(_ transport: KVMPeerTransport, _ label: String) throws -> UInt16 {
+        var failure: String?
+        let previous = transport.listenerProblem
+        transport.listenerProblem = { problem in failure = problem; previous?(problem) }
+        defer { transport.listenerProblem = previous }
+        try wait(label + " listener") { failure != nil || (transport.listener?.port?.rawValue ?? 0) > 0 }
+        if let failure { throw KVMError(label + " could not listen: " + failure) }
+        return transport.listener!.port!.rawValue
+    }
     static func main() { do { try run() } catch { fputs("FAIL: \(error)\n", stderr); exit(1) } }
     static func run() throws {
         let now = Date()
@@ -25,9 +51,8 @@ import Darwin
         let a = try KVMDeskNode(identity: .fresh(), name: "Fixture A", storage: directory.appendingPathComponent("a.json"))
         let b = try KVMDeskNode(identity: .fresh(), name: "Fixture B", storage: directory.appendingPathComponent("b.json"))
         defer { a.stop(); b.stop() }
-        let port = UInt16.random(in: 54000...59000)
-        try a.start(localOnly: true, port: .init(rawValue: port)!); try b.start(localOnly: true, port: .init(rawValue: port + 1)!)
-        try wait("listeners") { a.transport.listener?.port != nil && b.transport.listener?.port != nil }
+        let port = try listen(a, "Fixture A")
+        _ = try listen(b, "Fixture B")
         a.openPairing(hosting: true); b.openPairing(hosting: false)
         let endpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!)
         let advertised = KVMPeerTransport.Nearby.make(id: a.localID.uuidString, endpoint: endpoint,
@@ -124,7 +149,8 @@ import Darwin
         var fromA = a.group; fromA.name = "Offline A"; try a.edit(fromA)
         var fromB = oldB; fromB.name = "Offline B"; try b.edit(fromB)
         b.closePairing(); a.closePairing()
-        try b.transport.start(name: "Fixture B", localOnly: true, port: .init(rawValue: port + 1)!)
+        try b.transport.start(name: "Fixture B", localOnly: true, port: .any)
+        _ = try listening(b.transport, "Restarted Fixture B")
         b.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!), expected: a.localID)
         try wait("pinned reconnect and preserved conflict") { a.conflicts.count == 2 && b.conflicts.count == 2 }
         try a.resolve(a.conflicts.first { $0.name == "Offline B" }!)
@@ -519,7 +545,12 @@ import Darwin
             fputs("b.peerProblems: \(b.peerProblems)\nb.problem: \(b.problem ?? "nil")\nb events: \(b.connectionEvents.suffix(4).map(\.detail))\na events: \(a.connectionEvents.suffix(4).map(\.detail))\nb links: \(b.transport.links.count) online \(b.online.count)\n", stderr)
             throw error
         }
-        guard b.connectionEvents.contains(where: { $0.peer == a.localID && $0.detail.contains(KVMCloseReason.incompatible.rawValue) }) else { throw KVMError("Refusal reason was not delivered to the refused Mac") }
+        // The refused Mac learns why from the goodbye, and records the closed
+        // connection when the close itself arrives, a moment later. Checking
+        // once, straight after the goodbye, sometimes looked before the close
+        // had landed and reported a reason that was in fact delivered.
+        do { try wait("refusal reason recorded on the refused Mac") { b.connectionEvents.contains(where: { $0.peer == a.localID && $0.detail.contains(KVMCloseReason.incompatible.rawValue) }) } }
+        catch { throw KVMError("Refusal reason was not delivered to the refused Mac: \(b.connectionEvents.suffix(4).map(\.detail))") }
         let refusals = a.connectionEvents.filter { $0.peer == b.localID && $0.detail.hasPrefix(KVMCloseReason.incompatible.rawValue) }.count
         RunLoop.main.run(until: Date().addingTimeInterval(6))
         guard a.connectionEvents.filter({ $0.peer == b.localID && $0.detail.hasPrefix(KVMCloseReason.incompatible.rawValue) }).count == refusals else { throw KVMError("Incompatible peer kept reconnecting inside the backoff window") }
@@ -544,14 +575,11 @@ import Darwin
         let owner = try KVMDeskNode(identity: .fresh(), name: "Scale 1", storage: directory.appendingPathComponent("1.json"))
         var nodes = [owner]
         defer { nodes.forEach { $0.stop() } }
-        let base = UInt16.random(in: 54000...58000)
-        try owner.start(localOnly: true, port: .init(rawValue: base)!)
-        try wait("scale owner listener") { owner.transport.listener?.port != nil }
+        let base = try listen(owner, "Scale owner")
         for index in 2...16 {
             let node = try KVMDeskNode(identity: .fresh(), name: "Scale \(index)", storage: directory.appendingPathComponent("\(index).json"))
             nodes.append(node)
-            try node.start(localOnly: true, port: .init(rawValue: base + UInt16(index))!)
-            try wait("scale member listener") { node.transport.listener?.port != nil }
+            _ = try listen(node, "Scale \(index)")
             owner.openPairing(hosting: true); node.openPairing(hosting: false)
             node.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: base)!))
             try wait("scale pairing \(index)") { owner.pairings.count == 1 && node.pairings.count == 1 }

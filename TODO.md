@@ -852,8 +852,8 @@ launch, existing-install replacement and uninstall/recovery as one journey.
      a small progress popup that closes itself. After that every ordinary paste
      works: keyboard, Edit → Paste, right-click. The Edit → Paste gap is gone.
   4. A waiting indicator in the menu bar icon on every Mac that does not have the
-     newest copy, cleared once that Mac brings it over. The icon is not changed
-     yet; Perch exposes the state it will read (`DeskShareStatus`).
+     newest copy, cleared once that Mac brings it over (the envelope, November
+     2026, below).
 
   *Confirmed by Scott, November 2026* (these were defaults pending his word):
   - (a) Bring over acts for the Mac typing goes to (keyboard focus, set by the
@@ -943,6 +943,34 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     until it passes 64 KB, so text over its cap is caught when copied when its
     plain text alone is over (the usual case) and otherwise when brought over.
 
+  **The menu bar icon, November 2026** (Scott's design). `PerchStatusIcon.swift`
+  draws a `PerchIconState` that `DeskShareStatus.icon(awake:)` makes from the
+  desk's facts; `AppDelegate.refreshStatusIcon` redraws it only when it changes,
+  on every refresh and whenever the desk's share status moves.
+  - Without a desk the icon is exactly what it was: the plain bird, or the bird
+    and cup (pinned pixel for pixel against the old drawing).
+  - With any other Perch connected: two smaller birds beak to beak, this Mac's
+    on the left; the menu bar item widens to 30 points for them (it stays
+    square for one bird).
+  - A heart in this Mac's bird while Share on this Mac is on; in the other bird
+    while at least one connected Mac shares (`KVMInputSession.sharingComputers`:
+    the coordinator's own record there, its last report everywhere else).
+  - The other bird at 38% opacity while no connected Mac is in the active
+    preset, or no preset is active.
+  - A number in the other bird's wing when more than one other Perch is
+    connected: 2 to 9, then "9+".
+  - The envelope above the beaks, where the cup goes but at the top, while a
+    newer copy waits and sharing is on here; the cup below the beaks.
+  - Overlays cut a one-point clear ring (half a point for hearts), so each
+    reads against the strokes it crosses.
+  - Rendered offscreen at 1x and 2x on light and dark bars, every state, with
+    an enlarged sheet; a filled-bird variant with knocked-out hearts was drawn
+    for comparison and set aside (the holes broke the silhouette and the number
+    was illegible). Not shipped: built on the branch only.
+  - Decided: this Mac's heart also shows with one bird (sharing on, no one
+    connected). Limitation: only a Mac whose sharing is on hears which others
+    share, so with sharing off here the other bird never has a heart.
+
   **Not a system hog, November 2026.** Four times a second Perch reads the
   clipboard's change count and nothing else. For a new copy it reads its types
   (markers first), and then: for an image, nothing more; for text, one
@@ -992,8 +1020,9 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     ten minutes later, so a paste still copying out of it can finish; anything
     else in the folder at start (not listed by the clipboard) goes at once.
   - Menu bar state (`DeskRuntime.shareStatus`): what waits and from which Mac,
-    Share on this Mac, how many other Perches are connected, and whether any of
-    them is in the active preset. `perchStatusImage` is untouched.
+    Share on this Mac, how many other Perches are connected, how many of them
+    share, and whether any of them is in the active preset; drawn as the icon
+    above.
   - Transport, integrity and refusals as recorded above: the pinned TLS channel,
     one tag an older Perch ignores, a hello before anything else, the
     authenticated manifest and chunks, bounded compression, 1 KB and 64 KB
@@ -1030,7 +1059,8 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   leaving; a hung app never stalling the main thread; the popup's timing and
   explanations on a virtual clock; the panel never key; the shortcut routed
   before Perch's other shortcuts and yielding to one already there; the icon's
-  state; names made safe at the top and inside folders; the list's wire and
+  state and its drawing (the old bird exact, two narrow birds, hearts, greying,
+  the count, the envelope only while sharing); names made safe at the top and inside folders; the list's wire and
   limits; links resolved within the copy alone; the sending walk never
   following a link; the stream and its per-file digests stopping at a changed
   or swapped file; hostile lists refused (the tar attack both ways, files
@@ -1088,7 +1118,8 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     64 KB; images likewise.
 
   *Open questions for Scott:*
-  - The icon (below): its look at menu bar size.
+  - The icon: its look at real menu bar size (renders in the work notes), the
+    30-point width with two birds, and the heart shown with one bird.
   - Should a dangling link inside a folder be sent as a broken link instead of
     refusing the copy? Projects sometimes hold one.
 

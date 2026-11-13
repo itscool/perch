@@ -295,13 +295,16 @@ final class DeskRuntime: ObservableObject {
         startInputForActivePresetIfNeeded()
         objectWillChange.send()
     }
-    /// Recompute what the menu bar icon will show. Cheap; called on every change.
+    /// Recompute what the menu bar icon shows. Cheap; called on every change,
+    /// and the icon is redrawn only when the status moves.
     private func refreshShareStatus() {
         let waiting = clipboard.waiting
         let next = DeskShareStatus.make(waitingFrom: waiting.map { peer in node.group.computers.first { $0.id == peer.peer }?.name ?? "another Mac" },
                                         waiting: waiting?.what, sharingOn: input.enabled, online: node.online, local: node.localID,
-                                        group: node.group, activePreset: switching.activePreset)
-        if next != shareStatus { shareStatus = next }
+                                        group: node.group, activePreset: switching.activePreset, sharing: input.sharingComputers)
+        guard next != shareStatus else { return }
+        shareStatus = next
+        DispatchQueue.main.async { (NSApp.delegate as? AppDelegate)?.refreshStatusIcon() }
     }
     /// Look the bring-over shortcut up once per desk change rather than on every
     /// key, and say when it steps aside for another Perch shortcut.

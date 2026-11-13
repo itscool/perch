@@ -970,8 +970,94 @@ func runDeskClipboardTests() throws {
         try check(noPreset.connected == 1 && !noPreset.onActiveDesk, "No active preset still counted a Mac as on it")
         let half = DeskShareStatus.make(waitingFrom: "Studio", waiting: nil, sharingOn: true, online: [local], local: local, group: group, activePreset: nil)
         try check(half.waitingFrom == nil && half.waiting == nil, "A name without a copy showed as waiting")
+        // Who shares: the other Macs whose sharing is on, never this one.
+        let third = UUID()
+        let sharing = DeskShareStatus.make(waitingFrom: nil, waiting: nil, sharingOn: true, online: [local, other, third], local: local, group: group,
+                                           activePreset: preset?.id, sharing: [local, other])
+        try check(sharing.connected == 2 && sharing.othersSharing == 1, "The Macs that share were counted wrongly: \(sharing)")
+
+        // The icon those facts make (Scott, November 2026).
+        let icon = status.icon(awake: false)
+        try check(icon == PerchIconState(awake: false, waiting: true, others: 1, sharingHere: true, sharingThere: false, otherActive: preset != nil),
+                  "The icon's state lost a fact: \(icon)")
+        var off = status; off.sharingOn = false
+        try check(!off.icon(awake: false).waiting && !off.icon(awake: false).sharingHere, "The envelope or this Mac's heart showed with sharing off")
+        try check(sharing.icon(awake: true).sharingThere && sharing.icon(awake: true).awake, "The other bird's heart or the cup did not follow")
+        try check(DeskShareStatus.idle.icon(awake: true) == PerchIconState(awake: true), "A Mac without a desk did not get the plain icon")
+        let counts = [0, 1, 2, 9, 10, 12].map { PerchIconState(others: $0).countText }
+        try check(counts == [nil, nil, "2", "9", "9+", "9+"], "The number in the other bird moved: \(counts)")
+        // Drawn offscreen: the plain bird and the awake bird are exactly what they
+        // were; two birds are wider; the other bird greys; a heart adds ink.
+        func ink(_ state: PerchIconState, in part: NSRect? = nil) throws -> (size: NSSize, alpha: Double) {
+            guard let image = perchStatusImage(state) else { throw AppError(message: "No icon for \(state)") }
+            let size = image.size, scale: CGFloat = 2
+            let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale), bitsPerSample: 8,
+                                       samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            rep.size = size
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            image.draw(in: NSRect(origin: .zero, size: size))
+            NSGraphicsContext.restoreGraphicsState()
+            let area = part ?? NSRect(origin: .zero, size: size)
+            var total = 0.0
+            for x in Int(area.minX * scale)..<Int(area.maxX * scale) {
+                for y in Int(area.minY * scale)..<Int(area.maxY * scale) { total += Double(rep.colorAt(x: x, y: rep.pixelsHigh - 1 - y)?.alphaComponent ?? 0) }
+            }
+            try check(image.isTemplate || state == PerchIconState(), "The icon is not a template image, so the menu bar cannot tint it: \(state)")
+            return (size, total)
+        }
+        // The awake bird as 2.0.297 drew it, pixel for pixel.
+        func pixels(_ image: NSImage?) -> Data? {
+            guard let image else { return nil }
+            let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(image.size.width * 2), pixelsHigh: Int(image.size.height * 2), bitsPerSample: 8,
+                                       samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            rep.size = image.size
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            image.draw(in: NSRect(origin: .zero, size: image.size))
+            NSGraphicsContext.restoreGraphicsState()
+            return rep.tiffRepresentation
+        }
+        let before = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
+            NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")?.draw(in: NSRect(x: 0, y: 2, width: 17, height: 16))
+            NSImage(systemSymbolName: "cup.and.saucer.fill", accessibilityDescription: nil)?.draw(in: NSRect(x: 12, y: 0, width: 10, height: 8))
+            return true
+        }
+        try check(pixels(perchStatusImage(PerchIconState(awake: true))) == pixels(before), "The awake bird without a desk is not exactly the old icon")
+        let plain = try ink(PerchIconState()), awake = try ink(PerchIconState(awake: true))
+        try check(perchStatusImage(PerchIconState())?.size == NSImage(systemSymbolName: "bird", accessibilityDescription: nil)?.size &&
+                  awake.size == NSSize(width: 22, height: 18) && plain.alpha > 0, "The bird without a desk changed size")
+        try check(perchStatusImage(PerchIconState(awake: true))?.accessibilityDescription == "Perch — keeping Mac awake" &&
+                  perchStatusImage(PerchIconState())?.accessibilityDescription == "Perch", "The bird without a desk changed its words")
+        let pair = try ink(PerchIconState(others: 1, otherActive: true))
+        try check(pair.size == NSSize(width: PerchIconLayout.pairWidth, height: 18) && pair.size.width <= 30, "Two birds are not one narrow icon: \(pair.size)")
+        let otherHalf = NSRect(x: PerchIconLayout.right.minX, y: 0, width: PerchIconLayout.right.width, height: 18)
+        let active = try ink(PerchIconState(others: 1, otherActive: true), in: otherHalf).alpha
+        let greyed = try ink(PerchIconState(others: 1, otherActive: false), in: otherHalf).alpha
+        try check(greyed < active * 0.5 && greyed > active * 0.2, "The other bird was not greyed when outside the active preset (\(greyed) of \(active))")
+        // The heart fills the middle of the bird's body, which is otherwise empty.
+        func heartSpot(_ frame: NSRect, mirrored: Bool) -> NSRect {
+            let x = frame.minX + frame.width * (mirrored ? 1 - PerchIconLayout.body.x : PerchIconLayout.body.x), y = frame.minY + frame.height * PerchIconLayout.body.y
+            return NSRect(x: x - 0.5, y: y - 0.5, width: 1, height: 1)
+        }
+        let here = heartSpot(PerchIconLayout.left, mirrored: false), there = heartSpot(PerchIconLayout.right, mirrored: true)
+        let full = 4.0 // a 1-point square at 2x: four pixels
+        try check(try ink(PerchIconState(others: 1, sharingHere: true, otherActive: true), in: here).alpha > full * 0.8 &&
+                  (try ink(PerchIconState(others: 1, otherActive: true), in: here).alpha) < full * 0.2, "This Mac's heart did not show, or showed without sharing")
+        try check(try ink(PerchIconState(others: 1, sharingThere: true, otherActive: true), in: there).alpha > full * 0.8 &&
+                  (try ink(PerchIconState(others: 1, sharingHere: true, otherActive: true), in: there).alpha) < full * 0.2,
+                  "The other bird's heart did not follow the other Macs' sharing")
+        let top = NSRect(x: PerchIconLayout.pairEnvelope.minX, y: PerchIconLayout.pairEnvelope.minY, width: PerchIconLayout.pairEnvelope.width, height: 18 - PerchIconLayout.pairEnvelope.minY)
+        try check(try ink(PerchIconState(waiting: true, others: 1, otherActive: true), in: top).alpha > (try ink(PerchIconState(others: 1, otherActive: true), in: top).alpha) + 20,
+                  "The envelope did not show")
+        let states = [PerchIconState(), .init(awake: true), .init(sharingHere: true), .init(others: 1), .init(others: 1, otherActive: true), .init(others: 2),
+                      .init(waiting: true, others: 1), .init(others: 1, sharingThere: true)]
+        try check(Set(states.map(\.key)).count == states.count, "Two icon states share a key, so one would not be redrawn")
+        try check(PerchIconState(awake: true, waiting: true, others: 3, sharingHere: true, sharingThere: true, otherActive: false).accessibility ==
+                  "Perch — keeping Mac awake, 3 other Macs connected, sharing on, another Mac shares, not in the active preset, a copy waits on another Mac",
+                  "The icon's words for VoiceOver moved")
     }
-    print("PASS: shared clipboard exposes one small state for the menu bar icon: what waits and from which Mac, Share on this Mac, how many Perches are connected and whether one is in the active preset")
+    print("PASS: shared clipboard's menu bar icon: one small state from the desk (what waits, who shares, how many connected, the active preset) drawn as the plain or awake bird exactly as before without a desk, two narrow birds facing each other with a desk, hearts for sharing here and there, the other bird greyed outside the active preset, the count from 2 to 9+, and the envelope only while sharing is on")
 
     // MARK: The real pasteboard adapter, on a private pasteboard
 

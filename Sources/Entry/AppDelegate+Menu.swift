@@ -183,19 +183,33 @@ extension AppDelegate {
             let critical = currentProtectionIssue?.severity == .critical
             if lastStatusCritical != critical {
                 lastStatusCritical = critical
-                status.length = critical ? 46 : NSStatusItem.squareLength
                 button.attributedTitle = NSAttributedString(string: critical ? " ⚠" : "", attributes: [.foregroundColor: StatusColors.critical, .font: NSFont.systemFont(ofSize: 14, weight: .bold)])
                 button.imagePosition = .imageLeading
+                applyStatusLength()
             }
             button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
         }
         styleMenuSections()
         settingsRefresh?()
-        let symbol = awakeItem.state == .on ? "awake-bird" : "bird"
-        if lastStatusSymbol != symbol {
-            lastStatusSymbol = symbol
-            status?.button?.image = perchStatusImage(awake: symbol == "awake-bird")
-        }
+        refreshStatusIcon()
+    }
+    /// The menu bar icon: the bird, its cup, and with a desk the other birds,
+    /// hearts and envelope (`PerchIconState`). Cheap: rebuilt only when what it
+    /// shows changes. Called on every refresh and by the desk when its share
+    /// status changes.
+    func refreshStatusIcon() {
+        let icon = (DeskCoordinator.shared.runtime?.shareStatus ?? .idle).icon(awake: awakeItem.state == .on)
+        guard lastStatusSymbol != icon.key, let button = status?.button else { return }
+        lastStatusSymbol = icon.key
+        button.image = perchStatusImage(icon)
+        applyStatusLength()
+    }
+    /// Square for the bird alone, as always; wide enough for the two birds;
+    /// and the warning's fixed width beside the bird.
+    func applyStatusLength() {
+        guard let status else { return }
+        let wide = (status.button?.image?.size.width ?? 0) > PerchIconLayout.singleWidth
+        status.length = wide ? NSStatusItem.variableLength : (lastStatusCritical == true ? 46 : NSStatusItem.squareLength)
     }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         // App-owned confirmations use the ordinary event loop now. Preserve

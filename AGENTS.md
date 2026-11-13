@@ -35,7 +35,9 @@ activation does not make native window tests invisible. The functional suite
 contains tests that show Settings panels and therefore requires the banner.
 Build it first with `Tools/check-functional-review.py --build-only --output DIR`,
 then, during an announced active session, use `--run-only --output DIR
---agent-session SESSION`. The runner checks before launch and between suites;
+--agent-session SESSION`. On a CI runner or a test VM nobody is using, `--run-only
+--output DIR --unattended` runs it with no banner; the runner and the tests both
+refuse it on a physical Mac. Never set it, or PERCH_UNATTENDED, on Scott's Macs. The runner checks before launch and between suites;
 visible panel cases check again immediately before presentation. Do not start
 or restart a session automatically after the user asks for control.
 

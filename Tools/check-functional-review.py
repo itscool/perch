@@ -22,12 +22,26 @@ mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--build-only', action='store_true')
 mode.add_argument('--run-only', action='store_true')
 parser.add_argument('--agent-session', type=Path)
+parser.add_argument('--unattended', action='store_true',
+                    help='Run the window tests with no AGENT MODE banner. Only inside a virtual machine nobody is using, '
+                         'such as a CI runner or a test VM; refused on a physical Mac, where the banner protects a person\'s screen.')
 parser.add_argument('--suite', help='Run one named suite from the existing isolated binary')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 subprocess.run(['python3', str(repo/'Tools/check-dialog-contract.py')], check=True)
 root = args.output.resolve() if args.output else Path(tempfile.mkdtemp(prefix='perch-functional-review-'))
+def virtual_machine():
+    result = subprocess.run(['/usr/sbin/sysctl', '-n', 'kern.hv_vmm_present'], capture_output=True, text=True)
+    return result.returncode == 0 and result.stdout.strip() == '1'
 def execute_tests():
+    if args.unattended:
+        # The hardware decides, not the flag: a physical Mac has a person's
+        # screen on it, and the test binary checks this again itself.
+        if not virtual_machine():
+            parser.error('--unattended runs only inside a virtual machine. On a physical Mac, use --agent-session under AGENT MODE.')
+        environment = dict(os.environ, PERCH_UNATTENDED='1')
+        subprocess.run([str(root / 'Perch Functional Review.app/Contents/MacOS/Perch')] + (['--suite', args.suite] if args.suite else []), env=environment, check=True)
+        return
     if args.agent_session is None:
         parser.error('Native panel tests require --agent-session. Use --build-only for background compilation.')
     checker = repo / 'Tools/agent-mode/agent-mode.py'
@@ -36,8 +50,8 @@ def execute_tests():
     environment = dict(os.environ, PERCH_AGENT_MODE_CHECKER=str(checker), PERCH_AGENT_MODE_SESSION=str(session))
     subprocess.run([str(root / 'Perch Functional Review.app/Contents/MacOS/Perch')] + (['--suite', args.suite] if args.suite else []), env=environment, check=True)
 
-if not args.build_only and args.agent_session is None:
-    parser.error('Native panel tests require --agent-session. Use --build-only for background compilation.')
+if not args.build_only and args.agent_session is None and not args.unattended:
+    parser.error('Native panel tests require --agent-session, or --unattended inside a virtual machine. Use --build-only for background compilation.')
 if args.run_only:
     if args.output is None:
         parser.error('--run-only requires the existing --output directory')

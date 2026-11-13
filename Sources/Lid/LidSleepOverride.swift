@@ -170,6 +170,12 @@ enum LidSleepOverride {
         }
         return value
     }
+    /// Whether macOS has sleep disabled, when it answers the same way twice;
+    /// nil when it does not answer clearly.
+    static var reading: Bool? {
+        guard let system = try? systemDisabled(), let live = try? liveDisabled(), system == live else { return nil }
+        return system
+    }
     static func verify(_ disabled: Bool) throws {
         guard try systemDisabled() == disabled, try liveDisabled() == disabled else {
             throw AppError(message: "macOS has not confirmed the sleep override \(disabled ? "is active" : "was removed").")

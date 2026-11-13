@@ -170,8 +170,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
         }
         let active = LidGuardClient.shared.active
         let lidOpen = MacLidGuardHardware().observe().closed == false
-        let overrideOff = (try? LidSleepOverride.verify(false)) != nil
-        guard AppUpdate.canRestart(active: active, lidOpen: lidOpen, recordedSession: LidGuardOwnership.recorded, overrideOff: overrideOff) else {
+        guard AppUpdate.canRestart(active: active, lidOpen: lidOpen, recordedSession: LidGuardOwnership.recorded, sleepDisabled: LidSleepOverride.reading) else {
             recover("The lid session cannot be handed over. Open the lid before installing, or review Keep awake.")
             return .terminateCancel
         }

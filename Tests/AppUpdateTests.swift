@@ -41,9 +41,15 @@ func runAppUpdateTests() throws {
     let cleanupIndex = command.range(of: " --lid-cleanup")!.lowerBound
     let stopRecoveryIndex = command.range(of: "/bin/launchctl bootout system/" + LidGuardInstall.recoveryName)!.lowerBound
     try check(cleanupIndex < stopRecoveryIndex, "A failed cleanup could remove independent recovery during helper replacement")
-    try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, overrideOff: true), "Confirmed inactive closed-lid restart was blocked")
-    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, overrideOff: true), "An unowned lid session was dropped by restart")
-    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, overrideOff: false), "Unknown override state allowed closed-lid restart")
+    try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: false), "Confirmed inactive closed-lid restart was blocked")
+    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, sleepDisabled: false) &&
+              !AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, sleepDisabled: true), "An unowned lid session was dropped by restart")
+    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: nil), "Unknown override state allowed closed-lid restart")
+    // Scott's MacBook, November 13: lid closed, sleep disabled outside Perch,
+    // no Perch session or override. Restart and updates were refused, and the
+    // menu's Restart Perch seemed to do nothing.
+    try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: true),
+              "Sleep disabled outside Perch blocked restarting Perch with the lid closed")
     var snapshot = SetupSnapshot(config: SafetyConfiguration()); snapshot.lidHelperUpdatePending = true
     try check(snapshot.checks.first(where: { $0.id == "awake" })?.route == .lidSetup, "Queued helper update does not reach its Setup stage")
     let app = AppDelegate(); app.buildMenu()

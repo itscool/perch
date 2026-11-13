@@ -13,7 +13,7 @@ extension AppDelegate {
         return SleepPresentation(ordinary: observedSleep, actualLid: actualLidState,
             savedLid: UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey),
             masterWanted: SafetyConfiguration.load().keepAwake,
-            changing: client.changing, remaining: client.status?.remaining)
+            changing: client.changing, remaining: client.status?.remaining, outsidePerch: observedLidDisabled == true)
     }
     func applyLidSleepPresentation() {
         guard awakeItem != nil, lidItem != nil else { return }

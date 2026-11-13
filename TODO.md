@@ -1312,6 +1312,28 @@ photo on the MacBook, ⌃⌥⌘V in a document on the Studio; it lands without �
 Candidate 2.0.303 (build 303) installed on disk on the MacBook; running is
 still 2.0.301.
 
+**Restart Perch did nothing with the lid closed.** Scott pressed it three times at
+13:10; each attempt made its working folder and stopped before the handover
+record. The MacBook's lid was closed and macOS had sleep disabled, but not by
+Perch: no lid session (`/var/run/local.scott.perch.lid.active`) and no override
+record (`/var/db/local.scott.perch.lid-override/owned.json`). The restart rule
+read "sleep disabled" as "cannot tell" and refused, putting its reason only on
+the App page. Perch's own Sparkle installs use the same rule, so updates were
+blocked the same way. Sleep disabled outside Perch survives a restart untouched,
+so the rule now refuses only when Perch has a session or override to keep, or
+macOS does not answer (`AppUpdate.canRestart(sleepDisabled:)`,
+`LidSleepOverride.reading`). Every restart message is now also logged under
+`restart`. The menu's "Including with lid closed" row said "Status unknown ·
+review settings" for this case; it now says "Sleep disabled outside Perch".
+Perch still neither takes over nor turns off an override it did not set.
+Who set it is not known: powerd shows it on with the lid closed from Nov 7
+20:03, about two hours after Perch last removed its own record (17:56, which
+it does only after macOS confirms sleep is back on); no pmset or Perch line
+in the logs sets it. Verified: self-test 68, all twelve headless gates, the six
+Sparkle scenarios. Candidate 2.0.304 installed on disk; the running Perch is
+2.0.301 and cannot restart itself with the lid closed, because the fix is in
+the new copy.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

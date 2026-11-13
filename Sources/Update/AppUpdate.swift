@@ -28,7 +28,10 @@ final class AppUpdate {
     }
     private(set) var candidate: AppUpdateCandidate?
     private(set) var busy = false
-    private(set) var message = UserDefaults.standard.string(forKey: noticeKey) ?? ""
+    private(set) var message = UserDefaults.standard.string(forKey: noticeKey) ?? "" {
+        // Why a restart stopped is in the log too, not only on the App page.
+        didSet { if !message.isEmpty, message != oldValue { PerchLog.record("restart", message) } }
+    }
     static func appInfo(_ app: URL) -> [String: Any] {
         guard let data = try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")), data.count < 65_536 else { return [:] }
         return (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] ?? [:]
@@ -48,8 +51,14 @@ final class AppUpdate {
             restart()
         } catch { message = "Perch is still running. " + error.localizedDescription }
     }
-    static func canRestart(active: Bool, lidOpen: Bool, recordedSession: Bool, overrideOff: Bool) -> Bool {
-        active || lidOpen || (!recordedSession && overrideOff)
+    /// Closed-lid restart is safe with a confirmed handover of Perch's lid
+    /// session, or when Perch has no lid session or sleep override to keep and
+    /// macOS answers about its sleep setting (`sleepDisabled` nil: it did not).
+    /// Sleep disabled by the person or another app survives a restart
+    /// untouched; refusing because of it left Perch unable to restart or
+    /// update on a closed-lid MacBook at all.
+    static func canRestart(active: Bool, lidOpen: Bool, recordedSession: Bool, sleepDisabled: Bool?) -> Bool {
+        active || lidOpen || (!recordedSession && sleepDisabled != nil)
     }
     func restart() {
         guard !busy, !SettingsWindow.shared.testing, let candidate else { return }
@@ -62,9 +71,8 @@ final class AppUpdate {
             // Closed-lid restart is safe with a confirmed owned handoff or
             // fresh native evidence that no override/session needs preserving.
             let lidOpen = MacLidGuardHardware().observe().closed == false
-            let overrideOff = (try? LidSleepOverride.verify(false)) != nil
             guard Self.canRestart(active: active, lidOpen: lidOpen,
-                recordedSession: LidGuardOwnership.recorded, overrideOff: overrideOff) else {
+                recordedSession: LidGuardOwnership.recorded, sleepDisabled: LidSleepOverride.reading) else {
                 throw AppError(message: "The lid session cannot be handed over. Open the lid before restarting, or review Keep awake.")
             }
             guard let birth = ProcessCPUReader.birth(getpid()) else { throw AppError(message: "Could not identify this app process. Try restarting again.") }

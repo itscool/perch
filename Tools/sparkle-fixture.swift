@@ -17,14 +17,14 @@ enum AppUpdate {
     var busy: Bool { false }
     static var base: URL { SafetyFiles.base.appendingPathComponent("Updates") }
     static func sameLocation(_ a: URL, _ b: URL) -> Bool { a.standardizedFileURL == b.standardizedFileURL }
-    static func canRestart(active: Bool, lidOpen: Bool, recordedSession: Bool, overrideOff: Bool) -> Bool { active || lidOpen || (!recordedSession && overrideOff) }
+    static func canRestart(active: Bool, lidOpen: Bool, recordedSession: Bool, sleepDisabled: Bool?) -> Bool { active || lidOpen || (!recordedSession && sleepDisabled != nil) }
 }
 enum LidHelperUpdate { static var shared: Self { .value }; case value; var busy: Bool { false } }
 enum LidGuardClock { static var now: Double { ProcessInfo.processInfo.systemUptime } }
 enum BootSession { static let id: UUID? = UUID(uuidString: "44E03998-665F-4A6B-8C88-FCB05140E626") }
 enum LidGuardOwnership { static var recorded: Bool { true } }
 struct MacLidGuardHardware { struct Observation { let closed = true }; func observe() -> Observation { Observation() } }
-enum LidSleepOverride { static func verify(_ value: Bool) throws { throw AppError(message: "Fixture reports an active mock session") } }
+enum LidSleepOverride { static var reading: Bool? { nil } }
 final class LidGuardClient {
     static let shared = LidGuardClient()
     let changing = false, active = true

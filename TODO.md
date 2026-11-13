@@ -1330,9 +1330,26 @@ Who set it is not known: powerd shows it on with the lid closed from Nov 7
 20:03, about two hours after Perch last removed its own record (17:56, which
 it does only after macOS confirms sleep is back on); no pmset or Perch line
 in the logs sets it. Verified: self-test 68, all twelve headless gates, the six
-Sparkle scenarios. Candidate 2.0.304 installed on disk; the running Perch is
-2.0.301 and cannot restart itself with the lid closed, because the fix is in
-the new copy.
+Sparkle scenarios.
+
+Scott set sleep disabled himself (pmset) while Perch could not be used, and
+asked that the menu say where such a state comes from. Every on state of the
+two sleep rows now names its owner: "On by Perch" (with the countdown when
+there is one) or "On outside Perch" on the lid row, "Sleep disabled outside
+Perch" on Keep awake, and the lid row's tooltip says Perch leaves it as it is
+and the one command that gives it back to Perch. Pinned in
+SleepPresentationTests.
+
+**Live, 15:27:** at Scott's request, Perch 2.0.301 (PID 41421) was asked to quit
+normally (NSRunningApplication.terminate; input released, screens restored, the
+Studio told) and 2.0.305 opened from /Applications with `open -a`. Running now:
+2.0.305, build 305, PID 95213; on disk the same. The Studio still runs 2.0.301.
+Within 0.3 s it logged "Home Screen 1 shows Scott's MacBook Pro …; Home screen 2
+shows HQ-KP40Y76PT6 … → preset Preset 2". Perch's traffic to the Studio fell
+from about 530 KB/s in and 950 KB/s out to about 1 KB/s in and 6 KB/s out, flat
+over 30 s, nothing queued; CPU from 27% to 0.3%. Still to accept natively: a
+switch confirmed by the screens, ⌃⌥⌘V pasting on this Mac, the lid row's note,
+and Restart Perch with the lid closed.
 
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 

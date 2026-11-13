@@ -19,11 +19,16 @@ func runSleepPresentationTests() throws {
     }
     let unknown = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: true, masterWanted: true, changing: false, remaining: nil)
     try check(unknown.lid == .on && !unknown.lidEnabled && unknown.lidHint.contains("unknown"), "Unknown session lost intent or allowed unsafe write")
-    // Sleep disabled by something other than Perch is a known fact, not "unknown".
+    // Every on state says whose it is. Sleep disabled outside Perch (Scott
+    // used pmset while Perch could not be used) is named, not "unknown", and
+    // Perch does not offer to change it.
     let outside = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: false, masterWanted: true, changing: false, remaining: nil, outsidePerch: true)
-    try check(outside.lidHint == "Sleep disabled outside Perch" && !outside.lidEnabled, "Sleep disabled outside Perch was shown as unknown, or Perch offered to change it")
+    try check(outside.lidHint == "On outside Perch" && outside.awakeHint == "Sleep disabled outside Perch" && !outside.lidEnabled,
+              "Sleep disabled outside Perch was shown as unknown, or Perch offered to change it")
+    let ours = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: nil)
+    try check(ours.lidHint == "On by Perch" && ours.awakeHint.hasPrefix("On by Perch"), "Perch's own lid protection did not say it is Perch's")
     let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: 42)
-    try check(active.awake == .on && active.awakeHint == "Lid protection active" && active.lidHint.contains("42"), "Final snapshot lost lid state/countdown")
+    try check(active.awake == .on && active.awakeHint == "On by Perch · lid closed too" && active.lidHint == "On by Perch · 42s remaining", "Final snapshot lost lid state/countdown")
     let app = AppDelegate(); app.buildMenu(); app.observedSleep = off; app.observedLidDisabled = false
     app.applyLidSleepPresentation()
     let before = (app.awakeItem.view as! MenuRowView).text

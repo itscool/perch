@@ -27,7 +27,7 @@ extension AppDelegate {
         label(awakeItem, "Keep awake", hint: value.awakeHint)
         label(lidItem, "Including with lid closed", hint: value.lidHint, hintColor: observedLidDisabled == true ? StatusColors.warning : .secondaryLabelColor)
         awakeItem.menuHelp = ControlHelp.awake
-        lidItem.menuHelp = ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid)
+        lidItem.menuHelp = observedLidDisabled == true ? ControlHelp.lidOutside : ControlHelp.adding(ControlHelp.lidSaved, to: ControlHelp.lid)
     }
     @objc func toggleIdleLock() {
         withMenuClosed { [weak self] in

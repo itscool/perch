@@ -153,7 +153,7 @@ func runReleaseUITests() throws {
     let cpu = (app.systemItems[1].view as? MenuRowView)?.text.string ?? ""
     try check(!cpu.contains("--%") && cpu.contains("%"), "CPU did not update while tracking an open menu")
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
-    try check(["Requested", "Normal lid sleep", "Applies when", "protection stopped", "Status unknown"].contains(where: { lid.contains($0) }), "Lid wording does not explain its state")
+    try check(["Requested", "Normal lid sleep", "Applies when", "protection stopped", "Status unknown", "On by Perch", "On outside Perch"].contains(where: { lid.contains($0) }), "Lid wording does not explain its state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
     try check((app.menu.items.first { $0.title == "Turn display off" }?.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")

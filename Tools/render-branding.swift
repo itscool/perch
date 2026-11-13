@@ -36,7 +36,7 @@ func text(_ string: String, y: CGFloat, size: CGFloat, weight: NSFont.Weight, co
 try render("installer.png", width: 720, height: 440) {
     NSColor(calibratedWhite: 0.97, alpha: 1).setFill(); NSRect(x: 0, y: 0, width: 720, height: 440).fill()
     text("Perch", y: 340, size: 40, weight: .bold, color: NSColor(calibratedRed: 0.03, green: 0.36, blue: 0.41, alpha: 1))
-    text("Your Mac, ready for AI work.", y: 302, size: 17, weight: .regular, color: .darkGray)
+    text("One desk, several computers.", y: 302, size: 17, weight: .regular, color: .darkGray)
     let arrow = NSBezierPath(); arrow.move(to: NSPoint(x: 330, y: 200)); arrow.line(to: NSPoint(x: 390, y: 200)); arrow.move(to: NSPoint(x: 375, y: 215)); arrow.line(to: NSPoint(x: 390, y: 200)); arrow.line(to: NSPoint(x: 375, y: 185)); arrow.lineWidth = 4; arrow.lineCapStyle = .round; arrow.lineJoinStyle = .round
     NSColor(calibratedRed: 0.0, green: 0.55, blue: 0.59, alpha: 1).setStroke(); arrow.stroke()
     text("Drag Perch into Applications, then open it to get started.", y: 54, size: 15, weight: .medium, color: .darkGray)

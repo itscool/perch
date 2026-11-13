@@ -23,9 +23,6 @@ enum ControlHelp {
     static let settings = "Open Perch settings to change features or review setup. Setup & status brings missing steps and repair options together."
     static let about = "Show Perch’s version and build information."
     static let quit = "Quit Perch and turn off its features. If anything is on, Perch lists what stops first. Your settings are kept."
-    static let panic = "Review a confirmation before force-quitting selected agents and their observed child processes. Unsaved work may be lost. Perch blocks relaunches until you resume."
-    static let privacyReset = "Review a confirmation before resetting macOS privacy permissions for all apps, including Perch. Apps may ask for access again. This action does not stop agents."
-    static let resume = "Review a confirmation before allowing agents to run again. This does not reopen apps or restore their privacy permissions."
 
     static func adding(_ detail: String?, to purpose: String) -> String {
         guard let detail else { return purpose }

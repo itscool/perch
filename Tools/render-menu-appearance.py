@@ -96,7 +96,7 @@ for preset in MenuAppearancePreset.builtIns {
         view.system = true; view.layout()
         let readings = view.rows.filter { $0.panelSection == "System" && $0.kind == .information }
         precondition(readings.count == 5 && readings.allSatisfy { !$0.isHidden }, "System focus omitted a reading")
-        precondition(view.rows.contains { !$0.isHidden && $0.panelSection == "Agent Kill Switch" }, "Missing neighboring color transition")
+        precondition(view.rows.contains { !$0.isHidden && $0.panelSection == "Displays" }, "Missing neighboring color transition")
         view.system = false; view.layout()
         let visible = view.rows.filter { !$0.isHidden }
         precondition(visible.filter { $0.panelSection == "System" }.count == 1)
@@ -216,7 +216,7 @@ try export("perch-preview-focus.png", width: 560, height: 574) {
 }
 try export("perch-palette-studies.png", width: 1080, height: 590) {
     label("Perch · Color palettes", x: 28, y: 545, size: 23, bold: true)
-    label("Choose any palette independently of the preset. Swatches show all nine section assignments.", x: 28, y: 519)
+    label("Choose any palette independently of the preset. Swatches show all eight section assignments.", x: 28, y: 519)
     for (index, palette) in MenuPalette.allCases.enumerated() {
         let y = 462 - CGFloat(index) * 59
         label(palette.rawValue, x: 30, y: y + 11, size: 15, bold: true)

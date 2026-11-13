@@ -13,7 +13,7 @@ struct SettingsResetSelection {
     var all: Bool { sections == Set(Self.options.map { $0.0 }) }
     static let options = [
         ("devices", "Learned navigation layouts on this Mac"),
-        ("preferences", "Local Perch preferences — keyboard modes, feature choices and agents")
+        ("preferences", "Local Perch preferences: keyboard modes and feature choices")
     ]
     func removes(_ key: String) -> Bool {
         if all { return true }

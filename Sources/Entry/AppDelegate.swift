@@ -85,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")
-        status.button?.toolTip = "Perch — your Mac, ready for AI work"
+        status.button?.toolTip = "Perch"
         buildMenu()
         installApplicationMenu()
         status.menu = menu

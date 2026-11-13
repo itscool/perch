@@ -1,14 +1,18 @@
 # Perch
 
-A native Mac menu bar app for sleep, sound, input controls, and sharing one keyboard, mouse and set of screens across Macs.
+Perch runs a desk shared by several computers.
+
+It switches your monitors between computers, Windows PCs included, and moves one keyboard and mouse to whichever Mac you're working on. It copies and pastes between your Macs. When a Mac is docked, undocked, closed or taken to work, Perch adjusts its sleep and screens to suit.
+
+It also does the jobs a new Mac usually needs four or five small utilities for: keeping it awake, scroll direction per device, keyboard keys, and a quick read on CPU, memory and disk.
 
 Product site: [itscool.github.io/perch](https://itscool.github.io/perch/).
 
 Setup and recovery: [Support guide](SUPPORT.md). Dependencies: [Third-party notices](THIRD-PARTY-NOTICES.md).
 
-Release notes: [2.0.151](Release/notes.md) · [release history](Release/history.md) · [2.0 development](RELEASE-2.0.md) · [1.2](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). Remaining hardware acceptance is tracked in [TODO.md](TODO.md).
+Release notes: [latest](Release/notes.md) · [release history](Release/history.md) · [2.0 development](RELEASE-2.0.md) · [1.2](RELEASE-1.2.md) · [1.1](RELEASE-1.1.md) · [1.0](RELEASE-1.0.md). Remaining hardware acceptance is tracked in [TODO.md](TODO.md).
 
-Perch is a notarized Apple Silicon/macOS 26 app. Download the [2.0.151 release](https://github.com/itscool/perch/releases/tag/v2.0.151), or install it from the maintained Homebrew tap with `brew install --cask itscool/tap/perch`. Building locally still requires a local signing certificate as described below.
+Perch is a notarized Apple Silicon/macOS 26 app. Download the [latest release](https://github.com/itscool/perch/releases/latest), or install it from the Homebrew tap with `brew tap itscool/tap`, `brew trust itscool/tap`, then `brew install --cask itscool/tap/perch`. Building locally still requires a local signing certificate as described below.
 
 **Keyboard controls** offer independent built-in/external modifier and Fn choices, plus optional external Home/End and Page Up/Down modes. The external heading shows a connected keyboard’s name or a count; absent devices hide their controls and unknown layouts show setup guidance. Twenty-eight bundled layout profiles retain their evidence/confidence labels. Registration does not certify physical event delivery on every device. See [KEYBOARDS.md](KEYBOARDS.md).
 

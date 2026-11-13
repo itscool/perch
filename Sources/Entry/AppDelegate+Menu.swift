@@ -213,7 +213,7 @@ extension AppDelegate {
                 button.imagePosition = .imageLeading
                 applyStatusLength()
             }
-            button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch — your Mac, ready for AI work"
+            button.toolTip = currentProtectionIssue.map { $0.title + ": " + $0.detail } ?? "Perch"
         }
         styleMenuSections()
         settingsRefresh?()

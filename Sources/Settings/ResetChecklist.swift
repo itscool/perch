@@ -6,7 +6,7 @@ enum ResetArea: String, CaseIterable, Hashable {
     case preferences, layouts, appearance, sleep, audio, privacy
     var title: String {
         switch self {
-        case .preferences: return "Perch preferences & agents"
+        case .preferences: return "Perch preferences"
         case .layouts: return "Learned keyboard layouts"
         case .appearance: return "Menu appearance"
         case .sleep: return "Perch sleep protection"
@@ -16,7 +16,7 @@ enum ResetArea: String, CaseIterable, Hashable {
     }
     var detail: String {
         switch self {
-        case .preferences: return "Reset saved feature choices, keyboard modes and agents. Ends Perch’s protection and quits the app. Learned layouts, appearance and shared Desk setup are kept."
+        case .preferences: return "Reset saved feature choices and keyboard modes, then quit. Learned layouts, appearance and shared Desk setup are kept."
         case .layouts: return "Forget a learned navigation layout or all saved layouts, including disconnected keyboards. Bundled defaults, Fn and modifier choices stay available."
         case .appearance: return "Restore Perch original for light and dark menus, including System. Saved appearance presets and other preferences are kept."
         case .sleep: return "End Perch’s lid protection and keep-awake request, and clear those choices. Other apps’ assertions and unowned sleep overrides are kept."

@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var replacementRestartItem: NSMenuItem?
     var replacementRestartTestDriver: (() -> Void)?
     let systemMonitor = SystemMonitor()
+    let diskSpace = DiskSpace()
+    /// The startup disk's line, then one per other disk, all in the System section.
+    var diskItems: [NSMenuItem] = []
     var systemItems: [NSMenuItem] = []
     var permissionSetup: PermissionSetup?
     var checkedStartupInputAccess = false

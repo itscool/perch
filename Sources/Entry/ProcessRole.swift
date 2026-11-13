@@ -202,6 +202,7 @@ enum ProcessRole: Equatable {
             try runCoreServiceTests()
             try runCaffeinateTests()
             try runSystemTests()
+            try runDiskSpaceTests()
             try runProcessCPUTests()
             try runProtectionIssueTests()
             try runHelperStatusTests()

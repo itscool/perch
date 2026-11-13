@@ -14,6 +14,11 @@ extension AppDelegate {
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
+        let disk = NSMenuItem(title: "Disk", action: nil, keyEquivalent: "")
+        disk.view = MenuRowView(item: disk, kind: .information)
+        label(disk, "Disk", hint: "--", hintColor: StatusColors.information)
+        disk.menuHelp = DiskSpace.help
+        menu.addItem(disk); diskItems = [disk]
         section("Displays")
         let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
@@ -68,6 +73,7 @@ extension AppDelegate {
             guard let self, self.menuOpen, self.systemItems.count > 1 else { return }
             self.showSystemReading(self.systemItems[1], self.systemMonitor.cpuReading)
         }
+        diskSpace.changed = { [weak self] in self?.showDiskSpace() }
     }
     func add(_ title: String, _ action: Selector, help: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -129,6 +135,25 @@ extension AppDelegate {
     func refreshSystem() {
         guard menuOpen else { return }
         for (item, reading) in zip(systemItems, systemMonitor.read()) { showSystemReading(item, reading) }
+        // Reads off the main thread at most every 30 seconds; shows the last
+        // reading meanwhile.
+        diskSpace.refreshIfDue()
+    }
+    /// One row per disk line: the startup disk's row stays put, rows for other
+    /// disks come and go with them, always straight after it.
+    func showDiskSpace() {
+        let lines = diskSpace.lines
+        guard let first = diskItems.first, let anchor = menu.items.firstIndex(of: first) else { return }
+        while diskItems.count > max(1, lines.count) { menu.removeItem(diskItems.removeLast()) }
+        while diskItems.count < lines.count {
+            let item = NSMenuItem(title: "Disk", action: nil, keyEquivalent: "")
+            item.view = MenuRowView(item: item, kind: .information)
+            item.menuHelp = DiskSpace.help
+            menu.insertItem(item, at: anchor + diskItems.count)
+            diskItems.append(item)
+        }
+        for (item, line) in zip(diskItems, lines) { label(item, line.title, hint: line.detail, hintColor: StatusColors.information) }
+        styleMenuSections()
     }
     func refresh() {
         refreshSystem()

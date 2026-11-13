@@ -11,6 +11,9 @@ enum DeskKeyDisposition: Equatable {
     case consumed
     /// One of Perch's own shortcuts on this Mac: never sent to a peer.
     case local
+    /// Bring over the newest copy, for the Mac typing goes to. The keys
+    /// themselves reach no app on any Mac.
+    case bringOver
     /// Ordinary input: sent to the focused Mac while sharing.
     case forward
 }
@@ -22,13 +25,19 @@ struct DeskKeyRouter {
     private(set) var consumedKeys: Set<Int64> = []
     private(set) var localKeys: Set<Int64> = []
     mutating func route(type: CGEventType, keyCode: Int64, flags: CGEventFlags, autorepeat: Bool, sharing: Bool,
-                        presets: [KVMPreset], localShortcut: ((Int64, CGEventFlags) -> Bool)?) -> DeskKeyDisposition {
+                        presets: [KVMPreset], localShortcut: ((Int64, CGEventFlags) -> Bool)?, bringOver: Shortcut? = nil) -> DeskKeyDisposition {
         switch type {
         case .keyDown:
             if keyCode == 53, flags.contains([.maskControl, .maskAlternate]) { return .emergencyStop }
             if sharing, let preset = presets.first(where: { $0.shortcut.local?.matches(keyCode: keyCode, flags: flags) == true }) {
                 consumedKeys.insert(keyCode); localKeys.remove(keyCode)
                 return autorepeat ? .consumed : .activatePreset(preset.id)
+            }
+            // Before Perch's other shortcuts, which stay on the Mac whose
+            // keyboard was pressed: this one acts for the Mac typing goes to.
+            if sharing, bringOver?.matches(keyCode: keyCode, flags: flags) == true {
+                consumedKeys.insert(keyCode); localKeys.remove(keyCode)
+                return autorepeat ? .consumed : .bringOver
             }
             if localShortcut?(keyCode, flags) == true { localKeys.insert(keyCode); consumedKeys.remove(keyCode); return .local }
             consumedKeys.remove(keyCode); localKeys.remove(keyCode)

@@ -251,18 +251,7 @@ extension AppDelegate {
 }
 
 
-/// A single template image lets macOS provide menu-bar contrast in either theme.
-func perchStatusImage(awake: Bool) -> NSImage? {
-    guard let bird = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch") else { return nil }
-    guard awake else { return bird }
-    let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
-        bird.draw(in: NSRect(x: 0, y: 2, width: 17, height: 16))
-        if let cup = NSImage(systemSymbolName: "cup.and.saucer.fill", accessibilityDescription: nil) {
-            cup.draw(in: NSRect(x: 12, y: 0, width: 10, height: 8))
-        }
-        return true
-    }
-    image.isTemplate = true
-    image.accessibilityDescription = "Perch — keeping Mac awake"
-    return image
-}
+/// The bird alone, or with its cup: the icon without a desk. The desk's
+/// birds, hearts and envelope are drawn by `perchStatusImage(_:)` in
+/// PerchStatusIcon.swift, which draws exactly this for these facts.
+func perchStatusImage(awake: Bool) -> NSImage? { perchStatusImage(PerchIconState(awake: awake)) }

@@ -17,6 +17,10 @@ final class DeskInputAdapter: ObservableObject {
     /// Perch's own registered hotkeys (sharing, kill switch, lid countdown)
     /// act on the Mac whose keyboard was pressed, never on the remote one.
     var localShortcut: ((Int64, CGEventFlags) -> Bool)?
+    /// ⌃⌥⌘V, when no other Perch shortcut holds it (`DeskBringOverShortcut`).
+    var bringOverShortcut: () -> Shortcut? = { nil }
+    /// Bring over the newest copy, for the Mac typing goes to.
+    var bringOver: (() -> Void)?
     @Published private(set) var accessProblem: String?
     /// A fact worth showing that does not stop sharing.
     @Published private(set) var note: String?
@@ -180,9 +184,10 @@ final class DeskInputAdapter: ObservableObject {
         if type == .keyDown || type == .keyUp {
             switch keyRouter.route(type: type, keyCode: event.getIntegerValueField(.keyboardEventKeycode), flags: event.flags,
                                    autorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0, sharing: session.enabled,
-                                   presets: session.node.group.presets, localShortcut: localShortcut) {
+                                   presets: session.node.group.presets, localShortcut: localShortcut, bringOver: bringOverShortcut()) {
             case .emergencyStop: session.stopForLocalControl(); return false
             case .activatePreset(let preset): presetShortcut?(preset); return true
+            case .bringOver: bringOver?(); return true
             case .consumed: return true
             case .local: return false
             case .forward: break

@@ -364,10 +364,14 @@ final class KVMPeerTransport {
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self, weak link] in if let self, let link, self.links[link.id] != nil, !link.ready { self.connectionProblem?(link, "The connection timed out. Check that Add a computer is open on both Macs, then try again."); self.close(link, reason: .timeout) } }
         return link
     }
+    /// Bytes a link may have waiting to leave. Past this the peer is not
+    /// keeping up and the link is closed; bulk senders such as the shared
+    /// clipboard pace themselves far below it.
+    static let sendLimit = 2 * 1024 * 1024
     func send(_ data: Data, to link: Link) {
         do {
             let frame = try KVMMessageFramer.encode(data)
-            guard links[link.id] != nil, link.queuedBytes + frame.count <= 2 * 1024 * 1024 else { close(link, reason: .backpressure); return }
+            guard links[link.id] != nil, link.queuedBytes + frame.count <= Self.sendLimit else { close(link, reason: .backpressure); return }
             link.queuedBytes += frame.count
             link.connection.send(content: frame, completion: .contentProcessed { [weak self, weak link] error in
                 guard let link else { return }; link.queuedBytes -= frame.count

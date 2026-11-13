@@ -7,6 +7,7 @@ extension ShortcutRegistry {
         static let countdown = "countdown"
         static let deskSharing = "deskSharing"
         static let deskPresets = "deskPresets"
+        static let deskClipboard = "deskClipboard"
     }
     static let perch: ShortcutRegistry = {
         let registry = ShortcutRegistry()
@@ -16,6 +17,7 @@ extension ShortcutRegistry {
                     ShortcutClaim(owner: "the countdown's subtract five minutes", shortcut: shortcuts.decrease)]
         }
         registry.provide(Source.deskSharing) { [ShortcutClaim(owner: "Share on this Mac", shortcut: DeskSharingShortcut.load())] }
+        registry.provide(Source.deskClipboard) { [unowned registry] in DeskBringOverShortcut.claims(in: registry) }
         registry.provide(Source.deskPresets) {
             (DeskCoordinator.shared.runtime?.node.group.presets ?? []).compactMap { preset in
                 preset.shortcut.local.map { ShortcutClaim(owner: "the Desk preset “\(preset.name)”", shortcut: $0) }

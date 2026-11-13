@@ -35,6 +35,12 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
+  "DeskPastePanel.swift:make:panel:1": {
+    "file": "DeskPastePanel.swift",
+    "kind": "panel",
+    "review": "TODO.md shared clipboard entry: bring-over progress popup (⌃⌥⌘V), non-activating and never key; one Cancel action; closes itself after 'Ready to paste' (at least 0.5 s on screen) or after one failure line.",
+    "acceptance": "Headless: the panel is constructed (never shown) and pinned non-activating, never key or main; the popup's text, progress, timing, Cancel and closing are pinned on DeskPasteProgress. Its look in Light and Dark and the Cancel click without a focus change remain native acceptance on the live desk."
+  },
   "HotkeySettings.swift:hotkeySettings:page:1": {
     "review": "Single navigable Hotkeys page owns emergency, countdown and Desk editors; local/shared scope, registration errors and harmless test retained. Fixed keys are references.",
     "acceptance": "Source routing reviewed; offscreen and build checks tracked in SETTINGS-UX-REVIEW-2.0.94.md. Native clicks remain manual QA."

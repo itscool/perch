@@ -2,6 +2,28 @@ import Foundation
 import Network
 import Darwin
 
+/// A pasteboard in memory for the clipboard fixture. The real one is never touched.
+final class FixturePasteboard: DeskPasteboardStore {
+    private let lock = NSLock()
+    private var items: [[(type: String, data: Data)]] = []
+    private var count = 0
+    var changeCount: Int { lock.lock(); defer { lock.unlock() }; return count }
+    var current: [[(type: String, data: Data)]] { lock.lock(); defer { lock.unlock() }; return items }
+    func copy(_ value: [[(type: String, data: Data)]]) { lock.lock(); items = value; count += 1; lock.unlock() }
+    func itemTypes() -> [[String]] { lock.lock(); defer { lock.unlock() }; return items.map { $0.map(\.type) } }
+    func data(item: Int, type: String) -> Data? {
+        lock.lock(); defer { lock.unlock() }
+        return items.indices.contains(item) ? items[item].first { $0.type == type }?.data : nil
+    }
+    func replace(with value: [[(type: String, data: Data)]]) -> Int { lock.lock(); defer { lock.unlock() }; items = value; count += 1; return count }
+}
+
+/// Records the bring-over popup instead of drawing it.
+final class FixturePopups: DeskPastePresenting {
+    var presented: [DeskPasteProgress] = []
+    func present(_ progress: DeskPasteProgress) { presented.append(progress) }
+}
+
 @main struct DeskNetworkChecks {
     static func wait(_ message: String, seconds: TimeInterval = 8, until predicate: () -> Bool) throws {
         let end = Date().addingTimeInterval(seconds)
@@ -558,6 +580,7 @@ import Darwin
         b.retryConnections()
         try wait("matching version reconnects") { a.online.contains(b.localID) && a.peerProblems[b.localID] == nil && a.peerVersions[b.localID] == KVMDeskProtocol.version }
         print("PASS: desk protocol version refusal is named on both Macs, backs off, and recovers once versions match")
+        try clipboardChecks(a: a, b: b, switchesA: switchesA, switchesB: switchesB, inputA: inputA, inputB: inputB)
         try a.removePeer(b.localID)
         try wait("revocation") { a.online.count == 1 }
         b.connect(.hostPort(host: "127.0.0.1", port: .init(rawValue: port)!), expected: a.localID)
@@ -571,6 +594,129 @@ import Darwin
         print("PASS: real TLS 1.3 loopback, matching comparison, two-sided approval, signed membership, durable cross-peer edit/receipt, pinned reconnect, offline conflict resolution and revoked certificate refusal. No Keychain, discovery, UI or hardware changes.")
         try scaleChecks(directory: directory.appendingPathComponent("large"))
     }
+    /// Copy on one Mac, paste on the other, over the real TLS desk link: small
+    /// text pushed on copy, everything else announced and brought over; and a
+    /// Mac whose Perch cannot share copies keeps its desk while being greeted.
+    static func clipboardChecks(a: KVMDeskNode, b: KVMDeskNode, switchesA: KVMMonitorSwitch, switchesB: KVMMonitorSwitch,
+                                inputA: KVMInputSession, inputB: KVMInputSession) throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("perch-clipboard-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("from"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let storeA = FixturePasteboard(), storeB = FixturePasteboard(), popups = FixturePopups()
+        let clipA = DeskClipboard(link: DeskClipboardNodeLink(a), pasteboard: DeskPasteboardAccess(store: storeA),
+                                  staging: DeskFileStaging(root: folder.appendingPathComponent("staging-a")))
+        let clipB = DeskClipboard(link: DeskClipboardNodeLink(b), pasteboard: DeskPasteboardAccess(store: storeB),
+                                  staging: DeskFileStaging(root: folder.appendingPathComponent("staging-b")))
+        for clipboard in [clipA, clipB] { clipboard.permitted = { true }; clipboard.timings.tick = 0.05; clipboard.presenter = popups }
+        switchesA.otherMessage = { peer, bytes in if clipA.receive(bytes, peer: peer) { return }; _ = inputA.receive(bytes, peer: peer) }
+        switchesB.otherMessage = { peer, bytes in if clipB.receive(bytes, peer: peer) { return }; _ = inputB.receive(bytes, peer: peer) }
+        clipA.start(); clipB.start()
+        defer { clipA.stop(); clipB.stop() }
+        try wait("both Macs agree a clipboard format over TLS") {
+            clipA.decisions.contains(.peerSupports(b.localName, format: 1)) && clipB.decisions.contains(.peerSupports(a.localName, format: 1))
+        }
+        guard let linkBefore = a.transport.links.values.first(where: { $0.ready })?.id else { throw KVMError("No authenticated route for the clipboard") }
+        // Small text: copied on A, on B's clipboard with nothing pressed.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        storeA.copy([[(type: "public.utf8-plain-text", data: Data("copied on A".utf8))]])
+        try wait("small text pushed over TLS") { storeB.current.first?.first?.data == Data("copied on A".utf8) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard !clipB.decisions.contains(where: { if case .announced = $0 { return true }; return false }) else { throw KVMError("A received copy was announced back over TLS") }
+        // An image: announced, not sent, until brought over.
+        var generator = SystemRandomNumberGenerator()
+        let image = Data((0..<2_500_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        storeA.copy([[(type: "public.png", data: image), (type: "com.example.private", data: Data("app private".utf8))]])
+        try wait("image announced over TLS") { clipB.waiting?.what.kind == .image }
+        guard storeB.current.first?.first?.data == Data("copied on A".utf8) else { throw KVMError("An image moved over TLS without being brought over") }
+        // ⌃⌥⌘V on A's keyboard while typing goes to B: B brings it over.
+        var peakQueue = 0
+        clipA.bringOver(keyboard: b.localID)
+        try wait("image brought over to where typing goes, over TLS", seconds: 30) {
+            peakQueue = max(peakQueue, a.transport.links.values.map(\.queuedBytes).max() ?? 0)
+            return storeB.current.first?.first?.data == image
+        }
+        guard storeB.current.count == 1, storeB.current[0].map(\.type) == ["public.png", DeskClipboardMarker.received] else { throw KVMError("An app's private type crossed the desk, or the copy was not marked") }
+        try wait("the popup finishes") { popups.presented.last?.phase == .done }
+        guard popups.presented.count == 1, popups.presented[0].title == "A photo from \(a.localName)" else { throw KVMError("The bring-over popup was not shown once, on the Mac typing goes to") }
+        guard a.transport.links[linkBefore]?.ready == true, a.online.contains(b.localID) else { throw KVMError("The clipboard transfer disturbed the desk link") }
+        guard peakQueue <= DeskClipboard.paceLimit + 64 * 1024 else { throw KVMError("The clipboard queued \(peakQueue) bytes on the desk link") }
+        // A password never crosses and is never announced; ⌃⌥⌘V on B says why it stays on A.
+        storeA.copy([[(type: "public.utf8-plain-text", data: Data("hunter2".utf8)), (type: DeskClipboardMarker.concealed, data: Data())]])
+        try wait("concealed copy kept on A") { clipA.lastDecision == .notAnnounced(.concealed) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        guard storeB.current.first?.first?.data == image, clipB.waiting == nil else { throw KVMError("A concealed copy crossed the desk, or was announced") }
+        clipB.bringOverHere()
+        try wait("the concealed copy explained over TLS") { popups.presented.last?.phase == .informed }
+        guard popups.presented.last?.title == "The newest copy on \(a.localName) is private, so it stays there.", storeB.current.first?.first?.data == image else {
+            throw KVMError("⌃⌥⌘V did not say a private copy stays where it is: \(popups.presented.last?.title ?? "nothing")")
+        }
+        print("PASS: shared clipboard over real TLS: formats agreed, small text pushed on copy and never echoed back, a 2.5 MB image only announced until ⌃⌥⌘V on one Mac brought it over to the Mac typing goes to, with the popup there, paced below the link's limit on the same connection; private types and a concealed copy never crossed, and ⌃⌥⌘V said why the password stayed")
+
+        // A file and a folder, over the same link, into B's staging folder, then onto its clipboard as files.
+        let original = folder.appendingPathComponent("from/Holiday.mov")
+        let movie = Data((0..<3_000_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        try movie.write(to: original)
+        let album = folder.appendingPathComponent("from/Album")
+        try FileManager.default.createDirectory(at: album.appendingPathComponent("Day 1"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: album.appendingPathComponent("Empty"), withIntermediateDirectories: true)
+        let photo = Data((0..<400_000).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        try photo.write(to: album.appendingPathComponent("Day 1/IMG_0001.jpg"))
+        try FileManager.default.createSymbolicLink(atPath: album.appendingPathComponent("first").path, withDestinationPath: "Day 1/IMG_0001.jpg")
+        storeA.copy([[(type: DeskClipboardMarker.fileURL, data: original.dataRepresentation)], [(type: DeskClipboardMarker.fileURL, data: album.dataRepresentation)]])
+        try wait("a file and a folder announced over TLS") { clipB.waiting?.what.kind == .folders && clipB.waiting?.what.count == 2 }
+        clipB.bringOverHere()
+        try wait("a file and a folder brought over TLS", seconds: 30) { storeB.current.count == 2 && storeB.current.allSatisfy { $0.first?.type == DeskClipboardMarker.fileURL } }
+        let landed = storeB.current.compactMap { $0.first.flatMap { URL(dataRepresentation: $0.data, relativeTo: nil) } }
+        guard landed.map(\.lastPathComponent) == ["Holiday.mov", "Album"], (try? Data(contentsOf: landed[0])) == movie,
+              (try? Data(contentsOf: landed[1].appendingPathComponent("Day 1/IMG_0001.jpg"))) == photo,
+              (try? FileManager.default.contentsOfDirectory(atPath: landed[1].appendingPathComponent("Empty").path)) == [],
+              (try? FileManager.default.destinationOfSymbolicLink(atPath: landed[1].appendingPathComponent("first").path)) == "Day 1/IMG_0001.jpg",
+              landed.allSatisfy({ $0.standardizedFileURL.path.hasPrefix(clipB.staging.root.path) }) else {
+            throw KVMError("A file and a folder did not arrive whole in staging over TLS: \(landed)")
+        }
+        guard a.transport.links[linkBefore]?.ready == true else { throw KVMError("The file transfer disturbed the desk link") }
+        print("PASS: shared files and folders over real TLS: a file and a folder announced by count, brought over into Perch's staging folder, whole, the folder with its empty folder and inner link, then put on the clipboard as files, on the same connection")
+
+        // Now B is a Perch without clipboard support: clipboard-tagged messages
+        // reach it and are routed nowhere, exactly as in 2.0.297.
+        clipB.stop()
+        var clipboardMessagesAtB: [Data] = []
+        switchesB.otherMessage = { peer, bytes in
+            if bytes.starts(with: DeskClipboardWire.prefix) { clipboardMessagesAtB.append(bytes); return }
+            _ = inputB.receive(bytes, peer: peer)
+        }
+        let freshStore = FixturePasteboard()
+        let newer = DeskClipboard(link: DeskClipboardNodeLink(a), pasteboard: DeskPasteboardAccess(store: freshStore),
+                                  staging: DeskFileStaging(root: folder.appendingPathComponent("staging-new")))
+        newer.permitted = { true }; newer.timings.tick = 0.05
+        switchesA.otherMessage = { peer, bytes in if newer.receive(bytes, peer: peer) { return }; _ = inputA.receive(bytes, peer: peer) }
+        newer.start()
+        defer { newer.stop() }
+        let eventsBefore = a.connectionEvents.count
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        freshStore.copy([[(type: "public.utf8-plain-text", data: Data("never offered to an older Perch".utf8))]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        freshStore.copy([[(type: "public.png", data: Data(count: 5000))]])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        newer.bringOver(keyboard: b.localID)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard !clipboardMessagesAtB.isEmpty else { throw KVMError("The older Mac was never greeted over TLS") }
+        for bytes in clipboardMessagesAtB {
+            guard case .hello? = try? DeskClipboardWire.decode(bytes.dropFirst(DeskClipboardWire.prefix.count), format: nil) else {
+                throw KVMError("A Mac without clipboard support was sent a clipboard message other than a hello")
+            }
+        }
+        guard newer.decisions.contains(.peerCannot(b.localName, .notSupported)) else { throw KVMError("Not sending to an older Mac was not named") }
+        // Its desk carries on: the same authenticated link, no disconnection,
+        // signed edits still sync.
+        guard a.transport.links[linkBefore]?.ready == true, a.online.contains(b.localID), b.online.contains(a.localID),
+              !a.connectionEvents.dropFirst(eventsBefore).contains(where: { $0.unexpected }) else { throw KVMError("Greeting an older Mac disturbed its desk") }
+        var edited = b.group; edited.name = "Still syncing after a clipboard hello"
+        try b.edit(edited)
+        try wait("the older Mac's desk still syncs") { a.group.name == edited.name }
+        print("PASS: a Mac whose Perch cannot share copies is only ever greeted over TLS, whatever is copied or brought over, keeps the same authenticated link, and its desk keeps syncing")
+    }
+
     static func scaleChecks(directory: URL) throws {
         let owner = try KVMDeskNode(identity: .fresh(), name: "Scale 1", storage: directory.appendingPathComponent("1.json"))
         var nodes = [owner]

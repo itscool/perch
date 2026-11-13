@@ -50,6 +50,13 @@ final class KVMInputSession: ObservableObject {
     /// Where typing goes: the Mac last clicked on. The owner decides it; every
     /// Mac learns it with the status it already polls for.
     private(set) var keyboardFocus: KVMInputFocus?
+    /// The Mac typing goes to while sharing is active, nil while it is not:
+    /// the last Mac clicked on, or the pointer's Mac before any click. The
+    /// shared clipboard's bring over acts for this Mac.
+    var keyboardComputer: UUID? {
+        guard active, let grant = lease.grant else { return nil }
+        return KVMInputRouting.target(.keyDown, pointer: focus ?? grant.focus, keyboard: keyboardFocus).computer
+    }
     @Published private(set) var focus: KVMInputFocus? {
         // Where control actually is, each time it moves. A lease that is
         // taken and dropped again leaves both lines here, which is what
@@ -79,6 +86,15 @@ final class KVMInputSession: ObservableObject {
     }
     @Published private(set) var availableConnections: Set<UUID> = []
     @Published private(set) var readyComputers: Set<UUID> = []
+    /// The Macs whose keyboard and mouse sharing is on and ready now, as this
+    /// Mac knows them: the coordinator's own record on the coordinator, and the
+    /// last state it sent everywhere else. Empty while sharing is off here,
+    /// since only a Mac that shares hears about the others. Read by the menu
+    /// bar icon.
+    var sharingComputers: Set<UUID> {
+        guard enabled else { return [] }
+        return node.isOwner ? Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []) : readyComputers
+    }
     /// The sharing version each Mac last announced, and when this Mac last
     /// heard anything at all from it, so an older Perch that cannot announce
     /// one is told apart from a Mac that has not answered yet.
@@ -504,7 +520,10 @@ final class KVMInputSession: ObservableObject {
             send(.version(KVMInputProtocol.version), to: peer)
         case .poll(let nonce, let available):
             guard node.isOwner else { return }
+            let wasSharing = fresh(peer)
             if available && enabled { readiness[peer] = now } else { readiness[peer] = nil }
+            // The menu bar icon follows who shares; tell it when that changes.
+            if fresh(peer) != wasSharing { objectWillChange.send() }
             if grant?.participants.contains(peer) == true && !available { endAuthority((node.group.computers.first { $0.id == peer }?.name ?? "a computer") + " reported it cannot share right now") }
             validateAuthority()
             let connections = Set(node.group.connections.filter { connection in

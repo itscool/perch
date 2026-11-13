@@ -644,6 +644,10 @@ final class KVMDeskNode: ObservableObject {
         send(.application(data), to: link)
         return true
     }
+    /// Bytes waiting to leave on the live link to this peer, nil without one.
+    func queuedBytes(to peer: UUID) -> Int? {
+        peerLinks[peer].flatMap { transport.links[$0] }?.queuedBytes
+    }
     func hasApplicationLink(to peer: UUID) -> Bool {
         peer == localID || peerLinks[peer].flatMap { transport.links[$0] } != nil
     }

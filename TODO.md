@@ -1297,9 +1297,14 @@ emergency shortcut source. After the merge: 66 self-test PASS; all twelve
 headless gates; the desk network check 60 of 60 under four-way load, now
 including clipboard and file transfers over real TLS. One line of stderr appears
 in the self-test, "sandbox_extension_consume failed: 1 (Operation not
-permitted)", printed by macOS while a test reads a file URL from a private
-pasteboard; no test fails, and it is attributed to the agent session's own
-sandbox but not yet confirmed by a run outside it. The menu bar icon is wired in
+permitted)", once per file, from the test "shared files and folders go on the
+pasteboard as plain file URLs" (pinned with line-buffered output). It is not the
+agent session's sandbox, as first claimed: a run outside the sandbox prints it
+too. macOS attaches an access pass to each file URL on a pasteboard and refuses
+it when Perch reads its own staged files back. Perch is not sandboxed, so it does
+not need the pass, and no test fails. A sandboxed app such as Mail or Messages
+may need it to open a pasted file. **Native acceptance: paste a brought-over file
+into Mail and Messages, not only Finder.** The menu bar icon is wired in
 behind `perchStatusImage` and awaits Scott's approval of the renders.
 
 **Desk network check.** Committed separately (3f644c3). 60 runs, four at a time:

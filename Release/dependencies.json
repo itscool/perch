@@ -177,12 +177,6 @@
    "resource": "keyboard-profiles.json",
    "sha256": "ae867186e4e34583a8a360995d8cb1bb13398c4ccea9316a6611dd681e586779",
    "records": 28
-  },
-  {
-   "source": "catalog/agents.json",
-   "resource": "agents.json",
-   "sha256": "03d7d3d101e7de41b44e0905c011cc0d42f288debe2474c327896cf223aa12eb",
-   "records": 8
   }
  ],
  "publicationIssues": [

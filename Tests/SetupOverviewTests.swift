@@ -4,7 +4,7 @@ func runSetupOverviewTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     var config = SafetyConfiguration()
     config.reverseTrackpad = false; config.reverseWheel = false; config.navigation = nil
-    config.keepAwake = false; config.targets = []; config.shortcut.enabled = false
+    config.keepAwake = false
     let unused = SetupSnapshot(config: config)
     var snapshot = SetupSnapshot(config: config)
     try check(snapshot.checks.allSatisfy { $0.state == .optional }, "Unused optional features demand setup")
@@ -17,29 +17,23 @@ func runSetupOverviewTests() throws {
     snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
     try check(snapshot.checks.first { $0.id == "awake" }?.state == .ready && snapshot.checks.first { $0.id == "awake" }!.detail.contains("cannot guarantee"), "A fresh active helper session was reported as unfinished setup or lost its macOS limitation")
     snapshot.lidGuard = nil
-    snapshot.config.shortcut.enabled = true
-    try check(snapshot.checks.first { $0.id == "agents" }?.state == .checking, "An enabled shortcut was ignored when no agents were selected")
     config.reverseWheel = true
-    config.targets = [.init(id: "fixture", name: "Fixture agent", kind: "cli", match: "fixture")]
-    config.shortcut.enabled = true; snapshot.config = config
+    snapshot.config = config
     func item(_ id: String) -> SetupCheck { snapshot.checks.first { $0.id == id }! }
-    try check(item("helpers").state == .checking && item("scrolling").state == .checking && item("agents").state == .checking, "Missing helper was confused with lost grants or working protection")
+    try check(item("helpers").state == .checking && item("scrolling").state == .checking, "Missing helper was confused with lost grants")
     snapshot.helperRecoveryFailure = "Recovery failed"
     try check(item("helpers").state == .attention, "Failed automatic recovery remained progress")
     snapshot.helperRecoveryFailure = nil
-    snapshot.collectorChecking = true
-    try check(item("events").state == .checking, "Collector verification was a warning")
-    snapshot.collectorChecking = false
     snapshot.lidHelperBusy = true; snapshot.lidHelperUpdatePending = true
     try check(item("lid-setup").state == .checking && item("awake").state == .checking, "In-flight lid update was a warning")
     snapshot.lidHelperBusy = false
     try check(item("awake").state == .attention, "Incomplete lid update lost its recovery warning")
     snapshot.lidHelperUpdatePending = false
-    var guardian = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: false, inputActive: false, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
+    let guardian = SafetyStatus(inputTrusted: false, inputActive: false, keepAwakeActive: false, message: "", error: nil)
     snapshot.guardian = guardian; snapshot.input = InputHelperStatus(trusted: false, active: false)
-    snapshot.collectorInstalled = true; snapshot.keyboardAccessNeeded = true; snapshot.keyboardSetupWanted = true
+    snapshot.keyboardAccessNeeded = true; snapshot.keyboardSetupWanted = true
     snapshot.monitorConfigured = true; snapshot.monitorAvailable = false; snapshot.monitorDetail = "Desk display is disconnected. Saved input choices are kept."
-    try check(item("scrolling").state == .attention && item("scrolling").route == .inputAccess && item("keyboards").state == .attention && item("events").state == .attention && item("displays").state == .attention, "Reset/disconnection recovery does not identify affected features")
+    try check(item("scrolling").state == .attention && item("scrolling").route == .inputAccess && item("keyboards").state == .attention && item("displays").state == .attention, "Reset/disconnection recovery does not identify affected features")
     var overviewRoute = ""
     let overview = SetupOverviewPage(firstVisit: false, read: { snapshot }, recheck: {}, navigate: { _, id in overviewRoute = id })
     overview.refresh()
@@ -68,29 +62,16 @@ func runSetupOverviewTests() throws {
     snapshot.monitorAvailable = false
     try check(item("displays").state == .attention, "Disconnect retained a ready display state")
     snapshot.input = InputHelperStatus(trusted: true, active: true)
-    try check(item("scrolling").state == .ready && item("events").state == .attention && item("keyboards").state == .attention, "One restored grant made unrelated features ready")
+    try check(item("scrolling").state == .ready && item("keyboards").state == .attention, "One restored grant made unrelated features ready")
     snapshot.input?.timestamp = Date().addingTimeInterval(-10)
     try check(item("scrolling").state == .checking && item("helpers").state == .checking, "Stale helper status stayed ready")
     snapshot.input = InputHelperStatus(trusted: true, active: true)
-    guardian.eventCoverage = "Process events active"; guardian.eventConnected = true; guardian.eventLastSeen = Date().addingTimeInterval(-60)
-    snapshot.guardian = guardian
-    try check(item("events").state == .attention, "Stale collector events prove access")
-    guardian.eventLastSeen = Date(); snapshot.guardian = guardian
-    try check(item("events").state == .ready && item("agents").detail.contains("physical keys"), "Registration and physical key testing are conflated")
-    snapshot.collectorRepairReason = "The collector’s event pipe has been replaced by an ordinary file, so no events can arrive."
-    try check(item("events").state == .attention && item("events").detail == snapshot.collectorRepairReason && item("events").action == "Update collector…", "Setup declared a collector requiring repair ready or hid why")
-    try check(!EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: true, waitingForSession: false), "Collector page hid its required repair behind Ready")
-    snapshot.collectorRepairReason = nil; snapshot.collectorWaitingForSession = true
-    try check(item("events").state == .attention, "Setup ignored a pending replacement observation session")
-    snapshot.collectorWaitingForSession = false
-    guardian.eventConnected = false; snapshot.guardian = guardian
-    try check(item("events").state == .attention && !EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Disconnected stream remained ready")
-    guardian.eventConnected = true; guardian.eventLastSeen = Date().addingTimeInterval(-60); snapshot.guardian = guardian
-    try check(!EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Collector page kept stale event readiness")
-    guardian.eventLastSeen = Date(); snapshot.guardian = guardian
-    try check(item("events").state == .ready && EventCollectorSetup.collectionReady(guardian, installed: true, needsRepair: false, waitingForSession: false), "Recovered collector did not return to Ready")
-    guardian.locked = true; snapshot.guardian = guardian
-    try check(item("agents").state == .attention, "Blocked agent activity appeared ready for ordinary use")
+    // The kill switch's process watcher, still installed, is named with its
+    // one removal action.
+    snapshot.watcherInstalled = true
+    try check(item("watcher").state == .attention && item("watcher").route == .retireWatcher && item("watcher").action == "Remove…",
+              "An installed process watcher was not offered for removal")
+    snapshot.watcherInstalled = false
     snapshot.lidDisabled = true
     try check(item("awake").state == .attention, "Persistent lid override was hidden by an off Perch preference")
 
@@ -161,5 +142,5 @@ func runSetupOverviewTests() throws {
     app.resetHub()
     try check(host.pages.last?.title == "Reset Settings", "Reset index missing")
     host.goBack()
-    print("PASS: observed setup readiness; independent permission recovery; stale helpers/events; first use and re-entry; next repair and Back; read-only Recheck; task categories and draft cancellation")
+    print("PASS: observed setup readiness; independent permission recovery; stale helpers; the old process watcher offered for removal; first use and re-entry; next repair and Back; read-only Recheck; task categories and draft cancellation")
 }

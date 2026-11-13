@@ -10,7 +10,8 @@ enum HelperBuild {
     // Captured in the helper process before publishing its first status. Reading
     // only the bundle on disk cannot identify an older, still-running process.
     static let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unbundled"
-    static let protocolVersion = 1
+    /// 2: the status no longer carries the Agent Kill Switch's fields.
+    static let protocolVersion = 2
     static func compatible(build: String?, protocolVersion: Int?) -> Bool {
         build == current && protocolVersion == Self.protocolVersion
     }

@@ -10,7 +10,7 @@ CERTIFICATE_MODULES="$CERTIFICATES/Modules"
 SPARKLE=$(python3 Tools/sparkle-dependency.py)
 mkdir -p build
 xcrun swiftc -typecheck -I "$CERTIFICATE_MODULES" -module-cache-path "$PWD/build/ModuleCache" \
-    -import-objc-header Sources/Native/EventParser.h \
+    -import-objc-header Sources/Native/PerchBridge.h \
     $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) \
     -F "$SPARKLE" "$@"
 echo "Type-check passed."

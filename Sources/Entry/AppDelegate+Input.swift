@@ -49,7 +49,7 @@ extension AppDelegate {
             guard let self, self.awakeItem != nil else { return }
             HelperStatusIPC.guardianClient.withCachedValue {
                 HelperStatusIPC.inputClient.withCachedValue {
-                    self.refreshSafety(); self.refreshScrolling(input: HelperStatusIPC.inputClient.value)
+                    self.refreshHelperHealth(); self.refreshScrolling(input: HelperStatusIPC.inputClient.value)
                     self.refreshNavigationItems(); self.settingsRefresh?()
                 }
             }

@@ -50,7 +50,7 @@ func runReleaseUITests() throws {
     host.testing = true
     defer { host.modalTestDriver = nil; host.window.close() }
     var config = SafetyConfiguration(); config.reverseWheel = true
-    var state = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: true, inputActive: true, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
+    var state = SafetyStatus(inputTrusted: true, inputActive: true, keepAwakeActive: false, message: "", error: nil)
     let setup = PermissionSetup(helperApp: { SafetyFiles.helperApp })
     setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.hasPrefix("✓") && setup.instructions.isHidden && setup.permissionDrag.isHidden && !setup.reviewButton.isHidden, "Ready input kept asking for permission")
@@ -68,50 +68,6 @@ func runReleaseUITests() throws {
     state.inputTrusted = true; state.timestamp = Date().addingTimeInterval(-10)
     setup.refresh(state: state, config: config)
     try check(setup.status.stringValue.hasPrefix("⚠"), "Stale input stayed green")
-
-    // Drive the actual shortcut dialogs with isolated status/requests. No OS key
-    // injection, production test lease, target signals, or privacy reset occurs.
-    let flowApp = AppDelegate()
-    flowApp.buildMenu()
-    flowApp.configureSettings(); flowApp.configurePanic()
-    let pageCount = host.pages.count
-    for scenario in ["cancel", "success", "timeout"] {
-        var fake = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: false, inputTrusted: true, inputActive: true, keepAwakeActive: false, trackedCount: 0, targets: [], message: "", error: nil)
-        var actions: [String] = []
-        var messages: [String] = []
-        var sawReady = false
-        var actionScopeHeld = true
-        host.modalTestDriver = { alert in
-            actionScopeHeld = actionScopeHeld && flowApp.menu.items.compactMap { $0.view as? MenuRowView }.filter { $0.actionable }.allSatisfy { !$0.enabled }
-            messages.append(alert.messageText)
-            if alert.messageText == "Test shortcut" && scenario == "cancel" { return .alertFirstButtonReturn }
-            let duration: TimeInterval = alert.messageText == "Test shortcut" && scenario == "timeout" ? 10.4 : 0.35
-            if alert.messageText == "Test shortcut" && scenario == "success" { fake.testResultID = UUID().uuidString }
-            let deadline = Date().addingTimeInterval(duration)
-            while Date() < deadline {
-                RunLoop.main.run(mode: .modalPanel, before: Date().addingTimeInterval(0.025))
-                sawReady = sawReady || alert.informativeText.hasPrefix("Press ")
-            }
-            if alert.messageText == "Test shortcut" {
-                return NSApplication.ModalResponse(rawValue: scenario == "success" ? 2101 : 2102)
-            }
-            return .alertFirstButtonReturn
-        }
-        flowApp.runShortcutTest(readStatus: { fake.timestamp = Date(); return fake }, send: { action in
-            actions.append(action)
-            if action == "test" { fake.testUntil = scenario == "cancel" ? nil : Date().addingTimeInterval(30) }
-            if action == "finish-test" { fake.testUntil = nil }
-        }, keepAlive: {})
-        try check(actions == ["test", "finish-test"] && fake.testUntil == nil && !fake.shortcutActive, "Shortcut test did not restore the original disabled state")
-        try check(actionScopeHeld, "Ordinary event-loop alert allowed conflicting status-menu actions")
-        try check(host.pages.count == pageCount && host.pages.last?.title == "Agent Kill Switch", "Shortcut test did not return to Agent Kill Switch")
-        try check(messages.contains("Ending shortcut test…"), "Shortcut test skipped cleanup confirmation")
-        if scenario == "success" { try check(messages.contains("Shortcut worked"), "Shortcut success was not reported") }
-        if scenario == "timeout" { try check(sawReady && messages.contains("No shortcut received"), "Ready/countdown/timeout result missing") }
-    }
-    host.modalTestDriver = nil
-    host.window.close()
-    print("PASS: shortcut preparation cancel, success, 10-second timeout, harmless cleanup, return to Agent Kill Switch; isolated helper transport")
 
     // Exercise the production toggle action route with a harmless local target.
     let target = ReleaseToggleTarget()
@@ -199,7 +155,7 @@ func runReleaseUITests() throws {
     let lid = (app.lidItem.view as? MenuRowView)?.text.string ?? ""
     try check(["Requested", "Normal lid sleep", "Applies when", "protection stopped", "Status unknown"].contains(where: { lid.contains($0) }), "Lid wording does not explain its state")
     try check(app.menu.items.firstIndex(of: app.loginItem)! < app.menu.items.firstIndex(of: app.safetySettingsItem)!, "Settings not beneath Start at login")
-    try check((app.safetyItem.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
+    try check((app.menu.items.first { $0.title == "Turn display off" }?.view as? MenuRowView)?.kind == .command && (app.lidItem.view as? MenuRowView)?.kind == .toggle, "Command/toggle menu behavior changed")
     try check(app.swapItem.title.contains("keys"), "Key-swap label regressed")
     try check((app.lidItem.view as! MenuRowView).opensAnotherInterface(), "Lid authorization toggle must close the menu first")
     app.observedLidDisabled = true; app.applyLidSleepPresentation()
@@ -212,8 +168,9 @@ func runReleaseUITests() throws {
     let titles = app.menu.items.map { $0.title }
     try check(headings.contains("Sleep") && headings.contains("Displays") && !headings.contains("Power & Display"), "Sleep and Display sections not separated")
     let sections = headings.map { $0.hasPrefix("External keyboard") ? "External keyboard" : $0 }
-    try check(sections == ["System","Agent Kill Switch","Displays","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Perch"], "Agent Kill Switch must follow System; remaining sections keep their order")
-    try check(app.menu.items.contains { $0.action == #selector(AppDelegate.globalPrivacyReset) }, "System-wide privacy reset was removed from the main menu")
+    try check(sections == ["System","Displays","Audio","Scrolling","Built-in keyboard","External keyboard","Sleep","Perch"], "Menu sections changed order or the Agent Kill Switch came back: \(sections)")
+    // Resetting every app's privacy decisions went with the Agent Kill Switch.
+    try check(!app.menu.items.contains { $0.action == NSSelectorFromString("globalPrivacyReset") }, "The system-wide privacy reset is still in the menu")
     try check(titles.firstIndex(of:"Displays")! < titles.firstIndex(of:"Turn display off")! && titles.firstIndex(of:"Sleep")! < titles.firstIndex(of:"Keep awake")!, "Control outside its section")
     try check(AudioStatus.heading(volume:42,muted:true) == "Audio · 42% · Muted" && AudioStatus.heading(volume:nil,muted:false).contains("unavailable"), "Volume presentation confused muted or unknown with zero")
     try check(AudioStatus.percentage(0.425) == 43 && AudioStatus.percentage(.nan) == nil && AudioStatus.percentage(1.1) == nil, "Invalid volume converted to a percentage")

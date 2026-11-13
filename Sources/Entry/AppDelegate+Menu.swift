@@ -14,7 +14,6 @@ extension AppDelegate {
             label(item, title, hint: "--", hintColor: StatusColors.information)
             menu.addItem(item); systemItems.append(item)
         }
-        setupSafetyMenu()
         section("Displays")
         let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
@@ -155,7 +154,7 @@ extension AppDelegate {
                 }
             }
         }
-        refreshSafety()
+        refreshHelperHealth()
         refreshNavigationItems()
         refreshDeskMenu(); refreshDeskSharingMenu()
         let loginStatus = SMAppService.mainApp.status
@@ -207,7 +206,7 @@ extension AppDelegate {
         if item === replacementRestartItem { return appReplacement.state.available != nil && !RestartSettingsSnapshot.current.busy }
         if item === shareInputItem { return true }
         if deskPresetItems.contains(item) { return DeskCoordinator.shared.runtime.map { $0.switching.readiness($0.node.group.presets[item.tag].id) == nil } ?? false }
-        if item === awakeItem || item === lidItem || item === safetyResumeItem { return item.isEnabled }
+        if item === awakeItem || item === lidItem { return item.isEnabled }
         if item === fnItem { return !keyboardModes.blocksFunctionKeyChanges && fnItem.state != .mixed && nativeKeyboards.contains { $0.builtIn } }
         if item === externalFnItem { return !keyboardModes.blocksFunctionKeyChanges && (item.action == #selector(keyboardDetails) || keyboardModes.results.contains { $0.standard != nil }) }
         if item === trackpadItem || item === wheelItem || item === homeEndItem || item === pageKeysItem { return item.isEnabled }

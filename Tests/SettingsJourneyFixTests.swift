@@ -17,27 +17,6 @@ func runSettingsJourneyFixTests() throws {
         return result
     }
     let app = AppDelegate(); app.buildMenu(); app.configureSettings()
-    var callbacks: [(Result<String, Error>) -> Void] = [], scopes: [Bool] = []
-    let reset = PrivacyResetOperation { scope, complete in scopes.append(scope); callbacks.append(complete) }
-    app.privacyOnlyReset(global: false, operation: reset)
-    button("Reset Perch’s privacy permissions")!.performClick(nil)
-    try check(scopes == [false] && reset.runningScope == false && !host.detail.stringValue.contains("Back cancels"), "Reset start or running copy is incorrect")
-    host.goBack(); app.privacyOnlyReset(global: true, operation: reset)
-    try check(button("Reset all apps’ privacy permissions")?.isEnabled == false, "A second reset can overlap the first")
-    host.goBack()
-    callbacks[0](.failure(AppError(message: "Fixture partial failure")))
-    app.privacyOnlyReset(global: false, operation: reset)
-    try check(button("Retry privacy reset")?.isEnabled == true, "Failure was lost on leaving/reopening")
-    button("Retry privacy reset")!.performClick(nil)
-    callbacks[0](.success("Stale completion"))
-    try check(reset.runningScope == false, "An old completion ended a new reset")
-    host.goBack(); callbacks[1](.success("✓ Fixture reset completed"))
-    app.privacyOnlyReset(global: false, operation: reset); flush()
-    try check(host.pages.last!.view.subviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue == "✓ Fixture reset completed" }, "Completed reset disappeared on return")
-    try check(button("Start another reset…") != nil && host.heading.stringValue == "Privacy reset completed", "Success did not transition to a result")
-    button("Start another reset…")!.performClick(nil)
-    try check(scopes.count == 2 && button("Reset Perch’s privacy permissions") != nil, "Starting another proposal immediately repeated the reset")
-    try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-privacy-result.png")
     host.goBack()
 
     for titles in [["OK"], ["Apply Updates", "Cancel"], ["Cancel", "Terminate agents"], ["Check setup & status", "Back"], ["Do something"]] {
@@ -76,11 +55,9 @@ func runSettingsJourneyFixTests() throws {
     try check(app.trackpadItem.action == #selector(AppDelegate.toggleTrackpad) && app.wheelItem.isEnabled && app.menuTitleSources[app.wheelItem]?.string.contains("not running") == true, "Scrolling used guardian readiness or hid inactive input")
     app.refreshScrolling(input: nil, checking: true); app.menu.update()
     try check(!app.trackpadItem.isEnabled && app.wheelItem.isEnabled && app.wheelItem.action == #selector(AppDelegate.toggleWheel), "Pending input allows a new choice or prevents turning off a saved one")
-    app.refreshSafety(status: nil, config: SafetyConfiguration(), checking: true)
-    app.menu.update()
-    try check(!app.safetyResumeItem.isHidden && !app.safetyResumeItem.isEnabled, "Cold helper check prematurely hid or enabled Resume")
-    try check(app.currentProtectionIssue == nil && app.menuTitleSources[app.safetyItem]?.string.contains("Checking") == true, "Cold helper read was reported offline")
-    app.refreshSafety(status: nil, config: SafetyConfiguration(), checking: false)
-    try check(app.currentProtectionIssue != nil && app.menuTitleSources[app.safetyItem]?.string.contains("offline") == true, "Failed helper read remained checking")
-    print("PASS: privacy leave/result/retry and cross-scope exclusion; shared alert exits/action indices; four keyboard detail routes; group scroll/draft preservation; monitor stop/retry/fresh token and saved mapping; native sleep and scrolling validation; cold/failed helper presentation. All mutations injected.")
+    app.refreshHelperHealth(status: nil, config: SafetyConfiguration(), checking: true)
+    try check(app.currentProtectionIssue == nil, "Cold helper read was reported as a problem")
+    app.refreshHelperHealth(status: nil, config: SafetyConfiguration(), checking: false)
+    try check(app.currentProtectionIssue != nil && app.menuTitleSources[app.safetySettingsItem]?.string.contains("⚠") == true, "Failed helper read was not shown on Settings…")
+    print("PASS: shared alert exits/action indices; four keyboard detail routes; group scroll/draft preservation; monitor stop/retry/fresh token and saved mapping; native sleep and scrolling validation; cold/failed helper presentation. All mutations injected.")
 }

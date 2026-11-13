@@ -10,13 +10,9 @@ struct QuitPlan: Equatable {
         var preventIdleLock = false
         var scrolling = false
         var desk = false
-        var panicShortcut = false
-        var agentsBlocked = false
     }
     let stops: [String]
     let keeps: [String]
-    /// An Agent Kill Switch block stays enforced until the person resumes it.
-    let keepsGuardian: Bool
 
     init(_ features: Features) {
         var stops: [String] = []
@@ -25,10 +21,8 @@ struct QuitPlan: Equatable {
         if features.preventIdleLock { stops.append("Your Mac can lock when idle") }
         if features.scrolling { stops.append("Scrolling and navigation keys go back to normal") }
         if features.desk { stops.append("Desk switching and keyboard sharing stop") }
-        if features.panicShortcut && !features.agentsBlocked { stops.append("The panic shortcut stops working") }
         self.stops = stops
-        keepsGuardian = features.agentsBlocked
-        keeps = (features.agentsBlocked ? ["Blocked agents stay blocked until you Resume"] : []) + ["Your settings are saved for next time"]
+        keeps = ["Your settings are saved for next time"]
     }
     var needsConfirmation: Bool { !stops.isEmpty }
     var title: String { "Quit Perch?" }

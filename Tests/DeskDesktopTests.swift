@@ -2,7 +2,7 @@ import Foundation
 
 func runDeskDesktopTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
-    let status = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: false, inputTrusted: nil, inputActive: false, keepAwakeActive: false, trackedCount: 0, targets: [], message: "Fixture")
+    let status = SafetyStatus(inputTrusted: nil, inputActive: false, keepAwakeActive: false, message: "Fixture")
     var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(status)) as! [String: Any]
     legacy.removeValue(forKey: "desktopRecoverySupported")
     let oldHelper = try JSONDecoder().decode(SafetyStatus.self, from: JSONSerialization.data(withJSONObject: legacy))

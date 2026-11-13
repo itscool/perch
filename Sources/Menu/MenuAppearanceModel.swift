@@ -54,14 +54,20 @@ struct MenuSectionAppearance: Codable, Equatable {
 enum MenuPalette: String, Codable, CaseIterable {
     case rainbow = "Rainbow", graphite = "Graphite", coast = "Coast", dusk = "Dusk"
     case woodland = "Woodland", mineral = "Mineral", jewel = "Jewel", sorbet = "Sorbet"
-    static let sections = ["Agent Kill Switch", "Displays", "Audio", "Scrolling", "Built-in keyboard", "External keyboards", "Sleep", "Perch", "System"]
+    static let sections = ["Displays", "Audio", "Scrolling", "Built-in keyboard", "External keyboards", "Sleep", "Perch", "System"]
+    /// The order every palette was designed in: nine colours, the first for the
+    /// Agent Kill Switch's section. That section was removed on November 12,
+    /// 2026. Its colour is dropped rather than the list shortened, so every
+    /// remaining section keeps exactly the colour it had in every palette.
+    private static let designedOrder = ["Agent Kill Switch"] + sections
     /// A complete color assignment per section, except Coast's deliberate triad.
-    var swatches: [NSColor] {
+    var swatches: [NSColor] { Array(designedSwatches.dropFirst()) }
+    private var designedSwatches: [NSColor] {
         let hex: [UInt32]
         switch self {
-        case .rainbow: return Self.sections.map { MenuRowView.tint(for: $0) }
-        case .graphite: return Self.sections.indices.map { NSColor(white: 0.4 + Double($0 % 3) * 0.09, alpha: 1) }
-        case .coast: return Self.sections.indices.map { [NSColor.systemTeal, .systemBlue, .systemCyan][$0 % 3] }
+        case .rainbow: return Self.designedOrder.map { MenuRowView.tint(for: $0) }
+        case .graphite: return Self.designedOrder.indices.map { NSColor(white: 0.4 + Double($0 % 3) * 0.09, alpha: 1) }
+        case .coast: return Self.designedOrder.indices.map { [NSColor.systemTeal, .systemBlue, .systemCyan][$0 % 3] }
         case .dusk: hex = [0xB95175, 0xDF8256, 0xCEA34F, 0xAC7594, 0x796FB4, 0x617BA8, 0x82729C, 0xCC7181, 0x91818F]
         case .woodland: hex = [0x3F7155, 0x819448, 0xB47750, 0x8FA88D, 0xB99B55, 0x426F68, 0x856A56, 0x639367, 0x8F9277]
         case .mineral: hex = [0x546A85, 0xB78169, 0x79AAA5, 0x9D9B92, 0x748BA1, 0x4B8981, 0x9A8694, 0xA5B5C3, 0x66757B]

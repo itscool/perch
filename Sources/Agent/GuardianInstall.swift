@@ -10,9 +10,6 @@ enum GuardianInstall {
         let monitor = HelperStatusIPC.guardianClient.value
         let input = HelperStatusIPC.inputClient.value
         guard var status = monitor else { return nil }
-        if status.error == "Process events need setup. Open Agent safety settings." {
-            status.error = "Process events need setup. Open Agent Kill Switch settings."
-        }
         status.inputTrusted = input?.fresh == true ? input?.trusted : nil
         status.inputActive = input?.fresh == true && input?.active == true
         return status
@@ -78,7 +75,6 @@ enum GuardianInstall {
             _ = try FileManager.default.replaceItemAt(SafetyFiles.helperApp, withItemAt: stage)
         } else { try FileManager.default.moveItem(at: stage, to: SafetyFiles.helperApp) }
         if !FileManager.default.fileExists(atPath: SafetyFiles.config.path) { try SafetyConfiguration().save() }
-        if !FileManager.default.fileExists(atPath: AgentCatalog.installed.path), let catalog = Bundle.main.url(forResource: "agents", withExtension: "json") { try AgentCatalog.install(from: catalog) }
         let protected = requiresAuthorization
         if protected { try protectExecutable() } else { try writeJob(executable: SafetyFiles.binary) }
     }
@@ -87,7 +83,7 @@ enum GuardianInstall {
         let job: [String: Any] = ["Label": label, "MachServices": [HelperStatusIPC.guardian: true], "ProgramArguments": [executable.path, "--guardian"], "RunAtLoad": true, "KeepAlive": true, "ProcessType": "Interactive", "LimitLoadToSessionType": "Aqua", "ThrottleInterval": 2, "StandardOutPath": SafetyFiles.base.appendingPathComponent("watcher.log").path, "StandardErrorPath": SafetyFiles.base.appendingPathComponent("watcher.log").path]
         try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0).write(to: plist, options: .atomic)
         let result = LaunchdJob.user(label).replace(with: plist)
-        guard result.succeeded else { throw AppError(message: "Watcher installation \(result). Try Repair watcher in Agent Kill Switch.") }
+        guard result.succeeded else { throw AppError(message: "Background helper installation \(result). Perch retries automatically; Setup → Background helpers shows its progress.") }
         let inputLabel = "local.scott.perch.input"
         let inputPlist = plist.deletingLastPathComponent().appendingPathComponent(inputLabel + ".plist")
         var inputJob = job

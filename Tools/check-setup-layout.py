@@ -15,9 +15,6 @@ with tempfile.TemporaryDirectory(prefix='perch-setup-layout-') as tmp:
     constructor=source[:source.index('    func show(')]
     present=source[source.index('    private func present('):source.index('    @objc func openSettings')].replace('private func present(', 'func present(')
     (root/'Permission.swift').write_text(constructor + present + '\n func refresh() {}\n @objc func openSettings() {}\n}\n')
-    source=(perch_source('EventSetup.swift')).read_text()
-    source=source[:source.index('    func show(')]
-    (root/'Events.swift').write_text(source + '\n func refresh() {}\n func installCollector() {}\n @objc func nextStep() {}\n @objc func openPrivacySettings() {}\n}\n')
     (root/'Stubs.swift').write_text('''import AppKit
 final class SettingsStatusField: NSTextField {}
 final class SettingsActionButton: NSButton {
@@ -45,8 +42,6 @@ final class PerchUpdater { static let shared=PerchUpdater(); let busy=false }
 enum GuardianInstall { static let inputPermissionApp: URL?=nil }
 enum SafetyFiles { static let helperApp=URL(fileURLWithPath:"/fixture/Perch Helper.app") }
 struct InputReadiness { var ready: Bool; var title: String; var message: String; var route: String }
-enum CollectorIdentity { static let launcher="/Applications/Perch.app/Contents/MacOS/PerchEventLauncher"; static let job="/fixture/job.plist" }
-enum ProcessEventStream { static let pipePath="/fixture/pipe"; static func pipeProblem(at path: String) -> String? { nil } }
 enum StatusColors { static let warning=NSColor.systemOrange; static let success=NSColor.systemGreen }
 ''')
     (root/'main.swift').write_text(r'''
@@ -92,25 +87,16 @@ input.present(.init(ready:false,title:"",message:"Accessibility needs attention"
 let inputTop=top(input.content,input.status), inputButtonTop=top(input.content,input.reviewButton)
 input.present(.init(ready:true,title:"",message:"Accessibility ready",route:"input"))
 check(top(input.content,input.status)==inputTop && top(input.content,input.reviewButton)==inputButtonTop && input.instructions.isHidden, "Helper status moved on readiness")
-let events=EventCollectorSetup()
-events.intro.stringValue="Agent tracking"
-events.installState.stringValue="✓ Collector installed"
-events.accessState.stringValue="⚠ Full Disk Access needs attention"
-events.readyState.stringValue="Waiting to receive events"
-events.guidance.stringValue="Drag eslogger into Full Disk Access and enable it. If events still do not arrive, add PerchEventLauncher as well.\n\nKeyboard: focus a file below and press Space to copy its path. In System Settings choose +, press ⌘⇧G, paste, then Open."
-events.review.title="Permission instructions"; events.review.isEnabled=false; events.primary.isHidden=true
-check(events.permissionDrag.frame.minY==events.launcherDrag.frame.minY && events.permissionDrag.frame.height==events.launcherDrag.frame.height, "Collector targets are staggered")
-check(!events.permissionDrag.frame.intersects(events.openSettings.frame) && !events.launcherDrag.frame.intersects(events.openSettings.frame), "Collector controls overlap")
 let canvas=NSView(frame:NSRect(x:0,y:0,width:620,height:580))
 canvas.wantsLayer=true; canvas.layer?.backgroundColor=NSColor.windowBackgroundColor.cgColor
 canvas.appearance=NSAppearance(named:.aqua)
-events.content.frame.origin=NSPoint(x:30,y:35); canvas.addSubview(events.content)
+input.content.frame.origin=NSPoint(x:30,y:35); canvas.addSubview(input.content)
 canvas.layoutSubtreeIfNeeded()
 let bitmap=canvas.bitmapImageRepForCachingDisplay(in:canvas.bounds)!
 canvas.cacheDisplay(in:canvas.bounds,to:bitmap)
 try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:CommandLine.arguments[1]))
 check(NSApp.windows.isEmpty,"Offscreen fixture presented a window")
-print("PASS: required/ready/review/lost/restored disclosure, stable status and disclosure anchors, aligned permission targets, no windows or OS writes")
+print("PASS: required/ready/review/lost/restored disclosure, stable status and disclosure anchors, no windows or OS writes")
 ''')
     files=[perch_source('MainTimer.swift'), perch_source('SetupDisclosure.swift'), perch_source('PermissionDragItem.swift'), perch_source('SettingsSidebar.swift')]+list(root.glob('*.swift'))
     subprocess.run(['xcrun','swiftc','-o',str(root/'check')]+[str(f) for f in files],check=True)

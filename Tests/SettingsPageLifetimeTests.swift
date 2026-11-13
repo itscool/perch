@@ -60,7 +60,7 @@ func runSettingsPageLifetimeTests() throws {
     showParent()
     do {
         let operation = ResetBatchOperation(execute: { _, _, completion in completion(.success("fixture")) })
-        let page = ResetChecklistPage(highlight: nil, operation: operation, readLayouts: { [] }, allApps: {})
+        let page = ResetChecklistPage(highlight: nil, operation: operation, readLayouts: { [] })
         reset = page; page.show()
     }
     try check(reset != nil, "Reset Settings was released while shown; its checkboxes and Reset button would do nothing")

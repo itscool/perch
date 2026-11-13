@@ -20,7 +20,6 @@ struct InputHelperStatus: Codable {
 final class InputHelper {
     let inputs = InputControls()
     lazy var navigationRuntime = NavigationRuntime(engine: inputs.navigation, keypad: inputs.keypad)
-    let collectorConnection = CollectorPipeAnchor(path: ProcessEventStream.pipePath)
     var timer: Timer?
     var configSignal: FileChangeSignal?
     var lastStatus: InputHelperStatus?
@@ -42,7 +41,6 @@ final class InputHelper {
         NSApp.run()
     }
     func tick() {
-        collectorConnection.refresh()
         configSignal?.refresh()
         // Input preferences only: no catalog parsing, process scans or app metadata queries.
         if let config = try? SafetyFiles.read(SafetyConfiguration.self, from: SafetyFiles.config) {

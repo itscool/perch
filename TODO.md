@@ -598,8 +598,9 @@ historical evidence, not additional open release requirements.
    update, rollback and uninstall in a disposable account/Mac. Dependency repair,
    source builds, bundle/rpath and packaging fixtures pass; existing live grants
    do not establish clean-install behavior.
-7. [ ] **Destructive actions in a disposable environment only.** Live Panic and
-   privacy resets remain outside this task's authorization.
+7. [ ] **Destructive actions in a disposable environment only.** Live privacy
+   resets remain outside this task's authorization. (Panic went with the Agent
+   Kill Switch, removed November 12, 2026.)
 
 ## Release — signing, packaging and distribution
 
@@ -857,9 +858,9 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   panel is an available remote screen. Make its geometry and availability clear
   in presets without letting it destabilize external monitor routing.
 
-1. [ ] **Direct process events.** Investigate a minimal native Endpoint Security
-   collector replacing eslogger. Requires Apple's restricted Endpoint Security
-   entitlement, separate from user-granted Full Disk Access. EVENT-COLLECTOR.md.
+1. [x] **Direct process events.** Withdrawn: the Agent Kill Switch and its
+   eslogger collector were removed on November 12, 2026, so nothing needs process
+   events. EVENT-COLLECTOR.md is kept as the record.
 2. [ ] **Native lid research.** Find a supported third-party assertion that
    prevents closed-lid sleep on battery and automatically expires. Identified
    private options require Apple-internal power entitlements; Endpoint Security
@@ -885,6 +886,57 @@ launch, existing-install replacement and uninstall/recovery as one journey.
    with the user before implementing discovery, console selection and input
    routing. Preserve native guest input ownership and handle stopped/locked guests
    explicitly. Deferred by the user; not part of this release.
+
+## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
+
+**Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY
+too much and honestly it never helped with anything once." Gone: the menu
+section, its Settings pages and sidebar entries, the agent catalog
+(catalog/agents.json and its release inventory entry), process tracking, the
+eslogger collector and its launcher, the event parser, Panic and Resume, the
+panic shortcut and its test dialogs, the all-apps privacy reset, and the kill
+switch's Setup checks and logs.
+
+Kept, because other features depend on it: the background helper (the guardian)
+now only puts back desk screens if Perch dies, keeps the Mac awake, passes the
+input helper's access request and reports its health. Its old once-a-second
+snapshot of every process and every running app is gone. Shared settings
+(keep awake, keypad navigation, trackpad, wheel and modifier preferences), the
+Perch-only privacy reset and the CPU line are unchanged. Every palette keeps
+each remaining section's exact colour: the kill switch's colour is dropped
+rather than shifting the others (`MenuPalette.designedOrder`). Built-in presets
+reviewed: none changed, all kept; only the removed section and its colour are
+gone, in Light and Dark alike.
+
+Undoing what it left on each Mac:
+- Apps whose launch jobs its emergency stop switched off are switched back on
+  automatically by the helper on its next start, before the record is deleted;
+  a job that will not re-enable keeps the record and is retried every start
+  (`AgentGuardian.retireKillSwitch`). A settings reset does the same first. This
+  MacBook had nothing switched off; the Studio is unknown.
+- The root process watcher (`/Library/LaunchDaemons/local.scott.perch.events.plist`
+  and `/Library/Application Support/Perch Events`) cannot be removed without an
+  administrator, so Setup shows **Old process watcher** with one Remove… action
+  and Settings… shows ⚠ Review setup until it is gone. It was found running on
+  this MacBook (PID 3754) on November 12.
+- Helper problems are now warnings shown on Settings…, never a window opened by
+  itself: nothing the helper still does is safety-critical, and Perch repairs it.
+
+**Desk network check.** Committed separately (9202bc8). 60 runs, four at a time:
+8 failures before, 0 after. Causes: random fixture ports colliding inside
+macOS's ephemeral range (three of the messages), the check reading a close
+record before it landed, and a real Perch bug where a refused Mac's goodbye was
+lost to a connection reset, so it showed "connection reset" instead of "update
+Perch". Fixtures now use macOS-assigned ports and wait for a listening socket;
+Perch ends its side of the stream after a goodbye and reads until the peer closes.
+
+Verified: `./build.sh --no-bump`; `--self-test` 41 PASS and no other lines (48
+before, less seven suites that tested only the kill switch); all twelve headless
+gates pass, including check-desk-network, check-dialog-contract (route ledger
+updated) and check-setup-layout. Not yet run: the functional suite, which shows
+Settings windows and needs the AGENT MODE protocol with Scott present. Not yet
+native-accepted: the Old process watcher removal on a real Mac, and the helper
+switching stopped apps back on (nothing to switch back on this Mac).
 
 ## Checkpoint: desk input diagnostics and the two-VM verdict (September 16, 2026)
 

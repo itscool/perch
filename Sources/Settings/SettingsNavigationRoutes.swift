@@ -18,7 +18,6 @@ extension AppDelegate {
             guard let self else { return [:] }
             let snapshot = self.setupSnapshot()
             let helper = snapshot.checks.first { $0.id == "helpers" }?.state
-            let tracking = snapshot.checks.first { $0.id == "events" }?.state
             let inputReady = InputReadiness.assess(input: snapshot.input, config: snapshot.config)
             func status(_ state: SetupCheck.State?) -> SettingsSetupStatus {
                 switch state { case .ready: .ready; case .attention, .unverified: .attention; case .optional: .optional; default: .checking }
@@ -28,8 +27,7 @@ extension AppDelegate {
                 "keyboard-access": AccessCheck.hidListening ? .ready : .attention,
                 "input-access": inputReady.ready ? .ready : snapshot.input?.fresh != true ? .checking : .attention,
                 "sharing-access": AccessCheck.sharing ? .ready : .attention,
-                "lid-setup": snapshot.lidHelperBusy || LidGuardClient.shared.changing ? .checking : snapshot.lidHelperUpdatePending ? .attention : snapshot.lidHelperInstalled ? .ready : snapshot.lidWanted ? .attention : .optional,
-                "events": status(tracking)
+                "lid-setup": snapshot.lidHelperBusy || LidGuardClient.shared.changing ? .checking : snapshot.lidHelperUpdatePending ? .attention : snapshot.lidHelperInstalled ? .ready : snapshot.lidWanted ? .attention : .optional
             ]
         }
         SettingsWindow.shared.configureNavigation([
@@ -39,7 +37,6 @@ extension AppDelegate {
             item("input-access", "Scrolling & navigation", ["Scrolling & navigation access"], #selector(presentInputAccessStage), depth: 1, setupStage: true),
             item("sharing-access", "Shared input access", ["Shared input access"], #selector(presentSharingAccessStage), depth: 1, setupStage: true),
             item("lid-setup", "Lid protection", ["Lid protection setup"], #selector(presentLidSetupStage), depth: 1, setupStage: true),
-            item("events", "Agent tracking", ["Process event collection"], #selector(presentEventSetupStage), depth: 1, setupStage: true),
             item("keyboard", "Keyboards", ["Keyboards", "Set up navigation keys"], #selector(keyboardSettings)),
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
             item("desk", "Desk", ["Desk"], #selector(deskSettings)),
@@ -47,12 +44,7 @@ extension AppDelegate {
             item("logs", "Logs", ["Logs"], #selector(logsSettings)),
             item("lid-activity", "Lid activity", ["Lid activity"], #selector(lidActivity), depth: 1),
             item("cpu-logs", "CPU logs", ["CPU logs"], #selector(cpuLogs), depth: 1),
-            item("agent-safety-logs", "Agent safety activity", ["Agent safety activity"], #selector(agentSafetyLogs), depth: 1),
             item("desk-connection-logs", "Desk connection activity", ["Desk connection activity"], #selector(deskConnectionLogs), depth: 1),
-            item("agents", "Agent Kill Switch", ["Agent Kill Switch"], #selector(configurePanic)),
-            item("agent-choices", "Agents & panic actions", ["Agents & panic actions"], #selector(editSafetyConfiguration), depth: 1),
-            item("agent-recognition", "Agent recognition", ["Agent recognition"], #selector(manageAgents), depth: 1),
-            item("targets", "Target preview", ["Preview panic targets"], #selector(safetyReport), depth: 1),
             item("app", "App settings", ["App settings"], #selector(appSettings)),
             item("hotkeys", "Hotkeys", ["Hotkeys"], #selector(hotkeySettings), depth: 1),
             item("appearance", "Menu Appearance", ["Menu Appearance"], #selector(appearanceSettings), depth: 1),

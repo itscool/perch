@@ -9,7 +9,6 @@ enum ProcessRole: Equatable {
     case restartWorker(path: String)
     case lidMaintenance(operation: String, arguments: [String])
     case checkLidUpdate
-    case updateCatalog(path: String)
     case lidOverrideWorker(path: String, token: String, deadline: Double)
     case lidRecover
     case lidGuard(owner: UInt32)
@@ -17,15 +16,12 @@ enum ProcessRole: Equatable {
     case lidCleanup
     case prepareSafetyConfig
     case installWatcher
-    case safetyPreview
     case inputHelper
     case guardian
-    case panicWorker(planPath: String)
     case statusStream
     case ipcSelfTest
     case cpuBenchmark
     case settingsSelfTest
-    case eventSelfTest
     case navigationDeviceInfo
     case selfTest
 
@@ -39,7 +35,6 @@ enum ProcessRole: Equatable {
             return .lidMaintenance(operation: arguments[1], arguments: Array(arguments.dropFirst(2)))
         }
         if arguments == [executable, "--check-lid-update"] { return .checkLidUpdate }
-        if let index = arguments.firstIndex(of: "--update-catalog"), arguments.count > index + 1 { return .updateCatalog(path: arguments[index + 1]) }
         if arguments.count == 5, arguments[1] == "--lid-override-worker", let deadline = Double(arguments[4]) {
             return .lidOverrideWorker(path: arguments[2], token: arguments[3], deadline: deadline)
         }
@@ -49,15 +44,12 @@ enum ProcessRole: Equatable {
         if arguments == [executable, "--lid-cleanup"] { return .lidCleanup }
         if arguments.contains("--prepare-safety-config") { return .prepareSafetyConfig }
         if arguments.contains("--install-watcher") { return .installWatcher }
-        if arguments.contains("--safety-preview") { return .safetyPreview }
         if arguments.contains("--input-helper") { return .inputHelper }
         if arguments.contains("--guardian") { return .guardian }
-        if let index = arguments.firstIndex(of: "--panic-worker"), arguments.count > index + 1 { return .panicWorker(planPath: arguments[index + 1]) }
         if arguments.contains("--status-stream") { return .statusStream }
         if arguments.contains("--ipc-self-test") { return .ipcSelfTest }
         if arguments.contains("--cpu-benchmark") { return .cpuBenchmark }
         if arguments.contains("--settings-self-test") { return .settingsSelfTest }
-        if arguments.contains("--event-self-test") { return .eventSelfTest }
         if arguments.contains("--navigation-device-info") { return .navigationDeviceInfo }
         if arguments.contains("--self-test") { return .selfTest }
         return nil
@@ -82,9 +74,6 @@ enum ProcessRole: Equatable {
                 fputs("Open the lid before finishing the helper update. Nothing has been replaced.\n", stderr); exit(1)
             }
             exit(0)
-        case .updateCatalog(let path):
-            do { try AgentCatalog.install(from: URL(fileURLWithPath: path)); print("Catalog updated; new targets default to checked and existing choices are preserved."); exit(0) }
-            catch { fputs("\(error)\n", stderr); exit(1) }
         case .lidOverrideWorker(let path, let token, let deadline):
             do { try LidSleepOverride.worker(path, token: token, deadline: deadline); exit(0) }
             catch { fputs("Lid override failed: \(error.localizedDescription)\n", stderr); exit(1) }
@@ -105,14 +94,6 @@ enum ProcessRole: Equatable {
             } catch { fputs("\(error)\n", stderr); exit(1) }
         case .installWatcher:
             do { try GuardianInstall.install(); exit(0) } catch { fputs("\(error)\n", stderr); exit(1) }
-        case .safetyPreview:
-            _ = NSApplication.shared
-            let guardian = AgentGuardian()
-            guardian.refreshTracking()
-            let grouped = Dictionary(grouping: guardian.tracker.tracked.values, by: \.targetID)
-            for (target, processes) in grouped.sorted(by: { $0.key < $1.key }) { print("\(target): \(processes.count) observed local processes") }
-            print("Read-only preview. No signals or permission resets sent.")
-            exit(0)
         case .inputHelper:
             _ = NSApplication.shared
             let helper = InputHelper()
@@ -123,8 +104,6 @@ enum ProcessRole: Equatable {
             let guardian = AgentGuardian()
             withExtendedLifetime(guardian) { guardian.run() }
             exit(0)
-        case .panicWorker(let planPath):
-            exit(PanicReset.worker(planURL: URL(fileURLWithPath: planPath)))
         case .statusStream: runStatusStream(); exit(0)
         case .ipcSelfTest:
             do { try runHelperStatusTests(); exit(0) } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
@@ -134,8 +113,6 @@ enum ProcessRole: Equatable {
         case .settingsSelfTest:
             _ = NSApplication.shared; NSApp.setActivationPolicy(.prohibited)
             do { try runSettingsTests(); exit(0) } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
-        case .eventSelfTest:
-            do { try runProcessEventTests(); exit(0) } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
         case .navigationDeviceInfo: Self.navigationDeviceInfo()
         case .selfTest: Self.selfTest()
         }
@@ -224,15 +201,11 @@ enum ProcessRole: Equatable {
             try runProcessRoleTests()
             try runCoreServiceTests()
             try runCaffeinateTests()
-            try runCatalogTests()
             try runSystemTests()
             try runProcessCPUTests()
             try runProtectionIssueTests()
-            try runProcessEventTests()
             try runHelperStatusTests()
-            try runAgentSafetyTests()
             try runHousekeepingTests()
-            try runPanicTests()
             try runHotKeyTests()
             try runTerminationReplyTests()
             try runQuitPlanTests()

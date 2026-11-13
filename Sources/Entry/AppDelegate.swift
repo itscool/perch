@@ -34,17 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var pageKeysItem: NSMenuItem!
     var shareInputItem: NSMenuItem!
     var deskPresetItems: [NSMenuItem] = []
-    var safetyItem: NSMenuItem!
-    var safetyResumeItem: NSMenuItem!
     var safetySettingsItem: NSMenuItem!
     var protectionOfflineSince: Date?
     var repairPromptShown = false
     var currentProtectionIssue: ProtectionIssue?
-    var notifiedCriticalIssue: String?
-    var criticalIssueSince: Date?
-    var safetyError: String?
-    var lastTestResultID: String?
-    var awaitingShortcutTest = false
     var menuOpen = false
     var menuGeneration: UInt64 = 0
     var lastBackgroundRefresh = Date.distantPast
@@ -83,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         // Permission entries an earlier, differently signed Perch left behind look
         // granted but do nothing. Remove them before anything asks for access.
         if !SettingsWindow.shared.testing {
-            PermissionRecovery.startAtLaunch { [weak self] in self?.settingsRefresh?(); self?.refreshSafety() }
+            PermissionRecovery.startAtLaunch { [weak self] in self?.settingsRefresh?(); self?.refreshHelperHealth() }
         }
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "bird", accessibilityDescription: "Perch")
@@ -120,7 +113,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 PerchUpdater.shared.start()
                 do { try HelperLifecycle.startForLaunch() }
                 catch {
-                    self?.safetyError = error.localizedDescription
                     BackgroundHelperRecovery.shared.recordFailure(error)
                     self?.advancedSafetySettings()
                 }
@@ -129,9 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 }
                 LidHelperUpdate.shared.afterLaunch(explain: { [weak self] in
                     self?.configureSettings(); self?.lidProtectionSetup()
-                }, refresh: { [weak self] in self?.settingsRefresh?() }, completion: { [weak self] in
-                    EventCollectorSetup.shared.afterLaunch { self?.processEventSetup() }
-                })
+                }, refresh: { [weak self] in self?.settingsRefresh?() }, completion: {})
                 self?.automaticLidResumeReady = true
                 self?.resumeSavedLidProtectionIfReady()
             }
@@ -143,14 +133,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 self.lastBackgroundRefresh = Date()
                 if self.menuOpen { self.nativeKeyboards = NativeModifierKeys.keyboards(); self.keyboardModes.readForPresentation() }
                 self.refresh()
-            } else { self.refreshSafety() }
+            } else { self.refreshHelperHealth() }
         }
         // Continue refreshing while AppKit tracks an open menu.
         if let inputTimer { inputTimer.tolerance = 0.2; RunLoop.main.add(inputTimer, forMode: .common) }
         refresh()
         if CommandLine.arguments.contains("--show-keyboard-setup") { DispatchQueue.main.async { self.configureSettings(); self.keyboardSettings() } }
-        if CommandLine.arguments.contains("--show-event-setup") { DispatchQueue.main.async { self.processEventSetup() } }
-        if !CommandLine.arguments.contains("--show-keyboard-setup") && !CommandLine.arguments.contains("--show-event-setup") {
+        if !CommandLine.arguments.contains("--show-keyboard-setup") {
             DispatchQueue.main.async { [weak self] in self?.showFirstSetupIfNeeded() }
         }
     }

@@ -21,7 +21,7 @@ enum AppUpdate {
 }
 enum LidHelperUpdate { static var shared: Self { .value }; case value; var busy: Bool { false } }
 enum LidGuardClock { static var now: Double { ProcessInfo.processInfo.systemUptime } }
-enum CollectorIdentity { static let bootID: UUID? = UUID(uuidString: "44E03998-665F-4A6B-8C88-FCB05140E626") }
+enum BootSession { static let id: UUID? = UUID(uuidString: "44E03998-665F-4A6B-8C88-FCB05140E626") }
 enum LidGuardOwnership { static var recorded: Bool { true } }
 struct MacLidGuardHardware { struct Observation { let closed = true }; func observe() -> Observation { Observation() } }
 enum LidSleepOverride { static func verify(_ value: Bool) throws { throw AppError(message: "Fixture reports an active mock session") } }

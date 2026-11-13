@@ -50,7 +50,6 @@ for key, value in known.items():
 RETAINED_ELSEWHERE = {
     'SettingsWindow': 'the shared window itself',
     'PermissionSetup': 'AppDelegate.permissionSetup keeps it',
-    'EventCollectorSetup': 'shared singleton',
     'PerchUpdater': 'shared singleton',
     'DeskConnectionLogPage': 'shows a plain view; no callback references the object',
 }
@@ -96,7 +95,9 @@ for file in sorted((repo/'Sources').rglob('*.swift')):
 routes = (repo/'Sources/Settings/SettingsNavigationRoutes.swift').read_text()
 destinations = re.findall(r'item\("([a-z-]+)", "[^"]*", \[([^\]]*)\], #selector\(\w+\)((?:, depth: \d)?(?:, setupStage: true)?)\)', routes)
 ids = [d[0] for d in destinations]
-if len(destinations) < 20: errors.append('Could not read the Settings sidebar destinations')
+# A floor, not a count: well below the real number of pages (19 since the
+# Agent Kill Switch pages were removed), so only a failed parse trips it.
+if len(destinations) < 15: errors.append('Could not read the Settings sidebar destinations')
 if len(ids) != len(set(ids)): errors.append('Duplicate Settings sidebar destination id')
 stages = {d[0] for d in destinations if 'setupStage: true' in d[2]}
 sources_text = {file: file.read_text() for file in (repo/'Sources').rglob('*.swift')}

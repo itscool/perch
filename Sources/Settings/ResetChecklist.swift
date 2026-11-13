@@ -135,8 +135,6 @@ final class ResetChecklistPage {
     let keyboardPicker = SettingsActionPopup(frame: .zero, pullsDown: false)
     private var resetAction: SettingsActionButton!
     private var retry: SettingsActionButton!
-    private var allApps: SettingsActionButton!
-    private let broader = NSTextField(wrappingLabelWithString: "Affects other software: reset permission decisions for every app in your macOS account.")
     let status = SettingsStatusField(wrappingLabelWithString: "")
     private let operation: ResetBatchOperation
     private let readLayouts: () throws -> [NavigationKeyboardProfile]
@@ -144,7 +142,7 @@ final class ResetChecklistPage {
     private let highlight: ResetArea?
     private var highlightedOnShow = false
     private var lastCompletion: UUID?
-    init(highlight: ResetArea?, operation: ResetBatchOperation, readLayouts: @escaping () throws -> [NavigationKeyboardProfile], allApps: @escaping () -> Void) {
+    init(highlight: ResetArea?, operation: ResetBatchOperation, readLayouts: @escaping () throws -> [NavigationKeyboardProfile]) {
         self.highlight = highlight; self.operation = operation; self.readLayouts = readLayouts
         for area in ResetArea.allCases {
             let row = NSView(); row.identifier = .init("reset.row." + area.rawValue); row.wantsLayer = true; row.layer?.cornerRadius = 6
@@ -169,11 +167,8 @@ final class ResetChecklistPage {
         resetAction.identifier = .init("reset.selected")
         retry = SettingsActionButton(title: "Retry failed resets…") { [weak self] in self?.confirm(retry: true) }
         retry.identifier = .init("reset.retry")
-        self.allApps = SettingsActionButton(title: "All apps’ privacy permissions…", action: allApps)
-        self.allApps.identifier = .init("reset.all-apps")
         status.identifier = .init("reset.results"); status.font = .systemFont(ofSize: 12)
-        broader.font = .systemFont(ofSize: 12); broader.textColor = .secondaryLabelColor
-        [resetAction!, retry!, status, self.allApps!, broader].forEach { view.addSubview($0) }
+        [resetAction!, retry!, status].forEach { view.addSubview($0) }
         refresh(); layout(NSSize(width: 572, height: 640))
     }
     func reloadLayouts() {
@@ -217,7 +212,6 @@ final class ResetChecklistPage {
         resetAction?.isEnabled = !operation.running && proposedPlan != nil
         resetAction?.title = operation.running ? "Reset in progress…" : "Reset selected…"
         retry?.isHidden = operation.failedPlan == nil; retry?.isEnabled = !operation.running
-        allApps?.isEnabled = !operation.running
         let entries = ResetArea.allCases.compactMap { area -> String? in
             guard let result = operation.results[area] else { return nil }
             switch result { case .success: return "✓ \(area.title): completed"; case .failure(let error): return "⚠ \(area.title): \(error.localizedDescription)" }
@@ -264,7 +258,5 @@ final class ResetChecklistPage {
         resetAction.frame = NSRect(x: 0, y: y-34, width: width, height: 32); y -= 42
         retry.frame = NSRect(x: 0, y: y-32, width: width, height: 32); y -= retryHeight
         status.frame = NSRect(x: 8, y: y-statusHeight, width: width-16, height: statusHeight); y -= statusHeight+12
-        allApps.frame = NSRect(x: 0, y: y-32, width: width, height: 32); y -= 38
-        broader.frame = NSRect(x: 8, y: y-34, width: width-16, height: 34)
     }
 }

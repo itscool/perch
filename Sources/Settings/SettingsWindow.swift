@@ -505,7 +505,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             label.frame = NSRect(x: 8,y: y,width: 556,height: 32)
             view.addSubview(button); view.addSubview(label)
         }
-        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Agent Kill Switch" ? #selector(AppDelegate.configurePanic) : title == "Background helpers" ? #selector(AppDelegate.presentBackgroundSetup) : nil
+        let selector: Selector? = title == "Perch settings" ? #selector(AppDelegate.configureSettings) : title == "Background helpers" ? #selector(AppDelegate.presentBackgroundSetup) : nil
         show(Page(title: title, detail: detail, view: view, refresh: { [weak delegate] in if let selector { _ = delegate?.perform(selector) } }))
     }
     /// Synchronous response adapter for existing isolated fixtures only. Product

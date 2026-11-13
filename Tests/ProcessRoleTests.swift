@@ -14,7 +14,6 @@ func runProcessRoleTests() throws {
     try check(parse(["--lid-maintenance-check"]) == .lidMaintenance(operation: "--lid-maintenance-check", arguments: []), "lid maintenance without operands")
     try check(parse(["x", "--lid-maintenance-check"]) == nil, "lid maintenance must be the first argument")
     try check(parse(["--check-lid-update"]) == .checkLidUpdate && parse(["--check-lid-update", "extra"]) == nil, "lid update check must be the only argument")
-    try check(parse(["--update-catalog", "/tmp/catalog.json"]) == .updateCatalog(path: "/tmp/catalog.json") && parse(["--update-catalog"]) == nil, "catalog update needs its path")
     try check(parse(["--lid-override-worker", "/p", "t", "12.5"]) == .lidOverrideWorker(path: "/p", token: "t", deadline: 12.5), "override worker")
     try check(parse(["--lid-override-worker", "/p", "t", "soon"]) == nil && parse(["--lid-override-worker", "/p", "t"]) == nil, "override worker needs a numeric deadline and four operands")
     try check(parse(["--lid-recover"]) == .lidRecover, "lid recovery")
@@ -24,15 +23,15 @@ func runProcessRoleTests() throws {
     try check(parse(["--lid-cleanup"]) == .lidCleanup && parse(["--lid-cleanup", "x"]) == nil, "lid cleanup is exact")
     try check(parse(["--prepare-safety-config"]) == .prepareSafetyConfig, "safety config")
     try check(parse(["--install-watcher"]) == .installWatcher, "watcher install")
-    try check(parse(["--safety-preview"]) == .safetyPreview, "safety preview")
     try check(parse(["--input-helper"]) == .inputHelper, "input helper")
     try check(parse(["--guardian"]) == .guardian, "guardian")
-    try check(parse(["--panic-worker", "/tmp/plan.json"]) == .panicWorker(planPath: "/tmp/plan.json") && parse(["--panic-worker"]) == nil, "panic worker needs its plan")
     try check(parse(["--status-stream"]) == .statusStream, "status stream")
     try check(parse(["--ipc-self-test"]) == .ipcSelfTest, "ipc self-test")
     try check(parse(["--cpu-benchmark"]) == .cpuBenchmark, "cpu benchmark")
     try check(parse(["--settings-self-test"]) == .settingsSelfTest, "settings self-test")
-    try check(parse(["--event-self-test"]) == .eventSelfTest, "event self-test")
+    // The Agent Kill Switch's roles are gone: their flags start nothing special.
+    try check(parse(["--update-catalog", "/tmp/catalog.json"]) == nil && parse(["--safety-preview"]) == nil &&
+              parse(["--panic-worker", "/tmp/plan.json"]) == nil && parse(["--event-self-test"]) == nil, "a removed kill switch role still runs")
     try check(parse(["--navigation-device-info"]) == .navigationDeviceInfo, "navigation device info")
     try check(parse(["--self-test"]) == .selfTest, "self-test")
     // Earlier matches win: contains-style flags beat later ones anywhere in the list.

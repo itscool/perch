@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 
 enum SetupRoute: String {
-    case login, maintenance, inputAccess, keyboardAccess, sharingAccess, lidSetup, keyboards, displays, deskInput, awake, agents, events, settings
+    case login, maintenance, retireWatcher, inputAccess, keyboardAccess, sharingAccess, lidSetup, keyboards, displays, deskInput, awake, settings
 }
 
 struct SetupCheck: Equatable {
@@ -37,10 +37,6 @@ struct SetupSnapshot {
     var deskInputActive = false
     var deskInputProblem: String?
     var deskInputAccessNeeded = false
-    var collectorInstalled = false
-    var collectorRepairReason: String?
-    var collectorNeedsRepair: Bool { collectorRepairReason != nil }
-    var collectorWaitingForSession = false
     var lidDisabled: Bool?
     var lidWanted = false
     var lidGuard: LidGuardStatus?
@@ -48,20 +44,23 @@ struct SetupSnapshot {
     var lidHelperInstalled = false
     var loginNeedsApproval = false
     var helperRecoveryFailure: String?
+    /// The Agent Kill Switch's root process watcher is still on this Mac.
+    var watcherInstalled = false
     /// Permissions Perch removed for this publisher that are still missing.
     var accessRestoreNeeded: [PermissionService] = []
-    var collectorChecking = false
     var lidHelperBusy = false
 
     var checks: [SetupCheck] {
-        let agentWanted = config.shortcut.enabled || config.targets.contains(where: \.enabled)
         let inputWanted = config.reverseTrackpad || config.reverseWheel || config.navigation?.enabled == true || config.keypadNavigation == true
-        let helperWanted = agentWanted || inputWanted || config.keepAwake
+        let helperWanted = inputWanted || config.keepAwake
         let guardianReady = guardian?.fresh == true
         let inputReady = input?.fresh == true
         var items: [SetupCheck] = []
         func add(_ id: String, _ title: String, _ state: SetupCheck.State, _ detail: String, _ action: String, _ route: SetupRoute) {
             items.append(.init(id: id, title: title, state: state, detail: detail, action: action, route: route))
+        }
+        if watcherInstalled {
+            add("watcher", "Old process watcher", .attention, "Perch no longer watches processes, but the watcher it installed is still running on this Mac and slowing it down. Removing it needs your administrator password.", "Remove…", .retireWatcher)
         }
         if loginNeedsApproval {
             add("login", "Start at login", .attention, "Your startup choice needs macOS approval. Open Login Items to allow Perch.", "Open macOS Login Items…", .login)
@@ -128,33 +127,6 @@ struct SetupSnapshot {
             add("awake", "Keep awake", .ready, "Perch’s idle-sleep prevention is active. Lid-closed behavior is separate.", "Lid activity…", .awake)
         }
 
-        if !agentWanted {
-            add("agents", "Agent Kill Switch", .optional, "Choose the agents and effects you want before relying on an emergency stop.", "Choose agents…", .agents)
-        } else if !guardianReady {
-            add("agents", "Agent Kill Switch", .checking, "Waiting for the protection helper. A saved shortcut does not establish that it is registered.", "Background helpers…", .maintenance)
-        } else if guardian?.locked == true {
-            add("agents", "Agent Kill Switch", .attention, "Agent activity is blocked after a previous stop. Review protection to resume when you are ready.", "Agent Kill Switch…", .agents)
-        } else if config.shortcut.enabled && guardian?.shortcutActive != true && guardian?.testUntil == nil {
-            add("agents", "Agent Kill Switch", .attention, "Your enabled emergency shortcut is not registered. Review it and run the harmless shortcut test.", "Agent Kill Switch…", .agents)
-        } else if let error = guardian?.error, error.contains("configuration is unreadable") || error.contains("Lockdown could not be saved") {
-            add("agents", "Agent Kill Switch", .attention, "Perch could not read or save protection state. Review the repair details before relying on it.", "Background helpers…", .maintenance)
-        } else {
-            add("agents", "Agent Kill Switch", .ready, config.shortcut.enabled ? "Protection is responding and the shortcut is registered. Use the harmless test to check the physical keys." : "Protection is responding. The keyboard shortcut is intentionally off.", "Agent Kill Switch…", .agents)
-        }
-
-        if collectorChecking {
-            add("events", "Live agent tracking", .checking, "Waiting for the collector’s current access and event checks to finish.", "View progress…", .events)
-        } else if !collectorInstalled {
-            add("events", "Live agent tracking", .optional, "Improves tracking of short-lived agent subprocesses. Setup uses Full Disk Access for Apple’s eslogger.", "Set up tracking…", .events)
-        } else if let reason = collectorRepairReason {
-            add("events", "Live agent tracking", .attention, reason, "Update collector…", .events)
-        } else if !guardianReady {
-            add("events", "Live agent tracking", .checking, "The collector is installed. Waiting for Perch to verify received events and access.", "Background helpers…", .maintenance)
-        } else if EventCollectorSetup.collectionReady(guardian, installed: collectorInstalled, needsRepair: collectorNeedsRepair, waitingForSession: collectorWaitingForSession) {
-            add("events", "Live agent tracking", .ready, "Recent events and the live health check confirm that collection is working.", "View status…", .events)
-        } else {
-            add("events", "Live agent tracking", .attention, "The installed collector’s live access or health is not verified. Review Full Disk Access and the collection checks.", "Restore tracking…", .events)
-        }
         return items
     }
     var summary: String {
@@ -282,11 +254,8 @@ extension AppDelegate {
             result.monitorDetail = desk.model.problem ?? "\(desk.node.group.name): \(desk.node.group.monitors.count) screens. Open Desk to review connections and presets."
         }
 
-        result.collectorInstalled = EventCollectorSetup.shared.installed
-        result.collectorRepairReason = EventCollectorSetup.shared.repairReason
-        result.collectorWaitingForSession = EventCollectorSetup.shared.waitingForSession
-        result.collectorChecking = EventCollectorSetup.shared.checking
         result.helperRecoveryFailure = BackgroundHelperRecovery.shared.failure
+        result.watcherInstalled = RetiredProcessWatcher.installed()
         result.accessRestoreNeeded = PermissionRecovery.restoreNeeded()
         result.lidDisabled = observedLidDisabled
         result.lidWanted = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
@@ -328,6 +297,7 @@ extension AppDelegate {
         switch route {
         case .login: reviewLoginApproval()
         case .maintenance: advancedSafetySettings()
+        case .retireWatcher: retireProcessWatcher()
         case .inputAccess: inputPermissionsFromSettings()
         case .keyboardAccess: keyboardAccessRecovery()
         case .sharingAccess: sharingAccessSetup()
@@ -336,8 +306,6 @@ extension AppDelegate {
         case .displays: deskSettings()
         case .deskInput: deskSettings()
         case .awake: lidActivity()
-        case .agents: configurePanic()
-        case .events: processEventSetup()
         case .settings: if id == "scrolling" { scrollingSettings() } else { appSettings() }
         }
     }

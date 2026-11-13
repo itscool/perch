@@ -1,33 +1,91 @@
 {
-  "AgentCatalog.swift:importAgentCatalog:picker:1": {
-    "file": "AgentCatalog.swift",
-    "kind": "picker",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
+  "AppDelegate+Helpers.swift:presentBackgroundSetup:task-page:1": {
+    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status is Setup-owned; no optional administrator-protection page, routine repair or duplicate reset/login controls. Moved from PanicUI.swift unchanged when the Agent Kill Switch was removed (November 12, 2026).",
+    "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
   },
-  "AgentCatalog.swift:reviewCatalogChanges:alert:1": {
-    "file": "AgentCatalog.swift",
+  "AppDelegate+Menu.swift:about:about-panel:1": {
+    "review": "RELEASE-DISTRIBUTION-REVIEW.md",
+    "acceptance": "Standalone modeless AppKit About panel; independent Settings state, native close/reopen acceptance pending."
+  },
+  "AppDelegate+Menu.swift:showError:task-page:1": {
+    "review": "SETUP-REVIEW-2.0.94.md: recovery findings; error stays inline or modeless with an actionable setup route; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
+    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
+  },
+  "AppDelegate+Quit.swift:quit:alert:1": {
+    "file": "AppDelegate+Quit.swift",
     "kind": "alert",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "review": "September 15 2026 manual Quit design with Scott: ask only when a feature is on, name what stops and what is kept in plain feature terms, keep an Agent Kill Switch block; native app-modal notice through SettingsWindow.presentStandaloneNotice",
+    "acceptance": "QuitPlanTests (effects wording, idle quit without asking, kept block, helper stop/allow sequence, bounded turn-off) pass headlessly; native click-through of the Quit notice not yet performed"
+  },
+  "AppReplacement.swift:considerAppReplacementNotice:alert:1": {
+    "file": "AppReplacement.swift",
+    "kind": "alert",
+    "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "AgentSettingsPage.swift:show:page:1": {
-    "file": "AgentSettingsPage.swift",
+  "DeskLiveSettings.swift:deskInputPreferences:page:1": {
+    "file": "DeskLiveSettings.swift",
+    "kind": "page",
+    "review": "Shared input retains its feature settings; Desk names move inline and all shortcut controls belong to Hotkeys.",
+    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
+  },
+  "DeskLiveSettings.swift:deskSettings:page:1": {
+    "file": "DeskLiveSettings.swift",
     "kind": "page",
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "EventSetup.swift:show:page:1": {
-    "file": "EventSetup.swift",
+  "HotkeySettings.swift:hotkeySettings:page:1": {
+    "review": "Single navigable Hotkeys page owns emergency, countdown and Desk editors; local/shared scope, registration errors and harmless test retained. Fixed keys are references.",
+    "acceptance": "Source routing reviewed; offscreen and build checks tracked in SETTINGS-UX-REVIEW-2.0.94.md. Native clicks remain manual QA."
+  },
+  "KeyboardSettingsUI.swift:keyboardSettingsView:page:1": {
+    "review": "SETTINGS-CONSOLIDATION-2.0.121.md",
+    "acceptance": "Single keyboard readiness/layout page; app exceptions owned by sidebar. Menu switches removed. Source review; native route regression pending.",
+    "file": "KeyboardSettingsUI.swift",
+    "kind": "page"
+  },
+  "LaunchAccessRecovery.swift:show:page:1": {
+    "file": "LaunchAccessRecovery.swift",
     "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
-    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
+    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
   "LidActivityUI.swift:show:page:1": {
     "file": "LidActivityUI.swift",
     "kind": "page",
     "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
+  },
+  "LidCountdownUI.swift:show:panel:1": {
+    "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
+    "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
+  },
+  "LidSleepNotice.swift:presentLidSleepNotice:alert:1": {
+    "review": "LID-SLEEP-NOTICE-2.0.md: expected grace expiry remains log-only; evidenced unexpected sleep uses a standalone native modal with OK and View lid activity.",
+    "acceptance": "Temporal classification and delivery tests, isolated modal ownership plus native fixture dismissal; no live sleep or hardware changes."
+  },
+  "LogsSettings.swift:logsSettings:task-page:1": {
+    "file": "LogsSettings.swift",
+    "kind": "task-page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "LogsSettings.swift:show:page:1": {
+    "file": "LogsSettings.swift",
+    "kind": "page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "LogsSettings.swift:show:page:2": {
+    "file": "LogsSettings.swift",
+    "kind": "page",
+    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
+    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+  },
+  "MenuAppearancePage.swift:appearanceSettings:page:1": {
+    "review": "KVM-LIVE-REVIEW.md — independent System/rainbow controls and same-renderer preview; ordinary values save immediately.",
+    "acceptance": "Source review in progress; native appearance, scroll, focus and sidebar return checks pending."
   },
   "NavigationProbeUI.swift:show:page:1": {
     "file": "NavigationProbeUI.swift",
@@ -41,117 +99,17 @@
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:refreshSafety:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:stopAgents:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:resumeAgents:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:chooseSafetyAction:menu-page:1": {
-    "file": "PanicUI.swift",
-    "kind": "menu-page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:addTarget:picker:1": {
-    "file": "PanicUI.swift",
+  "NavigationSettingsUI.swift:showNavigationExceptions:picker:1": {
+    "file": "NavigationSettingsUI.swift",
     "kind": "picker",
     "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
     "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
-  "PanicUI.swift:runShortcutTest:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:runShortcutTest:alert:2": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:runShortcutTest:alert:3": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:broadLockdown:alert:1": {
-    "file": "PanicUI.swift",
-    "kind": "alert",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:safetyReport:page:1": {
-    "file": "PanicUI.swift",
+  "PerchUpdater.swift:releaseHistory:page:1": {
+    "file": "PerchUpdater.swift",
     "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "PermissionSetup.swift:show:page:1": {
-    "file": "PermissionSetup.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
-    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
-  },
-  "ResetActions.swift:privacyOnlyReset:page:1": {
-    "file": "ResetActions.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "SettingsPages.swift:show:page:1": {
-    "file": "SettingsPages.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "SettingsPages.swift:presentAppSettings:task-page:1": {
-    "file": "SettingsPages.swift",
-    "kind": "task-page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "SettingsWindow.swift:declaration:panel:1": {
-    "file": "SettingsWindow.swift",
-    "kind": "panel",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
-    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
-  },
-  "SetupOverview.swift:show:page:1": {
-    "file": "SetupOverview.swift",
-    "kind": "page",
-    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
-    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
-  },
-  "PanicUI.swift:configurePanic:menu-entry:1": {
-    "file": "PanicUI.swift",
-    "kind": "menu-entry",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "AppReplacement.swift:considerAppReplacementNotice:alert:1": {
-    "file": "AppReplacement.swift",
-    "kind": "alert",
-    "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
-    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
-  },
-  "SettingsWindow.swift:navigate:alert:1": {
-    "review": "Sidebar draft exit preserves saved setup; Cancel retains editor, explicit discard switches destination.; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
-    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
+    "review": "Release history is a read-only Settings page reached from Updates; current What’s New remains in Sparkle’s update dialog.",
+    "acceptance": "Source and isolated build coverage; page uses the shared Settings Back/navigation contract and bundled release-history resource."
   },
   "PerchUpdater.swift:updateSettings:task-page:1": {
     "file": "PerchUpdater.swift",
@@ -159,35 +117,11 @@
     "review": "SPARKLE-REVIEW.md: Updates sidebar; autosaved checking preference; shared ownership handed to standard Sparkle UI.",
     "acceptance": "23/23 isolated suites passed including Updates unavailable-state/Back; real Sparkle signed fixture install and mock handoff failure/retry passed. Production helper/permission continuity and broader native acceptance remain release QA."
   },
-  "MenuAppearancePage.swift:appearanceSettings:page:1": {
-    "review": "KVM-LIVE-REVIEW.md — independent System/rainbow controls and same-renderer preview; ordinary values save immediately.",
-    "acceptance": "Source review in progress; native appearance, scroll, focus and sidebar return checks pending."
-  },
-  "DeskLiveSettings.swift:deskSettings:page:1": {
-    "file": "DeskLiveSettings.swift",
+  "PermissionSetup.swift:show:page:1": {
+    "file": "PermissionSetup.swift",
     "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "AppDelegate+Menu.swift:about:about-panel:1": {
-    "review": "RELEASE-DISTRIBUTION-REVIEW.md",
-    "acceptance": "Standalone modeless AppKit About panel; independent Settings state, native close/reopen acceptance pending."
-  },
-  "AppDelegate+Menu.swift:showError:task-page:1": {
-    "review": "SETUP-REVIEW-2.0.94.md: recovery findings; error stays inline or modeless with an actionable setup route; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
     "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
-  },
-  "LaunchAccessRecovery.swift:show:page:1": {
-    "file": "LaunchAccessRecovery.swift",
-    "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "NavigationSettingsUI.swift:showNavigationExceptions:picker:1": {
-    "file": "NavigationSettingsUI.swift",
-    "kind": "picker",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md: U1–U11 and D1–D3 source correction; shared host navigation, failure preservation and lifetime reviewed",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
   },
   "PrerequisiteSettings.swift:presentLidProtectionSetup:task-page:1": {
     "review": "SETUP-CONSOLIDATION-2.0.md — one Setup owner, contextual feature link, retained checklist and observed readiness; no setting changes on entry.",
@@ -209,66 +143,32 @@
     "review": "RESET-CHECKLIST-AND-RESIZE.md: flat scope selection, inline keyboard target, explicit frozen confirmation, partial results, retry and contextual highlight/return.",
     "acceptance": "Injected operations and disposable preferences; test and native evidence recorded in RESET-CHECKLIST-AND-RESIZE.md. No live reset is authorized by these checks."
   },
-  "LidSleepNotice.swift:presentLidSleepNotice:alert:1": {
-    "review": "LID-SLEEP-NOTICE-2.0.md: expected grace expiry remains log-only; evidenced unexpected sleep uses a standalone native modal with OK and View lid activity.",
-    "acceptance": "Temporal classification and delivery tests, isolated modal ownership plus native fixture dismissal; no live sleep or hardware changes."
-  },
-  "LidCountdownUI.swift:show:panel:1": {
-    "review": "LID-COUNTDOWN-2.0.md: active, finished, cancelled, failed and restarted countdown; settings save immediately with registration conflict handling.",
-    "acceptance": "Virtual-clock tests passed. Native simulated Cancel to Finished 0:00 and Close verified; live helper and physical shortcuts remain QA."
-  },
-  "DeskLiveSettings.swift:deskInputPreferences:page:1": {
-    "file": "DeskLiveSettings.swift",
-    "kind": "page",
-    "review": "Shared input retains its feature settings; Desk names move inline and all shortcut controls belong to Hotkeys.",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
-  "HotkeySettings.swift:hotkeySettings:page:1": {
-    "review": "Single navigable Hotkeys page owns emergency, countdown and Desk editors; local/shared scope, registration errors and harmless test retained. Fixed keys are references.",
-    "acceptance": "Source routing reviewed; offscreen and build checks tracked in SETTINGS-UX-REVIEW-2.0.94.md. Native clicks remain manual QA."
-  },
-  "KeyboardSettingsUI.swift:keyboardSettingsView:page:1": {
-    "review": "SETTINGS-CONSOLIDATION-2.0.121.md",
-    "acceptance": "Single keyboard readiness/layout page; app exceptions owned by sidebar. Menu switches removed. Source review; native route regression pending.",
-    "file": "KeyboardSettingsUI.swift",
-    "kind": "page"
-  },
-  "PanicUI.swift:presentBackgroundSetup:task-page:1": {
-    "review": "LID-HELPER-MAINTENANCE-2.0.md: automatic maintenance status is Setup-owned; no optional administrator-protection page, routine repair or duplicate reset/login controls.",
-    "acceptance": "Source and injected navigation/policy tests; live native page checks recorded separately. No live permission resets or file-protection change."
-  },
-  "PanicUI.swift:showAgentRecognition:page:1": {
-    "review": "Agent recognition owns the catalog import/review flow and custom app/executable add/remove flow together; Apply retains explicit matching-rule confirmation and fresh on/off selections. No modal success layer.",
-    "acceptance": "Catalog policy and isolated settings tests; no live catalog import or matching-rule change."
-  },
-  "PerchUpdater.swift:releaseHistory:page:1": {
-    "file": "PerchUpdater.swift",
-    "kind": "page",
-    "review": "Release history is a read-only Settings page reached from Updates; current What’s New remains in Sparkle’s update dialog.",
-    "acceptance": "Source and isolated build coverage; page uses the shared Settings Back/navigation contract and bundled release-history resource."
-  },
-  "LogsSettings.swift:logsSettings:task-page:1": {
-    "file": "LogsSettings.swift",
+  "SettingsPages.swift:presentAppSettings:task-page:1": {
+    "file": "SettingsPages.swift",
     "kind": "task-page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
-    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "LogsSettings.swift:show:page:1": {
-    "file": "LogsSettings.swift",
+  "SettingsPages.swift:show:page:1": {
+    "file": "SettingsPages.swift",
     "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
-    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
+    "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "LogsSettings.swift:show:page:2": {
-    "file": "LogsSettings.swift",
+  "SettingsWindow.swift:declaration:panel:1": {
+    "file": "SettingsWindow.swift",
+    "kind": "panel",
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
+    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
+  },
+  "SettingsWindow.swift:navigate:alert:1": {
+    "review": "Sidebar draft exit preserves saved setup; Cancel retains editor, explicit discard switches destination.; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit; RESET-DISCOVERABILITY-2.0.md contextual repair follow-up: explicit reset owner, retained origin and scoped Back",
+    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
+  },
+  "SetupOverview.swift:show:page:1": {
+    "file": "SetupOverview.swift",
     "kind": "page",
-    "review": "SETTINGS-UX-REVIEW-2.0.94.md; shared settings navigation, explicit log destinations, copy action and empty-state behavior reviewed",
-    "acceptance": "Static source and isolated build coverage; native log rendering and copy verification remain release acceptance"
-  },
-  "AppDelegate+Quit.swift:quit:alert:1": {
-    "file": "AppDelegate+Quit.swift",
-    "kind": "alert",
-    "review": "September 15 2026 manual Quit design with Scott: ask only when a feature is on, name what stops and what is kept in plain feature terms, keep an Agent Kill Switch block; native app-modal notice through SettingsWindow.presentStandaloneNotice",
-    "acceptance": "QuitPlanTests (effects wording, idle quit without asking, kept block, helper stop/allow sequence, bounded turn-off) pass headlessly; native click-through of the Quit notice not yet performed"
+    "review": "DIALOG-INTERACTION-REVIEW.md; WHOLE-APP-REVIEW-79.md; source routing/owner/lifetime and journey audit; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation; SETUP-REVIEW-2.0.94.md: setup recovery and contextual navigation source audit",
+    "acceptance": "Setup corrections compiled in the isolated app fixture; native regression execution and real route clicks remain pending under the static-only instruction. Earlier build acceptance does not verify these changes."
   }
 }

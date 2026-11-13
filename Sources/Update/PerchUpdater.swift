@@ -153,7 +153,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
             TerminationReply.send(true, after: 0.3, to: sender)
             return .terminateLater
         }
-        guard let boot = CollectorIdentity.bootID else { recover("Could not verify this macOS session."); return .terminateCancel }
+        guard let boot = BootSession.id else { recover("Could not verify this macOS session."); return .terminateCancel }
         preparingTermination = true
         LidGuardClient.shared.prepareForRestart(identity: proposed.codeHash) { result in
             var allowed = false
@@ -180,7 +180,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     func completeLaunch(_ completion: @escaping () -> Void) {
         guard let record = NetworkUpdateHandoffFile.read() else { completion(); return }
         guard record.path == Bundle.main.bundleURL.standardizedFileURL.path else { completion(); return }
-        guard record.matches(boot: CollectorIdentity.bootID, path: Bundle.main.bundleURL.standardizedFileURL.path,
+        guard record.matches(boot: BootSession.id, path: Bundle.main.bundleURL.standardizedFileURL.path,
                              build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
                              identity: CodeIdentity.current, now: LidGuardClock.now) else {
             NetworkUpdateHandoffFile.remove()

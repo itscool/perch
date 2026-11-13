@@ -31,7 +31,7 @@ func runSettingsReviewFixTests() throws {
     let stages: [(String, () -> Void)] = [
         ("keyboard-access", app.keyboardAccessRecovery), ("input-access", app.inputPermissionsFromSettings),
         ("sharing-access", app.sharingAccessSetup), ("lid-setup", app.lidProtectionSetup),
-        ("maintenance", app.advancedSafetySettings), ("events", app.processEventSetup)
+        ("maintenance", app.advancedSafetySettings)
     ]
     let stageIDs = Set(stages.map { $0.0 })
     let destinations = host.sidebar.destinations
@@ -91,20 +91,6 @@ func runSettingsReviewFixTests() throws {
     var changedModifiers = emergency; changedModifiers.modifiers.insert(.shift)
     var disabledEmergency = emergency; disabledEmergency.enabled = false
     try check(!presetShortcut.matches(changedModifiers) && !presetShortcut.matches(disabledEmergency), "Shortcut validation rejected a distinct or disabled shortcut")
-    var config = SafetyConfiguration(); config.shortcut.enabled = true
-    var reported: SafetyStatus? = nil
-    let agents = AgentSettingsPage(mode: .shortcut, load: { config }, save: { config = $0 }, conflicts: { _ in false }, readStatus: { reported })
-    agents.show()
-    try check(agents.status.stringValue.contains("Waiting"), "Saved shortcut was called ready without registration")
-    reported = SafetyStatus(locked: false, pendingLaunchJobs: 0, shortcutActive: true, inputTrusted: nil, inputActive: false, keepAwakeActive: false, trackedCount: 0, targets: [], message: "Fixture", testResultID: nil, testUntil: nil, error: nil, registeredShortcut: config.shortcut)
-    host.pages.last?.refresh?()
-    try check(agents.status.stringValue.contains("Registered and ready"), "Confirmed matching registration is not shown")
-    reported?.shortcutActive = false
-    reported?.registeredShortcut = Shortcut(key: UInt32(kVK_F9))
-    reported?.error = "Replacement unavailable; previous shortcut remains active."
-    host.pages.last?.refresh?()
-    try check(agents.status.stringValue.contains("Not registered") && agents.status.stringValue.contains("previous shortcut"), "Failed replacement was reported ready or hid working fallback")
-
     var navigationConfig = SafetyConfiguration()
     navigationConfig.navigation = NavigationPreferences(homeEnd: true, pageUpDown: true)
     var profileReads = 0, navigationWrites = 0

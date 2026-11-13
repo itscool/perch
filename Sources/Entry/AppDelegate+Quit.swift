@@ -26,14 +26,11 @@ extension AppDelegate {
 
     func quitFeatures() -> QuitPlan.Features {
         let config = SafetyConfiguration.load()
-        let state = try? SafetyFiles.read(SafetyState.self, from: SafetyFiles.state)
         return .init(closedLid: LidGuardClient.shared.active,
                      keepAwake: config.keepAwake,
                      preventIdleLock: UserDefaults.standard.bool(forKey: SleepPreferences.preventIdleLockKey),
                      scrolling: inputs.reverseTrackpad || inputs.reverseWheel || inputs.navigation.preferences.enabled,
-                     desk: DeskCoordinator.shared.runtime != nil,
-                     panicShortcut: GuardianInstall.alive && config.shortcut.enabled,
-                     agentsBlocked: state.map { $0.locked || !$0.disabledJobs.isEmpty } ?? false)
+                     desk: DeskCoordinator.shared.runtime != nil)
     }
 
     func quitTurningOff(_ plan: QuitPlan) {
@@ -49,6 +46,6 @@ extension AppDelegate {
         QuitShutdown.perform(timeout: 3, endLidSession: { done in
             guard LidGuardClient.shared.status?.armed == true || LidGuardOwnership.recorded else { done(); return }
             LidGuardClient.shared.change(false) { _ in done() }
-        }, stopHelpers: { HelperLifecycle.stopForQuit(keepGuardian: plan.keepsGuardian) }, completion: completion)
+        }, stopHelpers: { HelperLifecycle.stopForQuit() }, completion: completion)
     }
 }

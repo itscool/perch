@@ -7,7 +7,7 @@ func runSettingsResetTests() throws {
     let defaults = UserDefaults(suiteName:domain)!
     defer { defaults.removePersistentDomain(forName:domain); try? fm.removeItem(at:base) }
     try fm.createDirectory(at:base.appendingPathComponent("requests"),withIntermediateDirectories:true)
-    var config = SafetyConfiguration(); config.reverseWheel = true; config.keepAwake = true; config.targets = []
+    var config = SafetyConfiguration(); config.reverseWheel = true; config.keepAwake = true
     try JSONEncoder().encode(config).write(to:base.appendingPathComponent("config.json"))
     defaults.set(true,forKey:"reverseWheel"); defaults.set("keep",forKey:"unrelated")
     defaults.set("mapping",forKey:"monitor.inputCycle.v1")
@@ -43,8 +43,9 @@ func runSettingsResetTests() throws {
     }
     let identities = MonitorProfiles.entries.filter { $0.automatic != false }.map { "\($0.vendor):\($0.model ?? 0)" }
     guard Set(identities).count == identities.count else { throw AppError(message:"Ambiguous automatic monitor profile IDs") }
+    // Only Perch's own decisions can be reset: every app's went with the kill switch.
     guard PrivacyOnlyReset.arguments(global:false) == ["reset","All","local.scott.perch"],
-          PrivacyOnlyReset.arguments(global:true) == ["reset","All"] else { throw AppError(message:"Privacy-only scope incorrect") }
+          PrivacyOnlyReset.arguments(global:true) == ["reset","All","local.scott.perch"] else { throw AppError(message:"A privacy reset could reach other apps") }
     print("PASS: selective/full preference reset with disposable files/defaults; settings preserved by section; no services stopped or system settings changed; LG identity-to-input mapping")
 }
 
@@ -78,7 +79,7 @@ func runResetNavigationTests() throws {
         if area == .privacy { callback = finish; return }
         finish(.success("Fixture completed"))
     }, quit: { quits += 1 })
-    let page = ResetChecklistPage(highlight: .layouts, operation: operation, readLayouts: { profiles }, allApps: {})
+    let page = ResetChecklistPage(highlight: .layouts, operation: operation, readLayouts: { profiles })
     page.show()
     try check(page.boxes.count == 6 && page.boxes.values.allSatisfy { $0.state == .off }, "new checklist is preselected")
     page.boxes[.layouts]!.performClick(nil)
@@ -109,8 +110,6 @@ func runResetNavigationTests() throws {
     try check(calls == [.layouts,.appearance,.privacy,.privacy,.preferences] && quits == 1 && operation.failedPlan == nil, "retry repeated successes, accepted duplicate completion, or failed to quit once")
     page.refresh()
     try check(page.status.stringValue.contains("completed"), "results vanished after leaving")
-    app.openReset(.allAppsPrivacy, returningToCurrentPage: false)
-    try check(host.pages.map(\.title) == ["Reset Settings", "Reset all apps’ privacy permissions?"], "global privacy was combined into checklist")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification)); app.openResets()
     try check(host.pages.count == 1 && host.back.isHidden, "reopened resets retained a stale contextual return")
 

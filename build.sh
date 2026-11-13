@@ -149,11 +149,9 @@ else
     echo "Building local build $BUILD_NUMBER; the tracked Info.plist is unchanged."
 fi
 mkdir -p "$APP/Contents/MacOS"
-xcrun clang -std=c11 -O2 -Wall -Wextra -Werror Sources/Native/PerchEventLauncher.c -o "$APP/Contents/MacOS/PerchEventLauncher"
-xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/Native/EventParser.c -o build/EventParser.o
 xcrun clang -std=c11 -O3 -Wall -Wextra -Werror -c Sources/Native/DDCWire.c -o build/DDCWire.o
 xcrun clang -fmodules -fmodules-cache-path="$PWD/build/ClangModuleCache" -O2 -DMAX_DISPLAYS=16 -I Vendor/m1ddc -I Sources/Native Sources/Native/PerchDisplay.m Sources/Native/MonitorTransport.m Vendor/m1ddc/ioregistry.m build/DDCWire.o -framework CoreDisplay -framework IOKit -framework Foundation -framework CoreGraphics -o "$APP/Contents/MacOS/PerchDisplay"
-xcrun swiftc -I "$CERTIFICATE_MODULES" -L "$CERTIFICATES" -lPerchCertificates -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/Native/EventParser.h $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) build/EventParser.o build/DDCWire.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -F "$SPARKLE" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -O -whole-module-optimization
+xcrun swiftc -I "$CERTIFICATE_MODULES" -L "$CERTIFICATES" -lPerchCertificates -module-cache-path "$PWD/build/ModuleCache" -import-objc-header Sources/Native/PerchBridge.h $(/usr/bin/find Sources Tests -name '*.swift' | /usr/bin/sort) build/DDCWire.o -o "$APP/Contents/MacOS/Perch" -framework AppKit -framework IOKit -framework ServiceManagement -framework Carbon -framework CoreAudio -framework Security -F "$SPARKLE" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -O -whole-module-optimization
 xcrun swift Tools/render-branding.swift "$PWD/build/branding"
 mkdir -p "$APP/Contents/Resources"
 cp build/branding/Perch.icns "$APP/Contents/Resources/Perch.icns"
@@ -161,9 +159,7 @@ cp Info.plist "$APP/Contents/Info.plist"
 python3 Tools/build_number.py stamp "$APP" "$BUILD_NUMBER"
 python3 Tools/configure-updates.py "$APP"
 mkdir -p "$APP/Contents/Resources"
-cp Tools/install-event-collector.sh "$APP/Contents/Resources/install-event-collector.sh"
 cp catalog/msi-input-profiles.json "$APP/Contents/Resources/msi-input-profiles.json"
-cp catalog/agents.json "$APP/Contents/Resources/agents.json"
 cp catalog/keyboard-profiles.json "$APP/Contents/Resources/keyboard-profiles.json"
 cp catalog/lg-firmware-families.json "$APP/Contents/Resources/lg-firmware-families.json"
 cp catalog/monitor-profiles.json "$APP/Contents/Resources/monitor-profiles.json"
@@ -175,7 +171,6 @@ for DEPENDENCY in swift-certificates swift-asn1 swift-crypto; do
 done
 "${SPARKLE_COMMAND[@]}" "$APP" --identity "$SIGN_IDENTITY"
 python3 Tools/release_assets.py install --app "$APP"
-codesign --force --sign "$SIGN_IDENTITY" --identifier local.scott.perch.event-launcher "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchEventLauncher"
 codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTIONS[@]}" "$APP/Contents/MacOS/PerchDisplay"
 codesign --force --sign "$SIGN_IDENTITY" "${APP_SIGN_OPTIONS[@]}" "$APP"
 python3 Tools/app_bundle.py "$APP" --destination "$OUTPUT_APP"

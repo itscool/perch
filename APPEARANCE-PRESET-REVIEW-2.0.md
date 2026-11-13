@@ -40,3 +40,11 @@ Soft tiles uses 55% tint in Light and 45% in Dark; Outline uses 65%/45%.
 Quiet, Signal, Ribbon and Horizon intentionally keep icons hidden. Border, Fill
 and Titles now group the controls; radius sits with border weight/intensity.
 The two edit-scope buttons split the available width equally.
+
+Section removal review (November 12, 2026): the Agent Kill Switch section was
+removed with that feature. Every palette was designed as nine colours with the
+kill switch first; its colour is dropped rather than the list shortened, so every
+remaining section keeps exactly its previous colour in every palette, in Light
+and Dark (`MenuPalette.designedOrder`). Built-in presets reviewed: none changed,
+all kept, including Scott's exact Perch original. The preview sample no longer
+shows the kill switch row.

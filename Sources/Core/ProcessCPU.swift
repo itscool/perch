@@ -92,9 +92,7 @@ final class ProcessCPUReader {
         let time = ProcessInfo.processInfo.systemUptime
         let wallTime = Date().timeIntervalSince1970
         let ticks = mach_absolute_time()
-        var ours = perchPIDs
-        let collector = CollectorIdentity.current()
-        if let identity = collector.identity { ours.insert(identity.pid) }
+        let ours = perchPIDs
         let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size)))
         var complete = count > 0 && count < pids.count
         var counters: [Int32: ProcessCPUCounter] = [:]
@@ -127,17 +125,8 @@ final class ProcessCPUReader {
                 }
             } else { complete = false }
         }
-        // Bracket the whole sample (including ps) so exit/restart or PID reuse
-        // cannot attach another process's CPU to the recorded collector.
-        var collectorKnown = collector.complete
-        let collectorAfter = CollectorIdentity.current()
-        if collectorAfter != collector {
-            if let identity = collector.identity { ours.remove(identity.pid); counters.removeValue(forKey: identity.pid) }
-            if let identity = collectorAfter.identity { counters.removeValue(forKey: identity.pid) }
-            collectorKnown = false; complete = false
-        }
         lastWallMS = Double(DispatchTime.now().uptimeNanoseconds - began) / 1_000_000
-        return ProcessCPUSnapshot(time: time, counters: counters, perch: ours, complete: complete, perchComplete: helpersKnown && collectorKnown)
+        return ProcessCPUSnapshot(time: time, counters: counters, perch: ours, complete: complete, perchComplete: helpersKnown)
     }
     static func birth(_ pid: Int32) -> UInt64? {
         // KERN_PROC_PID exposes birth identity for other users' processes even

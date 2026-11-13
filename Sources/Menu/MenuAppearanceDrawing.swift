@@ -72,7 +72,6 @@ final class MenuAppearancePreviewHost: NSView {
         let sections: [(String, [(String, MenuRowView.Kind)])] = [
             ("System", [("Mac · Apple silicon", .information), ("CPU 12%", .information),
                         ("GPU 4%", .information), ("Memory 42%", .information), ("Thermal · Normal", .information)]),
-            ("Agent Kill Switch", [("Panic…", .command)]),
             ("Displays", [("Turn display off", .command)]),
             ("Audio", [("Mute audio", .toggle)])
         ]

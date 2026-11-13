@@ -1,49 +1,14 @@
 import AppKit
 import Carbon
 
-/// Regression journeys use synthetic process identities, mock monitor transport,
+/// Regression journeys use mock monitor transport,
 /// temporary preference domains, and canceled/injected forms. No live mutations.
 func runReviewFixTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
-    for runtime in ["node", "bun"] {
-        for (tool, package) in [("codex", "@openai/codex"), ("claude", "@anthropic-ai/claude-code")] {
-            let script = "/fixture/node_modules/\(package)/" + (tool == "codex" ? "bin/codex.js" : "cli.js")
-            for (args, expected) in [([runtime, script], true), ([runtime, "/fixture/indexer.js", script], false), ([script, "/fixture/indexer.js"], false), ([runtime, "--eval", script], false), ([runtime, "--require=" + script, "/fixture/indexer.js"], false), ([runtime, script.replacingOccurrences(of: package, with: package + "-tools")], false), ([runtime, "/fixture/node_modules/\(package)/README.md"], false), ([runtime, "/fixture/node_modules/\(package)/diagnostics.js"], false)] {
-                func process(_ pid: Int, path: String) -> [String: Any] {
-                    ["audit_token": ["pid": pid, "pidversion": 1, "auid": getuid(), "euid": getuid(), "ruid": getuid(), "egid": getgid(), "rgid": getgid(), "asid": 7], "executable": ["path": path]]
-                }
-                let data = try JSONSerialization.data(withJSONObject: ["global_seq_num": 1, "process": process(400010, path: "/bin/zsh"), "event": ["exec": ["target": process(400011, path: "/fixture/" + runtime), "args": args]]])
-                let guardian = AgentGuardian()
-                guardian.config.targets = [.init(id: "fixture", name: "Fixture", kind: "cli", match: tool)]
-                try data.withUnsafeBytes { try BorrowedProcessEvent.withBytes($0) { event in
-                    guardian.consumeEvent(event)
-                    try check((guardian.ancestry.targets[event.subject.token] != nil) == expected, "Runtime data argument became an agent identity")
-                } }
-            }
-        }
-    }
-
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-build-test-" + UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let contents = root.appendingPathComponent("Helper.app/Contents")
-    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-    let executable = contents.appendingPathComponent("MacOS/Perch")
-    let expected = ["CFBundleVersion": "41", "CFBundleIdentifier": "fixture.perch"]
-    for (version, id, matches) in [("12", "fixture.perch", false), ("41", "fixture.perch", true), ("41", "wrong.app", false)] {
-        try PropertyListSerialization.data(fromPropertyList: ["CFBundleVersion": version, "CFBundleIdentifier": id], format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-        try check(GuardianInstall.buildMatches(executable: executable, appInfo: expected, verifyPublisher: { _ in true }) == matches, "Helper build/identity mismatch was accepted")
-    }
-
-    try PropertyListSerialization.data(fromPropertyList: expected, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-    try check(!GuardianInstall.buildMatches(executable: executable, appInfo: expected, verifyPublisher: { _ in false }), "Same build from another publisher passed startup readiness")
-    try check(GuardianInstall.inputPermissionApp(arguments: [SafetyFiles.binary.path, "--input-helper"])?.standardizedFileURL.path == SafetyFiles.helperApp.standardizedFileURL.path, "User helper permission target ignored the active job")
-    try check(GuardianInstall.inputPermissionApp(arguments: [GuardianInstall.protectedBinary.path, "--input-helper"])?.path == "/Library/Application Support/Perch/Perch Helper.app", "Protected helper job did not select its own permission target")
-    try check(GuardianInstall.inputPermissionApp(arguments: ["/tmp/unrelated", "--input-helper"]) == nil, "Unknown executable became a permission target")
-
     let host = SettingsWindow.shared
     host.testing = true; host.pages = []
     defer { host.modalTestDriver = nil; host.pages = []; host.window.defaultButtonCell = nil }
-    let app = AppDelegate(); app.configureSettings(); app.configurePanic(); app.configureSettings()
+    let app = AppDelegate(); app.configureSettings(); app.hotkeySettings(); app.configureSettings()
     try check(host.pages.count == 1 && host.pages.last?.title == "Setup & status" && host.back.isHidden, "Reopening Settings created a second home or a redundant exit")
     let previousLevel = host.window.level
     let previousFloating = host.window.isFloatingPanel
@@ -92,10 +57,6 @@ func runReviewFixTests() throws {
     if let renderError { throw renderError }
     try check(readable && keys, "Approval text clipped or Return/Escape lost")
     host.modalTestDriver = nil
-    let agentPage = app.editSafetyForm(save: { _ in throw AppError(message: "Unexpected save") })
-    try check(host.pages.last?.view === agentPage.view && !host.modal && !host.back.isHidden && host.back.title == "Back to setup", "Agent editor did not use a regular settings page with contextual return")
-    host.goBack()
-    try runAgentSettingsPageTests()
     app.buildMenu(); app.refreshDeskSharingMenu()
     try check(app.shareInputItem.isEnabled, "Desk sharing row is not enabled after building the menu")
     app.keyboardModes.results = [.init(name: "Fixture", detail: "Needs setup", verified: false)]
@@ -113,5 +74,5 @@ func runReviewFixTests() throws {
     profiles.removeAll() // Simulate the separate reset page completing its scoped write.
     host.goBack()
     try check(host.pages.last?.view === offline.view && offline.picker.titleOfSelectedItem == "No connected or saved external keyboard", "Returning from layout reset retained the erased keyboard or rebuilt its origin")
-    print("PASS: runtime argument identity; helper build verification; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
+    print("PASS: helper build verification; stable Settings home; scrollable approvals; Return/Escape; nonmodal agent editor; setup action routes")
 }

@@ -1,18 +1,12 @@
 import Foundation
 
-/// Persist recovery intent before changing launch eligibility. Commands are
-/// injected so disk failure and restart recovery can be tested without launchd.
+/// Switches back on the launch jobs the Agent Kill Switch switched off, so
+/// removing that feature can never leave someone's apps unable to start.
+/// Commands are injected so disk failure and retry can be tested without
+/// launchd.
 enum AgentJobRecovery {
-    static func disable(_ label: String, state: inout SafetyState,
-                        persist: (SafetyState) throws -> Void, command: () -> String) throws -> String {
-        guard !state.disabledJobs.contains(label) else { return "already recorded" }
-        var reserved = state
-        reserved.disabledJobs.append(label)
-        try persist(reserved)
-        state = reserved
-        // A timeout/failure can be ambiguous; retain intent for Resume even then.
-        return command()
-    }
+    /// Persist the release before re-enabling anything, and keep any job that
+    /// could not be re-enabled on the list so the next start tries again.
     static func resume(state: inout SafetyState, persist: (SafetyState) throws -> Void,
                        enable: (String) -> String) throws -> [String] {
         var released = state

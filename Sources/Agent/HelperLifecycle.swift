@@ -11,10 +11,10 @@ enum HelperLifecycle {
     /// enforce a block releases Keep awake while this exists.
     static var closedMarker: URL { SafetyFiles.base.appendingPathComponent("perch-closed") }
 
-    static func stopForQuit(keepGuardian: Bool, uid: uid_t = getuid(), marker: URL = HelperLifecycle.closedMarker,
+    static func stopForQuit(uid: uid_t = getuid(), marker: URL = HelperLifecycle.closedMarker,
                             run: Run = { LaunchdJob.run($0) }) {
         FileManager.default.createFile(atPath: marker.path, contents: Data())
-        for label in (keepGuardian ? [] : [GuardianInstall.label]) + [inputLabel] {
+        for label in [GuardianInstall.label, inputLabel] {
             let target = LaunchdJob.user(label, uid: uid).target
             // Disable first so KeepAlive cannot restart the job between the two.
             _ = run(["disable", target])

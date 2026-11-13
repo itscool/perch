@@ -2,7 +2,6 @@ import Foundation
 import Darwin
 
 func runProcessCPUTests() throws {
-    try runCollectorIdentityTests()
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     let suite = "local.scott.perch.cpu-tests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

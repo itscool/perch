@@ -1,11 +1,12 @@
 import AppKit
 
-/// Privacy-only actions have a fixed executable and argument list. They never
-/// enter the guardian's panic, process-tracking or launch-job code paths.
+/// Resetting Perch's own privacy decisions has a fixed executable and argument
+/// list naming only Perch. Resetting every app's decisions belonged to the
+/// Agent Kill Switch and was removed with it, so no argument list here can
+/// reach another app.
 enum PrivacyOnlyReset {
-    static func arguments(global: Bool) -> [String] {
-        global ? ["reset", "All"] : ["reset", "All", PanicPlan.perchID]
-    }
+    static let perchBundleID = "local.scott.perch"
+    static func arguments(global: Bool = false) -> [String] { ["reset", "All", perchBundleID] }
     static let operation = PrivacyResetOperation { global, completion in
         DispatchQueue.global(qos: .userInitiated).async {
             let result: Result<String, Error>
@@ -50,61 +51,3 @@ final class PrivacyResetOperation {
     }
 }
 
-extension AppDelegate {
-    @objc func globalPrivacyReset() { withMenuClosed { [weak self] in self?.openReset(.allAppsPrivacy, returningToCurrentPage: false) } }
-    func privacyOnlyReset(global: Bool, operation: PrivacyResetOperation = PrivacyOnlyReset.operation) {
-        let page = NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 320))
-        let scope = global
-            ? "Resets privacy decisions for all apps in your macOS account, including Perch. This does not terminate apps or block shell and network activity."
-            : "Resets privacy decisions for Perch and its helpers, which share Perch’s bundle identity. Other apps are excluded. Review the shared eslogger permission separately in Privacy & Security if needed."
-        let explanation = NSTextField(wrappingLabelWithString: scope)
-        explanation.frame = NSRect(x: 0, y: 218, width: 572, height: 94); explanation.textColor = .secondaryLabelColor
-        let status = NSTextField(wrappingLabelWithString: "")
-        status.identifier = .init("privacy.result")
-        status.frame = NSRect(x: 0, y: 100, width: 572, height: 110)
-        weak var confirmReference: SettingsActionButton?
-        let update = { [weak page] in
-            let resetTitle = global ? "Reset all apps’ privacy permissions" : "Reset Perch’s privacy permissions"
-            confirmReference?.isEnabled = operation.runningScope == nil
-            confirmReference?.isHidden = false
-            status.textColor = .secondaryLabelColor
-            switch operation.state(global: global) {
-            case .idle:
-                status.stringValue = operation.runningScope == nil ? "Nothing has been reset. Only the reset button starts this action." : "Another privacy reset is running. Wait for its result before starting this one."
-                confirmReference?.title = resetTitle
-            case .running:
-                status.stringValue = "Resetting privacy permissions… You can leave this page. macOS will continue; return here to see the result during this Perch session."
-                confirmReference?.title = "Reset in progress…"
-            case .succeeded(let result):
-                status.stringValue = result; status.textColor = StatusColors.success
-                confirmReference?.title = "Start another reset…"
-            case .failed(let result):
-                status.stringValue = result; status.textColor = StatusColors.warning
-                confirmReference?.title = "Retry privacy reset"
-            }
-            if let page, !SettingsWindow.shared.interactionBusy, SettingsWindow.shared.pages.last?.view === page {
-                let host = SettingsWindow.shared
-                switch operation.state(global: global) {
-                case .idle: host.heading.stringValue = global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?"
-                case .running: host.heading.stringValue = "Resetting privacy permissions"
-                case .succeeded: host.heading.stringValue = "Privacy reset completed"
-                case .failed: host.heading.stringValue = "Privacy reset needs attention"
-                }
-            }
-        }
-        let confirm = SettingsActionButton(title: "") {
-            guard !SettingsWindow.shared.testing || operation !== PrivacyOnlyReset.operation else { return }
-            if case .succeeded = operation.state(global: global) { operation.prepare(global: global) }
-            else { operation.run(global: global) }
-            update()
-        }
-        confirm.identifier = .init("privacy.reset"); confirmReference = confirm
-        confirm.frame = NSRect(x: 0, y: 54, width: 572, height: 32)
-        let recovery = SettingsActionButton(title: "Setup & status…") { [weak self] in self?.setupOverview() }
-        recovery.frame = NSRect(x: 0, y: 10, width: 572, height: 32)
-        [explanation, status, confirm].forEach { page.addSubview($0) }
-        if !SettingsWindow.shared.hasContextualReturn { page.addSubview(recovery) }
-        SettingsWindow.shared.show(.init(title: global ? "Reset all apps’ privacy permissions?" : "Reset Perch’s privacy permissions?", detail: "Resetting permissions also forgets previous denials; it is not a permanent block. Leaving before starting makes no changes. Once started, the reset cannot be cancelled here.", view: page, refresh: update, poll: .init(every: 0.25, whileBusy: true, update)))
-        update()
-    }
-}

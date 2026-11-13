@@ -1,6 +1,5 @@
 # Maintenance
 
-Review catalog/agents.json monthly against its official vendor sources. Keep reviewedOn and sources current. New catalog targets default to enabled at the user’s request. Preserve every existing explicit on/off choice. Do not silently broaden an existing match. Import with --update-catalog; review changed definitions explicitly in Settings / Advanced.
 
 Before releasing code, build and run --self-test outside the sandbox for native hotkey checks. Tests use synthetic input, mock permission resets, and disposable processes. Never run production panic, reset live privacy grants, or reboot as a test. Verify helper recovery and UI quit persistence independently. Preserve config.json and state.json on upgrades.
 

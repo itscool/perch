@@ -9,7 +9,7 @@ enum PermissionRecovery {
     typealias Run = ([String]) throws -> Subprocess.Output
 
     /// One service, one bundle id. Never "All" and never a global reset.
-    static func arguments(_ service: PermissionService, bundleID: String = PanicPlan.perchID) -> [String] {
+    static func arguments(_ service: PermissionService, bundleID: String = PrivacyOnlyReset.perchBundleID) -> [String] {
         ["reset", service.rawValue, bundleID]
     }
 

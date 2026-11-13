@@ -51,15 +51,13 @@ links and explicit observation/verification fields. Manufacturer/device facts
 and public compatibility references are not a claim that upstream driver code
 was copied. No Solaar, Karabiner or other keyboard driver is bundled.
 
-agents.json contains eight Perch-authored recognition records. It stores official
-product/project references and executable/bundle matching facts, not vendor
-applications. Preserve user choices when revising matches. vendor-protocol-research.json
-and the research Markdown files are development references, not runtime catalogs.
+vendor-protocol-research.json and the research Markdown files are development
+references, not runtime catalogs. (agents.json, the Agent Kill Switch's recognition
+catalog, was removed with that feature on November 12, 2026.)
 
 ## Maintenance
 
-Review agent recognition monthly against official sources and whenever a match
-changes. Review monitor/keyboard profiles when an issue or upstream change merits
+Review monitor/keyboard profiles when an issue or upstream change merits
 it; avoid silently substituting a vendor-wide guess. Every changed operational
 profile needs provenance, a review date, its identity/transport scope and an
 honest evidence level. Keep confirmed local input mappings ahead of suggestions.

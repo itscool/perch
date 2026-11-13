@@ -1,5 +1,13 @@
 # Process-event collection
 
+> **Retired November 12, 2026.** The Agent Kill Switch and this collector were
+> removed from Perch at Scott's request: the system-wide process watching slowed
+> the Mac down and the feature never helped. Perch no longer installs or runs the
+> collector. A Mac that still has it sees **Old process watcher** in Setup with a
+> single Remove… action (`Sources/Agent/RetiredProcessWatcher.swift`). This
+> document is kept as the record of how the collector worked.
+
+
 Perch can consume Apple's built-in `/usr/bin/eslogger fork exec exit` through a private named pipe. Input handling stays in its own user process. Perch owns process attribution and panic termination; eslogger only observes.
 
 ## Setup in Perch

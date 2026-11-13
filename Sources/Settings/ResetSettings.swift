@@ -60,10 +60,10 @@ enum SettingsReset {
         guard defaults.synchronize() else { throw AppError(message:"Could not finish writing the preference reset. Perch remains open.") }
     }
     static func stopHelpers() throws {
-        // Refuse to discard a lockdown that still owns disabled launch jobs.
-        if FileManager.default.fileExists(atPath:SafetyFiles.state.path) {
-            let state = try SafetyFiles.read(SafetyState.self,from:SafetyFiles.state)
-            guard !state.locked && state.disabledJobs.isEmpty else { throw AppError(message:"Resume Agent Kill Switch first, then reset settings. This preserves the record of blocked launch jobs.") }
+        // Switch back on anything the retired Agent Kill Switch left stopped
+        // before a reset can discard its record of it; refuse only if that fails.
+        if AgentGuardian.retireKillSwitch() != nil {
+            throw AppError(message:"Some apps the old Agent Kill Switch stopped could not be allowed to start again yet, so settings were not reset. Perch keeps retrying; reset again in a moment.")
         }
         try LidGuardInstall.cleanup()
         for label in [GuardianInstall.label, "local.scott.perch.input"] {
@@ -82,18 +82,17 @@ enum SettingsReset {
 }
 
 enum SettingsResetScope: CaseIterable, Hashable {
-    case settings, keyboardLayouts, appearance, perchPrivacy, sleep, allAppsPrivacy
-    var area: ResetArea? {
+    case settings, keyboardLayouts, appearance, perchPrivacy, sleep
+    var area: ResetArea {
         switch self {
         case .settings: return .preferences
         case .keyboardLayouts: return .layouts
         case .appearance: return .appearance
         case .perchPrivacy: return .privacy
         case .sleep: return .sleep
-        case .allAppsPrivacy: return nil
         }
     }
-    var title: String { self == .allAppsPrivacy ? "Reset all apps’ privacy permissions?" : "Reset Settings" }
+    var title: String { "Reset Settings" }
 
 }
 
@@ -106,10 +105,7 @@ extension AppDelegate {
         host.navigateToReset(scope, returningToCurrentPage: returningToCurrentPage)
     }
     func presentResetScope(_ scope: SettingsResetScope) {
-        if scope == .allAppsPrivacy {
-            if SettingsWindow.shared.pages.isEmpty { resetHub() }
-            privacyOnlyReset(global: true)
-        } else { presentResetChecklist(highlight: scope.area) }
+        presentResetChecklist(highlight: scope.area)
     }
     @objc func openResets() {
         if menuOpen { withMenuClosed { [weak self] in self?.openResets() }; return }
@@ -121,8 +117,7 @@ extension AppDelegate {
     @objc func resetHub() { presentResetChecklist() }
     func presentResetChecklist(highlight: ResetArea? = nil, operation: ResetBatchOperation = .shared,
                                readLayouts: @escaping () throws -> [NavigationKeyboardProfile] = { try KeyboardNavigationProfiles.read() }) {
-        let page = ResetChecklistPage(highlight: highlight, operation: operation, readLayouts: readLayouts,
-            allApps: { [weak self] in self?.privacyOnlyReset(global: true) })
+        let page = ResetChecklistPage(highlight: highlight, operation: operation, readLayouts: readLayouts)
         page.show()
     }
 }

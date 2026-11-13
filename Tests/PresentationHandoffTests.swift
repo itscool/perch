@@ -12,7 +12,7 @@ func runPresentationHandoffTests() throws {
         host.returnedToApp(); host.window.orderOut(nil); host.pages = []
     }
     let app = AppDelegate()
-    app.configureSettings(); app.configurePanic()
+    app.configureSettings(); app.appSettings()
     let original = host.pages.last!.view, depth = host.pages.count
     var notices = 0, pickerTitles: [String] = [], pickerChecks = true
     host.pickerTestDriver = { panel in
@@ -25,15 +25,17 @@ func runPresentationHandoffTests() throws {
         pickerChecks = pickerChecks && host.run(other) == .abort && host.open(NSOpenPanel()) == .cancel && notices == pickerTitles.count - 1
         return .cancel
     }
-    for action in [{ _ = app.addTarget(app: true) }, { _ = app.addTarget(app: false) }, { app.importAgentCatalog() }] {
+    // Pickers are owned by the Settings window, whatever page asks for them.
+    for title in ["Choose an app", "Choose an executable", "Import a file"] {
         let expectedNotices = notices + 1
-        action()
+        let panel = NSOpenPanel(); panel.title = title
+        _ = host.open(panel)
         let deadline = Date().addingTimeInterval(2)
         while notices < expectedNotices && Date() < deadline { flush() }
         try check(notices == expectedNotices, "Picker completion did not deliver its queued notice")
         try check(!host.interactionBusy && host.back.isEnabled && host.pages.last?.view === original, "Picker cancellation changed the originating page or left it busy")
     }
-    try check(pickerChecks && pickerTitles == ["Choose an agent app", "Choose an agent executable", "Import agent catalog"] && notices == 3, "A picker route lost interaction ownership or a queued notice: checks=\(pickerChecks), titles=\(pickerTitles), notices=\(notices)")
+    try check(pickerChecks && pickerTitles == ["Choose an app", "Choose an executable", "Import a file"] && notices == 3, "A picker route lost interaction ownership or a queued notice: checks=\(pickerChecks), titles=\(pickerTitles), notices=\(notices)")
     host.pickerTestDriver = { _ in .OK }
     try check(host.open(NSOpenPanel()) == .OK && !host.interactionBusy, "Picker success left ownership stuck")
 
@@ -53,7 +55,7 @@ func runPresentationHandoffTests() throws {
     try check(host.pages.last?.view === deferred.view && notices == 4, "Deferred page/notice was dropped")
     host.window.orderOut(nil)
     try check(host.run(NSAlert()) == .abort && !host.interactionBusy, "Standalone alert fallback leaked ownership")
-    app.configureSettings(); app.configurePanic()
+    app.configureSettings(); app.appSettings()
 
     var opens = 0
     host.externalAppTestDriver = { opens += 1; return true }
@@ -61,7 +63,7 @@ func runPresentationHandoffTests() throws {
     host.window.orderFront(nil)
     let priorLevel = host.window.level, priorFloating = host.window.isFloatingPanel
     let permission = PermissionSetup(helperApp: { SafetyFiles.helperApp })
-    let routes: [() -> Void] = [permission.openSettings, EventCollectorSetup.shared.openPrivacySettings]
+    let routes: [() -> Void] = [permission.openSettings]
     for route in routes {
         let before = opens, oldNotices = notices
         route()

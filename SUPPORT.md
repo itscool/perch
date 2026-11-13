@@ -111,18 +111,13 @@ cannot confirm it, open the lid and review Keep awake. App replacement and a
 privileged lid-helper update are separate operations. Follow the queued helper
 notice rather than assuming Restart installed the helper too.
 
-## Agent Kill Switch and event collection
+## The old process watcher
 
-Use Test shortcut for a harmless shortcut check. Do not use Panic as a diagnostic:
-it can terminate selected work and reset the configured privacy permissions.
-Preview targets before relying on your configuration. Resume agent activity
-removes Perch's relaunch blocking; it does not reopen apps or restore privacy grants.
-
-Process event collection has its own status and permission guidance. The current
-collector uses Apple's eslogger through a signed launcher; it is not the future
-Endpoint Security implementation. Missing event coverage reduces tracking coverage.
-Follow the feature's instructions instead of granting a development terminal broad
-access or assuming a green menu proves complete descendant tracking.
+The Agent Kill Switch was removed on November 12, 2026. If Setup shows
+**Old process watcher**, the system-wide process watcher it installed is still
+running on this Mac. Press **Remove…** and enter your administrator password to
+take it off. Apps the kill switch had stopped are allowed to start again
+automatically the first time the new version of Perch runs.
 
 ## Before removing Perch
 

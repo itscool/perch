@@ -40,6 +40,7 @@ Use these checks as acceptance criteria while designing and building settings, a
 - For actions that need later restoration, trace the durable recovery record as well as the button flow. Persist and verify recovery intent before the external change, and persist a release decision before presenting it as released. Exercise failed initial/final writes, ambiguous command results and restart reconstruction with injected operations. Never silently discard a recovery record because a command timed out or a later save failed.
 - After a failure or Stop, can the user retry in place? Re-enable the relevant action with fresh cancellation/session state; merely reusing a cancelled token can make the retry inert.
 - Late responses must not update another device, resurrect a dismissed draft, overwrite a newer request or announce success after a save failed. Test these transitions when the implementation is asynchronous.
+- Edit while an explicit Save is finishing. Its receipt belongs to the captured author data, so it must not label newer edits as saved. Compare the issued author snapshot with current author inputs; a revision that also changes for navigation or automatic preview motion is not sufficient. Verify the persisted record independently through private Load, and check that animation/non-author navigation alone does not falsely dirty the settings.
 
 ## Honest state and first presentation
 

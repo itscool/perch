@@ -529,3 +529,47 @@ Two cooperating apps are healthy again, but one continues to show “reconnect o
 ### Optional host-button following
 
 A hardware device has numbered computer buttons. A useful setup illustrates those buttons, gives a real example, tells users what to match on each host and how to recognize success. Matching is not the same as active input control. Apply the same interaction contract to a mouse when supported, but do not claim a receiver that hides detachment has proved a host switch. Reuse card status space instead of inserting rows that move the work area.
+
+
+## Compact parameter editor
+
+Scenario: a phone artist panel gives every slider a separate label row and a thick 40-pixel bar.
+A compact redesign puts three RGB channels on one line, but a value such as 12.00 overlaps the
+next channel. Making the rails thinner also makes the finger target tiny; custom rails outside
+the native scroller remain clickable after their rows leave the viewport.
+
+Expected: inline labels and values, grouped related parameters where useful, actual numeric/text
+width checks and responsive stacking. Retain generous native hit areas around slim artwork and
+match the native clip for custom drawing and picking. Verify native horizontal edits versus
+vertical scrolling and that touching one grouped channel preserves its siblings. Independent
+rows remain appropriate for unrelated settings or insufficient width.
+
+
+### Approved grouping on a narrow creative panel
+
+An artist approved RGB channels plus their swatch on one row. The desktop layout does that, but
+the phone fallback expands each group to a heading and three rows. All values are technically
+reachable and no widgets overlap. The user asks where the single-row control went.
+
+Expected: treat the approved grouping as a requirement across target sizes. Try compact channel
+presentation, preserve meaningful numeric precision and native hit/focus behavior, and verify
+both the smallest supported width and a real channel edit that leaves siblings unchanged.
+Stacking unrelated axes may still be appropriate; do not turn this into a universal one-row rule.
+
+## Retained hidden controls and ambiguous action identity
+
+Scenario: three inspector pages remain instantiated. Each has a navigation button with the same action code, and hidden widgets keep their last nonzero bounds. A test stores the last bounds for each action code, clicks them, then reports that the visible page is broken. The actual visible entry has a distinct parent.
+
+Expected: select the active page/owner before collecting a target, replay the real visible entry and verify resulting private edits/persistence. Treat the initial failure as ambiguous harness evidence until isolated. Do not remove legitimate repeated navigation, clear all hidden state, call a handler directly as real-input proof, or infer a product defect from positive hidden bounds alone. A uniquely identified visible control remains a legitimate simple target.
+
+## Save completes after a newer edit
+
+Scenario: Save captures settings A. While the transaction is pending, the user
+changes them to B. Completion says Saved although only A is on disk. A separate
+preview continuously animates its phase, and its revision also changes on navigation.
+
+Expected: preserve B, identify A as the saved snapshot and leave newer edits
+unsaved. Independently Load A into a private candidate. Compare authored inputs,
+so animation/navigation alone does not incorrectly dirty the settings. Keep
+intentional preview-position snapshots distinct from ongoing authored intent;
+do not solve this by freezing animation or disabling all editing during Save.

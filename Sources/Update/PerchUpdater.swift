@@ -5,7 +5,11 @@ import Sparkle
 /// relaunch. Perch owns the bounded lid ticket and Settings interaction lifetime.
 final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
     static let shared = PerchUpdater()
-    private var controller: SPUStandardUpdaterController?
+    private var updater: SPUUpdater?
+    /// Kept for the updater's lifetime: Sparkle holds its user driver weakly.
+    private var driver: PerchUserDriver?
+    /// An update another Mac on the desk approved for this one.
+    private var approval = RemoteUpdateApproval()
     private var restoreSettings: (() -> Void)?
     private var installing: UpdateIdentity?
     private var verifiedIdentity: UpdateIdentity?
@@ -16,24 +20,30 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     // A routine background feed read must not disable Restart or maintenance.
     // Only an actual update interaction/installation owns those operations.
     var busy: Bool { restoreSettings != nil || preparingTermination || installationRequested }
-    var configured: Bool { controller != nil }
+    var configured: Bool { updater != nil }
     var waitingToInstall: Bool { installationRequested && !preparingTermination }
     var showRecovery: (() -> Void)?
-    var canCheck: Bool { controller?.updater.canCheckForUpdates == true && !AppUpdate.shared.busy && !LidHelperUpdate.shared.busy && !LidGuardClient.shared.changing }
+    var canCheck: Bool { updater?.canCheckForUpdates == true && !AppUpdate.shared.busy && !LidHelperUpdate.shared.busy && !LidGuardClient.shared.changing }
     var automatic: Bool {
-        get { controller?.updater.automaticallyChecksForUpdates ?? false }
-        set { controller?.updater.automaticallyChecksForUpdates = newValue }
+        get { updater?.automaticallyChecksForUpdates ?? false }
+        set { updater?.automaticallyChecksForUpdates = newValue }
     }
     func start() {
-        guard controller == nil,
+        guard updater == nil,
               let feed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
               let url = URL(string: feed), url.scheme == "https", url.host != nil,
               let key = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
               Data(base64Encoded: key)?.count == 32 else { return }
-        let candidate = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: self, userDriverDelegate: self)
+        // What SPUStandardUpdaterController builds, with Perch's driver in front
+        // of the standard one so another Mac on the desk can approve an update.
+        let standard = SPUStandardUserDriver(hostBundle: Bundle.main, delegate: self)
+        let driver = PerchUserDriver(standard: standard) { [weak self] in
+            self?.approval.active(now: ProcessInfo.processInfo.systemUptime) ?? false
+        }
+        let candidate = SPUUpdater(hostBundle: Bundle.main, applicationBundle: Bundle.main, userDriver: driver, delegate: self)
         do {
-            try candidate.updater.start()
-            controller = candidate
+            try candidate.start()
+            updater = candidate; self.driver = driver
             if message == "Release updates are not configured in this development build." {
                 message = "Check for a newer Perch release. You choose when to install and restart."
             }
@@ -43,8 +53,8 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     /// that another Mac is newer is a reason to find out, never a reason to
     /// install something behind the person's back.
     func checkQuietly() {
-        guard canCheck, let controller else { return }
-        controller.updater.checkForUpdateInformation()
+        guard canCheck, let updater else { return }
+        updater.checkForUpdateInformation()
     }
     /// The quiet check found one. Sparkle's own settings decide what happens
     /// next; Perch only says so.
@@ -55,10 +65,26 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     }
     private(set) var available: String?
     func check() {
-        guard canCheck, let controller else { return }
+        guard canCheck, let updater else { return }
         ownSettings()
         message = "Checking for updates…"
-        controller.checkForUpdates(nil)
+        updater.checkForUpdates()
+    }
+    /// Another Mac on the desk, running a newer Perch, approved updating this
+    /// one. Fetch and install the published release now, with no Install click
+    /// here. Returns whether an update session started.
+    @discardableResult
+    func installApproved(by name: String) -> Bool {
+        guard canCheck, let updater else {
+            PerchLog.record("update.remote", "\(name) asked this Mac to update, but an update or helper change is already under way")
+            return false
+        }
+        approval.grant(by: name, now: ProcessInfo.processInfo.systemUptime)
+        ownSettings()
+        message = "\(name) asked this Mac to update. Installing the newest Perch…"
+        PerchLog.record("update.remote", "\(name) approved updating this Mac; looking for the published release")
+        updater.checkForUpdates()
+        return true
     }
     func retryInstallation() {
         guard waitingToInstall else { return }
@@ -114,6 +140,7 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     }
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         releaseSettings()
+        approval.clear()
         if let error { message = error.localizedDescription }
         else if installing == nil { message = "Update check finished. You can check again at any time." }
         if !preparingTermination {

@@ -38,7 +38,13 @@ print(key.publicKey.rawRepresentation.base64EncodedString())
 public = subprocess.check_output(['xcrun','swift',str(generator),str(root/'fixture-private.txt')], text=True).strip()
 source = (perch_source('PerchUpdater.swift')).read_text()
 source = source.replace('url.scheme == "https"', '(url.scheme == "https" || (url.scheme == "http" && url.host == "127.0.0.1"))')
-if a.headless: source = source.replace('SPUStandardUpdaterController', 'FixtureUpdaterController')
+if a.headless:
+    # Put the scripted, windowless driver where Sparkle's standard one goes, so
+    # the fixture runs through Perch's own driver in front of it. Fail loudly if
+    # this ever stops matching: a silent miss would test Sparkle's real windows.
+    standard = 'SPUStandardUserDriver(hostBundle: Bundle.main, delegate: self)'
+    assert source.count(standard) == 1, 'PerchUpdater no longer builds the standard user driver where the headless fixture expects'
+    source = source.replace(standard, 'FixtureUserDriver()')
 (root / 'PerchUpdater.swift').write_text(source)
 fixture = (repo/'Tools/sparkle-fixture.swift').read_text()
 if a.headless:
@@ -52,7 +58,7 @@ if a.headless:
 policy = 'prohibited' if a.headless else 'regular'
 (root / 'main.swift').write_text(fixture + f'\n_ = NSApplication.shared\nNSApp.setActivationPolicy(.{policy})\nlet delegate = AppDelegate()\nNSApp.delegate = delegate\nNSApp.run()\n')
 binary = root / 'Fixture'
-run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',perch_source('UpdateIdentity.swift'),perch_source('LidRestartHandoff.swift'),perch_source('SecureFile.swift'),perch_source('SettingsLogView.swift'),perch_source('TerminationReply.swift'),perch_source('CodeIdentity.swift'),
+run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',perch_source('UpdateIdentity.swift'),perch_source('RemoteUpdateApproval.swift'),perch_source('PerchLog.swift'),perch_source('PerchVersion.swift'),perch_source('LidRestartHandoff.swift'),perch_source('SecureFile.swift'),perch_source('SettingsLogView.swift'),perch_source('TerminationReply.swift'),perch_source('CodeIdentity.swift'),
     '-F',sparkle,'-framework','Sparkle','-framework','AppKit','-framework','Security', '-Xlinker','-rpath','-Xlinker','@executable_path/../Frameworks','-o',binary)
 for build, directory in [('1','installed'),('2','candidate')]:
     app = root/directory/'Perch.app'; (app/'Contents/MacOS').mkdir(parents=True)

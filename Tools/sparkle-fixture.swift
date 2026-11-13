@@ -67,7 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.terminate(nil)
             } else {
                 PerchUpdater.shared.start()
-                DispatchQueue.main.asyncAfter(deadline: .now()+0.5) { PerchUpdater.shared.check() }
+                DispatchQueue.main.asyncAfter(deadline: .now()+0.5) {
+                    // Another Mac on the desk approved this update: no prompt here.
+                    if fixtureScenario == "approved" { PerchUpdater.shared.installApproved(by: "Fixture Mac") }
+                    else { PerchUpdater.shared.check() }
+                }
             }
         }
     }

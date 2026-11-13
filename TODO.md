@@ -922,7 +922,31 @@ Undoing what it left on each Mac:
 - Helper problems are now warnings shown on Settings…, never a window opened by
   itself: nothing the helper still does is safety-critical, and Perch repairs it.
 
-**Desk network check.** Committed separately (9202bc8). 60 runs, four at a time:
+**Disk space line** (5b65ceb): the System section shows the startup disk as
+macOS, Data and free of total, then used and free for each other disk you can
+open in Finder. Data's own use is read with getattrlist, because on APFS statfs
+reports the whole container for every volume. Off the main thread, at most every
+30 seconds, network shares never sized.
+
+**Updating a Mac from a newer one on the desk.** As before, the older Mac
+notices and says an update is available. Now the person at the newer Mac also
+sees **Update Perch on <Mac>** in the Perch menu section; choosing it approves
+the update for that Mac, which fetches the signed release from its own feed and
+installs it with no Install click there. Only a Mac that announced a newer build
+may ask, about that build, once every ten minutes; an approval covers one session
+and expires unused after ten minutes. Perch's driver sits in front of Sparkle's
+standard one and answers only "install?" and "restart now?" during an approved
+session; everything else is forwarded unchanged, and the restart goes through the
+same lid-safe termination gate. Older Perch ignores the request. Verified with the
+windowless Sparkle fixture against a signed local feed: dismiss, cancel,
+disconnect, tamper, retry and the new approved case all pass, approved installing
+build 2 with no prompt consulted. That fixture had been broken since September
+(PerchUpdater gained PerchLog and PerchVersion without the fixture build); it is
+repaired and now fails loudly if its driver swap stops matching. Native
+acceptance needs both Macs on this version first, so the first live use is the
+release after this one.
+
+**Desk network check.** Committed separately (3f644c3). 60 runs, four at a time:
 8 failures before, 0 after. Causes: random fixture ports colliding inside
 macOS's ephemeral range (three of the messages), the check reading a close
 record before it landed, and a real Perch bug where a refused Mac's goodbye was

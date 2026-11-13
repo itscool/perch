@@ -510,6 +510,13 @@ extension AppDelegate {
     func refreshDeskMenu() {
         let runtime = DeskCoordinator.shared.runtime
         runtime?.registerShortcuts()
+        // One named action, only while it applies: another Mac is behind.
+        let behind = runtime?.olderPeers ?? []
+        peerUpdateItem?.isHidden = behind.isEmpty
+        if let item = peerUpdateItem, !behind.isEmpty {
+            label(item, behind.count == 1 ? "Update Perch on \(behind[0].name)" : "Update Perch on \(behind.count) Macs",
+                  hint: behind.count == 1 ? "runs \(behind[0].version)" : "")
+        }
         for item in deskPresetItems {
             item.isHidden = runtime == nil
             guard let runtime else { continue }
@@ -526,6 +533,12 @@ extension AppDelegate {
             item.isEnabled = issue == nil && !runtime.switching.busy
             item.menuHelp = issue ?? DeskWording.live.presetActivationHelp
         }
+    }
+    /// The person here approves updating every connected Mac that is behind.
+    @objc func updatePeers() {
+        guard let runtime = DeskCoordinator.shared.runtime else { return }
+        for peer in runtime.olderPeers { runtime.requestPeerUpdate(peer.id) }
+        peerUpdateItem?.isHidden = true
     }
     @objc func useDeskPreset(_ item: NSMenuItem) {
         guard let runtime = DeskCoordinator.shared.runtime, runtime.node.group.presets.indices.contains(item.tag) else { return }

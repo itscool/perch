@@ -42,8 +42,11 @@ with (root/'server.log').open('w') as out:
                 with socket.create_connection(('127.0.0.1', a.port), timeout=.2): break
             except OSError: time.sleep(.1)
         else: raise RuntimeError('Loopback server did not start')
-        for scenario in ('dismiss', 'cancel', 'disconnect', 'tamper', 'retry'):
+        for scenario in ('dismiss', 'cancel', 'disconnect', 'tamper', 'retry', 'approved'):
             assert not pids()
+            # A case that installed build 2 leaves it in place; start each from 1.
+            if plistlib.loads((app/'Contents/Info.plist').read_bytes())['CFBundleVersion'] != '1':
+                shutil.rmtree(app); shutil.copytree(backup, app, symlinks=True)
             for name in ('result', 'completed', 'events.log', 'fail-prepare'):
                 (root/name).unlink(missing_ok=True)
             (root/'scenario').write_text(scenario)
@@ -68,6 +71,12 @@ with (root/'server.log').open('w') as out:
                 claimed = [s.split()[-1] for s in events.splitlines() if s.startswith('claim exact identity')]
                 assert prepared[0] == prepared[1] == claimed[0]
                 assert not (root/'storage/Updates/network-restart.json').exists()
+            elif scenario == 'approved':
+                # Installed with Sparkle's prompts never consulted, and through
+                # the same restart gate as a manual install.
+                assert result == 'completed' and build == '2', (result, build, events)
+                assert 'check started' not in events and 'found ' not in events and 'ready to install' not in events, events
+                assert 'download started' in events and 'termination allowed' in events, events
             else:
                 assert build == '1' and 'prepare exact identity' not in events, (result, events)
                 assert result == {'dismiss':'dismissed', 'cancel':'cancelled'}.get(scenario, result)

@@ -53,6 +53,8 @@ extension AppDelegate {
         installed.isHidden = true; menu.addItem(installed); replacementInfoItem = installed
         loginItem = add("Start at login", #selector(toggleLogin), help: ControlHelp.login)
         safetySettingsItem = add("Settings…", #selector(configureSettings), help: ControlHelp.settings)
+        peerUpdateItem = add("Update Perch on another Mac", #selector(updatePeers), help: "Another Mac on this desk runs an older Perch. It fetches and installs the newest published release itself, the same as updating by hand there, and restarts Perch.")
+        peerUpdateItem?.isHidden = true
         _ = add("About Perch", #selector(about), help: ControlHelp.about)
         replacementRestartItem = add("Restart Perch", #selector(restartForReplacement), help: "Close and reopen the installed Perch, keeping your saved choices and an active lid session’s existing timeout. The app and handoff are verified before quitting.")
         replacementRestartItem?.isHidden = true

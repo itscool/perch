@@ -2,14 +2,6 @@
 import AppKit
 import Sparkle
 
-final class FixtureUpdaterController {
-    let updater: SPUUpdater
-    private let driver = FixtureUserDriver()
-    init(startingUpdater: Bool, updaterDelegate: SPUUpdaterDelegate?, userDriverDelegate: SPUStandardUserDriverDelegate?) {
-        updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: updaterDelegate)
-    }
-    func checkForUpdates(_ sender: Any?) { updater.checkForUpdates() }
-}
 final class FixtureUserDriver: NSObject, SPUUserDriver {
     private var cancelDownload: (() -> Void)?
     private var received: UInt64 = 0

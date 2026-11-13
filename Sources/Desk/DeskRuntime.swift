@@ -88,6 +88,10 @@ enum DeskDeviceMessage: Codable {
     /// Which Perch this Mac runs, so a Mac behind a newer one can go and look
     /// for that release itself instead of waiting to be updated by hand.
     case running(build: Int, version: String)
+    /// "Please install the newer Perch I run": sent when the person at a newer
+    /// Mac approves updating this one. A Perch that predates it cannot decode
+    /// it and ignores it, as it ignores any message it does not know.
+    case updateRequest(build: Int)
     /// "What did you decide, and why?" — one Mac asking another for its recent
     /// desk decisions, and the answer. Perch's own reasoning only, so a desk can
     /// be diagnosed from whichever Mac someone is sitting at.
@@ -623,6 +627,24 @@ final class DeskRuntime: ObservableObject {
     private var announcedBuild = false
     private var knownOnline: Set<UUID> = []
     private var checkedForBuild = 0
+    /// The build each other Mac last announced.
+    private(set) var peerBuilds: [UUID: (build: Int, version: String)] = [:]
+    private var lastUpdateRequestAccepted: TimeInterval = -.infinity
+    /// Connected Macs running an older Perch than this one, which the person
+    /// here may choose to update.
+    var olderPeers: [(id: UUID, name: String, version: String)] {
+        peerBuilds.filter { node.online.contains($0.key) && $0.value.build < PerchVersion.build }
+            .map { peer in (id: peer.key, name: node.group.computers.first { $0.id == peer.key }?.name ?? "Another Mac", version: peer.value.version) }
+            .sorted { $0.name < $1.name }
+    }
+    /// The person here approved updating another Mac. It fetches the published
+    /// release itself; nothing but this request crosses.
+    func requestPeerUpdate(_ peer: UUID) {
+        guard let data = DeskDeviceMessage.updateRequest(build: PerchVersion.build).wire else { return }
+        let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
+        PerchLog.record("update.remote", "Asked \(name) to update to the newest Perch")
+        node.sendApplication(data, peer: peer)
+    }
     func announceBuild(to peers: [UUID]? = nil) {
         guard let data = DeskDeviceMessage.running(build: PerchVersion.build, version: PerchVersion.current).wire, !(peers?.isEmpty ?? false) else { return }
         for peer in peers ?? Array(node.online) where peer != node.localID { node.sendApplication(data, peer: peer) }
@@ -644,6 +666,7 @@ final class DeskRuntime: ObservableObject {
     }
     private func notePeerBuild(_ build: Int, version: String, peer: UUID) {
         let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
+        peerBuilds[peer] = (build, version)
         guard build > PerchVersion.build else {
             PerchLog.note("desk.build." + peer.uuidString.prefix(8), "\(name) runs Perch \(version) (build \(build)); this Mac runs \(PerchVersion.current)")
             return
@@ -696,6 +719,16 @@ final class DeskRuntime: ObservableObject {
             notePeerBuild(build, version: version, peer: peer)
             // A Mac that has just heard from us for the first time needs ours too.
             if !announcedBuild { announceBuild(to: [peer]) }
+        case .updateRequest(let build):
+            let name = node.group.computers.first { $0.id == peer }?.name ?? "Another Mac"
+            let now = ProcessInfo.processInfo.systemUptime
+            guard RemoteUpdateRequest.accept(requested: build, announced: peerBuilds[peer]?.build, own: PerchVersion.build,
+                                             lastAccepted: lastUpdateRequestAccepted, now: now) else {
+                PerchLog.record("update.remote", "Ignored \(name)'s request to update: it does not run a newer Perch, or one was handled in the last ten minutes")
+                return
+            }
+            lastUpdateRequestAccepted = now
+            PerchUpdater.shared.installApproved(by: name)
         case .decisionsRequest(let seconds):
             guard seconds > 0, seconds <= 600 else { return }
             let stamp = DateFormatter()

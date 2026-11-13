@@ -1,6 +1,15 @@
 # Perch release history
 
-## 2.0.297 — Current
+## 2.0.301 — Current
+
+- Copy on one Mac of the desk and paste on another: text straight away, and pictures, files and folders with ⌃⌥⌘V. Private copies such as passwords never leave the Mac.
+- A Mac running a newer Perch can update the others on the desk, with no click needed on them.
+- The menu bar icon shows the desk: connected Macs, who is sharing, and a copy waiting.
+- Disk space appears in the System section.
+- The Agent Kill Switch was removed; Perch no longer watches every process. Setup offers to remove its old process watcher.
+- A Mac on a different version of Perch is told to update instead of seeing "connection reset". Every Mac on the desk needs this version.
+
+## 2.0.297
 
 - Keyboard and mouse sharing uses a Thunderbolt or Ethernet cable between your Macs when there is one, instead of Wi-Fi.
 - Plugging the cable in at any time moves sharing onto it without dropping the desk; a working connection is never let go until the new one is verified.

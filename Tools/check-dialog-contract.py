@@ -99,6 +99,9 @@ ids = [d[0] for d in destinations]
 # Agent Kill Switch pages were removed), so only a failed parse trips it.
 if len(destinations) < 15: errors.append('Could not read the Settings sidebar destinations')
 if len(ids) != len(set(ids)): errors.append('Duplicate Settings sidebar destination id')
+# The Agent Kill Switch's pages were removed on November 12, 2026.
+for retired in ('agents', 'agent-choices', 'agent-recognition', 'targets', 'events', 'agent-safety-logs'):
+    if retired in ids: errors.append(f'Settings sidebar brought back the removed Agent Kill Switch page "{retired}"')
 stages = {d[0] for d in destinations if 'setupStage: true' in d[2]}
 sources_text = {file: file.read_text() for file in (repo/'Sources').rglob('*.swift')}
 for file, text in sources_text.items():

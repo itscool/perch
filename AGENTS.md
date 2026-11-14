@@ -1,3 +1,9 @@
+# What Perch is and how it behaves
+
+Read `PERCH.md` before anything else. It is Scott's: what Perch is, his actual
+desk, and how Perch behaves. Check every change against it. Change it only with
+his approval. Where older documents or code disagree with it, it wins.
+
 # Notarization authorization
 
 Submit artifacts to Apple for notarization only when the user explicitly requests

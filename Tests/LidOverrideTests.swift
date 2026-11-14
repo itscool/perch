@@ -16,6 +16,13 @@ func runLidLockFixture(_ directory: String) throws {
 }
 
 func runLidOverrideTests() throws {
+    try runLidOverrideRecordTests()
+    try runLidOverrideLockTests()
+}
+
+/// Who owns the sleep setting, in a temporary folder. No window and no other
+/// process, so this also runs in the headless self-test.
+func runLidOverrideRecordTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     func rejected(_ operation: () throws -> Void) -> Bool { do { try operation(); return false } catch { return true } }
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-override-test-" + UUID().uuidString)
@@ -24,7 +31,10 @@ func runLidOverrideTests() throws {
     let store = LidOverrideStore(directory: directory, lockPath: directory.appendingPathComponent("lock").path,
                                  leasePath: directory.appendingPathComponent("lease").path, owner: getuid())
     let token = UUID().uuidString, other = UUID().uuidString
-    try check(rejected { try store.reserve(token: token, disabled: true) } && !store.ownsOverride, "Took ownership of an existing system override")
+    // Sleep disabled outside Perch is taken over (Scott, Nov 13 2026: "make it so
+    // we CAN control it, and just make it a status about if someone else did it").
+    try store.reserve(token: token, disabled: true)
+    try check(store.ownsOverride && (try store.record()) == LidOverrideRecord(token: token), "Sleep disabled outside Perch was refused instead of taken over")
     try store.reserve(token: token, disabled: false)
     try check(store.ownsOverride && (try store.record()) == LidOverrideRecord(token: token), "Durable ownership was not saved before the write")
     // Reconstructing the store after a crash/reboot must retain recovery intent.
@@ -47,6 +57,18 @@ func runLidOverrideTests() throws {
                   (token, "boot-1", 1.0, UInt64(8))] {
         try check(!lease.fresh(token: value.0, boot: value.1, now: value.2, birth: value.3), "Reboot, expiry, future lease or reused process retained a persistent override")
     }
+}
+
+/// The lid policy and the override lock, which needs the window suite's
+/// disposable lock holder.
+func runLidOverrideLockTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    func rejected(_ operation: () throws -> Void) -> Bool { do { try operation(); return false } catch { return true } }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("perch-lid-lock-test-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = LidOverrideStore(directory: directory, lockPath: directory.appendingPathComponent("lock").path,
+                                 leasePath: directory.appendingPathComponent("lease").path, owner: getuid())
     // Replay the newly requested physical ordering, independently of the adapter.
     var policy = LidGuardPolicy()
     _ = policy.step(.init(closed: false, power: .battery), now: 0, authorized: true)

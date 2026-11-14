@@ -51,6 +51,17 @@ func runSettingsHeadlessTests() throws {
     try check(fixed.first?.keys == "⌃⌥⌘V" && fixed.first?.name.hasPrefix("Paste") == true, "Hotkeys does not list ⌃⌥⌘V: \(fixed.map(\.keys))")
     try check(HotkeySettings.fixedShortcuts(pasteActive: false).first?.keys.contains("off") == true, "Hotkeys did not say ⌃⌥⌘V is off when another shortcut holds it")
 
+    // Restarting and updating with the lid closed.
+    try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: false), "Confirmed inactive closed-lid restart was blocked")
+    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, sleepDisabled: false) &&
+              !AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, sleepDisabled: true), "An unowned lid session was dropped by restart")
+    try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: nil), "Unknown override state allowed closed-lid restart")
+    // Scott's MacBook, November 13: lid closed, sleep disabled outside Perch,
+    // no Perch session or override. Restart and updates were refused, and the
+    // menu's Restart Perch seemed to do nothing.
+    try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: true),
+              "Sleep disabled outside Perch blocked restarting Perch with the lid closed")
+
     // Window tests skip the AGENT MODE banner only inside a virtual machine
     // nobody is using; a flag alone never does it on a physical Mac.
     try check(DesktopTestSession.unattended(flag: "1", virtualMachine: true), "Window tests could not run unattended in a virtual machine")
@@ -58,5 +69,5 @@ func runSettingsHeadlessTests() throws {
     try check(!DesktopTestSession.unattended(flag: nil, virtualMachine: true) && !DesktopTestSession.unattended(flag: "yes", virtualMachine: true),
               "Window tests skipped the banner without being asked to")
 
-    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; Hotkeys lists ⌃⌥⌘V; window tests skip the banner only when asked inside a virtual machine")
+    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; Hotkeys lists ⌃⌥⌘V; restart works with the lid closed unless Perch has a lid session to keep; window tests skip the banner only when asked inside a virtual machine")
 }

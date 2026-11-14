@@ -97,7 +97,8 @@ extension AppDelegate {
             do {
                 let state = try readSleep()
                 let saved = UserDefaults.standard.bool(forKey: SleepPreferences.lidPreferenceKey)
-                guard saved || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
+                let outside = (try? unownedSleepOverride()) == true
+                guard saved || outside || LidGuardClient.shared.active || state.perchActive || state.caffeinateActive else { self.refresh(); return }
                 let enabling = !saved
 
                 if enabling && (LidHelperUpdate.shared.state.pending || LidGuardClient.shared.status?.fresh != true) {

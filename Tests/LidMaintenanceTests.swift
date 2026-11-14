@@ -94,11 +94,16 @@ func runLidMaintenanceTests() throws {
                 let obs = LidObservation(closed: closed, power: power)
                 let accepted = (try? LidMaintenance.checkStart(observation: obs, disabled: disabled, previousToken: disabled ? token : nil, status: reply, now: 101)) != nil
                 let expected = closed != nil && power != .unknown && (disabled || closed == false || power == .external)
+                // (disabled here is Perch's own session, so its token is passed.)
                 try check(accepted == expected, "Update start mishandled lid/power/owned-override combination")
             }
         }
     }
-    for (previous, snapshot, now) in [(nil, Optional(reply), 101.0), (Optional(token), nil, 101.0), (Optional("different"), Optional(reply), 101.0), (Optional(token), Optional(reply), 99.0), (Optional(token), Optional(reply), 160.0), (Optional(token), Optional(reply), 129.0)] {
+    // Sleep disabled outside Perch (no Perch token) does not block the helper
+    // update, and is not carried over as a session: it stays as it is.
+    let outsideStart = try LidMaintenance.checkStart(observation: LidObservation(closed: true, power: .external), disabled: true, previousToken: nil, status: reply, now: 101)
+    try check(outsideStart.0 == false && outsideStart.1 == nil && outsideStart.2 == nil, "Sleep disabled outside Perch blocked the helper update or was carried over as a session")
+    for (previous, snapshot, now) in [(Optional(token), nil, 101.0), (Optional("different"), Optional(reply), 101.0), (Optional(token), Optional(reply), 99.0), (Optional(token), Optional(reply), 160.0), (Optional(token), Optional(reply), 129.0)] {
         try check((try? LidMaintenance.checkStart(observation: observation, disabled: true, previousToken: previous, status: snapshot, now: now)) == nil, "Unknown/stale/expired session gained an update allowance")
     }
     let script = try LidGuardInstall.installationCommand(source: URL(fileURLWithPath: "/fixture/Perch ' $(literal).app"), requirement: "identifier \"fixture\"", owner: 501, protectedUpdate: true)

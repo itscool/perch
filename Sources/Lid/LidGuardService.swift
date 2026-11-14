@@ -353,7 +353,11 @@ final class LidGuardService: NSObject, NSXPCListenerDelegate {
                     let maintenance = LidMaintenance.adoption()
                     if maintenance == nil { try LidGuardStart.validate(observation) }
                     guard self.child?.isRunning == true, self.channel?.ended == false, let ack = self.ack, now >= ack.time, now - ack.time < 2 else { throw AppError(message: "The lid watchdog is unavailable. Repair the lid helper before relying on this mode.") }
-                    guard try maintenance != nil || (!LidSleepOverride.owned && LidSleepOverride.systemDisabled() == false) else { throw AppError(message: "A prior system sleep override still needs cleanup. Review sleep reset before enabling a new lid session.") }
+                    // Sleep disabled outside Perch does not block starting: it is taken over.
+                    if maintenance == nil, !LidSleepOverride.owned, (try? LidSleepOverride.systemDisabled()) == true {
+                        self.activity.record("Sleep was disabled outside Perch; lid protection takes it over.")
+                    }
+                    guard maintenance != nil || !LidSleepOverride.owned else { throw AppError(message: "A prior system sleep override still needs cleanup. Review sleep reset before enabling a new lid session.") }
                     self.policy = LidGuardPolicy()
                     if let maintenance {
                         self.policy.restoreMaintenance(deadline: maintenance.batteryDeadline, countdown: maintenance.countdown)

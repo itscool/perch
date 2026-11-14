@@ -206,6 +206,10 @@ enum ProcessRole: Equatable {
             try runRemoteUpdateTests()
             try runSettingsHeadlessTests()
             try runDeskObservedDeskTests()
+            // Lid and sleep rules that need no window, also run by the window suite.
+            try runLidOverrideRecordTests()
+            try runLidMaintenanceTests()
+            try runSleepPresentationTests()
             try runProcessCPUTests()
             try runProtectionIssueTests()
             try runHelperStatusTests()

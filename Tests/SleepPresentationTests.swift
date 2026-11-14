@@ -21,10 +21,10 @@ func runSleepPresentationTests() throws {
     try check(unknown.lid == .on && !unknown.lidEnabled && unknown.lidHint.contains("unknown"), "Unknown session lost intent or allowed unsafe write")
     // Every on state says whose it is. Sleep disabled outside Perch (Scott
     // used pmset while Perch could not be used) is named, not "unknown", and
-    // Perch does not offer to change it.
+    // both rows stay usable: it is a status, never a lock.
     let outside = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: false, masterWanted: true, changing: false, remaining: nil, outsidePerch: true)
-    try check(outside.lidHint == "On outside Perch" && outside.awakeHint == "Sleep disabled outside Perch" && !outside.lidEnabled,
-              "Sleep disabled outside Perch was shown as unknown, or Perch offered to change it")
+    try check(outside.lidHint == "On outside Perch" && outside.awakeHint == "Sleep disabled outside Perch" && outside.lidEnabled && outside.awakeEnabled,
+              "Sleep disabled outside Perch was shown as unknown, or it locked the sleep rows")
     let ours = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: nil)
     try check(ours.lidHint == "On by Perch" && ours.awakeHint.hasPrefix("On by Perch"), "Perch's own lid protection did not say it is Perch's")
     let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: 42)

@@ -1351,6 +1351,23 @@ over 30 s, nothing queued; CPU from 27% to 0.3%. Still to accept natively: a
 switch confirmed by the screens, ⌃⌥⌘V pasting on this Mac, the lid row's note,
 and Restart Perch with the lid closed.
 
+**Sleep disabled outside Perch is taken over, not refused (November 14).** Scott:
+"make it so we CAN control it, and just make it a status about if someone else did
+it, rather than blocking us" (now rule 1 of PERCH.md). Three refusals removed: the
+lid helper would not start lid protection, would not record ownership, and would
+not update itself while sleep was disabled outside Perch. Now starting lid
+protection takes the setting over (Perch's record is written; ending protection
+restores sleep), a saved lid choice resumes over it automatically, the helper
+update leaves it as it is and goes ahead, and both sleep rows stay usable with
+"On outside Perch" as a note. Quit and Keep awake off still touch only what Perch
+owns. Lid helper version 6 → 7, so the next Perch start offers the helper update
+(one administrator prompt). Tests: the record takeover, the helper update start,
+the sleep rows and the restart rule now run in the headless self-test (they ran
+only in the window suite, so the restart rule added on November 13 had not run
+until now); with the old refusal put back the self-test fails. Verified: self-test
+69, all twelve headless gates, lid policy, the six Sparkle scenarios. Candidate
+2.0.306 installed on disk; running 2.0.305.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

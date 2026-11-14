@@ -108,7 +108,7 @@ struct SetupSnapshot {
         }
 
         if lidDisabled == true {
-            add("awake", "Keep awake", .attention, "System sleep is disabled outside Perch’s current protection session. Restore normal system sleep before enabling lid protection.", "Lid protection setup…", .lidSetup)
+            add("awake", "Keep awake", .optional, "Sleep was disabled outside Perch. Turn on lid protection and Perch takes it over.", "Lid protection setup…", .lidSetup)
         } else if lidHelperBusy {
             add("awake", "Keep awake", .checking, "The lid helper update is in progress. Your existing protection deadline is retained.", "Lid protection setup…", .lidSetup)
         } else if lidHelperUpdatePending {

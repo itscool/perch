@@ -69,8 +69,9 @@ enum LidMaintenance {
     }
     static func checkStart(observation: LidObservation, disabled: Bool, previousToken: String?, status: LidGuardReply?, now: Double) throws -> (Bool, LidCountdown?, Double?) {
         guard observation.closed != nil, observation.power != .unknown else { throw AppError(message: "Could not read lid and power state before updating.") }
-        guard !disabled || previousToken != nil else { throw AppError(message: "Another sleep override is active. Perch cannot take ownership of it for an update.") }
-        if disabled {
+        // Sleep disabled outside Perch is no session to carry across the
+        // update: it stays exactly as it is, and keeps the Mac awake meanwhile.
+        if disabled, previousToken != nil {
             guard let status, status.token == previousToken, status.status.armed, status.status.error == nil,
                   now >= status.status.updatedAt, now - status.status.updatedAt < 3 else {
                 throw AppError(message: "The current lid session could not be captured. Retry the helper update while Perch is connected to it.")

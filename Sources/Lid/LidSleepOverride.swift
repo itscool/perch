@@ -86,9 +86,12 @@ struct LidOverrideStore {
             guard try record().token == token else { throw AppError(message: "An earlier lid override still needs recovery.") }
             return
         }
-        // Never take ownership of another app's or the user's existing override.
-        guard !FileManager.default.fileExists(atPath: recordPath), !disabled else {
-            throw AppError(message: "A system sleep override already exists. Reset Settings → Perch sleep protection can remove Perch-owned protection; overrides owned outside Perch must be cleared at their source.")
+        // Sleep already disabled outside Perch, by the person with pmset or by
+        // another app, is taken over: Perch controls what it finds (PERCH.md).
+        // From here it is Perch's, and ending lid protection restores sleep.
+        // A record Perch cannot trust (wrong owner, a link) is still refused.
+        guard !FileManager.default.fileExists(atPath: recordPath) else {
+            throw AppError(message: "Perch's lid record could not be verified. Reset Settings → Perch sleep protection to clear it.")
         }
         try write(LidOverrideRecord(token: token), path: recordPath, durable: true)
     }

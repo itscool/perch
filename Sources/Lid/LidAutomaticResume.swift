@@ -60,7 +60,8 @@ extension AppDelegate {
             ready: LidAutomaticResume.helperReady(status, pending: LidHelperUpdate.shared.state.pending),
             active: status?.armed == true, countdown: status?.countdown?.active == true,
             busy: client.changing || LidHelperUpdate.shared.busy || AppUpdate.shared.busy || PerchUpdater.shared.busy,
-            clean: !LidGuardOwnership.recorded && !LidSleepOverride.owned && (try? LidSleepOverride.systemDisabled()) == false) else { return }
+            // Sleep disabled outside Perch is taken over, not waited out.
+            clean: !LidGuardOwnership.recorded && !LidSleepOverride.owned) else { return }
         client.change(true) { [weak self] outcome in
             if case .failure(let error) = outcome {
                 LidHelperUpdate.shared.recordResumeFailure(error)

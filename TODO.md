@@ -1368,6 +1368,25 @@ until now); with the old refusal put back the self-test fails. Verified: self-te
 69, all twelve headless gates, lid policy, the six Sparkle scenarios. Candidate
 2.0.306 installed on disk; running 2.0.305.
 
+**Disk line, version rows, and a test mistake (November 15).** The disk line leads
+with the disk's size, as the CPU line leads with its cores: "2 TB · Free 946 GB ·
+macOS 26.3 GB · Data 1.05 TB"; other disks "2 TB · Free 800 GB · Used 1.2 TB".
+Versions across the desk read as from → to. A Mac behind a published release shows
+"Update Perch · 2.0.301 → 2.0.306" and installs it; a Mac behind only a local
+build elsewhere shows "Newer Perch on <Mac> · 2.0.305 · not released" with nothing
+to press; a newer Mac offers "Update Perch on <Mac> · 2.0.301 → 2.0.306" only up
+to the published release, never to its own unreleased build (`DeskVersionNote`;
+the newest published release is learned from every Sparkle check, including
+ones that find nothing new). **Mistake:** on November 14 the whole sleep row test
+file was added to the self-test; its second half opens Settings pages and
+changes the saved Keep awake and lid choices (restored after), so self-test runs
+that day and this morning may have shown a Settings window on Scott's screen
+without the AGENT MODE banner. Split: `runSleepRowTests` (in-memory rows only)
+runs headless; `runSleepNoticeAndSettingsTests` stays in the window suite. The
+saved choices were confirmed unchanged (Keep awake on, lid on). Verified: self-test
+69 with the settings file untouched, all twelve headless gates, lid policy, six
+Sparkle scenarios. Candidate 2.0.307 on disk.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

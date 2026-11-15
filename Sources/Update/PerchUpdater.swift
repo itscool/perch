@@ -58,7 +58,23 @@ final class PerchUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDel
     }
     /// The quiet check found one. Sparkle's own settings decide what happens
     /// next; Perch only says so.
+    /// The newest release in the published feed, from Sparkle's last check of
+    /// any kind. A local build is newer than anything published, so the desk
+    /// offers updates only up to this.
+    private(set) var published: PerchRelease?
+    private func learn(_ item: SUAppcastItem) {
+        guard let build = Int(item.versionString) else { return }
+        let release = PerchRelease(build: build, version: item.displayVersionString)
+        guard published != release else { return }
+        published = release
+        PerchLog.note("update.published", "The newest published Perch is \(release.version) (build \(build)); this Mac runs \(PerchVersion.current)")
+    }
+    /// Nothing newer than this Mac, which still says what the newest is.
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
+        if let item = (error as NSError).userInfo[SPULatestAppcastItemFoundKey] as? SUAppcastItem { learn(item) }
+    }
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        learn(item)
         available = item.displayVersionString
         message = "Perch " + item.displayVersionString + " is available. Install it when you are ready."
         PerchLog.note("update.available", "Perch " + item.displayVersionString + " is published; this Mac runs " + PerchVersion.current)

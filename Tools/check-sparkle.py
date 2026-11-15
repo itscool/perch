@@ -58,7 +58,7 @@ if a.headless:
 policy = 'prohibited' if a.headless else 'regular'
 (root / 'main.swift').write_text(fixture + f'\n_ = NSApplication.shared\nNSApp.setActivationPolicy(.{policy})\nlet delegate = AppDelegate()\nNSApp.delegate = delegate\nNSApp.run()\n')
 binary = root / 'Fixture'
-run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',perch_source('UpdateIdentity.swift'),perch_source('RemoteUpdateApproval.swift'),perch_source('PerchLog.swift'),perch_source('PerchVersion.swift'),perch_source('LidRestartHandoff.swift'),perch_source('SecureFile.swift'),perch_source('SettingsLogView.swift'),perch_source('TerminationReply.swift'),perch_source('CodeIdentity.swift'),
+run('xcrun','swiftc',root/'main.swift',root/'PerchUpdater.swift',perch_source('UpdateIdentity.swift'),perch_source('RemoteUpdateApproval.swift'),perch_source('DeskVersionNote.swift'),perch_source('PerchLog.swift'),perch_source('PerchVersion.swift'),perch_source('LidRestartHandoff.swift'),perch_source('SecureFile.swift'),perch_source('SettingsLogView.swift'),perch_source('TerminationReply.swift'),perch_source('CodeIdentity.swift'),
     '-F',sparkle,'-framework','Sparkle','-framework','AppKit','-framework','Security', '-Xlinker','-rpath','-Xlinker','@executable_path/../Frameworks','-o',binary)
 for build, directory in [('1','installed'),('2','candidate')]:
     app = root/directory/'Perch.app'; (app/'Contents/MacOS').mkdir(parents=True)

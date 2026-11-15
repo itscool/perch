@@ -51,6 +51,25 @@ func runSettingsHeadlessTests() throws {
     try check(fixed.first?.keys == "⌃⌥⌘V" && fixed.first?.name.hasPrefix("Paste") == true, "Hotkeys does not list ⌃⌥⌘V: \(fixed.map(\.keys))")
     try check(HotkeySettings.fixedShortcuts(pasteActive: false).first?.keys.contains("off") == true, "Hotkeys did not say ⌃⌥⌘V is off when another shortcut holds it")
 
+    // Versions across the desk, on Scott's desk: the MacBook on a local build,
+    // the Studio on the published release.
+    let macBook = DeskVersionNote.Peer(name: "Scott’s MacBook Pro", build: 305, version: "2.0.305")
+    let studio = DeskVersionNote.Peer(name: "HQ-KP40Y76PT6", build: 301, version: "2.0.301")
+    let current = PerchRelease(build: 301, version: "2.0.301"), newer = PerchRelease(build: 306, version: "2.0.306")
+    let onStudio = DeskVersionNote.here(own: 301, published: current, peers: [macBook])
+    try check(onStudio == .newerElsewhere(on: macBook.name, version: "2.0.305", released: false) && onStudio?.hint(own: "2.0.301") == "2.0.305 · not released" && onStudio?.actionable == false,
+              "The Studio did not say the MacBook runs an unreleased Perch, or offered to install it: \(String(describing: onStudio))")
+    try check(DeskVersionNote.updatable([studio], published: current).isEmpty && DeskVersionNote.updatable([studio], published: nil).isEmpty,
+              "The MacBook offered the Studio an update it cannot fetch")
+    let released = DeskVersionNote.here(own: 301, published: newer, peers: [macBook])
+    try check(released == .install(version: "2.0.306") && released?.hint(own: "2.0.301") == "2.0.301 → 2.0.306" && released?.actionable == true,
+              "A published update did not read as from → to, or could not be installed: \(String(describing: released))")
+    try check(DeskVersionNote.updatable([studio], published: newer) == [studio] && DeskVersionNote.peerHint([studio], to: newer) == "2.0.301 → 2.0.306",
+              "The MacBook's row for the Studio did not read as from → to")
+    try check(DeskVersionNote.here(own: 305, published: current, peers: [studio]) == nil && DeskVersionNote.here(own: 301, published: nil, peers: [])  == nil,
+              "A Mac with nothing newer anywhere showed a version note")
+    try check(app.updateHereItem?.isHidden == true, "The version note showed with nothing newer")
+
     // Restarting and updating with the lid closed.
     try check(AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: false, sleepDisabled: false), "Confirmed inactive closed-lid restart was blocked")
     try check(!AppUpdate.canRestart(active: false, lidOpen: false, recordedSession: true, sleepDisabled: false) &&
@@ -69,5 +88,5 @@ func runSettingsHeadlessTests() throws {
     try check(!DesktopTestSession.unattended(flag: nil, virtualMachine: true) && !DesktopTestSession.unattended(flag: "yes", virtualMachine: true),
               "Window tests skipped the banner without being asked to")
 
-    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; Hotkeys lists ⌃⌥⌘V; restart works with the lid closed unless Perch has a lid session to keep; window tests skip the banner only when asked inside a virtual machine")
+    print("PASS: settings without windows: Setup lists no kill switch rows and shows the old process watcher only while it is installed; the menu has no kill switch, a disk line, and the peer update only when a Mac is behind; the Reset page offers only Perch's own privacy; Hotkeys lists ⌃⌥⌘V; versions across the desk read from → to and offer only updates that can happen; restart works with the lid closed unless Perch has a lid session to keep; window tests skip the banner only when asked inside a virtual machine")
 }

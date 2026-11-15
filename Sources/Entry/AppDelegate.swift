@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var replacementRestartItem: NSMenuItem?
     /// "Update Perch on <Mac>", shown while a connected Mac runs an older Perch.
     var peerUpdateItem: NSMenuItem?
+    /// This Mac's own version note: a published update, or a newer Perch elsewhere.
+    var updateHereItem: NSMenuItem?
     var replacementRestartTestDriver: (() -> Void)?
     let systemMonitor = SystemMonitor()
     let diskSpace = DiskSpace()

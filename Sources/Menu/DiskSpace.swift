@@ -73,13 +73,14 @@ final class DiskSpace {
 
     // MARK: What is shown
 
-    /// The startup disk: what macOS takes, what Data takes, and what is free.
+    /// The startup disk: its size first, as the CPU line starts with its
+    /// cores, then what is free, what macOS takes and what Data takes.
     static func mainLine(total: Int64, free: Int64, containerUsed: Int64, dataUsed: Int64) -> Line {
         let system = max(0, containerUsed - dataUsed)
-        return Line(title: "Disk", detail: "macOS \(size(system)) · Data \(size(dataUsed)) · \(size(free)) free of \(size(total))")
+        return Line(title: "Disk", detail: "\(size(total)) · Free \(size(free)) · macOS \(size(system)) · Data \(size(dataUsed))")
     }
     static func otherLine(_ volume: Volume) -> Line {
-        Line(title: volume.name, detail: "\(size(max(0, volume.total - volume.free))) used · \(size(volume.free)) free")
+        Line(title: volume.name, detail: "\(size(volume.total)) · Free \(size(volume.free)) · Used \(size(max(0, volume.total - volume.free)))")
     }
     /// Whether a disk other than the startup disk gets its own line.
     static func shows(_ volume: Volume) -> Bool {

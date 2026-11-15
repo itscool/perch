@@ -209,7 +209,7 @@ enum ProcessRole: Equatable {
             // Lid and sleep rules that need no window, also run by the window suite.
             try runLidOverrideRecordTests()
             try runLidMaintenanceTests()
-            try runSleepPresentationTests()
+            try runSleepRowTests()
             try runProcessCPUTests()
             try runProtectionIssueTests()
             try runHelperStatusTests()

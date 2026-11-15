@@ -510,12 +510,23 @@ extension AppDelegate {
     func refreshDeskMenu() {
         let runtime = DeskCoordinator.shared.runtime
         runtime?.registerShortcuts()
-        // One named action, only while it applies: another Mac is behind.
-        let behind = runtime?.olderPeers ?? []
+        // One named action, only while it can work: another Mac is behind a
+        // published release. A local build here is newer than anything it
+        // could fetch, so it is not offered then.
+        let behind = runtime?.updatablePeers.map(\.peer) ?? []
         peerUpdateItem?.isHidden = behind.isEmpty
-        if let item = peerUpdateItem, !behind.isEmpty {
+        if let item = peerUpdateItem, !behind.isEmpty, let published = PerchUpdater.shared.published {
             label(item, behind.count == 1 ? "Update Perch on \(behind[0].name)" : "Update Perch on \(behind.count) Macs",
-                  hint: behind.count == 1 ? "runs \(behind[0].version)" : "")
+                  hint: DeskVersionNote.peerHint(behind, to: published))
+        }
+        // This Mac's own note: a published update to install, or a newer Perch
+        // on another Mac that cannot be fetched yet.
+        let note = DeskVersionNote.here(own: PerchVersion.build, published: PerchUpdater.shared.published, peers: runtime?.peerVersions ?? [])
+        updateHereItem?.isHidden = note == nil
+        if let item = updateHereItem, let note {
+            label(item, note.label, hint: note.hint(own: PerchVersion.current))
+            item.isEnabled = note.actionable
+            item.menuHelp = note.help
         }
         for item in deskPresetItems {
             item.isHidden = runtime == nil
@@ -537,8 +548,13 @@ extension AppDelegate {
     /// The person here approves updating every connected Mac that is behind.
     @objc func updatePeers() {
         guard let runtime = DeskCoordinator.shared.runtime else { return }
-        for peer in runtime.olderPeers { runtime.requestPeerUpdate(peer.id) }
+        for peer in runtime.updatablePeers { runtime.requestPeerUpdate(peer.id) }
         peerUpdateItem?.isHidden = true
+    }
+    /// A published release is newer than this Mac: install it, with Sparkle's
+    /// usual progress and restart.
+    @objc func updateHere() {
+        withMenuClosed { PerchUpdater.shared.check() }
     }
     @objc func useDeskPreset(_ item: NSMenuItem) {
         guard let runtime = DeskCoordinator.shared.runtime, runtime.node.group.presets.indices.contains(item.tag) else { return }

@@ -692,13 +692,26 @@ final class DeskRuntime: ObservableObject {
     private var checkedForBuild = 0
     /// The build each other Mac last announced.
     private(set) var peerBuilds: [UUID: (build: Int, version: String)] = [:]
+    private var lookedForPublished = false
     private var lastUpdateRequestAccepted: TimeInterval = -.infinity
     /// Connected Macs running an older Perch than this one, which the person
     /// here may choose to update.
-    var olderPeers: [(id: UUID, name: String, version: String)] {
+    var olderPeers: [(id: UUID, name: String, version: String, build: Int)] {
         peerBuilds.filter { node.online.contains($0.key) && $0.value.build < PerchVersion.build }
-            .map { peer in (id: peer.key, name: node.group.computers.first { $0.id == peer.key }?.name ?? "Another Mac", version: peer.value.version) }
+            .map { peer in (id: peer.key, name: node.group.computers.first { $0.id == peer.key }?.name ?? "Another Mac", version: peer.value.version, build: peer.value.build) }
             .sorted { $0.name < $1.name }
+    }
+    /// Every connected Mac's Perch, for the menu's version notes.
+    var peerVersions: [DeskVersionNote.Peer] {
+        peerBuilds.filter { node.online.contains($0.key) }
+            .map { entry in .init(name: node.group.computers.first { $0.id == entry.key }?.name ?? "Another Mac", build: entry.value.build, version: entry.value.version) }
+    }
+    /// The Macs behind this one that can really update: to a published release
+    /// newer than theirs. None until the feed has been read.
+    var updatablePeers: [(id: UUID, peer: DeskVersionNote.Peer)] {
+        let older = olderPeers.map { (id: $0.id, peer: DeskVersionNote.Peer(name: $0.name, build: $0.build, version: $0.version)) }
+        let can = Set(DeskVersionNote.updatable(older.map(\.peer), published: PerchUpdater.shared.published).map(\.name))
+        return older.filter { can.contains($0.peer.name) }
     }
     /// The person here approved updating another Mac. It fetches the published
     /// release itself; nothing but this request crosses.
@@ -732,6 +745,12 @@ final class DeskRuntime: ObservableObject {
         peerBuilds[peer] = (build, version)
         guard build > PerchVersion.build else {
             PerchLog.note("desk.build." + peer.uuidString.prefix(8), "\(name) runs Perch \(version) (build \(build)); this Mac runs \(PerchVersion.current)")
+            // A Mac behind this one is offered an update only to a published
+            // release, so learn once what is published.
+            if build < PerchVersion.build, PerchUpdater.shared.published == nil, !lookedForPublished, PerchUpdater.shared.canCheck {
+                lookedForPublished = true
+                PerchUpdater.shared.checkQuietly()
+            }
             return
         }
         PerchLog.note("desk.build." + peer.uuidString.prefix(8), "\(name) runs Perch \(version) (build \(build)), newer than this Mac's \(PerchVersion.current)")

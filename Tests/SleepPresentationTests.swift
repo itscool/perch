@@ -2,6 +2,13 @@ import AppKit
 import IOKit.pwr_mgt
 
 func runSleepPresentationTests() throws {
+    try runSleepRowTests()
+    try runSleepNoticeAndSettingsTests()
+}
+
+/// What the Keep awake and lid rows say, from in-memory state and an unshown
+/// menu. No window and no saved setting, so this also runs in the self-test.
+func runSleepRowTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     var assertion: [String: Any] = [kIOPMAssertionLevelKey: 1, kIOPMAssertionTypeKey: "UserIsActive", kIOPMAssertionNameKey: "Perch: keep Mac awake"]
     try check(!SleepStatus.isPerchKeepAwake(assertion), "Transient activity became a keep-awake request")
@@ -34,6 +41,15 @@ func runSleepPresentationTests() throws {
     let before = (app.awakeItem.view as! MenuRowView).text
     app.applyLidSleepPresentation()
     try check((app.awakeItem.view as! MenuRowView).text === before, "Unchanged sleep poll replaced rendered title")
+}
+
+/// Sleep notices, Settings pages and saved choices. These show Settings windows
+/// and change real settings (restored afterwards), so they run only in the
+/// window suite, under the AGENT MODE banner.
+func runSleepNoticeAndSettingsTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    let off = SleepStatus(perchActive: false, caffeinateProcesses: [])
+    let app = AppDelegate(); app.buildMenu(); app.observedSleep = off; app.observedLidDisabled = false
 
     var startup = StartupKeyboardAccessNotice()
     try check(!startup.shouldShow(blocked: false, connected: true, busy: false), "Healthy launch warned")

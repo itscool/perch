@@ -495,7 +495,7 @@ extension AppDelegate {
         let problem = access ?? runtime.input.problem
         let hint = problem != nil ? "Needs attention" : !runtime.input.enabled ? "Off" : runtime.inputAdapter.note != nil ? "On · keys local" : "On"
         label(item, "Share on this Mac", hint: hint, hintColor: problem == nil ? .secondaryLabelColor : StatusColors.warning)
-        item.menuHelp = problem ?? runtime.inputAdapter.note ?? "Allow approved Desk computers to send keyboard and mouse input to this Mac. An active preset with a remote screen starts control automatically."
+        item.menuHelp = problem ?? runtime.inputAdapter.note ?? "Let the other Macs on the desk control this one with their keyboard and mouse."
     }
     @objc func toggleDeskSharing() {
         guard let runtime = DeskCoordinator.shared.runtime else {

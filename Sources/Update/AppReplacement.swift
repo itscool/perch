@@ -130,7 +130,7 @@ extension AppDelegate {
         restart.isHidden = available == nil
         if let available {
             label(restart, "Restart Perch", hint: "Update ready · \(available.title)", hintColor: StatusColors.warning, hintWeight: .semibold)
-            restart.menuHelp = "Perch \(available.title) is ready. Restart now to use it; saved choices and an active lid session are kept."
+            restart.menuHelp = "Perch \(available.title) is installed. Restart to use it; your choices carry over."
         }
         restart.isEnabled = available != nil && !RestartSettingsSnapshot.current.busy
         if showNotice { considerAppReplacementNotice() }

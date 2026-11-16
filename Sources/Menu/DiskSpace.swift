@@ -35,7 +35,7 @@ final class DiskSpace {
         var free: Int64
     }
     static let interval: TimeInterval = 30
-    static let help = "macOS is the system itself, its recovery copies and virtual memory. Data is everything else on the startup disk, including apps and caches as well as your files. Free space matches Finder. Other disks appear when you can open them in Finder; network shares and disk images are not read."
+    static let help = "macOS is the system, its recovery copies and virtual memory. Data is everything else: apps, caches and your files. Free space matches Finder. Other disks you can open in Finder get their own line."
     private(set) var lines: [Line] = []
     var changed: () -> Void = {}
     private var reading = false

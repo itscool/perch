@@ -28,7 +28,7 @@ final class SystemMonitor {
     var previous: [UInt32]?
     private var cpuBaseText = "\(ProcessInfo.processInfo.processorCount) cores · --%"
     private var cpuAvailable = true
-    static let cpuExplanation = "System-wide busy time across logical CPUs. All percentages use total CPU capacity (100% = all cores). Top process and combined Perch usage refresh every 10 seconds while this menu is open; the first reading takes about one second. Perch includes the menu app, both helpers, their completed utilities, and its eslogger collector. Top compares live user-space processes; kernel_task and processes that exited between samples are not included. Performance and efficiency cores differ."
+    static let cpuExplanation = "Busy time across all cores (100% = every core busy). The top process and Perch’s own share refresh every 10 seconds while the menu is open."
     var cpuReading: SystemReading {
         .cpu(base: cpuBaseText, available: cpuAvailable, processes: CPUDisplaySettings.enabled() ? processCPU.text : nil)
     }

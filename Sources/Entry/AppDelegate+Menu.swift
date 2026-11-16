@@ -23,8 +23,8 @@ extension AppDelegate {
         let displayItem = add("Turn display off", #selector(turnDisplayOff), help: ControlHelp.display)
         label(displayItem, "Turn display off", hint: "Move mouse to wake")
         do {
-        shareInputItem = add("Share on this Mac", #selector(toggleDeskSharing), help: "Allow approved Desk computers to send keyboard and mouse input to this Mac. Enabled by default; an active preset with a remote screen starts control automatically.")
-            for i in 0..<3 { let item = add("Preset \(i+1)", #selector(useDeskPreset(_:)), help: "Switch monitor inputs to this Desk preset. Keyboard and mouse stay on their current computer."); item.tag = i; deskPresetItems.append(item) }
+        shareInputItem = add("Share on this Mac", #selector(toggleDeskSharing), help: "Let the other Macs on the desk control this one with their keyboard and mouse.")
+            for i in 0..<3 { let item = add("Preset \(i+1)", #selector(useDeskPreset(_:)), help: "Switch the monitors to this preset. With sharing on, the keyboard and mouse move with the screens."); item.tag = i; deskPresetItems.append(item) }
             refreshDeskMenu()
         }
         audioSection = section("Audio")
@@ -37,7 +37,7 @@ extension AppDelegate {
         fnItem = add("Use F1–F12 directly", #selector(toggleFunctionKeys), help: ControlHelp.builtInFn)
         externalKeyboardSection = section("External keyboards")
         externalSwapItem = add("Swap Control ↔ Command keys", #selector(toggleExternalModifiers), help: ControlHelp.externalModifiers)
-        keypadItem = add("Use Num Lock for keypad navigation", #selector(toggleKeypadNavigation), help: "Num Lock/Clear switches each external keypad between numbers and navigation keys. Starts in number mode after restart or wake. Decimal punctuation is unchanged in number mode; hardware LEDs may not reflect Perch’s mode.")
+        keypadItem = add("Use Num Lock for keypad navigation", #selector(toggleKeypadNavigation), help: "Num Lock switches each external keypad between numbers and navigation keys. It starts on numbers after a restart or wake; the keypad’s light may not match.")
         externalFnItem = add("Use F1–F12 directly", #selector(toggleExternalFunctionKeys), help: ControlHelp.externalFn)
         homeEndItem = add("Home/End move to line edges", #selector(toggleHomeEnd), help: ControlHelp.homeEnd)
         pageKeysItem = add("Page Up/Down move the cursor", #selector(togglePageKeys), help: ControlHelp.pageKeys)
@@ -53,12 +53,12 @@ extension AppDelegate {
         installed.isHidden = true; menu.addItem(installed); replacementInfoItem = installed
         loginItem = add("Start at login", #selector(toggleLogin), help: ControlHelp.login)
         safetySettingsItem = add("Settings…", #selector(configureSettings), help: ControlHelp.settings)
-        peerUpdateItem = add("Update Perch on another Mac", #selector(updatePeers), help: "Another Mac on this desk runs an older Perch. It fetches and installs the newest published release itself, the same as updating by hand there, and restarts Perch.")
+        peerUpdateItem = add("Update Perch on another Mac", #selector(updatePeers), help: "Updates that Mac to the newest release, the same as updating it there. Perch restarts on that Mac.")
         peerUpdateItem?.isHidden = true
         updateHereItem = add("Update Perch", #selector(updateHere), help: "")
         updateHereItem?.isHidden = true
         _ = add("About Perch", #selector(about), help: ControlHelp.about)
-        replacementRestartItem = add("Restart Perch", #selector(restartForReplacement), help: "Close and reopen the installed Perch, keeping your saved choices and an active lid session’s existing timeout. The app and handoff are verified before quitting.")
+        replacementRestartItem = add("Restart Perch", #selector(restartForReplacement), help: "Restart to use the Perch you just installed. Your choices carry over, and so does keep-awake with the lid closed.")
         replacementRestartItem?.isHidden = true
         let quit = add("Quit Perch", #selector(quit), help: ControlHelp.quit)
         quit.keyEquivalent = "q"

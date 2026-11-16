@@ -57,8 +57,8 @@ enum DeskVersionNote: Equatable {
         switch self {
         case .install(let version):
             return "Perch \(version) is published. Install it now; Perch restarts and keeps your saved choices."
-        case .newerElsewhere(let on, let version, _):
-            return "\(on) runs Perch \(version), which is not published yet, so this Mac cannot fetch it. This Mac can update once it is released."
+        case .newerElsewhere:
+            return "Not released yet, so this Mac can’t get it. Once it’s released, this Mac can update."
         }
     }
     var actionable: Bool { if case .install = self { return true }; return false }

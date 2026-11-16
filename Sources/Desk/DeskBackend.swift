@@ -51,6 +51,6 @@ protocol DeskBackend: AnyObject {
 struct DeskWording {
     var badge = "DESK"
     var addComputerHelp = "Find a nearby Perch and confirm membership on both computers."
-    var presetActivationHelp = "Switch the physical monitor inputs. If keyboard and mouse sharing is enabled on the participating Macs, control starts automatically when the preset is ready."
+    var presetActivationHelp = "Switch the monitors to this preset. With sharing on, the keyboard and mouse move with the screens."
     static let live = DeskWording()
 }

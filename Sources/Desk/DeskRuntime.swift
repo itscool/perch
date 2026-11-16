@@ -402,7 +402,7 @@ final class DeskRuntime: ObservableObject {
     func toggleInputSharing() {
         let enabled = !input.enabled
         inputAdapter.enable(enabled)
-        // Choosing Share is choosing to share again after Ctrl-Opt-Esc.
+        // Choosing Share is choosing to share again after Ctrl-Opt-Cmd-Esc.
         if enabled { input.allowAutomaticStart(); startInputForActivePreset() }
         DispatchQueue.main.async { (NSApp.delegate as? AppDelegate)?.refreshDeskSharingMenu() }
     }

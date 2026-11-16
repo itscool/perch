@@ -122,12 +122,12 @@ final class KVMInputCoordinator {
                 if node.isOwner { localProblem = nil; blockedTarget = (preset, monitor) }
                 return
             }
-            // Ctrl-Opt-Esc on the coordinator stops the whole desk until the person
+            // Ctrl-Opt-Cmd-Esc on the coordinator stops the whole desk until the person
             // picks a preset or Share again; an automatic request must not undo it.
             if automatic && session.automaticStartSuppressed {
                 PerchLog.note("input.start", "an automatic start was refused: this Mac chose local control")
                 // Said where every Mac shows the status, not only in the log.
-                localProblem = "Ctrl-Opt-Esc on " + node.localName + " stopped sharing. Choose a preset or Share on this Mac to start again."
+                localProblem = "Ctrl-Opt-Cmd-Esc on " + node.localName + " stopped sharing. Choose a preset or Share on this Mac to start again."
                 return
             }
             // The person chose a preset or Share: every Mac that chose local
@@ -135,7 +135,7 @@ final class KVMInputCoordinator {
             if !automatic {
                 choices += 1; session.knownChoices = choices
                 session.allowAutomaticStart()
-                if localProblem?.hasPrefix("Ctrl-Opt-Esc") == true { localProblem = nil }
+                if localProblem?.hasPrefix("Ctrl-Opt-Cmd-Esc") == true { localProblem = nil }
             }
             // A Mac that was away (asleep, at work, restarting) asks for the
             // pointer while the desk is already sharing without it. It joins,

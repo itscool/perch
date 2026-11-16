@@ -189,7 +189,7 @@ final class KVMInputSession: ObservableObject {
         guard value != enabled else { return }
         enabled = value
         // Turning sharing back on after macOS stopped it is not the person
-        // choosing to share: Ctrl-Opt-Esc still holds (`allowAutomaticStart`).
+        // choosing to share: Ctrl-Opt-Cmd-Esc still holds (`allowAutomaticStart`).
         if !value { stop(); timer?.invalidate(); timer = nil; localProblem = nil; coordinatorProblem = nil; blockedTarget = nil; readyComputers = []; availableConnections = []; return }
         lastRevision = configurationRevision; lastContextIssue = contextIssue
         let timer = MainTimer.every(0.25) { [weak self] in self?.tick() }
@@ -211,7 +211,7 @@ final class KVMInputSession: ObservableObject {
         // The stop says it was the person's choice, so the coordinator makes
         // the next grant without this Mac rather than waiting for it in vain.
         escapedAtChoice = knownChoices
-        stop("Ctrl-Opt-Esc on this Mac")
+        stop("Ctrl-Opt-Cmd-Esc on this Mac")
     }
     /// The person chose a preset or Share again: this Mac takes part once more.
     /// Its next poll says so at once, before any request to start can arrive.
@@ -352,7 +352,7 @@ final class KVMInputSession: ObservableObject {
     /// Returning false means the native adapter must leave the event local.
     func capture(_ event: KVMInputEvent) -> Bool {
         // Do not leak input locally while the coordinator is still fencing an
-        // expired remote lease. Ctrl-Opt-Esc is handled before this method by
+        // expired remote lease. Ctrl-Opt-Cmd-Esc is handled before this method by
         // DeskInputAdapter and remains an immediate local-control escape.
         if clock() < localInputSuppressedUntil, event.valid { return true }
         if localInputSuppressedUntil != 0 {
@@ -623,7 +623,7 @@ final class KVMInputSession: ObservableObject {
                 if coordinatorProblem != remote { coordinatorProblem = remote }
             }
         case .prepare(let value):
-            // A Mac that chose local control (Ctrl-Opt-Esc) stays out until the
+            // A Mac that chose local control (Ctrl-Opt-Cmd-Esc) stays out until the
             // person chooses a preset or Share again. Its polls already say so;
             // this covers the moment before the coordinator has heard one.
             guard peer == node.ownerID, enabled, ready(), node.isOwner || !automaticStartSuppressed,
@@ -695,7 +695,7 @@ final class KVMInputSession: ObservableObject {
                 // leaking keystrokes locally; with focus already here there is
                 // nothing to fence.
                 localInputSuppressedUntil = clock() + 1
-                localProblem = "Input is paused while Perch confirms the shared lease. Press Ctrl-Opt-Esc for local control."
+                localProblem = "Input is paused while Perch confirms the shared lease. Press Ctrl-Opt-Cmd-Esc for local control."
             }
             send(.stop(grant.id, nil), to: node.ownerID)
         }

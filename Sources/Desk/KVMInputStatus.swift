@@ -4,7 +4,7 @@ import Foundation
 /// about itself in its readiness poll. The other Macs then name the real cause
 /// ("Mac Studio is locked") instead of guessing that Share is off.
 enum KVMShareReason: String, Codable, CaseIterable {
-    /// The person pressed Ctrl-Opt-Esc on that Mac.
+    /// The person pressed Ctrl-Opt-Cmd-Esc on that Mac.
     case choseLocal
     case needsAccessibility
     case needsInputMonitoring
@@ -66,7 +66,7 @@ enum KVMInputStatus {
     /// This Mac's own reason, said on this Mac.
     static func here(_ reason: KVMShareReason) -> String {
         switch reason {
-        case .choseLocal: return "Ctrl-Opt-Esc stopped sharing on this Mac. Choose a preset or Share to start again."
+        case .choseLocal: return "Ctrl-Opt-Cmd-Esc stopped sharing on this Mac. Choose a preset or Share to start again."
         case .needsAccessibility: return "Perch needs Accessibility on this Mac. Allow it in Setup → Shared input access."
         case .needsInputMonitoring: return "Perch needs Input Monitoring on this Mac. Allow it in Setup → Keyboard access."
         case .locked: return "This Mac is locked. Unlock it to share."
@@ -78,7 +78,7 @@ enum KVMInputStatus {
     /// Another Mac's reason, said on this Mac.
     static func there(_ name: String, _ reason: KVMShareReason) -> String {
         switch reason {
-        case .choseLocal: return "Ctrl-Opt-Esc stopped sharing on " + name + ". Choose a preset or Share to start again."
+        case .choseLocal: return "Ctrl-Opt-Cmd-Esc stopped sharing on " + name + ". Choose a preset or Share to start again."
         case .needsAccessibility: return "Perch needs Accessibility on " + name + ". Allow it in Setup there."
         case .needsInputMonitoring: return "Perch needs Input Monitoring on " + name + ". Allow it in Setup there."
         case .locked: return name + " is locked. Unlock it to share."

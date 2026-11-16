@@ -8,7 +8,7 @@ struct HotkeySettings: View {
     /// steps aside when one of Perch's own shortcuts already uses it.
     static func fixedShortcuts(pasteActive: Bool) -> [(name: String, keys: String)] {
         [("Paste the newest copy from any Mac on the desk", pasteActive ? "⌃⌥⌘V" : "⌃⌥⌘V, off: another Perch shortcut uses it"),
-         ("Return keyboard and mouse control to this Mac", "⌃⌥Esc"),
+         ("Return keyboard and mouse control to this Mac", "⌃⌥⌘Esc"),
          ("Quit Perch while its menu is open", "⌘Q")]
     }
     var body: some View {

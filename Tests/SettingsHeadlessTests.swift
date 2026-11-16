@@ -104,6 +104,8 @@ func runSettingsHeadlessTests() throws {
     let fixed = HotkeySettings.fixedShortcuts(pasteActive: true)
     try check(fixed.first?.keys == "⌃⌥⌘V" && fixed.first?.name.hasPrefix("Paste") == true, "Hotkeys does not list ⌃⌥⌘V: \(fixed.map(\.keys))")
     try check(HotkeySettings.fixedShortcuts(pasteActive: false).first?.keys.contains("off") == true, "Hotkeys did not say ⌃⌥⌘V is off when another shortcut holds it")
+    // The escape shortcut moved to ⌃⌥⌘Esc on November 16, 2026, and the page says so.
+    try check(fixed.contains { $0.keys == "⌃⌥⌘Esc" } && !fixed.contains { $0.keys == "⌃⌥Esc" }, "The Hotkeys page shows the old escape shortcut: \(fixed.map(\.keys))")
 
     // Versions across the desk, on Scott's desk: the MacBook on a local build,
     // the Studio on the published release.

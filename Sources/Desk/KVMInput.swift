@@ -286,13 +286,13 @@ struct KVMInputHeld {
 
 enum KVMInputMessage: Codable {
     /// A readiness poll: the lease challenge, whether this Mac can share now
-    /// (false also while it chose local control with Ctrl-Opt-Esc), and if not,
+    /// (false also while it chose local control with Ctrl-Opt-Cmd-Esc), and if not,
     /// why (`KVMShareReason`; none from an older Perch).
     case poll(UUID, Bool, String?)
     case wakeDisplay
     /// The coordinator's answer. The last value counts the times someone chose
     /// a preset or Share on any Mac, so a Mac that chose local control with
-    /// Ctrl-Opt-Esc takes part again after such a choice (nil from an older Perch).
+    /// Ctrl-Opt-Cmd-Esc takes part again after such a choice (nil from an older Perch).
     /// The very last value says why each Mac that cannot share cannot, as it said.
     case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?, Int?, [UUID: String]?)
     /// preset, screen, the requester's pointer position, and whether the request
@@ -303,7 +303,7 @@ enum KVMInputMessage: Codable {
     case prepared(UUID)
     case installed(UUID)
     /// Stop a grant (nil: any). The flag is true when the person chose local
-    /// control with Ctrl-Opt-Esc, so the coordinator leaves this Mac out of the
+    /// control with Ctrl-Opt-Cmd-Esc, so the coordinator leaves this Mac out of the
     /// next grant at once; an older Perch sends none.
     case stop(UUID?, Bool?)
     case event(UUID, UInt64, KVMInputEvent)

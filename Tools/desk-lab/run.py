@@ -318,11 +318,11 @@ def permutation_return_to_local(ctx) -> tuple[bool, str]:
     if problem:
         return False, problem
     guest, address = list(ctx['addresses'].items())[1]
-    # Ctrl-Opt-Esc is Perch's return-to-local shortcut; it must act locally only.
+    # Ctrl-Opt-Cmd-Esc is Perch's return-to-local shortcut; it must act locally only.
     trace = ctx['out'] / f'local-{guest}.jsonl'
     recorder = sharing.start_recorder(address, 20)
     time.sleep(2)
-    lab.run_in(address, f'/tmp/desk-lab-guest drive type 53 {(1 << 18) | (1 << 19)} 1 0.02', check=False)
+    lab.run_in(address, f'/tmp/desk-lab-guest drive type 53 {(1 << 18) | (1 << 19) | (1 << 20)} 1 0.02', check=False)
     ctx['timeline'].add('return-to-local', 'shortcut-pressed', guest=guest)
     recorder.wait(timeout=60)
     other = list(ctx['addresses'].items())[0]

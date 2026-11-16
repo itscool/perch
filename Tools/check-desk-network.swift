@@ -668,14 +668,14 @@ final class FixturePopups: DeskPastePresenting {
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         _ = push(inputA, on: screenA, dx: 300)
         try wait("the pointer crosses to the Mac that joined") { onBoth(b.localID) }
-        // Ctrl-Opt-Esc on B is not undone by A's automatic start; a choice made
+        // Ctrl-Opt-Cmd-Esc on B is not undone by A's automatic start; a choice made
         // on another Mac lets B back in.
         inputB.stopForLocalControl()
         try wait("B goes local, and A knows at once") { !inputB.active && !inputA.sharingComputers.contains(b.localID) }
         inputA.start(preset: preset, monitor: screenA, automatic: true)
         try wait("A shares again without B") { inputA.active && inputA.focus?.computer == a.localID }
         RunLoop.main.run(until: Date().addingTimeInterval(0.8))
-        guard !inputB.active, !inputA.sharingComputers.contains(b.localID) else { throw KVMError("Ctrl-Opt-Esc was undone by the other Mac's automatic start") }
+        guard !inputB.active, !inputA.sharingComputers.contains(b.localID) else { throw KVMError("Ctrl-Opt-Cmd-Esc was undone by the other Mac's automatic start") }
         // Even a handoff offered to it straight away is refused until someone chooses again.
         guard let revision = KVMInputConfiguration.revision(b.group), let centre = centreOf(screenA) else { throw KVMError("Fixture desk has no revision") }
         let offered = KVMInputGrant(id: UUID(), epoch: b.graph.roster.epoch, revision: revision, preset: preset,
@@ -690,11 +690,11 @@ final class FixturePopups: DeskPastePresenting {
             if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
             return onBoth(a.localID)
         }
-        // Ctrl-Opt-Esc on the coordinator is said on the other Mac, not only logged.
+        // Ctrl-Opt-Cmd-Esc on the coordinator is said on the other Mac, not only logged.
         inputA.stopForLocalControl()
         try wait("A goes local") { !inputA.active && !inputB.active }
         inputB.start(preset: preset, monitor: screenB, automatic: true)
-        try wait("B is told why it cannot start") { inputB.problem?.contains("Ctrl-Opt-Esc on") == true }
+        try wait("B is told why it cannot start") { inputB.problem?.contains("Ctrl-Opt-Cmd-Esc on") == true }
         inputA.start(preset: preset, monitor: screenA, automatic: false)
         try wait("A shares again when chosen") { inputA.active && !inputA.automaticStartSuppressed }
         try wait("B joins A again") {
@@ -808,7 +808,7 @@ final class FixturePopups: DeskPastePresenting {
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         _ = push(inputA, on: screenA, dx: 300)
         try wait("the pointer is on B for the checks below") { onBoth(b.localID) }
-        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a Mac that cannot share says why and the other Mac names it; media keys follow the pointer, movement is measured in millimetres, secure keyboard entry is said where typing goes, a Mac on another sharing version is left out; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
+        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Cmd-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a Mac that cannot share says why and the other Mac names it; media keys follow the pointer, movement is measured in millimetres, secure keyboard entry is said where typing goes, a Mac on another sharing version is left out; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false

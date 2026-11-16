@@ -3,7 +3,9 @@ import Foundation
 
 /// What the input tap does with one key event.
 enum DeskKeyDisposition: Equatable {
-    /// Control-Option-Escape: return control to this Mac.
+    /// Control-Option-Command-Escape: return control to this Mac (Scott,
+    /// November 16, 2026; it was Control-Option-Escape until the Agent Kill
+    /// Switch that held this chord was removed).
     case emergencyStop
     /// A Desk preset shortcut: switch, and keep the keys to itself.
     case activatePreset(UUID)
@@ -28,7 +30,7 @@ struct DeskKeyRouter {
                         presets: [KVMPreset], localShortcut: ((Int64, CGEventFlags) -> Bool)?, bringOver: Shortcut? = nil) -> DeskKeyDisposition {
         switch type {
         case .keyDown:
-            if keyCode == 53, flags.contains([.maskControl, .maskAlternate]) { return .emergencyStop }
+            if keyCode == 53, flags.contains([.maskControl, .maskAlternate, .maskCommand]) { return .emergencyStop }
             if sharing, let preset = presets.first(where: { $0.shortcut.local?.matches(keyCode: keyCode, flags: flags) == true }) {
                 consumedKeys.insert(keyCode); localKeys.remove(keyCode)
                 return autorepeat ? .consumed : .activatePreset(preset.id)

@@ -112,7 +112,8 @@ func runDeskInputReviewTests() throws {
     func route(_ type: CGEventType, _ code: Int64, _ flags: CGEventFlags = [], repeating: Bool = false, sharingOn: Bool = true) -> DeskKeyDisposition {
         router.route(type: type, keyCode: code, flags: flags, autorepeat: repeating, sharing: sharingOn, presets: group.presets, localShortcut: perchOwned)
     }
-    try check(route(.keyDown, 53, [.maskControl, .maskAlternate]) == .emergencyStop, "Control-Option-Escape did not return local control")
+    try check(route(.keyDown, 53, [.maskControl, .maskAlternate, .maskCommand]) == .emergencyStop, "Control-Option-Command-Escape did not return local control")
+    try check(route(.keyDown, 53, [.maskControl, .maskAlternate]) == .forward, "Control-Option-Escape still took control back; it is an ordinary key again")
     try check(route(.keyDown, f1, chord) == .activatePreset(group.presets[0].id), "A preset shortcut did not switch the preset")
     try check(route(.keyDown, f1, chord, repeating: true) == .consumed && route(.keyUp, f1, chord) == .consumed, "A held preset shortcut repeated or leaked its release")
     try check(route(.keyDown, s, chord) == .local && route(.keyUp, s) == .local, "Share on this Mac's shortcut was sent to the other Mac")

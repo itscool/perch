@@ -18,9 +18,8 @@ enum ControlHelp {
     static let awake = "Prevent idle sleep while allowing displays to turn off. Turning this off also ends lid protection and stops your active caffeinate sessions."
     static let idleLock = "Keep your Mac from locking or starting its screen saver while you are away from it. It stays unlocked until you turn this off. Closing the lid, locking it yourself and your organization’s own lock still work, and this does not keep the Mac awake: Keep awake does that."
     /// Sleep disabled in macOS by something other than Perch.
-    static let lidOutside = "Sleep was disabled outside Perch, for example with pmset. Turn this on and Perch takes it over; turn it off later and normal sleep returns."
-    static let lid = "Keep working with the lid closed. While active, this blocks manual Sleep too. On battery, open the lid or reconnect power within 60 seconds. Turn off before putting the Mac in a bag."
-    static let lidSaved = "The checkmark is your saved choice, not proof of active protection. Protection resumes automatically when ready. After a closed-lid battery timeout, open the lid or connect power. Setup → Lid protection explains any setup failure."
+    static let lidOutside = "Sleep was turned off outside Perch, with no limit: on battery with the lid closed the Mac stays awake, even in a bag. Turn this on and Perch takes it over, with its 60-second battery limit."
+    static let lid = "Keep working with the lid closed. On power it stays awake; on battery it sleeps 60 seconds after the lid closes. While on, Sleep in the Apple menu does nothing."
     static let login = "Open the Perch menu app when you sign in to macOS. Background controls have their own startup behavior."
     static let settings = "Open Perch settings to change features or review setup. Setup & status brings missing steps and repair options together."
     static let about = "Show Perch’s version and build information."

@@ -20,11 +20,11 @@ struct SleepPresentation: Equatable {
         awakeEnabled = (actualLid != .mixed || outsidePerch) && awake != .mixed && !changing
         // Each note says whose the state is: Perch's, caffeinate's, or set
         // outside Perch, as with pmset when Perch could not be used.
-        awakeHint = actualLid == .on ? "On by Perch · lid closed too" : outsidePerch ? "Sleep disabled outside Perch" : awake == .mixed ? "Unavailable" : ordinary?.caffeinateActive == true ? "caffeinate active" : "Mac only"
+        awakeHint = actualLid == .on ? "Set by Perch · lid closed too" : outsidePerch ? "Set externally" : awake == .mixed ? "Unavailable" : ordinary?.caffeinateActive == true ? "caffeinate active" : "Mac only"
         lid = savedLid ? .on : .off
         // A stopped saved choice can always be explicitly cleared once the
         // actual state is known, even when the master is off.
         lidEnabled = awakeEnabled && (savedLid || awake == .on || outsidePerch)
-        lidHint = changing ? "Changing…" : actualLid == .mixed ? (outsidePerch ? "On outside Perch" : "Status unknown · review settings") : actualLid == .on ? remaining.map { "On by Perch · \($0)s remaining" } ?? "On by Perch" : savedLid ? (masterWanted ? "Saved · protection stopped" : "Applies when Keep awake is on") : "Normal lid sleep"
+        lidHint = changing ? "Changing…" : actualLid == .mixed ? (outsidePerch ? "Set externally" : "Status unknown · review settings") : actualLid == .on ? remaining.map { "Set by Perch · \($0)s left" } ?? "Set by Perch" : savedLid ? (masterWanted ? "Saved · protection stopped" : "Applies when Keep awake is on") : "Normal lid sleep"
     }
 }

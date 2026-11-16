@@ -30,12 +30,12 @@ func runSleepRowTests() throws {
     // used pmset while Perch could not be used) is named, not "unknown", and
     // both rows stay usable: it is a status, never a lock.
     let outside = SleepPresentation(ordinary: off, actualLid: .mixed, savedLid: false, masterWanted: true, changing: false, remaining: nil, outsidePerch: true)
-    try check(outside.lidHint == "On outside Perch" && outside.awakeHint == "Sleep disabled outside Perch" && outside.lidEnabled && outside.awakeEnabled,
+    try check(outside.lidHint == "Set externally" && outside.awakeHint == "Set externally" && outside.lidEnabled && outside.awakeEnabled,
               "Sleep disabled outside Perch was shown as unknown, or it locked the sleep rows")
     let ours = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: nil)
-    try check(ours.lidHint == "On by Perch" && ours.awakeHint.hasPrefix("On by Perch"), "Perch's own lid protection did not say it is Perch's")
+    try check(ours.lidHint == "Set by Perch" && ours.awakeHint.hasPrefix("Set by Perch"), "Perch's own lid protection did not say it is Perch's")
     let active = SleepPresentation(ordinary: off, actualLid: .on, savedLid: true, masterWanted: true, changing: false, remaining: 42)
-    try check(active.awake == .on && active.awakeHint == "On by Perch · lid closed too" && active.lidHint == "On by Perch · 42s remaining", "Final snapshot lost lid state/countdown")
+    try check(active.awake == .on && active.awakeHint == "Set by Perch · lid closed too" && active.lidHint == "Set by Perch · 42s left", "Final snapshot lost lid state/countdown")
     let app = AppDelegate(); app.buildMenu(); app.observedSleep = off; app.observedLidDisabled = false
     app.applyLidSleepPresentation()
     let before = (app.awakeItem.view as! MenuRowView).text

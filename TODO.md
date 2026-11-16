@@ -800,6 +800,19 @@ from Setup; the disk line; "Update Perch on <Mac>", which needs both Macs on
 2.0.301 is still a manual click there); and, last as Scott asked, the pointer
 test over the cable.
 
+Perch 2.0.311 was published on November 16, 2026. Apple accepted the app
+(2fc442e8-d425-4f39-a51a-82adba133e5b) and the DMG
+(ba26b1dc-b9d9-40ad-a1ef-b0c3c7e62619); the GitHub release at v2.0.311, the
+stable Sparkle feed and the SHA256SUMS checksums for the DMG, ZIP and appcast
+were verified from the public URLs. The `itscool/tap` cask was updated to
+2.0.311; `brew style` passes, and `brew fetch` and `brew info` load it from the
+tap and confirm 2.0.311 and its SHA-256. On this MacBook at release time,
+/Applications/Perch.app was the local build 2.0.310 and the running Perch was
+build 308; neither was touched. Native acceptance is open with both Macs on
+2.0.311: a switch confirmed by the screens, ⌃⌥⌘V pasting on each Mac, the
+version rows, pasting a brought-over file into Mail and Messages, a folder with
+a broken link, and the pointer test over the Thunderbolt cable.
+
 Installation experience: prepare a branded DMG with an obvious app-to-Applications
 layout, then the existing Setup & status first-launch journey. Ask for feature
 permissions in context. Developer ID Application covers app/DMG signing; a future

@@ -1,9 +1,9 @@
 import CoreGraphics
 import Foundation
 
-/// The version 1 desk cursor recipe, pinned without touching the real cursor: park
-/// at the centre of the screen left, put it back after every read, add remote
-/// movement to the live cursor, and report smoothness as numbers.
+/// The desk cursor recipe, pinned without touching the real cursor: hide and stop
+/// the cursor where it left, never show it during a handoff, add remote movement
+/// to the live cursor, and report smoothness as numbers.
 private final class RecordingCursor: DeskCursorSystem {
     var location: CGPoint
     var displays: [CGRect]
@@ -126,5 +126,49 @@ func runDeskCursorTests() throws {
     hiding.end(hidingCursor)
     try check(hidingCursor.shows == 1, "Ending twice showed the cursor twice")
 
+    // A park point that is no longer on any screen (the screen was let go of,
+    // or rearranged) is replaced by where macOS put the cursor, not warped to
+    // after every movement.
+    let gone = RecordingCursor(location: CGPoint(x: 3000, y: 500), displays: [main, side])
+    var stale = DeskCursorParking()
+    stale.begin(gone)
+    gone.displays = [main]
+    stale.reset(from: CGPoint(x: 700, y: 400), gone)
+    try check(gone.warps.isEmpty && stale.park == CGPoint(x: 700, y: 400), "A cursor whose screen went away was warped to a dead point: \(gone.warps)")
+    // From then on it is held at its new place, never sent back to the old one.
+    stale.reset(from: CGPoint(x: 703, y: 401), gone)
+    try check(gone.warps == [CGPoint(x: 700, y: 400)], "A re-parked cursor was put back somewhere other than its new place: \(gone.warps)")
+    // A handoff never shows the cursor in between: hidden at once on the Mac the
+    // pointer leaves, kept as it is on the Mac it is coming to, shown only once
+    // placed there, and given back when sharing stops.
+    let here = UUID(), there = UUID()
+    try check(DeskCursorStep.decide(handoffTo: there, active: false, focus: nil, local: here) == .park, "A handoff away did not hide the cursor at once")
+    try check(DeskCursorStep.decide(handoffTo: there, active: true, focus: here, local: here) == .park, "A handoff away left the cursor showing while the old grant was still live")
+    try check(DeskCursorStep.decide(handoffTo: here, active: false, focus: nil, local: here) == .hold, "A handoff on its way here showed the cursor before it was placed")
+    try check(DeskCursorStep.decide(handoffTo: nil, active: true, focus: here, local: here) == .here, "Control here did not place and show the cursor")
+    try check(DeskCursorStep.decide(handoffTo: nil, active: true, focus: there, local: here) == .park, "Control elsewhere left the cursor showing")
+    try check(DeskCursorStep.decide(handoffTo: nil, active: false, focus: nil, local: here) == .free, "Sharing stopped and the cursor stayed hidden")
+    // Modifiers held on the receiving Mac's own keyboard join the sender's.
+    var modifiers = KVMNativeEvent()
+    let commandClick = modifiers.make(.init(kind: .buttonDown, code: 0), point: CGPoint(x: 10, y: 10), source: nil, localFlags: CGEventFlags.maskCommand.rawValue)
+    try check(commandClick?.flags.contains(.maskCommand) == true, "Command on this Mac's keyboard was lost from a click made with the other Mac's mouse")
+    let release = modifiers.make(.init(kind: .modifiers, code: 55), point: .zero, source: nil, localFlags: CGEventFlags.maskCommand.rawValue)
+    try check(release?.flags.contains(.maskCommand) == false, "Releasing a forwarded modifier kept this Mac's own, so it never released")
+    // Clicks are counted where the pointer is: two quick clicks on two different
+    // things are two single clicks; on the same spot, a double.
+    var clicks = DeskClickCounter()
+    try check(clicks.down(0, at: 1, point: CGPoint(x: 100, y: 100), interval: 0.5) == 1, "A first click was not a single click")
+    try check(clicks.down(0, at: 1.2, point: CGPoint(x: 400, y: 100), interval: 0.5) == 1, "Two quick clicks far apart became a double-click")
+    try check(clicks.down(0, at: 1.4, point: CGPoint(x: 402, y: 101), interval: 0.5) == 2 && clicks.count(0) == 2, "A double-click on one spot was not counted")
+    try check(clicks.down(0, at: 1.6, point: CGPoint(x: 402, y: 101), interval: 0.5) == 3, "A triple-click was not counted")
+    try check(clicks.down(1, at: 1.7, point: CGPoint(x: 402, y: 101), interval: 0.5) == 1, "Another button continued the count")
+    try check(clicks.down(1, at: 3, point: CGPoint(x: 402, y: 101), interval: 0.5) == 1, "A slow second click became a double-click")
+    // A trackpad scroll under way is ended when control moves away.
+    var gesture = DeskScrollGesture()
+    var began = KVMInputEvent(kind: .scroll); began.phase = 1
+    var coasting = KVMInputEvent(kind: .scroll); coasting.momentum = 2
+    gesture.posted(began); gesture.posted(coasting)
+    let endings = gesture.endings()
+    try check(endings.map(\.phase) == [4, 0] && endings.map(\.momentum) == [0, 3] && gesture.endings().isEmpty, "A scroll under way was not ended, or was ended twice")
     print("PASS: desk cursor parks hidden and stopped, so nothing under it sees a pointer; remote movement adds to the live cursor and stops at the screen edge; control arriving with its first movement continues from the entry point; posted movement carries its values; smoothness is measured with pauses ignored")
 }

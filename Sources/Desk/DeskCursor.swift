@@ -5,11 +5,10 @@ import Foundation
 /// one small interface so the recipe is pinned by fast tests.
 ///
 /// The desk has one pointer, owned by one Mac:
-/// - While the pointer is on another Mac, this Mac's cursor is hidden and parked at
-///   the centre of the screen it left, and put straight back after every read. The
-///   centre leaves room in every direction, so movement is never clamped at an edge
-///   or mistaken for another crossing. Deskflow re-centres the same way on Windows
-///   and Linux; Lan Mouse re-warps after every motion on macOS.
+/// - While the pointer is on another Mac, this Mac's cursor is hidden and stopped
+///   where it left (detached from the mouse, since September 21), so nothing under
+///   it sees a pointer arrive. Its mouse's movement still reaches Perch to be sent.
+/// - While a handoff is on its way the cursor never shows: see `DeskCursorStep`.
 /// - While the pointer is here, movement from another Mac is added to the live
 ///   cursor, exactly like this Mac's own mouse, so two mice add together.
 protocol DeskCursorSystem: AnyObject {
@@ -105,8 +104,7 @@ struct DeskCursorParking {
     private var worstDrift = 0.0
     var parked: Bool { park != nil }
 
-    /// Park at the centre of the screen the cursor is on. Beginning again while
-    /// parked changes nothing.
+    /// Park where the cursor is. Beginning again while parked changes nothing.
     mutating func begin(_ cursor: DeskCursorSystem) {
         guard park == nil else { return }
         // Hidden, and then stopped: the cursor stays exactly where it was and
@@ -125,6 +123,10 @@ struct DeskCursorParking {
     /// reading is kept to prove it: any drift here means detaching failed.
     mutating func reset(from location: CGPoint, _ cursor: DeskCursorSystem) {
         guard let park else { return }
+        // The screen it was parked on went away or moved (a preset let go of
+        // it): macOS has put the cursor somewhere real. Park there, rather than
+        // warping to a dead point after every movement, each warp pausing the mouse.
+        guard cursor.displays.contains(where: { $0.contains(park) }) else { self.park = location; return }
         let drift = Double(hypot(location.x - park.x, location.y - park.y))
         worstDrift = max(worstDrift, drift)
         resets += 1
@@ -152,6 +154,27 @@ struct DeskCursorParking {
         guard let screen = displays.first(where: { $0.contains(location) }) ?? displays.first else { return location }
         return CGPoint(x: min(screen.maxX - 1, max(screen.minX, target.x)),
                        y: min(screen.maxY - 1, max(screen.minY, target.y)))
+    }
+}
+
+/// What this Mac does with its cursor as control moves. A handoff on its way never
+/// shows the cursor in between: the Mac the pointer leaves hides it at once, and
+/// the Mac it comes to keeps it hidden until it is placed at the entry point.
+/// Before, both Macs showed a cursor for a network round trip at every crossing,
+/// and the arriving one appeared where it had left before jumping to the edge.
+enum DeskCursorStep: Equatable {
+    /// The pointer is on another Mac, or on its way there: hidden and stopped.
+    case park
+    /// A handoff to this Mac is on its way: leave the cursor exactly as it is.
+    case hold
+    /// Control is here: place it once if it just arrived, then show it.
+    case here
+    /// Sharing is not running: the cursor is this Mac's own again.
+    case free
+    static func decide(handoffTo: UUID?, active: Bool, focus: UUID?, local: UUID) -> Self {
+        if let handoffTo { return handoffTo == local ? .hold : .park }
+        guard active, let focus else { return .free }
+        return focus == local ? .here : .park
     }
 }
 

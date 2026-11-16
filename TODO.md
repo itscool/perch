@@ -1442,6 +1442,63 @@ sidebar's five Setup steps, with the same names and states, and each row opens
 its own step; Recheck and Fix next issue are gone (SETUP-CONSOLIDATION-2.0.md).
 The window suite still needs a run under AGENT MODE for it.
 
+**Keyboard and mouse sharing review (November 16).** Three independent reviews
+(pointer and cursor; keys, clicks and scrolling; the session over a real link),
+each finding checked against the code before fixing. Fixed, each pinned by a
+fast test (`check-desk-network` two-Mac harness, `check-kvm`, self-test):
+- A Mac that comes back (sleep, work, restart) joins sharing already running
+  and the pointer stays put; before, the owner shut it out until a preset.
+- Ctrl-Opt-Esc holds until a preset or Share is chosen again; the other Mac
+  undid it within a round trip.
+- Typing stays where you last clicked across crossings (every crossing reset
+  it); a native click on the pointer's Mac now tells the owner; keys delivered
+  to a Mac the pointer is not on never show or move its cursor.
+- No crossing while a button is held (lost releases, drops at the edge); a
+  later move with no button down lets go of a lost one.
+- The cursor never shows on both Macs during a handoff; the arriving one stays
+  hidden until placed (`DeskCursorStep`).
+- Corners of a shared edge cross instead of sticking; only a push outwards from
+  the very edge crosses, never movement well inside a screen or on a screen
+  outside the desk; the overshoot is carried onto the next screen; the bounce
+  guard starts once the handoff is installed.
+- Idle: unchanged on purpose. Scott, November 16: while sharing is on, neither
+  Mac may lock or sleep (a lid-closed MacBook that locked could not be unlocked
+  with the shared keyboard), so both keep declaring activity as before.
+- The input tap is rebuilt by itself after repeated timeouts, and retried when
+  macOS would not create it (it stayed off for good while saying it retried).
+- The owner's own clicks during its handoff are delivered, not dropped.
+- Clicks are counted where the pointer is; this Mac's own modifiers join clicks
+  from the other Mac's mouse; a scroll under way is ended when control moves;
+  Apple's newer function-row keys and mouse buttons beyond the fifth are forwarded.
+- After a second, independent review of these fixes: a `features` announcement
+  says what each Mac's sharing can do, so with an older Perch on the desk typing
+  follows the pointer at handoffs again and keys it refuses stay local; a
+  crossing or join that does not complete falls back to the desk as it was
+  instead of ending sharing; a choice (preset or Share) on any Mac lets a Mac
+  that pressed Ctrl-Opt-Esc back in, while a tap rebuild or a preset the screens
+  report does not; Ctrl-Opt-Esc on the owner is said on the other Macs; a preset
+  switch carries on where the pointer was; typing during a handoff waits when it
+  belongs to another Mac; the overshoot keeps movement along the edge.
+The wire stays version 2: new fields and messages are optional, checked by
+decoding 2.0.311's exact messages both ways.
+*Needs both Macs:* a crossing with no flash on either Mac; the corners; a drag
+held at the edge; typing after a crossing; a Mac waking and joining; Ctrl-Opt-
+Esc; the screens sleeping after two idle minutes; which Mac reacts to Cmd-Tab,
+Cmd-Space, screenshots and Spaces pressed on the keyboard without the pointer.
+*Decided by Scott, being built before he tests:* media keys follow the pointer;
+trackpad gestures are ignored on a Mac while the pointer is on the other one;
+pointer speed matches automatically and the setting goes; a popup on the Mac
+typing goes to when secure keyboard entry on the other Mac holds the keys. Then
+the session is split (the owner's coordination apart from each Mac's side), the
+status wording goes into one tested function, and a full review runs again.
+Per-app navigation-key exceptions judged on the pointer's Mac stay open.
+*Separate, from Scott:* "Prevent idle lock" does not stop his Macs locking,
+including the managed work MacBook; he wants it made to work. Also open from
+the review: status lines that name the wrong cause ("turn on Share" for a
+locked or sleeping Mac), the pointer position after a preset switch, a Mac on a
+different sharing version being included in grants, and frames lost when the
+link moves between Wi-Fi and the cable.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

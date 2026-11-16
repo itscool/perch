@@ -2,9 +2,14 @@ import Foundation
 import Combine
 
 enum KVMInputMessage: Codable {
+    /// A readiness poll: the lease challenge, and whether this Mac can share now
+    /// (false also while it chose local control with Ctrl-Opt-Esc).
     case poll(UUID, Bool)
     case wakeDisplay
-    case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?)
+    /// The coordinator's answer. The last value counts the times someone chose
+    /// a preset or Share on any Mac, so a Mac that chose local control with
+    /// Ctrl-Opt-Esc takes part again after such a choice (nil from an older Perch).
+    case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?, Int?)
     /// preset, screen, the requester's pointer position, and whether the request
     /// is automatic or the person's own. Once sharing runs, only the person's
     /// places the pointer; see `placementAllowed`.
@@ -12,7 +17,10 @@ enum KVMInputMessage: Codable {
     case prepare(KVMInputGrant)
     case prepared(UUID)
     case installed(UUID)
-    case stop(UUID?)
+    /// Stop a grant (nil: any). The flag is true when the person chose local
+    /// control with Ctrl-Opt-Esc, so the coordinator leaves this Mac out of the
+    /// next grant at once; an older Perch sends none.
+    case stop(UUID?, Bool?)
     case event(UUID, UInt64, KVMInputEvent)
     case delivery(UUID, UUID, UInt64, KVMInputEvent, KVMInputFocus)
     case heartbeat(UUID, UUID)
@@ -22,6 +30,9 @@ enum KVMInputMessage: Codable {
     /// Which sharing version this Mac speaks. A Perch that predates versioning
     /// never sends one and cannot decode it, which is itself the answer.
     case version(Int)
+    /// What this Mac's sharing can do beyond its version (`KVMInputProtocol.features`).
+    /// An older Perch cannot decode it and ignores it, so it reads as none.
+    case features([String])
 }
 
 /// Where each kind of input goes. The pointer goes where you move it; the keys
@@ -124,6 +135,27 @@ final class KVMInputSession: ObservableObject {
     /// its keyboard is driving another Mac. Injected by the native adapter.
     var keepAwake: (() -> Void)?
     private var nextKeepAwake: Double = 0
+    /// What each other Mac's sharing can do beyond its version.
+    private var peerFeatures: [UUID: Set<String>] = [:]
+    /// On the coordinator: how many times someone chose a preset or Share.
+    private var choices = 0
+    /// The latest count this Mac has heard, and the count when it chose local
+    /// control; a later choice anywhere lets it take part again.
+    private var knownChoices = 0
+    private var escapedAtChoice: Int?
+    /// On the coordinator: the grant to go back to if a handoff made while
+    /// sharing (a crossing or a Mac joining) does not complete.
+    private var fallback: (participants: Set<UUID>, pointer: KVMInputFocus)?
+    /// When this Mac's own mouse last clicked, so a status answer sent before
+    /// that click cannot move typing back to where it was.
+    private var lastLocalClickAt: Double = -.infinity
+    /// When each Mac last joined a desk already sharing, on the coordinator.
+    private var joinAttempts: [UUID: Double] = [:]
+    /// Whether every other Mac in this set can do `feature`. An older Perch
+    /// announces none, so the desk falls back to what it can do.
+    private func all(_ participants: Set<UUID>, can feature: String) -> Bool {
+        participants.allSatisfy { $0 == node.localID || peerFeatures[$0]?.contains(feature) == true }
+    }
     private var lastPrepareAt: Double = -.infinity
     private var lastCrossingAt: Double = -.infinity
     /// The screen the pointer last crossed away from, so only a bounce straight
@@ -149,7 +181,6 @@ final class KVMInputSession: ObservableObject {
     private var sequence: UInt64 = 0
     private var polls: [UUID: Double] = [:]
     private var stateExpires: Double = 0
-    private var pendingStart: (UUID, UUID, Double)?
     private var outputSequence: UInt64 = 0
     private var nextHeartbeat: Double = 0
     private var heartbeats: [UUID: Double] = [:]
@@ -209,7 +240,8 @@ final class KVMInputSession: ObservableObject {
     func setEnabled(_ value: Bool) {
         guard value != enabled else { return }
         enabled = value
-        if value { automaticStartSuppressed = false }
+        // Turning sharing back on after macOS stopped it is not the person
+        // choosing to share: Ctrl-Opt-Esc still holds (`allowAutomaticStart`).
         if !value { stop(); timer?.invalidate(); timer = nil; localProblem = nil; coordinatorProblem = nil; blockedTarget = nil; readyComputers = []; availableConnections = []; return }
         lastRevision = configurationRevision; lastContextIssue = contextIssue
         let timer = MainTimer.every(0.25) { [weak self] in self?.tick() }
@@ -218,20 +250,32 @@ final class KVMInputSession: ObservableObject {
     }
     func stop(_ reason: String = "stopped on this Mac") {
         PerchLog.record("input.end", "Control ended: " + reason)
-        pendingStart = nil
         localInputSuppressedUntil = 0
-        send(.stop(nil), to: node.ownerID)
+        send(.stop(nil, automaticStartSuppressed ? true : nil), to: node.ownerID)
         endLocal()
         if node.isOwner { endAuthority() }
+        // Typing outlives a handoff, but not sharing itself.
+        keyboardFocus = nil
     }
     func stopForLocalControl() {
         automaticStartSuppressed = true
-        stop()
+        // The stop says it was the person's choice, so the coordinator makes
+        // the next grant without this Mac rather than waiting for it in vain.
+        escapedAtChoice = knownChoices
+        stop("Ctrl-Opt-Esc on this Mac")
     }
-    func allowAutomaticStart() { automaticStartSuppressed = false }
+    /// The person chose a preset or Share again: this Mac takes part once more.
+    /// Its next poll says so at once, before any request to start can arrive.
+    func allowAutomaticStart() {
+        guard automaticStartSuppressed else { return }
+        automaticStartSuppressed = false; escapedAtChoice = nil
+        if enabled { pollNow() }
+    }
     private func endLocal(_ reason: String? = nil) {
         if let reason, lease.grant != nil || preparedGrant != nil { PerchLog.record("input.end", "This Mac let go of control: " + reason) }
-        release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; keyboardFocus = nil; sequence = 0
+        // Typing stays where it was last clicked across a handoff: a crossing is
+        // the pointer moving, never the keyboard (Scott, September 21).
+        release(); lease.release(); preparedGrant = nil; buffered = []; focus = nil; sequence = 0
         localGrantAcceptedAt = -.infinity
         pendingMotion = nil; motionFlushScheduled = false; heartbeats = [:]; nextHeartbeat = 0
     }
@@ -251,7 +295,7 @@ final class KVMInputSession: ObservableObject {
         // local lease looking active: its event tap would consume local input
         // while the owner rejected the resulting events because `grant` is
         // already nil.
-        lease.release(); preparedGrant = nil; focus = nil; keyboardFocus = nil; sequence = 0
+        lease.release(); preparedGrant = nil; focus = nil; sequence = 0
         pendingMotion = nil; motionFlushScheduled = false; localGrantAcceptedAt = -.infinity
         localInputSuppressedUntil = 0
         _ = held.releaseAll()
@@ -260,7 +304,7 @@ final class KVMInputSession: ObservableObject {
         guard enabled else { return }
         let revision = configurationRevision, context = contextIssue
         if revision != lastRevision || context != lastContextIssue {
-            let wasControlling = lease.grant != nil || preparedGrant != nil || pending != nil || pendingStart != nil
+            let wasControlling = lease.grant != nil || preparedGrant != nil || pending != nil
             stop(revision != lastRevision ? "the desk configuration changed on this Mac" : "sharing conditions changed: " + (context ?? "now ready")); lastRevision = revision; lastContextIssue = context
             visibility = [:]; probes = [:]; availableConnections = []; readyComputers = []; stateExpires = 0
             peerVersions = [:]; peerHeard = [:]; nextVersionAnnounce = 0
@@ -275,17 +319,37 @@ final class KVMInputSession: ObservableObject {
     /// Control is on its way from this Mac to another: as the desk owner with a
     /// handoff pending, or as a participant preparing one.
     var handingOff: Bool { pending.map { $0.focus.computer != node.localID } == true || preparing }
+    /// Where a handoff on its way will put the pointer, while one is. The cursor
+    /// follows this, so it never shows in between (`DeskCursorStep`).
+    var handoffTarget: KVMInputFocus? {
+        if let upcoming { return upcoming.focus }
+        if let pending { return pending.focus }
+        return preparing ? preparedGrant?.focus : nil
+    }
+    /// A handoff being set up right now: tearing down the old one clears focus,
+    /// and the cursor must already know where the new one is going.
+    private var upcoming: KVMInputGrant?
+    /// The grant a crossing made, so its bounce guard starts once every Mac has
+    /// installed it rather than at the decision.
+    private var crossingGrant: UUID?
+    /// Where typing goes by the last click, or nil when it follows the pointer.
+    var typingComputer: UUID? { keyboardFocus?.computer }
+    /// Where the pointer is, as well as this Mac knows: the coordinator follows
+    /// it closely, every other Mac from its grant and deliveries.
+    var pointerLocation: KVMInputFocus? { node.isOwner ? (pointer ?? focus) : focus }
     /// The computer whose screen currently has the pointer, if this Mac holds a lease.
     var focusComputer: UUID? { lease.grant.map { (focus ?? $0.focus).computer } }
     var capturing: Bool { active || preparing || clock() < localInputSuppressedUntil }
-    func start(preset: UUID, monitor: UUID, automatic: Bool = false) {
+    /// `position`: where the pointer should be, in desk millimetres; this Mac's
+    /// own cursor when nil.
+    func start(preset: UUID, monitor: UUID, position: KVMPoint? = nil, automatic: Bool = false) {
         localProblem = nil; coordinatorProblem = nil
         guard readinessIssue(preset: preset, monitor: monitor) == nil else {
             blockedTarget = (preset, monitor); return
         }
         blockedTarget = nil
         requestDisplayWake(preset: preset, monitor: monitor)
-        send(.focus(preset, monitor, localPointerPosition?(monitor), automatic), to: node.ownerID)
+        send(.focus(preset, monitor, position ?? localPointerPosition?(monitor), automatic), to: node.ownerID)
     }
     private func requestDisplayWake(preset: UUID, monitor: UUID) {
         guard let assignment = node.group.presets.first(where: { $0.id == preset })?.assignments.first(where: { $0.monitor == monitor }),
@@ -298,10 +362,6 @@ final class KVMInputSession: ObservableObject {
         localProblem = nil; coordinatorProblem = nil; blockedTarget = nil
         nextInspection = 0
         if enabled { tick() }
-    }
-    func resumeAfterPreset(_ preset: UUID, monitor: UUID) {
-        guard enabled else { return }
-        pendingStart = (preset, monitor, clock() + 5)
     }
     func readinessIssue(preset: UUID, monitor: UUID) -> String? {
         guard enabled && ready() else { return "Enable sharing and resolve this Mac’s access first." }
@@ -349,17 +409,25 @@ final class KVMInputSession: ObservableObject {
             localInputSuppressedUntil = 0
             if localProblem?.hasPrefix("Input is paused") == true { localProblem = nil }
         }
-        if preparing, event.valid {
-            // A handoff whose destination is this Mac keeps native input flowing.
-            if preparedGrant?.focus.computer == node.localID { return false }
+        if preparing, event.valid, let prepared = preparedGrant {
+            // A handoff moves the pointer, never the keyboard. Typing stays native
+            // when it goes to this Mac and waits when it goes to another; pointer
+            // events stay native only when the pointer is coming here.
+            let destination = KVMInputRouting.typing(event.kind) ? (keyboardFocus?.computer ?? prepared.focus.computer) : prepared.focus.computer
+            if destination == node.localID { return false }
             buffer(&buffered, event); return true
         }
         guard active, event.valid, let grant = lease.grant else { return false }
+        // Apple's newer function-row keys and extra mouse buttons go across only
+        // when every Mac in the grant takes them; otherwise they stay here, as
+        // they did before.
+        if event.wide, !all(grant.participants, can: KVMInputProtocol.wideInput) { return false }
         let pointerFocus = focus ?? grant.focus
+        if let typing = keyboardFocus, !grant.participants.contains(typing.computer) { keyboardFocus = nil }
         // Apply the click's effect here at once. Waiting to be told where typing
         // went, on the next quarter-second status, would send the first letters
         // after a click to the Mac the keyboard was on before it.
-        if KVMInputRouting.claimsKeyboard(event.kind) { keyboardFocus = pointerFocus }
+        if KVMInputRouting.claimsKeyboard(event.kind) { keyboardFocus = pointerFocus; lastLocalClickAt = clock() }
         let localFocus = KVMInputRouting.target(event.kind, pointer: pointerFocus, keyboard: keyboardFocus).computer == node.localID
         if event.kind == .motion {
             // Send the first movement straight away and combine only what
@@ -383,7 +451,15 @@ final class KVMInputSession: ObservableObject {
         }
         // Keys, clicks and scrolling stay native while this Mac has focus.
         // Re-injecting them only added latency and broke secure text fields.
-        if localFocus { return false }
+        // A click still tells the coordinator, which decides where typing goes;
+        // it never delivers an event back to the Mac that made it.
+        if localFocus {
+            if KVMInputRouting.claimsKeyboard(event.kind), !node.isOwner {
+                flushMotion()
+                if sequence < UInt64.max { sequence += 1; send(.event(grant.id, sequence, event), to: node.ownerID) }
+            }
+            return false
+        }
         flushMotion()
         guard sequence < UInt64.max else { stop(); return false }
         sequence += 1
@@ -408,14 +484,16 @@ final class KVMInputSession: ObservableObject {
         } ?? report
         scheduleMotionFlush()
     }
-    /// Events swallowed while a handoff was pending are forwarded once focus is
-    /// known. If focus landed on this very Mac they cannot "pass through" any
-    /// more, so keys and clicks are injected here; motion is simply dropped.
+    /// Events swallowed while a handoff was pending are routed once focus is
+    /// known. Whatever belongs on another Mac is sent there. Whatever belongs on
+    /// this Mac can no longer pass through, so keys and clicks are posted here;
+    /// motion that arrived with the pointer is simply dropped.
     private func replay(_ events: [KVMInputEvent]) {
         let local = focusComputer == node.localID
         for event in events {
-            if !local { _ = capture(event); continue }
-            if event.kind != .motion, let focus { emit(event, focus) }
+            if local && event.kind == .motion { continue }
+            if capture(event) { continue }
+            if event.kind != .motion, let target = focus ?? lease.grant?.focus { emit(event, target) }
         }
     }
     /// Motion coalesces into the last buffered motion; a fast swipe across an
@@ -474,9 +552,12 @@ final class KVMInputSession: ObservableObject {
         polls = polls.filter { clock() - $0.value < 2.5 }; polls[nonce] = clock()
         if clock() >= nextVersionAnnounce {
             nextVersionAnnounce = clock() + 5
-            for peer in node.online where peer != node.localID { send(.version(KVMInputProtocol.version), to: peer) }
+            for peer in node.online where peer != node.localID {
+                send(.version(KVMInputProtocol.version), to: peer)
+                send(.features(KVMInputProtocol.features.sorted()), to: peer)
+            }
         }
-        send(.poll(nonce, ready()), to: node.ownerID)
+        send(.poll(nonce, ready() && !automaticStartSuppressed), to: node.ownerID)
     }
     /// While a handoff prepares, ask again quickly in a bounded burst, so the grant
     /// installs within a round trip or two instead of on the next scheduled poll.
@@ -526,6 +607,13 @@ final class KVMInputSession: ObservableObject {
                 // Answer at once, so the other Mac need not wait for the next
                 // announcement to learn this one's.
                 send(.version(KVMInputProtocol.version), to: peer)
+                send(.features(KVMInputProtocol.features.sorted()), to: peer)
+            }
+        case .features(let names):
+            let known = Set(names.prefix(32).map { String($0.prefix(64)) })
+            if peerFeatures[peer] != known {
+                peerFeatures[peer] = known
+                PerchLog.note("input.features." + peer.uuidString.prefix(8), "Computer \(peer.uuidString.prefix(8)) shares input with: " + (known.isEmpty ? "nothing beyond its version" : known.sorted().joined(separator: ", ")))
             }
         case .poll(let nonce, let available):
             guard node.isOwner else { return }
@@ -542,11 +630,22 @@ final class KVMInputSession: ObservableObject {
                 }
                 return optimisticMonitorInput?(connection.monitor) == connection.inputCode
             }.map(\.id))
-            send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer, keyboardFocus), to: peer)
-        case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus, let typingFocus):
-            if keyboardFocus != typingFocus { keyboardFocus = typingFocus }
+            send(.state(nonce, available ? grant : nil, localStatusProblem, connections, Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []), pointer, keyboardFocus, choices), to: peer)
+        case .state(let nonce, let value, let issue, let connections, let computers, let currentFocus, let typingFocus, let chosen):
             guard peer == node.ownerID, enabled, let sent = polls.removeValue(forKey: nonce), now >= sent, now - sent < 2.5,
                   connections.count <= 256, computers.isSubset(of: Set(node.group.computers.map(\.id))) else { return }
+            // Where typing goes, unless this Mac was clicked after asking: that
+            // click is newer than the answer. The coordinator's own answer to
+            // itself is never newer than what it decided meanwhile.
+            if !node.isOwner, sent > lastLocalClickAt, keyboardFocus != typingFocus { keyboardFocus = typingFocus }
+            // Someone chose a preset or Share since this Mac chose local control.
+            if let chosen {
+                knownChoices = chosen
+                if let escaped = escapedAtChoice, chosen != escaped {
+                    PerchLog.record("input.start", "A preset or Share was chosen on another Mac; this Mac shares again")
+                    allowAutomaticStart()
+                }
+            }
             if availableConnections != connections { availableConnections = connections }
             if readyComputers != computers { readyComputers = computers }
             // The response proves the owner was reachable now. Start the
@@ -597,6 +696,38 @@ final class KVMInputSession: ObservableObject {
                 if node.isOwner { localProblem = nil; blockedTarget = (preset, monitor) }
                 return
             }
+            // Ctrl-Opt-Esc on the coordinator stops the whole desk until the person
+            // picks a preset or Share again; an automatic request must not undo it.
+            if automatic && automaticStartSuppressed {
+                PerchLog.note("input.start", "an automatic start was refused: this Mac chose local control")
+                // Said where every Mac shows the status, not only in the log.
+                localProblem = "Ctrl-Opt-Esc on " + node.localName + " stopped sharing. Choose a preset or Share on this Mac to start again."
+                return
+            }
+            // The person chose a preset or Share: every Mac that chose local
+            // control takes part again, this one included.
+            if !automatic {
+                choices += 1; knownChoices = choices
+                if automaticStartSuppressed { allowAutomaticStart() }
+                if localProblem?.hasPrefix("Ctrl-Opt-Esc") == true { localProblem = nil }
+            }
+            // A Mac that was away (asleep, at work, restarting) asks for the
+            // pointer while the desk is already sharing without it. It joins,
+            // and the pointer stays exactly where it is. Refusing it, as before,
+            // left the pointer stuck at the edge of that Mac's screens.
+            if let grant, grant.preset == preset, !grant.participants.contains(peer), let pointer {
+                // At most one try every 30 s: a Mac that cannot finish a handoff
+                // must not interrupt everyone else's sharing over and over.
+                guard versionIssue(peer) == nil, now - (joinAttempts[peer] ?? -.infinity) >= 30 else { return }
+                joinAttempts[peer] = now
+                let name = node.group.computers.first { $0.id == peer }?.name ?? "A computer"
+                PerchLog.record("input.join", name + " joined the shared desk; the pointer stays where it is")
+                let old = grant.participants
+                prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
+                              participants: Set(readiness.keys.filter(fresh)).union([node.localID, peer]), focus: pointer))
+                fallback = (old, pointer)
+                return
+            }
             guard Self.placementAllowed(sharing: grant?.preset == preset, automatic: automatic,
                                         pointerAlreadyThere: pointer?.monitor == monitor && pointer?.computer == owner) else { return }
             guard let entry = Self.entryPoint(requested: position, carried: pointer?.position, screen: screen.geometry) else {
@@ -608,9 +739,19 @@ final class KVMInputSession: ObservableObject {
             prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
                           participants: participants, focus: .init(monitor: monitor, computer: owner, position: entry)))
         case .prepare(let value):
-            guard peer == node.ownerID, enabled, ready(), value.participants.contains(node.localID), let revision = configurationRevision,
+            // A Mac that chose local control (Ctrl-Opt-Esc) stays out until the
+            // person chooses a preset or Share again. Its polls already say so;
+            // this covers the moment before the coordinator has heard one.
+            guard peer == node.ownerID, enabled, ready(), node.isOwner || !automaticStartSuppressed,
+                  value.participants.contains(node.localID), let revision = configurationRevision,
                   value.valid(group: node.group, epoch: node.graph.roster.epoch, revision: revision) else { return }
+            upcoming = value
             endLocal(); localInputSuppressedUntil = 0; preparedGrant = value; preparedAt = now; lastPrepareAt = now
+            upcoming = nil
+            // Typing stays put across a handoff only while its Mac takes part, and
+            // only when every Mac in it, the coordinator included, keeps it so.
+            // Otherwise keys would go towards a Mac that left, or disagree.
+            if let typing = keyboardFocus, !value.participants.contains(typing.computer) || !all(value.participants.union([node.ownerID]), can: KVMInputProtocol.typingAcrossHandoffs) { keyboardFocus = nil }
             send(.prepared(value.id), to: peer)
             // Poll straight after preparing so the grant arrives in a round trip.
             fastPollsLeft = Self.fastPollLimit
@@ -626,18 +767,36 @@ final class KVMInputSession: ObservableObject {
                     localGrantAcceptedAt = now
                     installed.insert(node.localID)
                 }
+                // A join that went through may be tried again later.
+                for participant in pending.participants { joinAttempts[participant] = nil }
                 grantedAt = now
                 peerHeartbeats = Dictionary(uniqueKeysWithValues: pending.participants.filter { $0 != node.localID }.map { ($0, now) })
                 localProblem = nil
+                // What this Mac typed or clicked while its own handoff was on the
+                // way goes where it was meant to, as it does on the other Macs.
+                if pending.participants.contains(node.localID) {
+                    let waiting = buffered; buffered = []
+                    replay(waiting)
+                }
             }
         case .installed(let id):
             guard node.isOwner, let grant, grant.id == id, grant.participants.contains(peer) else { return }
             installed.insert(peer)
             if installed == grant.participants {
+                // The pointer is only now on its new screen; a correction that
+                // follows straight away is still a bounce, not a crossing back.
+                if crossingGrant == grant.id { lastCrossingAt = now; crossingGrant = nil }
                 let waiting = deliveryBuffer; deliveryBuffer = []
                 for (source, event) in waiting where self.grant?.id == grant.id { route(event, source: source, grant: grant) }
             }
-        case .stop(let id):
+        case .stop(let id, let localChoice):
+            // A Mac that chose local control is not counted as ready again
+            // until its polls say so.
+            if node.isOwner, peer != node.localID, localChoice == true { readiness[peer] = nil }
+            // A Mac giving up on the handoff it was offered: same as not answering.
+            if node.isOwner, peer != node.localID, let id, id == pending?.id, pending?.participants.contains(peer) == true, fallback != nil {
+                abandonPending(missing: [peer]); return
+            }
             if node.isOwner && (id == nil || id == grant?.id || id == pending?.id) && (grant?.participants.contains(peer) == true || pending?.participants.contains(peer) == true || peer == node.localID) { endAuthority(peer == node.localID ? "this Mac stopped sharing" : (node.group.computers.first { $0.id == peer }?.name ?? "a computer") + " asked to stop") }
         case .event(let id, let sequence, let event):
             guard node.isOwner else { return }
@@ -657,9 +816,9 @@ final class KVMInputSession: ObservableObject {
                   lease.accepts(source: source, grant: id, sequence: sequence, now: now) else { return }
             // The owner addressed this to this Mac, so control is here now. Waiting
             // for the next status poll to say so left a moment in which this Mac
-            // still thought the pointer was elsewhere and parked the cursor again
-            // at the centre of the screen it was arriving on. Typing delivered to
-            // a Mac the pointer is not on says nothing about where the pointer is.
+            // still thought the pointer was elsewhere and parked the cursor again.
+            // Typing delivered to a Mac the pointer is not on says nothing about
+            // where the pointer is.
             if !KVMInputRouting.typing(event.kind),
                focus?.monitor != location.monitor || focus?.computer != location.computer { focus = location }
             emit(event, location)
@@ -705,7 +864,13 @@ final class KVMInputSession: ObservableObject {
         return optimisticMonitorInput?(monitor) == input
     }
     private func prepare(_ value: KVMInputGrant) {
+        upcoming = value
         endAuthority(); pending = value; pendingAt = clock(); lastPrepareAt = pendingAt
+        upcoming = nil
+        fallback = nil
+        // A Mac on an older Perch cannot report its own clicks, so typing
+        // follows the pointer again at each handoff, as it did there.
+        if !all(value.participants, can: KVMInputProtocol.typingAcrossHandoffs) { keyboardFocus = nil }
         focusChanged()
         for peer in value.participants { send(.prepare(value), to: peer) }
     }
@@ -732,21 +897,65 @@ final class KVMInputSession: ObservableObject {
             }
         }
         if let grant, installed != grant.participants, clock() - grantedAt >= 2 { endAuthority("a computer did not accept control within 2 s"); localProblem = "A computer did not accept control in time. Input is local." }
-        if pending != nil && clock() - pendingAt >= 3 { endAuthority("a computer did not finish releasing input within 3 s"); localProblem = "A computer did not finish releasing input. Control remains local." }
+        if let failed = pending, clock() - pendingAt >= 3 {
+            abandonPending(missing: failed.participants.subtracting(prepared).subtracting([node.localID]))
+        }
+    }
+    /// A handoff that did not complete: these Macs never answered or gave up.
+    /// A crossing or a Mac joining goes back to how the desk was, without them,
+    /// rather than ending sharing for everyone; a 30 s pause stops a Mac that
+    /// cannot finish from interrupting the desk over and over.
+    private func abandonPending(missing: Set<UUID>) {
+        guard let failed = pending else { return }
+        let names = missing.map { peer in node.group.computers.first { $0.id == peer }?.name ?? String(peer.uuidString.prefix(8)) }.sorted().joined(separator: ", ")
+        for peer in missing { joinAttempts[peer] = clock() }
+        if let previous = fallback, previous.participants.contains(previous.pointer.computer), !missing.contains(previous.pointer.computer),
+           let revision = configurationRevision {
+            PerchLog.record("input.end", (names.isEmpty ? "A computer" : names) + " did not finish the handoff; the desk carries on as it was")
+            prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: failed.preset,
+                          participants: previous.participants.subtracting(missing).union([node.localID]), focus: previous.pointer))
+            return
+        }
+        endAuthority((names.isEmpty ? "a computer" : names) + " did not finish the handoff within 3 s")
+        localProblem = (names.isEmpty ? "A computer" : names) + " did not finish the handoff. Control remains local."
     }
     private func route(_ value: KVMInputEvent, source: UUID, grant: KVMInputGrant) {
+        // Movement that says no button is down, from a Mac still recorded as
+        // holding one, means that button's release was lost (its tap was off,
+        // or the link dropped). Release it now rather than drag on with it.
+        if value.kind == .motion, value.dragging == false {
+            for code in held.buttons(of: source) { route(KVMInputEvent(kind: .buttonUp, code: code), source: source, grant: grant) }
+        }
         guard var location = pointer, var screen = node.group.monitors.first(where: { $0.id == location.monitor }),
               let preset = node.group.presets.first(where: { $0.id == grant.preset }) else { return }
         if value.kind == .motion {
             // The Mac that has focus reports where its hardware cursor actually
             // is; that also covers macOS moving it natively between two of its
             // own screens. Raw deltas only serve to detect an edge push.
-            if let absolute = value.absolute, source == location.computer,
-               let here = node.group.monitors.first(where: { $0.geometry.contains(absolute) }),
-               destination(preset: grant.preset, monitor: here.id) == source {
+            if source == location.computer {
+                // The Mac showing the pointer reports where its cursor really is.
+                // With no position, its cursor is on a screen that is not part of
+                // the desk (a lid-open MacBook panel, Sidecar): that movement
+                // says nothing about the desk, so the pointer stays put. Adding
+                // it to the last known spot could carry it across an edge.
+                // A point on a shared edge lies on both screens: it is on the
+                // reporting Mac's own one.
+                guard let absolute = value.absolute,
+                      let here = node.group.monitors.first(where: { $0.geometry.contains(absolute) && destination(preset: grant.preset, monitor: $0.id) == source }) else { return }
                 screen = here; location.monitor = here.id; location.position = absolute
+                // The position already includes this movement. Only a push
+                // outwards from the very edge, which macOS stopped, can cross;
+                // anywhere else the cursor simply is where it says.
+                let g = here.geometry, edge = Self.edgeTolerance
+                let pushing = (value.x > 0 && g.right - absolute.x <= edge) || (value.x < 0 && absolute.x - g.x <= edge) ||
+                              (value.y > 0 && g.bottom - absolute.y <= edge) || (value.y < 0 && absolute.y - g.y <= edge)
+                if !pushing { pointer = location; return }
             }
             let from = location.position
+            // Holding a button is a drag on the screen it started on. Crossing
+            // mid-drag lost the button's release on one Mac and dropped the drag
+            // at the edge of the other, so the pointer waits at the edge instead.
+            let dragging = value.dragging == true || held.buttonHeld
             let scale = motionScale(location)
             guard scale.x.isFinite, scale.y.isFinite, scale.x > 0, scale.y > 0 else { return }
             let proposed = KVMPoint(x: location.position.x + value.x * scale.x, y: location.position.y + value.y * scale.y)
@@ -761,11 +970,19 @@ final class KVMInputSession: ObservableObject {
                 func bouncesBack(_ target: UUID) -> Bool { now - lastCrossingAt < 0.15 && target == lastCrossingFrom }
                 switch KVMEdge.crossing(group: node.group, preset: preset, source: screen.id, from: from, to: proposed) {
                 case .remote(let monitor, let computer, let entry):
-                    guard !bouncesBack(monitor), grant.participants.contains(computer), fresh(computer),
+                    // A Mac that is ready but not yet in the grant joins it here.
+                    guard !dragging, !bouncesBack(monitor), fresh(computer),
                           let target = node.group.monitors.first(where: { $0.id == monitor })?.geometry else { break }
                     lastCrossingAt = now; lastCrossingFrom = screen.id
-                    prepare(.init(id: UUID(), epoch: grant.epoch, revision: grant.revision, preset: grant.preset,
-                                  participants: grant.participants, focus: .init(monitor: monitor, computer: computer, position: Self.nudge(entry, into: target))))
+                    // Carry on by as much as the hand went past the edge, so a
+                    // straight movement stays straight across the two screens.
+                    let landing = Self.carry(proposed, entry: entry, into: target)
+                    let next = KVMInputGrant(id: UUID(), epoch: grant.epoch, revision: grant.revision, preset: grant.preset,
+                                             participants: grant.participants.union([computer]), focus: .init(monitor: monitor, computer: computer, position: landing))
+                    let previous = (grant.participants, location)
+                    crossingGrant = next.id
+                    prepare(next)
+                    fallback = previous
                     return
                 case .native:
                     if let next = node.group.monitors.first(where: { $0.id != screen.id && $0.geometry.contains(proposed) }), !bouncesBack(next.id) {
@@ -848,6 +1065,18 @@ final class KVMInputSession: ObservableObject {
                         y: min(screen.bottom, max(screen.y, nearest.y)))
     }
 
+    /// How close to an edge, in desk millimetres, the hardware cursor counts as
+    /// on it: about two pixels on a desk monitor.
+    static let edgeTolerance = 0.5
+    /// Where the pointer lands on the next screen: where the movement would have
+    /// taken it, as if the two screens were one, kept just inside the screen.
+    static func carry(_ proposed: KVMPoint, entry: KVMPoint, into g: KVMGeometry) -> KVMPoint {
+        let inset = 1.5
+        guard proposed.x.isFinite, proposed.y.isFinite else { return nudge(entry, into: g) }
+        let x = min(g.right - inset, max(g.x + inset, proposed.x))
+        let y = min(g.bottom - inset, max(g.y + inset, proposed.y))
+        return nudge(KVMPoint(x: x, y: y), into: g)
+    }
     /// Start a hair inside the destination so the entry itself cannot read as
     /// an immediate crossing back.
     static func nudge(_ entry: KVMPoint, into g: KVMGeometry) -> KVMPoint {
@@ -865,7 +1094,7 @@ final class KVMInputSession: ObservableObject {
             if !availableConnections.isEmpty { availableConnections = [] }
         }
         if let preparedGrant, lease.grant == nil, clock() - preparedAt >= 3 {
-            endLocal(); send(.stop(preparedGrant.id), to: node.ownerID); localProblem = "The handoff timed out. Input is local."
+            endLocal(); send(.stop(preparedGrant.id, nil), to: node.ownerID); localProblem = "The handoff timed out. Input is local."
         }
         if let grant = lease.grant, !lease.alive(now: clock()) || !ready() {
             let remote = (focus ?? grant.focus).computer != node.localID
@@ -877,7 +1106,7 @@ final class KVMInputSession: ObservableObject {
                 localInputSuppressedUntil = clock() + 1
                 localProblem = "Input is paused while Perch confirms the shared lease. Press Ctrl-Opt-Esc for local control."
             }
-            send(.stop(grant.id), to: node.ownerID)
+            send(.stop(grant.id, nil), to: node.ownerID)
         }
         let now = clock()
         heartbeats = heartbeats.filter { now - $0.value < KVMInputLease.duration }
@@ -886,15 +1115,14 @@ final class KVMInputSession: ObservableObject {
             send(.heartbeat(nonce, grant.id), to: node.ownerID)
             nextHeartbeat = now + 0.5
         }
+        // While sharing, both Macs stay in use: a lid-closed Mac that locked could
+        // not be unlocked with the shared keyboard (Scott, November 16: neither
+        // may lock or sleep).
         if lease.grant != nil || grant != nil, now >= nextKeepAwake {
             nextKeepAwake = now + 30
             keepAwake?()
         } else if lease.grant == nil, grant == nil { nextKeepAwake = 0 }
         pollNow()
-        if let (preset, monitor, until) = pendingStart {
-            if clock() >= until { pendingStart = nil; localProblem = "The preset switched, but input sharing is still waiting for a ready computer and matched screen. Perch will retry automatically when they are ready." }
-            else if readinessIssue(preset: preset, monitor: monitor) == nil { pendingStart = nil; start(preset: preset, monitor: monitor) }
-        }
         guard node.isOwner else { return }
         validateAuthority()
         readiness = readiness.filter { node.online.contains($0.key) }

@@ -11,6 +11,11 @@ enum KVMInputProtocol {
     /// 2: typing follows the last click rather than the pointer, and the status
     /// exchange carries where typing goes.
     static var version = 2
+    /// What this build's sharing can do beyond version 2, announced to the
+    /// other Macs so a desk with an older Perch on it falls back gracefully.
+    static let typingAcrossHandoffs = "typing-across-handoffs"
+    static let wideInput = "wide-input"
+    static var features: Set<String> = [typingAcrossHandoffs, wideInput]
 }
 
 enum KVMInputConfiguration {
@@ -87,16 +92,29 @@ struct KVMInputEvent: Codable, Equatable {
     /// gesture boundaries and inertia instead of an endless stream of deltas.
     var phase: Int = 0
     var momentum: Int = 0
+    /// Motion made with a mouse button held, a drag. Optional, so an older
+    /// Perch neither sends nor needs it.
+    var dragging: Bool? = nil
     static let flagMask: UInt64 = 0x00FF_0000
+    /// A key or button an older Perch refuses: newer function-row keys, extra buttons.
+    var wide: Bool {
+        switch kind {
+        case .keyDown, .keyUp: return code > 127
+        case .buttonDown, .buttonUp: return code > 4
+        default: return false
+        }
+    }
     var valid: Bool {
         guard sentAt.isFinite, sentAt >= 0, sentAt < 1e12 else { return false }
         guard flags & ~Self.flagMask == 0, (0...3).contains(clickCount), x.isFinite, y.isFinite, abs(x) <= 10_000, abs(y) <= 10_000,
               [0, 1, 2, 4, 8, 128].contains(phase), (0...3).contains(momentum) else { return false }
         if let absolute { guard absolute.x.isFinite, absolute.y.isFinite, abs(absolute.x) <= 100_000, abs(absolute.y) <= 100_000 else { return false } }
         switch kind {
-        case .keyDown, .keyUp: return code <= 127 && (kind == .keyDown || !repeated)
+        // Key codes above 127 are Apple's newer function-row keys (Mission
+        // Control, Spotlight, Dictation); refused, they acted on the wrong Mac.
+        case .keyDown, .keyUp: return code <= 255 && (kind == .keyDown || !repeated)
         case .modifiers: return [54,55,56,57,58,59,60,61,62,63].contains(code) && !repeated
-        case .buttonDown, .buttonUp: return code <= 4 && !repeated
+        case .buttonDown, .buttonUp: return code <= 31 && !repeated
         case .motion, .scroll: return code == 0 && !repeated
         }
     }
@@ -210,6 +228,10 @@ struct KVMInputHeld {
     private var buttons: [UInt16: Set<UUID>] = [:]
     private var modifiers: [UUID: UInt64] = [:]
     var flags: UInt64 { modifiers.values.reduce(0, |) }
+    /// A button is down on some Mac: the pointer is in the middle of a drag.
+    var buttonHeld: Bool { !buttons.isEmpty }
+    /// The buttons one source holds down.
+    func buttons(of source: UUID) -> [UInt16] { buttons.filter { $0.value.contains(source) }.keys.sorted() }
     var count: Int { keys.count + buttons.count + modifiers.count }
     mutating func apply(_ value: KVMInputEvent, source: UUID) -> KVMInputEvent? {
         guard value.valid else { return nil }

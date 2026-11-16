@@ -418,7 +418,19 @@ final class FixturePopups: DeskPastePresenting {
         func countVersion(_ bytes: Data) {
             if String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"version\"") { versionsOnWire += 1 }
         }
-        switchesA.otherMessage = { peer, bytes in countVersion(bytes); _ = inputA.receive(bytes, peer: peer) }
+        // B's answers to A's own handoffs can be held back, to keep the coordinator
+        // in its handoff barrier.
+        var holdPreparedToA = false, heldPreparedToA: [(UUID, Data)] = []
+        // B's own announcements can be kept from A, to stand in for an older Perch.
+        var muteFeaturesToA = false
+        switchesA.otherMessage = { peer, bytes in
+            countVersion(bytes)
+            if muteFeaturesToA, String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"features\"") { return }
+            if holdPreparedToA, String(decoding: bytes.dropFirst(KVMInputSession.wirePrefix.count), as: UTF8.self).hasPrefix("{\"prepared\"") {
+                heldPreparedToA.append((peer, bytes)); return
+            }
+            _ = inputA.receive(bytes, peer: peer)
+        }
         // Handoffs now finish within a round trip, too fast to observe. To prove input
         // typed during one is held and delivered, not leaked, the coordinator's
         // answers to B can be held back briefly, keeping B in the handoff barrier.
@@ -447,6 +459,15 @@ final class FixturePopups: DeskPastePresenting {
             return KVMPoint(x: g.x + g.displayedWidth / 2, y: g.y + g.displayedHeight / 2)
         }
         inputA.localPointerPosition = centreOf; inputB.localPointerPosition = centreOf
+        // The Mac showing the pointer reports where its cursor is, as the real
+        // adapter does: a hand pushing past the edge leaves it pinned there.
+        func push(_ input: KVMInputSession, on screen: UUID, dx: Double, dragging: Bool = false) -> Bool {
+            let g = arranged.monitors.first { $0.id == screen }!.geometry
+            var event = KVMInputEvent(kind: .motion, x: dx, y: 0)
+            event.absolute = KVMPoint(x: dx > 0 ? g.right : g.x, y: g.y + g.displayedHeight / 2)
+            if dragging { event.dragging = true }
+            return input.capture(event)
+        }
         let keyboard = KVMSharedKeyboard(name: "Test keyboard", bindings: [a.localID: "fixture-a", b.localID: "fixture-b"], follow: true)
         arranged.sharedKeyboards = [keyboard]
         let mouse = KVMSharedKeyboard(name: "Fixture switching mouse", bindings: [a.localID: "mouse-a", b.localID: "mouse-b"], follow: true, kind: .mouse)
@@ -522,7 +543,7 @@ final class FixturePopups: DeskPastePresenting {
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         guard deliveries.count == beforeOwnerLocal else { throw KVMError("A local key was echoed back to the focused Mac") }
         let beforeBoundary = deliveries.count
-        guard !inputA.capture(.init(kind: .motion, x: 300, y: 0)) else { throw KVMError("Local pointer motion was swallowed while focus was local") }
+        guard !push(inputA, on: arranged.monitors[0].id, dx: 300) else { throw KVMError("Local pointer motion was swallowed while focus was local") }
         try wait("pointer boundary handoff to B") { inputA.active && inputB.active && inputA.focus?.computer == b.localID }
         guard releaseCount >= 4 else { throw KVMError("Handoff did not release held input") }
         guard deliveries[beforeBoundary...].allSatisfy({ $0.0 == b.localID }) else {
@@ -556,6 +577,177 @@ final class FixturePopups: DeskPastePresenting {
         let handoff = Date().timeIntervalSince(handoffStarted)
         guard handoff < 0.2 else { throw KVMError("A handoff took \(Int(handoff * 1000)) ms; it waited for a scheduled poll") }
         fputs("Handoff measured at \(Int(handoff * 1000)) ms\n", stderr)
+        let preset = arranged.presets[0].id, screenA = arranged.monitors[0].id, screenB = arranged.monitors[1].id
+        func onBoth(_ computer: UUID) -> Bool { inputA.active && inputB.active && inputA.focus?.computer == computer && inputB.focus?.computer == computer }
+        // Review of November 16, 2026.
+        // Typing goes where you last clicked, across crossings (Scott, September 21).
+        // The pointer is on B. B's own click stays native there, yet tells the
+        // coordinator where typing goes.
+        guard !inputB.capture(.init(kind: .buttonDown, code: 0)) else { throw KVMError("B's own click on its own screen was captured") }
+        _ = inputB.capture(.init(kind: .buttonUp, code: 0))
+        guard inputA.typingComputer == nil else { throw KVMError("Typing had a click to follow before any click") }
+        try wait("a click on B's screen tells the coordinator where typing goes") { inputA.typingComputer == b.localID }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard !push(inputB, on: screenB, dx: -300) else { throw KVMError("B's own movement was swallowed while B had the pointer") }
+        try wait("B's mouse takes the pointer to A") { onBoth(a.localID) }
+        guard inputA.keyboardComputer == b.localID, inputB.keyboardComputer == b.localID else { throw KVMError("A crossing moved typing away from the Mac last clicked") }
+        let beforeTyping = deliveries.count
+        guard inputA.capture(.init(kind: .keyDown, code: 17)) else { throw KVMError("A's keys stayed on A although B was clicked last") }
+        _ = inputA.capture(.init(kind: .keyUp, code: 17))
+        try wait("A's keys reach B, the Mac last clicked") { deliveries[beforeTyping...].contains { $0.0 == b.localID && $0.1.kind == .keyDown && $0.1.code == 17 } }
+        guard !inputB.capture(.init(kind: .keyDown, code: 18)) else { throw KVMError("B's keys left B although B was clicked last") }
+        _ = inputB.capture(.init(kind: .keyUp, code: 18))
+        guard !inputA.capture(.init(kind: .buttonDown, code: 0)) else { throw KVMError("A's own click on its own screen was captured") }
+        _ = inputA.capture(.init(kind: .buttonUp, code: 0))
+        try wait("a click on A moves typing to A on both Macs") { inputA.keyboardComputer == a.localID && inputB.keyboardComputer == a.localID }
+        // Only a push outwards from the very edge crosses. Movement on a screen
+        // that is not part of the desk (no position), or well inside a screen,
+        // even a fast one, leaves the pointer where it is.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = inputA.capture(.init(kind: .motion, x: 300, y: 0))
+        let geometryA = arranged.monitors[0].geometry
+        var inside = KVMInputEvent(kind: .motion, x: 300, y: 0)
+        inside.absolute = KVMPoint(x: geometryA.right - 40, y: geometryA.y + geometryA.displayedHeight / 2)
+        _ = inputA.capture(inside)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard inputA.focus?.computer == a.localID, !inputA.handingOff else { throw KVMError("Movement that never reached the edge crossed to the other Mac") }
+        // A held button never crosses: a drag stays on its screen until let go.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard !inputA.capture(.init(kind: .buttonDown, code: 0)) else { throw KVMError("A's own press was captured") }
+        _ = push(inputA, on: screenA, dx: 300, dragging: true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard inputA.focus?.computer == a.localID, !inputA.handingOff else { throw KVMError("A drag crossed to the other Mac, losing its release") }
+        _ = inputA.capture(.init(kind: .buttonUp, code: 0))
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("once let go, the pointer crosses") { onBoth(b.localID) }
+        // What the coordinator clicks during its own handoff reaches the Mac it was meant for.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = push(inputB, on: screenB, dx: -300)
+        try wait("the pointer is back on A") { onBoth(a.localID) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        holdPreparedToA = true
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("the coordinator's own handoff is on its way") { inputA.preparing }
+        guard inputA.handoffTarget?.computer == b.localID else { throw KVMError("During its handoff the coordinator did not know where the pointer was going, so its cursor could show") }
+        guard inputA.capture(.init(kind: .buttonDown, code: 0)), inputA.capture(.init(kind: .buttonUp, code: 0)) else { throw KVMError("A click during the coordinator's own handoff leaked onto its screen") }
+        holdPreparedToA = false
+        let releasedPrepared = heldPreparedToA; heldPreparedToA = []
+        let beforeReplay = deliveries.count
+        for (peer, bytes) in releasedPrepared { _ = inputA.receive(bytes, peer: peer) }
+        try wait("a click held during the coordinator's handoff reaches B") { deliveries[beforeReplay...].contains { $0.0 == b.localID && $0.1.kind == .buttonDown } }
+        try wait("handoff to B finished") { onBoth(b.localID) }
+        // A Mac that comes back joins a desk already sharing, and the pointer
+        // stays where it is. Before, the coordinator shut it out until a preset
+        // was chosen again.
+        inputB.setEnabled(false)
+        try wait("A no longer counts B as sharing", seconds: 6) { !inputA.sharingComputers.contains(b.localID) }
+        inputA.start(preset: preset, monitor: screenA, automatic: true)
+        try wait("A shares on its own") { inputA.active && inputA.focus?.computer == a.localID }
+        inputB.setEnabled(true)
+        try wait("B is ready again") { inputB.readinessIssue(preset: preset, monitor: screenB) == nil }
+        inputB.start(preset: preset, monitor: screenB, automatic: true)
+        try wait("B joins the running desk") { onBoth(a.localID) }
+        // A Mac that cannot finish a handoff it caused (here B, whose answers are
+        // held back) does not end sharing for the desk: it goes on as it was.
+        inputB.setEnabled(false)
+        try wait("A no longer counts B as sharing again", seconds: 6) { !inputA.sharingComputers.contains(b.localID) }
+        inputA.start(preset: preset, monitor: screenA, automatic: true)
+        try wait("A shares on its own again") { inputA.active && inputA.focus?.computer == a.localID }
+        inputB.setEnabled(true)
+        try wait("B is ready once more") { inputB.readinessIssue(preset: preset, monitor: screenB) == nil }
+        holdPreparedToA = true
+        inputB.start(preset: preset, monitor: screenB, automatic: true)
+        try wait("B's join is on its way") { inputA.handingOff || inputA.handoffTarget != nil }
+        try wait("a join that never finishes falls back to the desk as it was", seconds: 6) { inputA.active && inputA.focus?.computer == a.localID && !inputA.handingOff }
+        holdPreparedToA = false; heldPreparedToA = []
+        // B tries again after the pause, and joins.
+        try wait("B joins once it can", seconds: 40) {
+            if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
+            return onBoth(a.localID)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("the pointer crosses to the Mac that joined") { onBoth(b.localID) }
+        // Ctrl-Opt-Esc on B is not undone by A's automatic start; a choice made
+        // on another Mac lets B back in.
+        inputB.stopForLocalControl()
+        try wait("B goes local, and A knows at once") { !inputB.active && !inputA.sharingComputers.contains(b.localID) }
+        inputA.start(preset: preset, monitor: screenA, automatic: true)
+        try wait("A shares again without B") { inputA.active && inputA.focus?.computer == a.localID }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+        guard !inputB.active, !inputA.sharingComputers.contains(b.localID) else { throw KVMError("Ctrl-Opt-Esc was undone by the other Mac's automatic start") }
+        // Even a handoff offered to it straight away is refused until someone chooses again.
+        guard let revision = KVMInputConfiguration.revision(b.group), let centre = centreOf(screenA) else { throw KVMError("Fixture desk has no revision") }
+        let offered = KVMInputGrant(id: UUID(), epoch: b.graph.roster.epoch, revision: revision, preset: preset,
+                                    participants: [a.localID, b.localID], focus: .init(monitor: screenA, computer: a.localID, position: centre))
+        _ = inputB.receive(KVMInputSession.wirePrefix + (try JSONEncoder().encode(KVMInputMessage.prepare(offered))), peer: a.localID)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        guard !inputB.preparing, !inputB.active else { throw KVMError("A Mac that chose local control accepted a handoff") }
+        // The person chooses on A: B takes part again by itself and joins.
+        inputA.start(preset: preset, monitor: screenA, automatic: false)
+        try wait("a choice on A lets B take part again") { !inputB.automaticStartSuppressed }
+        try wait("B rejoins after the choice") {
+            if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
+            return onBoth(a.localID)
+        }
+        // Ctrl-Opt-Esc on the coordinator is said on the other Mac, not only logged.
+        inputA.stopForLocalControl()
+        try wait("A goes local") { !inputA.active && !inputB.active }
+        inputB.start(preset: preset, monitor: screenB, automatic: true)
+        try wait("B is told why it cannot start") { inputB.problem?.contains("Ctrl-Opt-Esc on") == true }
+        inputA.start(preset: preset, monitor: screenA, automatic: false)
+        try wait("A shares again when chosen") { inputA.active && !inputA.automaticStartSuppressed }
+        try wait("B joins A again") {
+            if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
+            return onBoth(a.localID)
+        }
+        // Leave the pointer on B, where the checks below expect it.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("the pointer is on B again") { onBoth(b.localID) }
+        // A button whose release was lost (the tap was off, the link dropped) is
+        // let go by the next move that says no button is down.
+        let beforeLost = deliveries.count
+        guard inputA.capture(.init(kind: .buttonDown, code: 0)) else { throw KVMError("A's mouse stayed on A while the pointer was on B") }
+        try wait("the press reaches B") { deliveries[beforeLost...].contains { $0.0 == b.localID && $0.1.kind == .buttonDown } }
+        var noButton = KVMInputEvent(kind: .motion, x: 1, y: 0); noButton.dragging = false
+        _ = inputA.capture(noButton)
+        try wait("a move with no button down lets go of the lost one on B") { deliveries[beforeLost...].contains { $0.0 == b.localID && $0.1.kind == .buttonUp } }
+        // A desk with an older Perch on it: B announces nothing beyond version 2.
+        // Typing follows the pointer again at each handoff, as it does there,
+        // and keys an older Perch refuses stay on the Mac they were typed on.
+        func announce(_ names: [String]) throws { _ = inputA.receive(KVMInputSession.wirePrefix + (try JSONEncoder().encode(KVMInputMessage.features(names))), peer: b.localID) }
+        guard inputA.capture(.init(kind: .buttonDown, code: 0)) else { throw KVMError("A's click stayed on A while the pointer was on B") }
+        _ = inputA.capture(.init(kind: .buttonUp, code: 0))
+        try wait("typing goes to B, clicked last") { inputA.typingComputer == b.localID }
+        muteFeaturesToA = true
+        try announce([])
+        guard !inputA.capture(.init(kind: .keyDown, code: 160)) else { throw KVMError("A key an older Perch refuses was sent to it, and lost") }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        try announce([])
+        _ = push(inputB, on: screenB, dx: -300)
+        try wait("the pointer crosses to A") { onBoth(a.localID) }
+        guard inputA.typingComputer == nil else { throw KVMError("With an older Perch on the desk, typing did not follow the pointer at a handoff") }
+        muteFeaturesToA = false
+        try announce(KVMInputProtocol.features.sorted())
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("the pointer is back on B") { onBoth(b.localID) }
+        // 2.0.311's exact messages still decode here, and this build's still
+        // decode there: fields added since are optional.
+        enum Old: Codable { case poll(UUID, Bool); case stop(UUID?); case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?) }
+        let nonce = UUID(), encoder = JSONEncoder(), decoder = JSONDecoder()
+        guard case .poll(nonce, true)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.poll(nonce, true))),
+              case .stop(nil, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.stop(nil))),
+              case .state(nonce, nil, nil, [], [], nil, nil, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.state(nonce, nil, nil, [], [], nil, nil))),
+              case .stop(nil)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.stop(nil, true))),
+              case .state(nonce, nil, nil, [], [], nil, nil)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.state(nonce, nil, nil, [], [], nil, nil, 4))) else {
+            throw KVMError("Messages no longer decode between this build and 2.0.311")
+        }
+        var draggingMove = KVMInputEvent(kind: .motion, x: 1); draggingMove.dragging = true
+        struct OldEvent: Codable { var kind: KVMInputEvent.Kind; var x: Double }
+        guard (try? decoder.decode(OldEvent.self, from: encoder.encode(draggingMove)))?.x == 1 else { throw KVMError("A move from this build does not decode on 2.0.311") }
+        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false
@@ -575,7 +767,8 @@ final class FixturePopups: DeskPastePresenting {
         }
         switchesB.otherMessage = { peer, bytes in DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { _ = inputB.receive(bytes, peer: peer) } }
         inputB.start(preset: arranged.presets[0].id, monitor: arranged.monitors[0].id)
-        try wait("lease established over a slow link") { inputA.active && inputB.active }
+        do { try wait("lease established over a slow link") { inputA.active && inputB.active } }
+        catch { throw KVMError("\(error) — A active \(inputA.active) preparing \(inputA.preparing) problem \(inputA.problem ?? "-"); B active \(inputB.active) preparing \(inputB.preparing) problem \(inputB.problem ?? "-"); B issue \(inputB.readinessIssue(preset: preset, monitor: screenA) ?? "-")") }
         RunLoop.main.run(until: Date().addingTimeInterval(3.5))
         guard inputA.active, inputB.active, inputB.problem == nil, inputA.problem == nil else {
             throw KVMError("Lease did not survive 400 ms latency and a dropped heartbeat: A=\(inputA.active) B=\(inputB.active) problems \(inputA.problem ?? "-") / \(inputB.problem ?? "-")")

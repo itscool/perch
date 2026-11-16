@@ -77,7 +77,18 @@ import CryptoKit
         // behavior without expecting discarded sub-tenth precision in the
         // returned entry point.
         try check(KVMEdge.crossing(group: roundedEdge, preset: roundedEdge.presets[0], source: left.id, from: .init(x: 590, y: 170), to: .init(x: 620, y: 170)) == .remote(monitor: right.id, computer: bob.id, entry: .init(x: 600.1, y: 170)), "millimetre rounding noise does not block an aligned edge")
-        try check(KVMEdge.crossing(group: group, preset: group.presets[0], source: left.id, from: .init(x: 590, y: 330), to: .init(x: 610, y: 350)) == .blocked, "corner has no arbitrary target")
+        // Leaving through a corner goes on through the one edge with a screen
+        // beyond it, as on one Mac (November 16, 2026). Refusing every corner
+        // stuck the pointer in the top and bottom corners of a shared edge.
+        try check(KVMEdge.crossing(group: group, preset: group.presets[0], source: left.id, from: .init(x: 590, y: 330), to: .init(x: 610, y: 350)) == .remote(monitor: right.id, computer: bob.id, entry: .init(x: 600, y: 340)), "a corner with one screen beyond it did not cross")
+        try check(KVMEdge.crossing(group: group, preset: group.presets[0], source: left.id, from: .init(x: 600, y: 0), to: .init(x: 610, y: -5)) == .remote(monitor: right.id, computer: bob.id, entry: .init(x: 600, y: 0)), "the pointer stuck in the top corner of a shared edge")
+        var below = group
+        let under = KVMMonitor(name: "Under", geometry: KVMGeometry(x: 0, y: 340, width: 600, height: 340))
+        let underCable = KVMConnection(monitor: under.id, computer: bob.id, localDisplay: "under-local-id", inputName: "HDMI 2", inputCode: 18)
+        below.monitors.append(under); below.connections.append(underCable)
+        below.presets[0].assignments.append(.init(monitor: under.id, connection: underCable.id))
+        _ = try below.validated()
+        try check(KVMEdge.crossing(group: below, preset: below.presets[0], source: left.id, from: .init(x: 590, y: 330), to: .init(x: 610, y: 350)) == .blocked, "a corner with screens beyond both edges picked one")
         var native = group; native.connections[1].computer = alice.id; native.connections[1].localDisplay = "2"
         try check(KVMEdge.crossing(group: native, preset: native.presets[0], source: left.id, from: .init(x: 590, y: 100), to: .init(x: 610, y: 100)) == .native, "same computer uses native traversal")
         let portrait = KVMGeometry(x: 0, y: 0, width: 600, height: 340, rotation: .clockwise)
@@ -286,11 +297,18 @@ import CryptoKit
         _ = modifierHeld.apply(.init(kind: .modifiers, code: 57, flags: 0x0001_0000), source: alice.id)
         let modifierReleases = modifierHeld.releaseAll()
         try check(modifierReleases.contains { $0.kind == .modifiers && $0.code == 57 }, "disconnect cleanup releases Caps Lock modifier state too")
-        var invalidEvent = down; invalidEvent.code = 128
+        // Apple's newer function-row keys (codes above 127) and extra mouse
+        // buttons are forwarded (November 16, 2026); beyond a byte, and beyond
+        // 32 buttons, nothing is.
+        var invalidEvent = down; invalidEvent.code = 160
+        try check(invalidEvent.valid, "a function-row key above 127 was refused")
+        invalidEvent.code = 256
         try check(!invalidEvent.valid, "unsupported key code rejected")
         invalidEvent = .init(kind: .motion, x: .infinity)
         try check(!invalidEvent.valid, "nonfinite pointer movement rejected")
         invalidEvent = .init(kind: .buttonDown, code: 5)
+        try check(invalidEvent.valid, "a sixth mouse button was refused")
+        invalidEvent = .init(kind: .buttonDown, code: 32)
         try check(!invalidEvent.valid, "unbounded mouse button rejected")
         invalidEvent = .init(kind: .keyDown, flags: UInt64.max)
         try check(!invalidEvent.valid, "unknown native flags cannot be injected")

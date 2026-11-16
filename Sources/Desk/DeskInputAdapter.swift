@@ -24,7 +24,8 @@ final class DeskInputAdapter: ObservableObject {
     @Published private(set) var accessProblem: String?
     /// A fact worth showing that does not stop sharing.
     @Published private(set) var note: String?
-    private var tapDisables: [Double] = []
+    private var tapRecovery = DeskTapRecovery()
+    private var nextTapRetry: Double = 0
     private var keyRouter = DeskKeyRouter()
     private var remoteCapture = false
     private var displayCache: [String: CGDirectDisplayID] = [:]
@@ -43,6 +44,8 @@ final class DeskInputAdapter: ObservableObject {
     private let postedSource = UUID()
     private var lastLocation: CGPoint = .zero
     private var builder = KVMNativeEvent()
+    private var clicks = DeskClickCounter()
+    private var scrolling = DeskScrollGesture()
     private var observers: [NSObjectProtocol] = []
     private var lockObservers: [NSObjectProtocol] = []
     private var screenLocked = false
@@ -88,6 +91,18 @@ final class DeskInputAdapter: ObservableObject {
         if healthTimer == nil {
             let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
                 guard let self else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                // macOS turned the tap off too often in a row: rebuild it after a
+                // pause, by itself (PERCH.md rule 4).
+                if self.tapRecovery.rebuildDue(at: now) {
+                    PerchLog.record("input.access", "Rebuilding this Mac's input capture after macOS kept turning it off")
+                    self.restart(); return
+                }
+                // A tap macOS would not create is tried again every few seconds.
+                if self.tapStartFailed, self.session.enabled, now >= self.nextTapRetry {
+                    self.nextTapRetry = now + DeskTapRecovery.startRetry
+                    self.tapStartFailed = false
+                }
                 self.checkAccess()
                 if self.session.enabled && self.healthy && self.tap == nil { self.enable(true) }
             }
@@ -149,8 +164,9 @@ final class DeskInputAdapter: ObservableObject {
         else if !AccessCheck.inputMonitoring { issue = "Allow Perch in System Settings → Privacy & Security → Input Monitoring. If it is already enabled, reopen this copy from Finder and try again." }
         else if screenLocked || console?["CGSSessionScreenIsLocked"] as? Bool == true { issue = "The lock screen is active. Unlock this Mac to resume sharing." }
         else if console?[kCGSessionOnConsoleKey as String] as? Bool != true || console?[kCGSessionLoginDoneKey as String] as? Bool != true { issue = "This user session is inactive. Resume sharing after returning to it." }
-        else if tapStartFailed { issue = "macOS could not start input sharing. Recheck access here, or reopen this copy from Finder and retry." }
-        else if let tap, !CGEvent.tapIsEnabled(tap: tap), !reenableTap() { issue = "macOS keeps stopping input sharing on this Mac. Control is local; Perch retries automatically." }
+        else if tapStartFailed { issue = "macOS could not start input sharing on this Mac. Perch tries again every few seconds." }
+        else if tapRecovery.rebuilding { issue = "macOS kept stopping input sharing on this Mac. Control is local; Perch starts it again in a few seconds." }
+        else if let tap, !CGEvent.tapIsEnabled(tap: tap), !reenableTap() { issue = "macOS kept stopping input sharing on this Mac. Control is local; Perch starts it again in a few seconds." }
         else { issue = nil }
         if accessProblem != issue { accessProblem = issue }
         healthy = issue == nil
@@ -165,11 +181,9 @@ final class DeskInputAdapter: ObservableObject {
         if note != text { note = text }
     }
     /// macOS disables a tap whose callback fell behind. Re-enable it at once;
-    /// more than a few disables in ten seconds means this Mac cannot keep up.
+    /// after too many in a row, rebuild it after a pause (`DeskTapRecovery`).
     @discardableResult private func reenableTap() -> Bool {
-        let now = ProcessInfo.processInfo.systemUptime
-        tapDisables = tapDisables.filter { now - $0 < 10 } + [now]
-        guard tapDisables.count <= 3, let tap else { return false }
+        guard tapRecovery.disabled(at: ProcessInfo.processInfo.systemUptime), let tap else { return false }
         CGEvent.tapEnable(tap: tap, enable: true)
         return CGEvent.tapIsEnabled(tap: tap)
     }
@@ -218,6 +232,9 @@ final class DeskInputAdapter: ObservableObject {
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             // The coordinator converts target desktop points to desk millimetres.
             value = .init(kind: .motion, flags: flags, x: event.getDoubleValueField(.mouseEventDeltaX) * pointerSpeed, y: event.getDoubleValueField(.mouseEventDeltaY) * pointerSpeed)
+            // Whether a button is down, said every time: a drag never crosses to
+            // another Mac, and a move with none down releases a lost one.
+            value.dragging = type != .mouseMoved
             // While this Mac has focus its hardware cursor is the truth.
             if session.focusComputer == session.node.localID { value.absolute = deskPosition(event.location)?.1 }
         default: return false
@@ -227,17 +244,17 @@ final class DeskInputAdapter: ObservableObject {
             PerchLog.record("input.capture", "This Mac's own mouse, on its way out: " + summary)
         }
         let captured = session.capture(value)
-        // A parked cursor goes straight back to the centre after every read.
+        // A parked cursor does not move; any that does is put back.
         if captured, value.kind == .motion, parking.parked {
             parking.reset(from: event.location, cursor)
             summarizeParking()
         }
         return captured
     }
-    private func displayID(for localDisplay: String?) -> CGDirectDisplayID? {
+    private func displayID(for localDisplay: String?, fresh: Bool = false) -> CGDirectDisplayID? {
         guard let localDisplay else { return nil }
         let now = ProcessInfo.processInfo.systemUptime
-        if now - displayCacheAt > 2 {
+        if fresh || now - displayCacheAt > 2 {
             displayCacheAt = now
             displayCache = Dictionary(uniqueKeysWithValues: NSScreen.screens.compactMap { screen -> (String, CGDirectDisplayID)? in
                 guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
@@ -247,10 +264,10 @@ final class DeskInputAdapter: ObservableObject {
         }
         return displayCache[localDisplay]
     }
-    private func point(_ focus: KVMInputFocus) -> CGPoint? {
+    private func point(_ focus: KVMInputFocus, fresh: Bool = false) -> CGPoint? {
         let group = session.node.group
         guard let connection = group.connections.first(where: { $0.monitor == focus.monitor && $0.computer == session.node.localID }),
-              let display = displayID(for: connection.localDisplay),
+              let display = displayID(for: connection.localDisplay, fresh: fresh),
               let geometry = group.monitors.first(where: { $0.id == focus.monitor })?.geometry else { return nil }
         let bounds = CGDisplayBounds(display)
         // Quartz bounds already follow macOS rotation. Do not rotate twice.
@@ -277,6 +294,13 @@ final class DeskInputAdapter: ObservableObject {
     /// click land somewhere the cursor was not.
     private func post(_ value: KVMInputEvent, focus: KVMInputFocus) {
         guard healthy, !SettingsWindow.shared.testing else { session.stop("input capture on this Mac is not healthy"); return }
+        // Typing goes where the last click was, which need not be where the
+        // pointer is. It never moves, shows or un-parks the cursor.
+        if KVMInputRouting.typing(value.kind) {
+            _ = posted.apply(value, source: postedSource)
+            emitNative(value, point: cursor.location)
+            return
+        }
         // Control can arrive together with the movement that caused it, before
         // the cursor update runs. The first event then continues from the entry
         // point rather than from this Mac's parked cursor.
@@ -288,6 +312,13 @@ final class DeskInputAdapter: ObservableObject {
         // Arriving: put the cursor where it belongs while still hidden, then show it.
         if arriving { cursor.warp(to: point); parking.end(cursor) }
         lastLocation = point
+        var value = value
+        // Clicks are counted here, where the pointer is: the sending Mac's
+        // cursor stands still while parked, so two quick clicks on two
+        // different things there counted as a double-click.
+        if value.kind == .buttonDown { value.clickCount = clicks.down(value.code, at: ProcessInfo.processInfo.systemUptime, point: point, interval: NSEvent.doubleClickInterval) }
+        else if value.kind == .buttonUp { value.clickCount = clicks.count(value.code) }
+        if value.kind == .scroll { scrolling.posted(value) }
         _ = posted.apply(value, source: postedSource)
         emitNative(value, point: point)
         guard value.kind == .motion else { return }
@@ -303,7 +334,9 @@ final class DeskInputAdapter: ObservableObject {
     /// Put the cursor where control arrives, once, just inside the edge it crossed.
     private func place(at focus: KVMInputFocus) {
         guard healthy, !SettingsWindow.shared.testing else { session.stop("input capture on this Mac is not healthy"); return }
-        guard let point = point(focus) else { session.stop("this Mac could not find the screen control arrived on among its displays"); return }
+        // The display list is cached for two seconds; a screen that has just
+        // come back is looked up afresh before giving up.
+        guard let point = point(focus) ?? point(focus, fresh: true) else { session.stop("this Mac could not find the screen control arrived on among its displays"); return }
         lastLocation = point
         handover.placedPointer()
         // Warp as well as posting the movement: a posted event moves the cursor,
@@ -312,38 +345,40 @@ final class DeskInputAdapter: ObservableObject {
         cursor.warp(to: point)
         emitNative(.init(kind: .motion), point: point)
     }
+    /// Releases what this Mac posted. Whether the cursor shows is decided by
+    /// `updateCursor` alone: un-parking here showed it at every handoff.
     private func releasePosted() {
         for event in posted.releaseAll() { emitNative(event, point: lastLocation) }
-        parking.end(cursor)
+        // A scroll still under way is ended, so no app is left mid-gesture.
+        for event in scrolling.endings() { emitNative(event, point: lastLocation) }
     }
     private func updateCursor() {
-        guard !SettingsWindow.shared.testing, session.active, let focus = session.focus else {
+        let local = session.node.localID
+        let step = SettingsWindow.shared.testing ? .free
+            : DeskCursorStep.decide(handoffTo: session.handoffTarget?.computer, active: session.active, focus: session.focus?.computer, local: local)
+        switch step {
+        case .free:
             // Sharing stopped or a handoff fell through: whatever hid the cursor,
             // it must be back on screen.
-            parking.end(cursor); cursor.show(); controlWasLocal = false; handover.left(); setRemoteCapture(false); return
-        }
-        setRemoteCapture(focus.computer != session.node.localID)
-        if focus.computer != session.node.localID {
-            // The pointer is on another Mac: park this Mac's cursor at the centre of
-            // the screen it left. Version 1 leaves it visible, so a cursor drifting
-            // away from the centre shows the reset is failing.
+            parking.end(cursor); cursor.show(); controlWasLocal = false; handover.left(); setRemoteCapture(false)
+        case .hold:
+            // On its way here: still hidden if it was parked, until placed.
+            break
+        case .park:
+            setRemoteCapture(true)
             if !parking.parked { nextParkingSummary = 0 }
             parking.begin(cursor)
             controlWasLocal = false; handover.left()
-        } else {
+        case .here:
+            setRemoteCapture(false)
+            guard let focus = session.focus else { return }
             // Place the pointer once, when control arrives from the other Mac, and
-            // then leave it alone. Re-placing it whenever the focused screen changed
-            // dragged the cursor back while this Mac still had control.
-            // A delivered event may already have placed the pointer and moved on;
-            // placing again here would drag it back to the edge it came in by.
-            // Move it while it is still hidden, then show it: showing first
-            // flickered the parked cursor at the centre of the screen.
+            // then leave it alone. A delivered event may already have placed it and
+            // moved on; placing again would drag it back to the edge it came in by.
+            // Move it while it is still hidden, then show it.
             if !controlWasLocal, !handover.placed { place(at: focus) }
             parking.end(cursor)
-            // A handoff away that has started hides the cursor at once, rather than
-            // leaving it on screen until the other Mac confirms; one that fell
-            // through shows it again where it was.
-            if session.handingOff { cursor.hide() } else if !parking.parked { cursor.show() }
+            cursor.show()
             controlWasLocal = true
         }
     }
@@ -374,7 +409,41 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func emitNative(_ value: KVMInputEvent, point: CGPoint) {
         guard !SettingsWindow.shared.testing else { return }
-        let event = builder.make(value, point: point, source: eventSource)
+        // Modifiers held on this Mac's own keyboard apply too: Command on this
+        // keyboard with a click from the other Mac's mouse is a Command-click.
+        let local = CGEventSource.flagsState(.hidSystemState).rawValue & KVMInputEvent.flagMask
+        let event = builder.make(value, point: point, source: eventSource, localFlags: local)
         event?.post(tap: .cghidEventTap)
+    }
+}
+
+/// What to do when macOS turns the input tap off, as it does when the tap's
+/// callback falls behind. A few times in a row it is turned straight back on.
+/// More than that, and re-enabling only fails again, so the tap is rebuilt from
+/// scratch after a short pause. Before, the count of failures was also fed by the
+/// quarter-second health check, so it never fell and sharing stayed off on that
+/// Mac for good, while the status said Perch was retrying.
+struct DeskTapRecovery {
+    static let window: Double = 10
+    static let limit = 3
+    /// The pause before a rebuild, and before trying a tap macOS refused to create.
+    static let pause: Double = 5
+    static let startRetry: Double = 5
+    private(set) var disables: [Double] = []
+    private(set) var rebuildAt: Double?
+    var rebuilding: Bool { rebuildAt != nil }
+    /// The tap was found off. True: turn it back on now. False: wait for the rebuild.
+    mutating func disabled(at now: Double) -> Bool {
+        if rebuildAt != nil { return false }
+        disables = disables.filter { now - $0 < Self.window } + [now]
+        guard disables.count > Self.limit else { return true }
+        rebuildAt = now + Self.pause
+        return false
+    }
+    /// Whether the rebuild is due now. It happens once, and the count starts over.
+    mutating func rebuildDue(at now: Double) -> Bool {
+        guard let at = rebuildAt, now >= at else { return false }
+        rebuildAt = nil; disables = []
+        return true
     }
 }

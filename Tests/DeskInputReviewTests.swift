@@ -153,3 +153,22 @@ func runDeskInputReviewTests() throws {
 
     print("PASS: Desk page actions reach the desk, orphaned pages refuse visibly, retry covers port switches, hotkey problems land on their own shortcut and failed registrations retry, Perch's shortcuts never reach the other Mac, and monitor commands never block or wait forever on the main thread")
 }
+
+/// The input tap comes back by itself (review of November 16, 2026).
+func runDeskInputRecoveryTests() throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
+    // macOS turning the tap off a few times is answered by turning it back on;
+    // more than that rebuilds it after a pause, once, and the count starts over.
+    // The quarter-second health check no longer feeds the count, so it falls.
+    var recovery = DeskTapRecovery()
+    for second in 0..<3 { try check(recovery.disabled(at: Double(second)), "An occasional tap timeout was not turned straight back on") }
+    try check(!recovery.disabled(at: 3) && recovery.rebuilding, "A fourth timeout in ten seconds did not schedule a rebuild")
+    try check(!recovery.disabled(at: 3.25) && !recovery.disabled(at: 3.5), "Waiting for the rebuild re-enabled the tap anyway")
+    try check(!recovery.rebuildDue(at: 3 + DeskTapRecovery.pause - 0.1), "The rebuild ran before its pause")
+    try check(recovery.rebuildDue(at: 3 + DeskTapRecovery.pause) && !recovery.rebuilding && recovery.disables.isEmpty, "The rebuild never came, or kept the old count")
+    try check(!recovery.rebuildDue(at: 20), "The rebuild ran twice")
+    try check(recovery.disabled(at: 30), "After a rebuild, a single timeout was not turned straight back on")
+    var spread = DeskTapRecovery()
+    for second in stride(from: 0.0, to: 60, by: 4) { try check(spread.disabled(at: second), "Timeouts spread over a minute led to a rebuild") }
+    print("PASS: the input tap is turned back on after a timeout and rebuilt by itself after repeated ones")
+}

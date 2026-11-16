@@ -89,6 +89,17 @@ func runDeskHandoverTests() throws {
                   "On a desk of \(macs) Macs the pointer was seized \(seizures) times by Macs that did not hold it")
     }
 
+    // Crossing lands where the movement would have taken the pointer, as if the
+    // two screens were one, kept just inside the next screen: a straight or
+    // diagonal movement stays straight.
+    let next = KVMGeometry(x: 600, y: 0, width: 600, height: 340)
+    let entry = KVMPoint(x: 600, y: 170)
+    try check(KVMInputSession.carry(KVMPoint(x: 612, y: 160), entry: entry, into: next) == KVMPoint(x: 612, y: 160),
+              "A crossing dropped how far the hand went past the edge, or its movement along it")
+    try check(KVMInputSession.carry(KVMPoint(x: 600.2, y: 170), entry: entry, into: next).x == 601.5,
+              "A gentle crossing landed on the edge itself, where it could bounce straight back")
+    try check(KVMInputSession.carry(KVMPoint(x: 5600, y: -395), entry: entry, into: next) == KVMPoint(x: 1198.5, y: 1.5),
+              "A huge movement landed outside the next screen")
     print("PASS: switching control carries the pointer to the nearest point on the new screen, and never invents a position; sharing starts once and then only an edge crossing or the person moves the pointer, on a desk of any size")
 
     // A wire beats wireless: a Mac discovered on a cable is dialled over it.

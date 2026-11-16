@@ -373,19 +373,32 @@ enum KVMEdge {
         if dy > 0 { exits.append(((g.bottom - from.y) / dy, 2)) }
         if dy < 0 { exits.append(((g.y - from.y) / dy, 3)) }
         let valid = exits.filter { $0.0 >= 0 && $0.0 <= 1 }.sorted { $0.0 < $1.0 }
-        guard let exit = valid.first, valid.count < 2 || abs(valid[1].0 - exit.0) > 0.000001 else { return .blocked }
-        let p = KVMPoint(x: from.x + dx * exit.0, y: from.y + dy * exit.0)
-        let targets = group.monitors.filter { other in
-            guard other.id != source else { return false }
-            let h = other.geometry
-            switch exit.1 {
-            case 0: return aligned(h.x - g.right) && p.y >= h.y && p.y <= h.bottom
-            case 1: return aligned(h.right - g.x) && p.y >= h.y && p.y <= h.bottom
-            case 2: return aligned(h.y - g.bottom) && p.x >= h.x && p.x <= h.right
-            default: return aligned(h.bottom - g.y) && p.x >= h.x && p.x <= h.right
+        guard let first = valid.first else { return .blocked }
+        func targets(_ edge: Int, at p: KVMPoint) -> [KVMMonitor] {
+            group.monitors.filter { other in
+                guard other.id != source else { return false }
+                let h = other.geometry
+                switch edge {
+                case 0: return aligned(h.x - g.right) && p.y >= h.y && p.y <= h.bottom
+                case 1: return aligned(h.right - g.x) && p.y >= h.y && p.y <= h.bottom
+                case 2: return aligned(h.y - g.bottom) && p.x >= h.x && p.x <= h.right
+                default: return aligned(h.bottom - g.y) && p.x >= h.x && p.x <= h.right
+                }
             }
         }
-        guard targets.count == 1, let target = targets.first,
+        let p = KVMPoint(x: from.x + dx * first.0, y: from.y + dy * first.0)
+        var exit = first
+        // Leaving through a corner meets two edges at once. As on one Mac, the
+        // pointer goes on through the edge that has a screen beyond it; with a
+        // screen beyond both, or neither, it stays. Refusing every corner made
+        // the pointer stick in the top and bottom corners of a shared edge.
+        if valid.count > 1, abs(valid[1].0 - first.0) <= 0.000001 {
+            let open = valid.prefix(2).filter { !targets($0.1, at: p).isEmpty }
+            guard open.count == 1 else { return .blocked }
+            exit = open[0]
+        }
+        let found = targets(exit.1, at: p)
+        guard found.count == 1, let target = found.first,
               let a = preset.assignments.first(where: { $0.monitor == target.id }),
               let targetConnection = group.connections.first(where: { $0.id == a.connection }), targetConnection.localDisplay != nil,
               let computer = targetConnection.computer else { return .blocked }

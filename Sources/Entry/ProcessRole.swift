@@ -227,6 +227,7 @@ enum ProcessRole: Equatable {
             try runPublisherChangeTests()
             try runCoreEntryReviewTests()
             try runDeskInputReviewTests()
+            try runDeskInputRecoveryTests()
             try runDeskDiagnosticsTests()
             try runDeskSharedSpaceTests()
             try runDeskHandoverTests()

@@ -154,7 +154,9 @@ final class DeskRuntime: ObservableObject {
     private var shortcutMemory = DeskShortcutRegistrationMemory()
     private var identifyWindows: [String: (UUID, NSWindow)] = [:]
     private(set) var identifications = DeskIdentificationState()
-    private var inputAfterSwitch: (UUID, UUID)?
+    /// The person chose a preset while sharing: where to carry on once the
+    /// screens have switched (preset, screen, position in desk millimetres).
+    private var inputAfterSwitch: (preset: UUID, monitor: UUID, position: KVMPoint?)?
     private var lastInputPreset: UUID?
     /// Avoid repeated focus requests while the owner prepares a grant. A
     /// failed request can be retried after the short backoff when readiness
@@ -261,9 +263,16 @@ final class DeskRuntime: ObservableObject {
         timer.tolerance = 3; refreshTimer = timer
     }
     private func updateModel() {
-        if inputAfterSwitch != nil, !switching.busy {
+        if let resume = inputAfterSwitch, !switching.busy {
             inputAfterSwitch = nil
             automaticInputStart = nil
+            // The person chose this preset: carry on where the pointer was, as
+            // their own request, rather than wherever an automatic start lands.
+            if switching.activePreset == resume.preset, inputReadiness(preset: resume.preset, monitor: resume.monitor) == nil {
+                PerchLog.record("input.start", "the preset switched; control carries on where the pointer was")
+                automaticInputStart = (resume.preset, resume.monitor, ProcessInfo.processInfo.systemUptime)
+                input.start(preset: resume.preset, monitor: resume.monitor, position: resume.position, automatic: false)
+            }
         }
         registerShortcuts()
         refreshBringOverShortcut()
@@ -363,7 +372,8 @@ final class DeskRuntime: ObservableObject {
         // to resend every input, even when cached state says nothing changed.
         let force = switching.activePreset == preset
         let included = node.group.presets.first { $0.id == preset }?.assignments.map(\.monitor) ?? []
-        let preferred = input.focus?.monitor ?? model.selected
+        let pointer = input.pointerLocation
+        let preferred = pointer?.monitor ?? model.selected
         // Release any current lease even when the new preset is not ready;
         // otherwise an invalid target leaves the old KVM route capturing input.
         automaticInputStart = nil
@@ -372,12 +382,13 @@ final class DeskRuntime: ObservableObject {
         guard switching.readiness(preset) == nil else { switching.activate(preset, force: force); return }
         let monitor = preferred.flatMap { included.contains($0) ? $0 : nil } ?? included.first
         switching.activate(preset, force: force)
-        if input.enabled, switching.busy, let monitor { inputAfterSwitch = (preset, monitor) }
+        if input.enabled, let monitor { inputAfterSwitch = (preset, monitor, pointer?.monitor == monitor ? pointer?.position : nil) }
     }
     func toggleInputSharing() {
         let enabled = !input.enabled
         inputAdapter.enable(enabled)
-        if enabled { startInputForActivePreset() }
+        // Choosing Share is choosing to share again after Ctrl-Opt-Esc.
+        if enabled { input.allowAutomaticStart(); startInputForActivePreset() }
         DispatchQueue.main.async { (NSApp.delegate as? AppDelegate)?.refreshDeskSharingMenu() }
     }
     var sharingShortcut: Shortcut { DeskSharingShortcut.load() }

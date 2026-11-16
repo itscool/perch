@@ -998,7 +998,8 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   - Rendered offscreen at 1x and 2x on light and dark bars, every state, with
     an enlarged sheet; a filled-bird variant with knocked-out hearts was drawn
     for comparison and set aside (the holes broke the silhouette and the number
-    was illegible). Not shipped: built on the branch only.
+    was illegible). Shipped in 2.0.301.
+  - **Approved by Scott, November 16, 2026:** the renders are OK as they are.
   - Decided: this Mac's heart also shows with one bird (sharing on, no one
     connected). Limitation: only a Mac whose sharing is on hears which others
     share, so with sharing off here the other bird never has a heart.
@@ -1184,9 +1185,7 @@ launch, existing-install replacement and uninstall/recovery as one journey.
   - Long text is announced without a size bucket, since it is read only up to
     64 KB; images likewise.
 
-  *Open questions for Scott:*
-  - The icon: its look at real menu bar size (renders in the work notes), the
-    30-point width with two birds, and the heart shown with one bird.
+  *Open question for Scott:*
   - Should a dangling link inside a folder be sent as a broken link instead of
     refusing the copy? Projects sometimes hold one.
 

@@ -58,6 +58,10 @@ enum ProcessRole: Equatable {
     /// Run the role to completion; every role ends the process itself.
     func run() -> Never {
         switch self {
+        case .ipcSelfTest, .cpuBenchmark, .settingsSelfTest, .selfTest: PerchLog.useTestLog()
+        default: break
+        }
+        switch self {
         case .checkModifierAccess:
             NativeModifierKeys.checkExistingAccess()
             exit(0)

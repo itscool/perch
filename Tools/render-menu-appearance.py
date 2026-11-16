@@ -47,13 +47,13 @@ for width in [640.0, 900.0] {
         if width == 640, let data = bitmap.representation(using: .png, properties: [:]) { try data.write(to: output.appendingPathComponent("perch-appearance-controls.png")) }
     }
     var positions: [String: CGFloat] = [:]
-    for button in descendants(host).compactMap({ $0 as? NSButton }) where ["Left", "Right", "Top", "Bottom", "Fade left", "Fade right"].contains(button.title) {
+    // SwiftUI draws its sliders itself on current macOS, so offscreen they are
+    // neither views nor accessibility elements. The title tint slider sits a
+    // fixed 275 + 12 points after its checkbox, so the checkbox's start is its start.
+    let buttons = descendants(host).compactMap { $0 as? NSButton }
+    precondition(buttons.count == 11, "Expected the eleven appearance checkboxes, found \(buttons.map(\.title))")
+    for button in buttons where ["Left", "Right", "Top", "Bottom", "Fade left", "Fade right", "Tint title text to its section color"].contains(button.title) {
         positions[button.title] = button.convert(button.bounds, to: host).minX
-    }
-    let sliders = descendants(host).compactMap { $0 as? NSSlider }
-    precondition(sliders.count == 9, "Expected the nine appearance sliders, found \(sliders.count)")
-    if let slider = sliders.dropFirst(7).first {
-        positions["Title tint"] = slider.convert(slider.bounds, to: host).minX
     }
     precondition(positions.count == 7, "Appearance layout fixture missed a target control: \(positions)")
     starts.append(positions)

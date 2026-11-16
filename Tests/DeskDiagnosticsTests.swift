@@ -10,6 +10,14 @@ func runDeskDiagnosticsTests() throws {
     let savedSink = PerchLog.sink, savedClock = PerchLog.clock
     defer { PerchLog.sink = savedSink; PerchLog.clock = savedClock; PerchLog.reset() }
 
+    // Only Perch itself writes to Perch's log: a self-test, a check tool or a
+    // test host goes to the test log, so reading the log never finds a fixture.
+    try check(PerchLog.subsystem(bundle: "local.scott.perch", testing: false) == "local.scott.perch", "Perch itself does not write to its own log")
+    for (bundle, testing) in [("local.scott.perch", true), (nil, false), ("local.perch.functional-review", false), ("local.perch.sparkle-fixture.x", false)] as [(String?, Bool)] {
+        try check(PerchLog.subsystem(bundle: bundle, testing: testing) == PerchLog.testSubsystem, "\(bundle ?? "a bare tool") (testing \(testing)) writes to Perch's own log")
+    }
+    try check(PerchLog.subsystem == PerchLog.testSubsystem, "This test run writes to Perch's own log")
+
     var seen: [PerchLog.Entry] = []
     var now = Date(timeIntervalSince1970: 1_000)
     PerchLog.reset()
@@ -50,5 +58,5 @@ func runDeskDiagnosticsTests() throws {
     // reset clears the de-duplication memory too, or a test would see nothing.
     PerchLog.reset()
     try check(PerchLog.entries.isEmpty && PerchLog.note("input.start", "no preset is active"), "reset left the de-duplication memory behind")
-    print("PASS: desk diagnostics de-duplicate polled verdicts, keep repeated events, and stay bounded")
+    print("PASS: desk diagnostics de-duplicate polled verdicts, keep repeated events, stay bounded, and go to the test log from every test, never to Perch's own")
 }

@@ -10,6 +10,8 @@ import os
 ///
 ///     log show --predicate 'subsystem == "local.scott.perch"' --last 10m
 ///
+/// Tests and check tools write to "local.scott.perch.test" instead.
+///
 /// `note` records only when a category's message changes. Its callers are
 /// polled loops: the input session re-decides four times a second, and a log
 /// that repeated that would bury the one transition worth seeing. `record`
@@ -33,7 +35,22 @@ enum PerchLog {
     /// Tests replace these; production keeps the clock and the unified log.
     static var clock: () -> Date = { Date() }
     static var sink: ((Entry) -> Void)?
-    private static let logger = Logger(subsystem: "local.scott.perch", category: "desk")
+    /// Perch itself writes to "local.scott.perch". Tests, check tools and
+    /// fixtures write to "local.scott.perch.test", so reading what Perch did on
+    /// this Mac never turns up a test's made-up desk.
+    static let liveSubsystem = "local.scott.perch", testSubsystem = "local.scott.perch.test"
+    /// Live only for Perch's own bundle (the app and its helpers share it) when
+    /// it is not running a test.
+    static func subsystem(bundle: String?, testing: Bool) -> String {
+        bundle == liveSubsystem && !testing ? liveSubsystem : testSubsystem
+    }
+    private(set) static var subsystem = subsystem(bundle: Bundle.main.bundleIdentifier, testing: false)
+    private static var logger = Logger(subsystem: subsystem, category: "desk")
+    /// For Perch's own binary when it runs a test role.
+    static func useTestLog() {
+        subsystem = testSubsystem
+        logger = Logger(subsystem: subsystem, category: "desk")
+    }
 
     /// Record `message` for `category` only when it differs from the last one.
     /// Returns whether it was recorded, which is what makes a polled caller safe.

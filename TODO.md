@@ -1042,9 +1042,9 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     another way was not tried: it cannot be tested without touching the real
     clipboard.
 
-  **Progress, September 27, 2026.** On branch `clipboard`, pushed, not merged
-  into main and not released. Scott is to review it before it lands. Commits:
-  Stage 1 (text and images), Stage 2 (files), then Scott's design.
+  **Progress, September 27, 2026.** Built on branch `clipboard`: Stage 1 (text
+  and images), Stage 2 (files), then Scott's design. Merged into main on
+  November 12, 2026 and released in 2.0.301 (see that checkpoint below).
 
   *Implemented* (`Sources/Desk/DeskClipboard.swift`, `DeskClipboardWire.swift`,
   `DeskClipboardPolicy.swift`, `DeskPasteboard.swift`, `DeskFileTransfer.swift`,
@@ -1385,6 +1385,31 @@ runs headless; `runSleepNoticeAndSettingsTests` stays in the window suite. The
 saved choices were confirmed unchanged (Keep awake on, lid on). Verified: self-test
 69 with the settings file untouched, all twelve headless gates, lid policy, six
 Sparkle scenarios. Candidate 2.0.307 on disk.
+
+**Live on the MacBook, November 15.** Scott ran the lid helper update; helper
+version 7 is installed. Perch took over the sleep setting he had disabled with
+pmset at 05:49 (its record `owned.json` and the session file `lid.active`
+exist), so the lid row reads "Set by Perch". Restart Perch with the lid closed
+worked at 14:53 and the lid session carried on through it. Accepted natively:
+the takeover and the closed-lid restart. All menu tooltips were rewritten in
+plain, short words as Scott approved (430ead3); the idle lock one keeps "until
+you turn this off", which `IdleLockWordingTests` requires.
+
+**November 16.** Scott approved the menu bar icon renders as they are. A broken
+link inside a copied folder is now sent as it is (his choice), unless its target
+names a place above the folder; names are compared the way APFS does (69891f7,
+see the clipboard entry). `Tools/check-menu-tooltips.py` compiles the icon's
+file again, and `Tools/render-menu-appearance.py` works again: SwiftUI now draws
+its sliders itself, so offscreen there is no slider view to measure, and the
+title tint slider's start is read from its checkbox, a fixed 287 points before
+it. **Test noise in Perch's log:** in three hours the self-test had written 547
+lines and the desk network check 346 to `local.scott.perch`, against 6 from the
+running Perch, so reading the log turned up fixtures' desks. Every test role of
+Perch's binary, and every process outside Perch's own bundle (check tools, the
+functional host, Sparkle fixtures), now writes to `local.scott.perch.test`
+(`PerchLog.subsystem`, pinned in the desk diagnostics self-test). The unknown
+Macs in `desk.wire` lines were all network check fixtures: over four days the
+running Perch named only the Studio (85EA48EB).
 
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 

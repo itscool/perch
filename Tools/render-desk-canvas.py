@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--full', action='store_true', help='Render the entire Desk page rather than only the canvas')
 parser.add_argument('--active-preset', type=int, choices=[1, 2, 3], help='Simulate a confirmed preset independently of the editing selection')
-parser.add_argument('--scenario', choices=['default', 'busy', 'empty'], default='default', help='busy: status, caution, conflict, failure and switching states; empty: first-use desk')
+parser.add_argument('--scenario', choices=['default', 'busy', 'empty', 'refused'], default='default', help='busy: status, caution, conflict, failure and switching states; empty: first-use desk; refused: a saved desk with a computer on two inputs of one screen, plus OUTPUT.drag.png of a wire held over an input it cannot use')
 parser.add_argument('--width', type=int, default=1200, help='Full-page render width in points')
 parser.add_argument('--height', type=int, default=860, help='Full-page render height in points')
 args = parser.parse_args()
@@ -54,6 +54,16 @@ port.keyDown(with: escape); port.mouseUp(with: mouse(.leftMouseUp, 122)); precon
 computer.mouseDown(with: mouse(.leftMouseDown, 122)); computer.mouseDragged(with: mouse(.leftMouseDragged, 22)); computer.mouseUp(with: mouse(.leftMouseUp, 22)); precondition(connections == 2)
 port.mouseDown(with: mouse(.leftMouseDown, 22)); interaction.remove(port); port.mouseUp(with: mouse(.leftMouseUp, 122)); precondition(connections == 2)
 interaction.cancel()
+// A wire the desk refuses is red before letting go: the target asks the same
+// rule as the model, and the source and empty space are never refused.
+interaction.register(port)
+interaction.rule = { outcome in outcome == .draw(slot: 2, computer: computerID, port: portID) ? "Refused here" : nil }
+port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
+precondition(interaction.target == computer.socketID && interaction.targetRefusal == "Refused here" && interaction.refusal(at: port.socketID) == nil,
+             "A refused target was not red while the wire was held over it")
+let dragSockets = container
+interaction.cancel()
+precondition(interaction.targetRefusal == nil && interaction.refusal(at: computer.socketID) == nil, "Red stayed after the wire was let go")
 print("PASS: native socket dispatch draws new wires in both directions, previews before committing, draws nothing on empty drops/Esc/source removal; no event posting or windows")
 let simulation = DeskSimulation(store: URL(fileURLWithPath: CommandLine.arguments[2]))
 let model = simulation.makeModel()
@@ -66,7 +76,9 @@ let oldPort = DeskWireSocketView(frame: NSRect(x: 10, y: 10, width: 24, height: 
 let newPort = DeskWireSocketView(frame: NSRect(x: 110, y: 10, width: 24, height: 22))
 let hostSocket = DeskWireSocketView(frame: NSRect(x: 210, y: 10, width: 24, height: 22))
 var desk = KVMGroup.sample()
-let original = desk.connections[0], targetCable = desk.connections[1]
+// The free input on the same screen: a cable can't move onto another computer's.
+let target = desk.connections.firstIndex { $0.computer == nil && $0.monitor == desk.connections[0].monitor }!
+let original = desk.connections[0], targetCable = desk.connections[target]
 oldPort.socketID = "port:" + original.id.uuidString
 newPort.socketID = "port:" + targetCable.id.uuidString
 hostSocket.socketID = "preset:" + original.computer!.uuidString + ":1"
@@ -95,10 +107,10 @@ precondition(rewireController.cableSource == hostSocket.socketID && rewireContro
 oldPort.keyDown(with: escape); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
 precondition(desk == before && rewired == 0 && removed == 0, "Esc must restore the picked-up cable")
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 350)); oldPort.mouseUp(with: mouse(.leftMouseUp, 350))
-precondition(removed == 1 && rewired == 0 && desk.connections[0].computer == nil && desk.connections[1] == before.connections[1], "A detached end dropped in space removes that wire only")
+precondition(removed == 1 && rewired == 0 && desk.connections[0].computer == nil && desk.connections[target] == before.connections[target], "A detached end dropped in space removes that wire only")
 desk = before
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122)); oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
-precondition(rewired == 1 && desk.connections[0].computer == nil && desk.connections[1].computer == original.computer && desk.connections[1].localDisplay == original.localDisplay)
+precondition(rewired == 1 && desk.connections[0].computer == nil && desk.connections[target].computer == original.computer && desk.connections[target].localDisplay == original.localDisplay)
 precondition(desk.monitors == before.monitors, "Rewiring must not change physical screens")
 desk = before
 oldPort.mouseDown(with: mouse(.leftMouseDown, 22)); oldPort.mouseDragged(with: mouse(.leftMouseDragged, 122))
@@ -106,7 +118,7 @@ desk.connections[0].computer = nil; desk.connections[0].localDisplay = nil
 let concurrent = desk
 oldPort.mouseUp(with: mouse(.leftMouseUp, 122))
 precondition(desk == concurrent && rewired == 1 && removed == 1, "Concurrent cable edits must cancel a stale gesture")
-var failed = before; failed.connections[1].computer = nil; failed.connections[1].localDisplay = nil
+var failed = before; failed.connections[target].inputName = "Renamed elsewhere"
 let failedBefore = failed
 var rejected = false
 do { try DeskCableBinding.rewire(original, to: targetCable, in: &failed) } catch { rejected = true }
@@ -146,6 +158,30 @@ case "busy":
     simulation.simulateConflict()
 case "empty":
     simulation.newDesk("New desk")
+case "refused":
+    // A desk saved before the rules: the Studio on DisplayPort and HDMI 1 of
+    // one screen, with All on Studio using HDMI 1. Both inputs show red.
+    var doubled = sample
+    let screen = doubled.monitors[0].id
+    if let free = doubled.connections.firstIndex(where: { $0.monitor == screen && $0.computer == nil }),
+       let studio = doubled.connections.first(where: { $0.monitor == screen && $0.computer != nil && $0.computer != doubled.computers[0].id })?.computer {
+        doubled.connections[free].computer = studio
+        doubled.presets[2].assignments.removeAll { $0.monitor == screen }
+        doubled.presets[2].assignments.append(.init(monitor: screen, connection: doubled.connections[free].id))
+        model.group = doubled; model.presetIndex = 2
+        precondition(DeskWireRule.problem(doubled.connections[free].id, in: doubled) != nil, "The doubled input was not found")
+    } else { preconditionFailure("The simulated desk has no free input to double") }
+    // The held wire, frozen over the input it cannot use.
+    interaction.rule = { _ in "Refused here" }
+    port.mouseDown(with: mouse(.leftMouseDown, 22)); port.mouseDragged(with: mouse(.leftMouseDragged, 122))
+    precondition(interaction.targetRefusal == "Refused here")
+    let held = NSView(frame: dragSockets.bounds); held.wantsLayer = true; held.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    dragSockets.frame.origin = .zero; held.addSubview(dragSockets)
+    if let bitmap = held.bitmapImageRepForCachingDisplay(in: held.bounds) {
+        held.cacheDisplay(in: held.bounds, to: bitmap)
+        try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1] + ".drag.png"))
+    }
+    interaction.cancel()
 default: break
 }
 print("PASS: connected inputs move or disappear when dropped, cancellation, concurrent edits, edge anchors, hover and all 24 preset/subset combinations")
@@ -170,6 +206,6 @@ precondition(NSApp.windows.isEmpty, "Renderer presented a window")
 print("PASS: production Desk canvas rendered without windows or live settings")
 }
 ''')
-    sources = ['PerchError.swift', 'KVMGroup.swift', 'KVMSync.swift', 'DeskModel.swift', 'DeskBackend.swift', 'DeskFixtures.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskPageState.swift', 'DeskHeader.swift', 'DeskPresetStrip.swift', 'DeskCanvas.swift', 'DeskScreenTile.swift', 'DeskPortSocket.swift', 'DeskComputerCard.swift', 'DeskWireController.swift', 'DeskSheets.swift', 'DeskCanvasLayout.swift', 'PannableSurface.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
+    sources = ['PerchError.swift', 'PerchLog.swift', 'KVMGroup.swift', 'KVMSync.swift', 'DeskModel.swift', 'DeskBackend.swift', 'DeskFixtures.swift', 'InspectorScrollView.swift', 'StatusColors.swift', 'SettingsFeedback.swift', 'DeskView.swift', 'DeskPageState.swift', 'DeskHeader.swift', 'DeskPresetStrip.swift', 'DeskCanvas.swift', 'DeskScreenTile.swift', 'DeskPortSocket.swift', 'DeskComputerCard.swift', 'DeskWireController.swift', 'DeskSheets.swift', 'DeskCanvasLayout.swift', 'PannableSurface.swift', 'DeskTextSetting.swift', 'DeskTextDraft.swift']
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *[str(perch_source(s)) for s in sources], *[str(repo / 'Tools/kvm-lab' / s) for s in ['KVMHandoff.swift', 'DeskSimulation.swift', 'LabSheets.swift']], str(root/'main.swift'), '-o', str(root/'render')], check=True)
     subprocess.run([str(root/'render'), str(args.output.resolve()), str(root/'demo.json'), 'full' if args.full else 'canvas', str(args.active_preset or 0), str(args.width), str(args.height), args.scenario], check=True)

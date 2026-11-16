@@ -35,8 +35,8 @@ struct DeskComputerCard: View {
                             let menu = DeskSocketMenu()
                             for port in model.group.connections {
                                 let monitor = model.group.monitors.first { $0.id == port.monitor }?.name ?? "Screen"
-                                let replaces = port.computer.flatMap { owner in owner == computer.id ? nil : model.group.computers.first { $0.id == owner }?.name }
-                                menu.action(monitor + " · " + port.inputName + (replaces.map { " · replaces " + $0 } ?? "")) { wire.draw?(slot + 1, computer.id, port.id) }
+                                let refusal = DeskWireRule.refusal(computer: computer.id, port: port.id, in: model.group)
+                                menu.action(monitor + " · " + port.inputName + (refusal.map { " · " + $0.short } ?? ""), enabled: refusal == nil, help: refusal?.reason) { wire.draw?(slot + 1, computer.id, port.id) }
                             }
                             return menu
                         }.frame(width: 24, height: 20)

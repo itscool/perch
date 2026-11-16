@@ -113,6 +113,7 @@ struct DeskCanvas: View {
         .onChange(of: model.group.connections) { _, _ in wire.move(to: wire.gesture.point) }
         .onAppear {
             wire.connection = { id in model.group.connections.first { "port:" + $0.id.uuidString == id } }
+            wire.rule = { outcome in model.refusal(outcome)?.reason }
             // A wire from a computer claims the input for that computer, then
             // matches its display: automatically when unambiguous, else the cable step.
             wire.draw = { slot, computer, port in
@@ -140,7 +141,7 @@ struct DeskCanvas: View {
                     DeskComputerCard(model: model, computer: computer, wire: wire, details: actions.computerDetails)
                 }
             }
-            Text("Teal line: the preset you are editing. Green glow: on the displays now. Both together: this preset is the one showing. Drag between a computer’s numbered connector and a monitor input to connect them. Drag a connected input to another input, or into empty space, to change the preset you are editing. Play switches the displays.")
+            Text("Teal line: the preset you are editing. Green glow: on the displays now. Both together: this preset is the one showing. Red: a connection the desk can’t have, with the reason. Drag between a computer’s numbered connector and a monitor input to connect them. Drag a connected input to another input, or into empty space, to change the preset you are editing. Play switches the displays.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .background(GeometryReader { area in Color.clear.preference(key: DeskRowHeight.self, value: area.size.height) })
@@ -227,7 +228,9 @@ struct DeskWireLayer: View {
                         // Two different things, shown two different ways rather than as
                         // two colours of the same line: the preset being edited is the
                         // drawn line, and what is on the displays now glows behind it.
-                        let strokeColor: Color = chosen ? .teal.opacity(focused ? 1 : 0.85) : (activeRoute ? Color(nsColor: StatusColors.success).opacity(0.8) : .secondary.opacity(0.35))
+                        // A saved input against the desk's rules is red in every preset.
+                        let broken = DeskWireRule.problem(connection.id, in: model.group) != nil
+                        let strokeColor: Color = broken ? .red.opacity(chosen ? 1 : 0.6) : chosen ? .teal.opacity(focused ? 1 : 0.85) : (activeRoute ? Color(nsColor: StatusColors.success).opacity(0.8) : .secondary.opacity(0.35))
                         let lineWidth: CGFloat = chosen ? (focused ? 3 : 2.5) : 1.5
                         let path = Path { path in
                             path.move(to: startPoint)

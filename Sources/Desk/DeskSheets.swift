@@ -49,9 +49,11 @@ struct DeskCableSheet: View {
            let computer = model.group.computers.first(where: { $0.id == computerID }) {
             Text("Connect \(computer.name)").font(.title2.bold())
             Text("To \(model.group.monitors.first { $0.id == port.monitor }?.name ?? "screen") · \(port.inputName)").font(.headline)
-            if let old = model.group.computers.first(where: { $0.id == port.computer }), old.id != computer.id {
-                Text("This replaces the saved cable from \(old.name). It does not switch the monitor’s input.").foregroundStyle(.secondary)
-            }
+            // Another computer's cable is said once, above everything; a second
+            // input on this screen is said where it applies.
+            let refusal = DeskWireRule.refusal(computer: computer.id, port: port.id, in: model.group)
+            let taken = port.computer != nil && port.computer != computer.id
+            if taken, let refusal { Text(refusal.reason).foregroundStyle(.red) }
             let backend = model.backend
             Group {
                 let options = model.cableOptions(for: computer.id)
@@ -64,14 +66,18 @@ struct DeskCableSheet: View {
                         .help(identifyIssue ?? "Show a short label on every display currently visible to \(computer.name), so you can match this cable without guessing.")
                     if let identifyIssue { Text(identifyIssue).font(.caption).foregroundStyle(.secondary) }
                     if port.computer != computer.id {
+                        if !taken, let refusal { Text(refusal.reason).foregroundStyle(.red) }
                         Button("Save cable") { backend.mapComputer(port: port.id, computer: computer.id); if model.problem == nil { page.close() } }
+                            .disabled(refusal != nil)
                     }
                 } else {
                     Text("Which display on \(computer.name) is this screen? Use Identify if you’re unsure. Connecting saves the cable without changing the picture.").foregroundStyle(.secondary)
                     ForEach(options) { option in
+                        let refused = DeskWireRule.cable(computer: computer.id, port: port.id, display: option.display, in: model.group)
                         VStack(alignment: .leading, spacing: 6) {
                             Text(option.label).font(.headline)
                             if let conflict = model.cableConflict(option, port: port.id) { Text(conflict).foregroundStyle(.secondary) }
+                            else if let refused, !taken { Text(refused.reason).foregroundStyle(.red) }
                             if let old = model.group.connections.first(where: { $0.id != port.id && $0.monitor == port.monitor && $0.computer == computer.id && $0.localDisplay == option.display }) {
                                 Text("Moves this cable from \(old.inputName) to \(port.inputName).").font(.callout)
                             }
@@ -79,7 +85,7 @@ struct DeskCableSheet: View {
                                 Button(option.display.map { backend.isIdentifying(display: $0, computer: computer.id) } == true ? "Stop identifying" : "Identify") { if let display = option.display { backend.identifyDisplay(display, computer: computer.id) } }
                                     .disabled(!model.online.contains(computer.id))
                                 Button("Connect here") { backend.map(port: port.id, option: option.id); if model.problem == nil { page.close() } }
-                                    .disabled(model.cableConflict(option, port: port.id) != nil)
+                                    .disabled(model.cableConflict(option, port: port.id) != nil || refused != nil)
                             }
                         }.padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                     }

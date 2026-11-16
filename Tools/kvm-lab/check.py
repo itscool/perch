@@ -9,7 +9,7 @@ import tempfile
 repo = Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='perch-desk-check-') as d:
     binary = str(Path(d) / 'check')
-    sources = [perch_source(f) for f in ['PerchError.swift', 'KVMGroup.swift', 'KVMSync.swift', 'DeskModel.swift', 'DeskBackend.swift', 'DeskPageState.swift', 'DeskFixtures.swift', 'DeskCanvasLayout.swift']]
+    sources = [perch_source(f) for f in ['PerchError.swift', 'PerchLog.swift', 'KVMGroup.swift', 'KVMSync.swift', 'DeskModel.swift', 'DeskBackend.swift', 'DeskPageState.swift', 'DeskFixtures.swift', 'DeskCanvasLayout.swift']]
     sources += [repo / 'Tools/kvm-lab' / f for f in ['KVMHandoff.swift', 'DeskSimulation.swift', 'LabSheets.swift', 'check-model.swift']]
     subprocess.run(['xcrun', 'swiftc', '-warnings-as-errors', *map(str, sources), '-framework', 'SwiftUI', '-o', binary], check=True)
     subprocess.run([binary], check=True)

@@ -147,10 +147,12 @@ private final class WiringBackend: DeskBackend {
     func sheet(_ sheet: DeskSheet, close: @escaping () -> Void) -> AnyView? { nil }
 }
 
-/// The Desk graph's wiring rules, as Scott set them: a drag from a computer always
+/// The Desk graph's wiring rules, as Scott set them: a drag from a computer
 /// creates a connection and claims the input; an unconnected input draws toward a
 /// computer; a connected input detaches to be rewired; a detached end dropped in
-/// empty space disappears. Also clearing one preset and resetting the desk.
+/// empty space disappears. Connections the desk can't have are refused and say
+/// why (November 16): another computer's input, or a second input for the same
+/// computer on one screen. Also clearing one preset and resetting the desk.
 func runDeskPresetGraphTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
     let portID = UUID(), otherID = UUID(), computerID = UUID()
@@ -170,7 +172,7 @@ func runDeskPresetGraphTests() throws {
 
     let sample = KVMGroup.sample()
     let mac = sample.computers[0].id, studio = sample.computers[1].id
-    let left = sample.monitors[0].id, main = sample.monitors[1].id, side = sample.monitors[2].id
+    let left = sample.monitors[0].id, side = sample.monitors[2].id
     func port(_ group: KVMGroup, _ monitor: UUID, _ computer: UUID?) -> KVMConnection {
         group.connections.first { $0.monitor == monitor && $0.computer == computer }!
     }
@@ -178,8 +180,14 @@ func runDeskPresetGraphTests() throws {
         group.presets.indices.filter { index in group.presets[index].assignments.contains { $0.connection == id } }
     }
 
-    // Drawing onto a free input routes it; the page then claims it for that computer.
-    let backend = WiringBackend(), model = DeskModel(backend: backend, group: sample)
+    // Drawing onto a free input routes it; the page then claims it for that
+    // computer. The MacBook is unplugged from the left screen first, since a
+    // computer uses one input on each screen.
+    var unplugged = sample
+    let macLeft = port(sample, left, mac).id
+    try DeskCableBinding.apply(connection: macLeft, computer: nil, display: nil, to: &unplugged)
+    for p in unplugged.presets.indices { unplugged.presets[p].assignments.removeAll { $0.connection == macLeft } }
+    let backend = WiringBackend(), model = DeskModel(backend: backend, group: unplugged)
     let free = port(sample, left, nil)
     model.drawWire(slot: 2, computer: mac, port: free.id)
     try check(model.problem == nil && model.group.presets[1].assignments.contains { $0.monitor == left && $0.connection == free.id } && routes(model.group, to: free.id) == [1],
@@ -187,13 +195,7 @@ func runDeskPresetGraphTests() throws {
     DeskPageState().beginCable(free.id, mac, model: model)
     try check(backend.claimed.count == 1 && backend.claimed[0] == (free.id, mac), "The drawn input was not claimed for its computer, so the wire would stay invisible")
 
-    // Drawing onto another computer's input replaces that connection and its routes.
-    let taken = port(sample, main, studio)
-    try check(routes(sample, to: taken.id) == [0, 2], "Fixture changed: the Studio's main input should be in presets 1 and 3")
-    model.drawWire(slot: 2, computer: mac, port: taken.id)
-    let replaced = model.group.connections.first { $0.id == taken.id }!
-    try check(replaced.computer == nil && replaced.localDisplay == nil && routes(model.group, to: taken.id) == [1],
-              "A new connection did not replace the other computer's connection and routes")
+    try runDeskWireRefusalTests(sample)
 
     // Moving a wire onto an input with nothing plugged into it moves the cable,
     // so the presets that used that cable follow it instead of pointing at an
@@ -246,8 +248,80 @@ func runDeskPresetGraphTests() throws {
     try check(resetting.problem == nil && resetting.group.monitors.isEmpty && resetting.group.connections.isEmpty && resetting.group.presets.allSatisfy { $0.assignments.isEmpty } &&
               resetting.group.computers == sample.computers && resetting.group.presets.map(\.name) == sample.presets.map(\.name),
               "Resetting the desk did not start the layout over while keeping paired Macs: \(resetting.problem ?? "")")
-    print("PASS: desk wiring rules: computer drags always connect and claim the input, free inputs draw to a computer, connected inputs detach and change the preset being edited, cables move only when they must; clear preset and reset desk")
+    print("PASS: desk wiring rules: computer drags connect and claim a free input, free inputs draw to a computer, connected inputs detach and change the preset being edited, cables move only when they must; clear preset and reset desk")
     try runDeskInputListTests()
+}
+
+/// Connections the desk can't have (Scott, November 16, 2026). Each is refused
+/// before anything changes, says why, and the same reason reaches the menus.
+func runDeskWireRefusalTests(_ sample: KVMGroup) throws {
+    func check(_ value: Bool, _ message: String) throws { if !value { throw KVMError(message) } }
+    let mac = sample.computers[0].id, studio = sample.computers[1].id
+    let left = sample.monitors[0].id, main = sample.monitors[1].id, side = sample.monitors[2].id
+    func port(_ group: KVMGroup, _ monitor: UUID, _ computer: UUID?) -> KVMConnection {
+        group.connections.first { $0.monitor == monitor && $0.computer == computer }!
+    }
+    func refused(_ model: DeskModel, _ expected: String, _ message: String) throws {
+        try check(model.group == sample && model.problem?.contains(expected) == true, message + ": \(model.problem ?? "no reason")")
+    }
+
+    // Another computer's cable is in that input: refused, never a takeover.
+    let taking = DeskModel(backend: WiringBackend(), group: sample)
+    taking.drawWire(slot: 2, computer: mac, port: port(sample, main, studio).id)
+    try refused(taking, "has Mac Studio’s cable", "A wire onto another computer's input took it over")
+
+    // Scott's example: the MacBook is on USB-C on the left screen, so another
+    // input there is refused, in every preset.
+    let doubling = DeskModel(backend: WiringBackend(), group: sample)
+    let hdmi = port(sample, left, nil).id
+    for slot in 1...3 {
+        doubling.drawWire(slot: slot, computer: mac, port: hdmi)
+        try refused(doubling, "already on USB-C on Left screen", "Preset \(slot) connected the MacBook to a second input on one screen")
+    }
+
+    // Changing which computer a screen shows in a preset is allowed: Together
+    // shows the Studio on the left screen, and the MacBook's wire swaps it.
+    let swapping = DeskModel(backend: WiringBackend(), group: sample)
+    let macLeft = port(sample, left, mac).id
+    swapping.drawWire(slot: 1, computer: mac, port: macLeft)
+    try check(swapping.problem == nil && swapping.group.connections == sample.connections &&
+              swapping.group.presets[0].assignments.contains { $0.monitor == left && $0.connection == macLeft } &&
+              !swapping.group.presets[0].assignments.contains { $0.monitor == left && $0.connection != macLeft },
+              "Changing which computer a screen shows in a preset was refused: \(swapping.problem ?? "")")
+
+    // A wire moved onto another computer's input is refused; one moved to a
+    // free input on a screen its computer is already on would double it.
+    let moving = DeskModel(backend: WiringBackend(), group: sample)
+    moving.presetIndex = 1
+    moving.moveWire(from: macLeft, to: port(sample, left, studio).id)
+    try refused(moving, "has Mac Studio’s cable", "A moved wire took over another computer's input")
+    moving.moveWire(from: port(sample, side, mac).id, to: hdmi)
+    try refused(moving, "already on USB-C on Left screen", "A wire moved across screens left its computer on two inputs of one")
+
+    // The drag asks the same rule before letting go, so the socket is red.
+    try check(moving.refusal(.draw(slot: 2, computer: mac, port: hdmi))?.short == "already on USB-C" &&
+              moving.refusal(.draw(slot: 2, computer: mac, port: port(sample, main, studio).id))?.short == "Mac Studio’s cable is in it" &&
+              moving.refusal(.move(from: macLeft, to: hdmi)) == nil && moving.refusal(.draw(slot: 1, computer: mac, port: macLeft)) == nil,
+              "The drag and the menus would not show the same refusals as letting go")
+
+    // Saving a cable refuses the same, unless the cable moves: matched to the
+    // display it already had there, it leaves USB-C for HDMI 1.
+    var group = sample
+    do { try DeskCableBinding.apply(connection: hdmi, computer: mac, display: nil, to: &group); throw KVMError("A saved cable gave the MacBook a second input on one screen") }
+    catch let error as KVMError where error.localizedDescription.contains("already on USB-C") {}
+    try DeskCableBinding.apply(connection: hdmi, computer: mac, display: port(sample, left, mac).localDisplay, to: &group)
+    try check(group.connections.first { $0.id == hdmi }?.computer == mac && group.connections.first { $0.id == macLeft }?.computer == nil,
+              "A cable matched to its display did not move to the new input")
+
+    // A desk saved before these rules shows the doubled inputs, and only those.
+    var older = sample
+    older.connections[older.connections.firstIndex { $0.id == hdmi }!].computer = studio
+    let studioLeft = port(sample, left, studio).id
+    try check(DeskWireRule.problem(hdmi, in: older)?.contains("Mac Studio is on DisplayPort and HDMI 1 on Left screen") == true &&
+              DeskWireRule.problem(studioLeft, in: older) != nil && DeskWireRule.problem(macLeft, in: older) == nil &&
+              sample.connections.allSatisfy { DeskWireRule.problem($0.id, in: sample) == nil },
+              "A saved desk's doubled inputs were not the ones shown red: \(DeskWireRule.problem(hdmi, in: older) ?? "none")")
+    print("PASS: desk wire refusals: another computer's input, a second input on one screen (drawn, moved or saved) refused with the reason; swapping a screen's computer in a preset allowed; saved doubles shown")
 }
 
 /// Changing a screen's input list replaces it rather than stacking ports. This

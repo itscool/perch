@@ -47,7 +47,8 @@ struct DeskPortSocket: View {
             else { VStack(spacing: 1) { chips }.accessibilityHidden(true) }
             DeskWireSocket(id: "port:" + port.id.uuidString, connected: port.computer != nil,
                            label: model.connectionLabel(port), controller: wire,
-                           presetNumbers: presetNumbers, highlighted: chosen, activeRouting: active, drawsNumbers: false) {
+                           presetNumbers: presetNumbers, highlighted: chosen, activeRouting: active, drawsNumbers: false,
+                           problem: DeskWireRule.problem(port.id, in: model.group)) {
                 let menu = DeskSocketMenu()
                 // A cable whose display is not matched cannot take part in
                 // pointer sharing, and only the person can say which display it
@@ -70,7 +71,10 @@ struct DeskPortSocket: View {
                     }
                 }
                 menu.addItem(.separator())
-                for computer in model.group.computers where computer.id != port.computer { menu.action("Connect " + computer.name) { cable(port.id, computer.id) } }
+                for computer in model.group.computers where computer.id != port.computer {
+                    let refusal = DeskWireRule.refusal(computer: computer.id, port: port.id, in: model.group)
+                    menu.action("Connect " + computer.name + (refusal.map { " · " + $0.short } ?? ""), enabled: refusal == nil, help: refusal?.reason) { cable(port.id, computer.id) }
+                }
                 if port.computer != nil { menu.action("Disconnect cable") { model.disconnectCable(port.id) } }
                 menu.addItem(.separator())
                 menu.action("Edit port…") { editPort(port.id) }

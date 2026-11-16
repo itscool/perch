@@ -52,6 +52,7 @@ enum DeskCableBinding {
     }
     static func apply(connection: UUID, computer: UUID?, display: String?, to group: inout KVMGroup) throws {
         guard let target = group.connections.firstIndex(where: { $0.id == connection }) else { throw KVMError("This port was removed. Select another port.") }
+        if let computer, let refusal = DeskWireRule.cable(computer: computer, port: connection, display: display, in: group) { throw KVMError(refusal.reason) }
         var draft = group
         if let computer, let display {
             for i in draft.connections.indices where draft.connections[i].computer == computer && draft.connections[i].localDisplay == display && i != target {
@@ -64,6 +65,62 @@ enum DeskCableBinding {
         }
         draft.connections[target].computer = computer; draft.connections[target].localDisplay = display
         _ = try draft.validated(); group = draft
+    }
+}
+/// The connections a desk cannot have, and why (Scott, November 16, 2026):
+/// 1. An input holds one computer's cable. Connecting a computer to an input
+///    with another computer's cable is refused, never a silent takeover.
+/// 2. A computer is plugged into one input on each screen. Connecting it to a
+///    second input on a screen it is already on is refused. Moving its wire
+///    to another input moves the cable, which is allowed.
+/// Changing which computer a screen shows in a preset is not refused: the
+/// preset switches that screen to the other computer's input.
+enum DeskWireRule {
+    struct Refusal: Equatable {
+        /// The whole reason, for the label beside the wire and the attention badge.
+        let reason: String
+        /// The same, short enough to follow a menu item.
+        let short: String
+    }
+    /// Why `computer` cannot be connected to `port`, or nil when it can.
+    /// `moving` is that computer's cable leaving its input in the same change.
+    static func refusal(computer: UUID, port: UUID, moving: UUID? = nil, in group: KVMGroup) -> Refusal? {
+        guard let target = group.connections.first(where: { $0.id == port }) else { return nil }
+        func name(_ id: UUID) -> String { group.computers.first { $0.id == id }?.name ?? "another computer" }
+        let screen = group.monitors.first { $0.id == target.monitor }?.name ?? "this screen"
+        if let owner = target.computer, owner != computer {
+            return Refusal(reason: "\(target.inputName) on \(screen) has \(name(owner))’s cable. Disconnect it there first.",
+                           short: "\(name(owner))’s cable is in it")
+        }
+        if let other = group.connections.first(where: { $0.monitor == target.monitor && $0.computer == computer && $0.id != port && $0.id != moving }) {
+            return Refusal(reason: "\(name(computer)) is already on \(other.inputName) on \(screen). A computer uses one input on each screen.",
+                           short: "already on \(other.inputName)")
+        }
+        return nil
+    }
+    /// A computer's wire moved from one input to another. Its cable leaves the old input.
+    static func move(from source: UUID, to target: UUID, in group: KVMGroup) -> Refusal? {
+        guard source != target, let computer = group.connections.first(where: { $0.id == source })?.computer else { return nil }
+        return refusal(computer: computer, port: target, moving: source, in: group)
+    }
+    /// A cable saved with a display: one already matched to that display on the
+    /// same screen moves here (`DeskCableBinding.apply`), so it is not a second input.
+    static func cable(computer: UUID, port: UUID, display: String?, in group: KVMGroup) -> Refusal? {
+        let monitor = group.connections.first { $0.id == port }?.monitor
+        let moving = display.flatMap { display in
+            group.connections.first { $0.id != port && $0.monitor == monitor && $0.computer == computer && $0.localDisplay == display }?.id
+        }
+        return refusal(computer: computer, port: port, moving: moving, in: group)
+    }
+    /// Why a saved input breaks these rules, made by an older Perch or before
+    /// they existed: its computer is on more than one input of the same screen.
+    static func problem(_ port: UUID, in group: KVMGroup) -> String? {
+        guard let cable = group.connections.first(where: { $0.id == port }), let computer = cable.computer else { return nil }
+        let inputs = group.connections.filter { $0.monitor == cable.monitor && $0.computer == computer }
+        guard inputs.count > 1 else { return nil }
+        let name = group.computers.first { $0.id == computer }?.name ?? "A computer"
+        let screen = group.monitors.first { $0.id == cable.monitor }?.name ?? "this screen"
+        return "\(name) is on \(ListFormatter.localizedString(byJoining: inputs.map(\.inputName))) on \(screen). A computer uses one input on each screen: disconnect the one it isn’t plugged into."
     }
 }
 /// A user-drawn cable may precede display discovery. Resolve only an evidenced,
@@ -329,24 +386,33 @@ final class DeskModel: ObservableObject {
               let existing = group.connections.first(where: { $0.computer == option.computer && $0.localDisplay == option.display && $0.monitor != target.monitor }) else { return nil }
         return "Already connected to " + (group.monitors.first { $0.id == existing.monitor }?.name ?? "another screen")
     }
+    /// Why letting go of a wire here would be refused (`DeskWireRule`), or nil.
+    func refusal(_ outcome: DeskWireOutcome) -> DeskWireRule.Refusal? {
+        switch outcome {
+        case .draw(_, let computer, let port): return DeskWireRule.refusal(computer: computer, port: port, in: group)
+        case .move(let from, let to): return DeskWireRule.move(from: from, to: to, in: group)
+        case .remove, .click, .nothing: return nil
+        }
+    }
+    /// A refused wire leaves the desk as it was and says why, here and in the log.
+    private func refuse(_ refusal: DeskWireRule.Refusal) {
+        problem = refusal.reason
+        PerchLog.record("desk.edit", "Refused: " + refusal.reason)
+    }
     /// Move a detached connection's monitor end to another input. The change is
     /// to the preset being edited. A cable can only be in one input, so unless
     /// that computer is already connected to the input it was dropped on, the
     /// cable moves and the other presets that used it follow it there rather
-    /// than being left pointing at an input with nothing plugged into it. A
-    /// different computer already on that input is replaced, losing its routes.
+    /// than being left pointing at an input with nothing plugged into it. An
+    /// input with another computer's cable is refused (`DeskWireRule`).
     func moveWire(from sourceID: UUID, to targetID: UUID) {
         guard let source = group.connections.first(where: { $0.id == sourceID }),
               let target = group.connections.first(where: { $0.id == targetID }), sourceID != targetID,
               let computer = source.computer, group.presets.indices.contains(presetIndex) else { return }
+        if let refusal = DeskWireRule.move(from: sourceID, to: targetID, in: group) { refuse(refusal); return }
         let slot = presetIndex, plugged = target.computer == computer
         edit { g in
-            if !plugged {
-                if let owner = target.computer, owner != computer {
-                    for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == targetID } }
-                }
-                try DeskCableBinding.rewire(source, to: target, in: &g)
-            }
+            if !plugged { try DeskCableBinding.rewire(source, to: target, in: &g) }
             for p in g.presets.indices where p == slot || (!plugged && g.presets[p].assignments.contains { $0.connection == sourceID }) {
                 g.presets[p].assignments.removeAll { $0.connection == sourceID || $0.monitor == target.monitor }
                 g.presets[p].assignments.append(.init(monitor: target.monitor, connection: targetID))
@@ -387,7 +453,11 @@ final class DeskModel: ObservableObject {
         do {
             try change(&draft); _ = try draft.validated()
             try backend.edit(draft); group = draft; problem = nil
-        } catch { problem = error.localizedDescription }
+        } catch {
+            problem = error.localizedDescription
+            // Noted once per reason: a name typed letter by letter repeats it.
+            PerchLog.note("desk.edit", "Refused: " + error.localizedDescription)
+        }
     }
     func renameMonitor(_ name: String) { guard let id = selected else { return }; edit { g in if let i = g.monitors.firstIndex(where: { $0.id == id }) { g.monitors[i].name = name } } }
     func move(_ id: UUID, x: Double, y: Double) {
@@ -418,18 +488,17 @@ final class DeskModel: ObservableObject {
         edit { g in g.presets[index].assignments.removeAll { $0.monitor == monitor }; if let connection { g.presets[index].assignments.append(.init(monitor: monitor, connection: connection)) } }
     }
     /// A wire from a computer's numbered connector to a monitor input: that preset
-    /// uses the input. A different computer already on the input is replaced,
-    /// taking its routes with it. Claiming the input for this computer and
-    /// matching its display is the page's next step, so a drawn wire never ends
-    /// up saved but invisible on an input that belongs to no computer.
+    /// uses the input, switching the screen there from whatever it showed in that
+    /// preset. An input with another computer's cable, or a second input for this
+    /// computer on the same screen, is refused (`DeskWireRule`). Claiming the
+    /// input for this computer and matching its display is the page's next step,
+    /// so a drawn wire never ends up saved but invisible on an input that
+    /// belongs to no computer.
     func drawWire(slot: Int, computer: UUID, port portID: UUID) {
         guard (1...3).contains(slot), let port = group.connections.first(where: { $0.id == portID }),
               group.computers.contains(where: { $0.id == computer }) else { return }
+        if let refusal = DeskWireRule.refusal(computer: computer, port: portID, in: group) { refuse(refusal); return }
         edit { g in
-            if let owner = port.computer, owner != computer {
-                for p in g.presets.indices { g.presets[p].assignments.removeAll { $0.connection == portID } }
-                try DeskCableBinding.apply(connection: portID, computer: nil, display: nil, to: &g)
-            }
             g.presets[slot - 1].assignments.removeAll { $0.monitor == port.monitor }
             g.presets[slot - 1].assignments.append(.init(monitor: port.monitor, connection: portID))
         }

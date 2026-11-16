@@ -1424,6 +1424,19 @@ functional host, Sparkle fixtures), now writes to `local.scott.perch.test`
 Macs in `desk.wire` lines were all network check fixtures: over four days the
 running Perch named only the Studio (85EA48EB).
 
+**Desk wires the desk can't have (November 16).** Scott asked for impossible
+connections to show red and be refused. Refused, with the reason beside the
+wire, in the menus and the cable step, and in the log (`desk.edit`): an input
+with another computer's cable (it used to be taken over silently, and the other
+computer lost its presets there), and a second input for the same computer on
+one screen (his example). Moving a wire to another input still moves the cable.
+Changing which computer a screen shows in a preset stays allowed (his choice).
+A saved desk that already breaks the second rule shows those inputs and wires
+red. `DeskWireRule` in `DeskModel.swift`; pinned by `runDeskWireRefusalTests`
+and the desk canvas render (`--scenario refused`). Scott's saved desk breaks
+neither rule. *Needs a live look:* the reason label beside the held wire draws
+only in a real window, so it has not been seen yet.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

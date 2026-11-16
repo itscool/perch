@@ -54,6 +54,8 @@ extension View {
     /// A detached connection dropped in empty space.
     var removeWire: ((UUID) -> Void)?
     var connection: ((String) -> KVMConnection?)?
+    /// Why letting go would be refused (`DeskWireRule`), or nil when it would work.
+    var rule: ((DeskWireOutcome) -> String?)?
     /// Whether the preset being edited uses this input, so only a wire the
     /// person can actually see is picked up. An input connected for other
     /// presets, or connected with no wire drawn, starts a new wire instead.
@@ -72,6 +74,13 @@ extension View {
         }
         return gesture.source
     }
+    /// Why the wire in hand cannot be connected to this socket, or nil. Only
+    /// sockets it could reach are asked, and only while it is being dragged.
+    func refusal(at socket: String) -> String? {
+        guard gesture.dragging, let source = gesture.source, let effective = cableSource, DeskWireGesture.compatible(effective, socket) else { return nil }
+        return rule?(DeskWireOutcome.resolve(source: source, target: socket, dragging: true, insideSource: false, detached: pickedUp?.id))
+    }
+    var targetRefusal: String? { target.flatMap(refusal(at:)) }
     func register(_ view: DeskWireSocketView) {
         sockets[view.socketID] = WeakSocket(view)
         if gesture.source != nil { observeGeometry(of: view); scheduleGeometryUpdate() }
@@ -176,17 +185,19 @@ struct DeskWireSocket: NSViewRepresentable {
     /// Computer connectors draw their own slot number; port sockets show
     /// membership as SwiftUI chips beside the label instead.
     var drawsNumbers = true
+    /// Why this saved input breaks the desk's rules (`DeskWireRule.problem`).
+    var problem: String? = nil
     var menu: (() -> DeskSocketMenu)? = nil
     func makeNSView(context: Context) -> DeskWireSocketView { DeskWireSocketView(frame: .zero) }
     func updateNSView(_ view: DeskWireSocketView, context: Context) {
         if view.socketID != id { view.controller?.remove(view) }
         view.socketID = id; view.connected = connected; view.presetNumbers = presetNumbers; view.highlighted = highlighted; view.activeRouting = activeRouting; view.controller = controller; view.makeMenu = menu
-        view.drawsNumbers = drawsNumbers
+        view.drawsNumbers = drawsNumbers; view.problem = problem
         view.setAccessibilityLabel(label)
         let routeState = (highlighted ? "; selected in editing preset" : "") + (activeRouting ? "; active now" : "")
-        view.setAccessibilityValue(presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState)
+        view.setAccessibilityValue((problem.map { $0 + " " } ?? "") + (presetNumbers.isEmpty ? (activeRouting ? "Active now" : "No presets") : "Presets " + presetNumbers.map(String.init).joined(separator: ", ") + routeState))
         let wireHere = connected && highlighted && id.hasPrefix("port:")
-        view.toolTip = label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (wireHere ? ". Drag this wire to another input, or into empty space to leave this screen out of the preset you are editing; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire for the preset you are editing. Click for connections."))
+        view.toolTip = (problem.map { $0 + "\n" } ?? "") + label + (id.hasPrefix("preset:") ? ". Drag to a monitor input to connect it in this preset; click for choices." : (wireHere ? ". Drag this wire to another input, or into empty space to leave this screen out of the preset you are editing; Esc cancels. Click for the port menu." : ". Drag to a computer’s numbered connector to draw a wire for the preset you are editing. Click for connections."))
         controller.register(view); view.needsDisplay = true
     }
     static func dismantleNSView(_ view: DeskWireSocketView, coordinator: ()) { view.controller?.remove(view) }
@@ -198,6 +209,7 @@ final class DeskWireSocketView: NSView {
     var highlighted = false
     var activeRouting = false
     var drawsNumbers = true
+    var problem: String?
     weak var controller: DeskWireController?
     var makeMenu: (() -> DeskSocketMenu)?
     private(set) var hovered = false
@@ -238,6 +250,10 @@ final class DeskWireSocketView: NSView {
         let center = attachmentPoint
         let isComputer = socketID.hasPrefix("computer:") || socketID.hasPrefix("preset:")
         let active = controller?.target == socketID
+        // Red: the wire in hand can't connect here, or this saved input breaks
+        // the desk's rules. Teal stays for where it can go.
+        let refused = controller?.refusal(at: socketID) != nil || (problem != nil && controller?.gesture.dragging != true)
+        let accent = refused ? NSColor.systemRed : NSColor.systemTeal
         func halfCircle(_ radius: CGFloat) -> NSBezierPath {
             let path = NSBezierPath()
             path.appendArc(withCenter: center, radius: radius, startAngle: isComputer ? 180 : 0, endAngle: isComputer ? 360 : 180)
@@ -249,14 +265,14 @@ final class DeskWireSocketView: NSView {
             StatusColors.success.withAlphaComponent(0.32).setFill(); halfCircle(13).fill()
         }
         if hovered || active {
-            NSColor.systemTeal.withAlphaComponent(active ? 0.25 : 0.14).setFill(); halfCircle(12).fill()
+            accent.withAlphaComponent(active ? 0.25 : 0.14).setFill(); halfCircle(12).fill()
         }
         // The straight edge meets the device outline; the curved side is inside.
         let socket = halfCircle(8)
         NSColor.controlBackgroundColor.setFill(); socket.fill()
         let detached = controller?.detachedPort.map { socketID == "port:" + $0.uuidString } ?? false
-        let base = isComputer ? NSColor.systemBlue : NSColor.systemIndigo
-        let color = hovered || active ? NSColor.systemTeal : base
+        let base = refused ? NSColor.systemRed : isComputer ? NSColor.systemBlue : NSColor.systemIndigo
+        let color = hovered || active ? accent : base
         color.setFill(); color.setStroke()
         socket.lineWidth = active || hovered ? 2.5 : 1.5
         if connected && !detached { socket.fill() } else { socket.stroke() }
@@ -288,12 +304,27 @@ final class DeskWireOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let controller, controller.gesture.dragging, let start = controller.center(controller.cableSource) else { return }
         let a = convert(start, from: nil), b = convert(controller.center(controller.target) ?? controller.gesture.point, from: nil)
+        let refusal = controller.targetRefusal
         let path = NSBezierPath(); path.move(to: a)
         let middle = (a.y + b.y) / 2
         path.curve(to: b, controlPoint1: CGPoint(x: a.x, y: middle), controlPoint2: CGPoint(x: b.x, y: middle))
         path.lineWidth = 2.5
-        (controller.target == nil ? NSColor.secondaryLabelColor : NSColor.systemTeal).setStroke()
-        if controller.target == nil { path.setLineDash([4, 4], count: 2, phase: 0) }
+        (controller.target == nil ? NSColor.secondaryLabelColor : refusal != nil ? NSColor.systemRed : NSColor.systemTeal).setStroke()
+        if controller.target == nil || refusal != nil { path.setLineDash([4, 4], count: 2, phase: 0) }
         path.stroke()
+        if let refusal { drawReason(refusal, near: convert(controller.gesture.point, from: nil)) }
+    }
+    /// The reason beside the pointer, kept inside the canvas.
+    private func drawReason(_ reason: String, near point: CGPoint) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.white]
+        let text = NSAttributedString(string: reason, attributes: attributes)
+        let size = text.boundingRect(with: NSSize(width: 240, height: 200), options: [.usesLineFragmentOrigin, .usesFontLeading]).size
+        let box = CGSize(width: ceil(size.width) + 12, height: ceil(size.height) + 8)
+        var origin = CGPoint(x: point.x + 14, y: isFlipped ? point.y + 14 : point.y - 14 - box.height)
+        origin.x = min(max(bounds.minX + 4, origin.x), bounds.maxX - box.width - 4)
+        origin.y = min(max(bounds.minY + 4, origin.y), bounds.maxY - box.height - 4)
+        let frame = CGRect(origin: origin, size: box)
+        NSColor.systemRed.setFill(); NSBezierPath(roundedRect: frame, xRadius: 6, yRadius: 6).fill()
+        text.draw(with: frame.insetBy(dx: 6, dy: 4), options: [.usesLineFragmentOrigin, .usesFontLeading])
     }
 }

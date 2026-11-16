@@ -170,5 +170,19 @@ func runDeskInputRecoveryTests() throws {
     try check(recovery.disabled(at: 30), "After a rebuild, a single timeout was not turned straight back on")
     var spread = DeskTapRecovery()
     for second in stride(from: 0.0, to: 60, by: 4) { try check(spread.disabled(at: second), "Timeouts spread over a minute led to a rebuild") }
-    print("PASS: the input tap is turned back on after a timeout and rebuilt by itself after repeated ones")
+    // Every reason sharing is not running is said in one place, names the Mac,
+    // and never tells someone to turn on Share when the Mac is locked, missing
+    // access or chose local control.
+    for reason in KVMShareReason.allCases {
+        let there = KVMInputStatus.there("Mac Studio", reason), here = KVMInputStatus.here(reason)
+        try check(there.contains("Mac Studio") && !there.lowercased().contains("turn on share") && !here.lowercased().contains("turn on share"),
+                  "The reason \(reason) was not named plainly: \(there) / \(here)")
+        try check(KVMInputStatus.sentence(.notSharing("Mac Studio", reason)) == there, "A Mac's own reason was not the sentence shown for it")
+    }
+    try check(KVMInputStatus.sentence(.notSharing("Mac Studio", nil)).contains("Share on this Mac is off on Mac Studio"),
+              "A Mac that is not sharing and gave no reason was not said to have Share off")
+    try check(KVMInputStatus.there("Mac Studio", .locked) == "Mac Studio is locked. Unlock it to share.", "A locked Mac was not named as locked")
+    try check(!KVMInputStatus.layoutChanged.contains("Control to resume") && KVMInputStatus.layoutChanged.contains("by itself"),
+              "After a desk change, the status still sent the person to a Control action that does not exist")
+    print("PASS: the input tap is turned back on after a timeout and rebuilt by itself after repeated ones; every reason sharing is not running is worded in one place and names the Mac")
 }

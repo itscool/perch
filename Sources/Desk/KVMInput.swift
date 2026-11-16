@@ -273,3 +273,55 @@ struct KVMInputHeld {
         return releases
     }
 }
+
+enum KVMInputMessage: Codable {
+    /// A readiness poll: the lease challenge, whether this Mac can share now
+    /// (false also while it chose local control with Ctrl-Opt-Esc), and if not,
+    /// why (`KVMShareReason`; none from an older Perch).
+    case poll(UUID, Bool, String?)
+    case wakeDisplay
+    /// The coordinator's answer. The last value counts the times someone chose
+    /// a preset or Share on any Mac, so a Mac that chose local control with
+    /// Ctrl-Opt-Esc takes part again after such a choice (nil from an older Perch).
+    /// The very last value says why each Mac that cannot share cannot, as it said.
+    case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?, Int?, [UUID: String]?)
+    /// preset, screen, the requester's pointer position, and whether the request
+    /// is automatic or the person's own. Once sharing runs, only the person's
+    /// places the pointer; see `placementAllowed`.
+    case focus(UUID, UUID, KVMPoint?, Bool)
+    case prepare(KVMInputGrant)
+    case prepared(UUID)
+    case installed(UUID)
+    /// Stop a grant (nil: any). The flag is true when the person chose local
+    /// control with Ctrl-Opt-Esc, so the coordinator leaves this Mac out of the
+    /// next grant at once; an older Perch sends none.
+    case stop(UUID?, Bool?)
+    case event(UUID, UInt64, KVMInputEvent)
+    case delivery(UUID, UUID, UInt64, KVMInputEvent, KVMInputFocus)
+    case heartbeat(UUID, UUID)
+    case heartbeatAck(UUID, UUID)
+    case inspect(UUID, String, UUID)
+    case visible(UUID, UUID, UInt16?)
+    /// Which sharing version this Mac speaks. A Perch that predates versioning
+    /// never sends one and cannot decode it, which is itself the answer.
+    case version(Int)
+    /// What this Mac's sharing can do beyond its version (`KVMInputProtocol.features`).
+    /// An older Perch cannot decode it and ignores it, so it reads as none.
+    case features([String])
+}
+
+/// Where each kind of input goes. The pointer goes where you move it; the keys
+/// go where you last clicked, the way one Mac decides which window is typed
+/// into. Hovering another Mac's screen no longer takes the keyboard with it.
+enum KVMInputRouting {
+    static func typing(_ kind: KVMInputEvent.Kind) -> Bool {
+        kind == .keyDown || kind == .keyUp || kind == .modifiers
+    }
+    /// The focus an event is delivered to: the keyboard's for typing, the
+    /// pointer's for everything else.
+    static func target(_ kind: KVMInputEvent.Kind, pointer: KVMInputFocus, keyboard: KVMInputFocus?) -> KVMInputFocus {
+        typing(kind) ? (keyboard ?? pointer) : pointer
+    }
+    /// A click is what moves typing to that Mac.
+    static func claimsKeyboard(_ kind: KVMInputEvent.Kind) -> Bool { kind == .buttonDown }
+}

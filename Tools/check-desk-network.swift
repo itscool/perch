@@ -713,6 +713,21 @@ final class FixturePopups: DeskPastePresenting {
         var noButton = KVMInputEvent(kind: .motion, x: 1, y: 0); noButton.dragging = false
         _ = inputA.capture(noButton)
         try wait("a move with no button down lets go of the lost one on B") { deliveries[beforeLost...].contains { $0.0 == b.localID && $0.1.kind == .buttonUp } }
+        // A Mac that cannot share says why, and the other Mac says that, not
+        // "turn on Share": here B is locked.
+        inputB.readyReason = { .locked }
+        inputB.ready = { false }
+        try wait("A names B as locked") { inputA.readinessIssue(preset: preset, monitor: screenB) == KVMInputStatus.there(b.localName, .locked) }
+        inputB.ready = { true }; inputB.readyReason = { nil }
+        try wait("B shares again once unlocked") {
+            if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
+            return inputA.readinessIssue(preset: preset, monitor: screenB) == nil && onBoth(b.localID) || onBoth(a.localID)
+        }
+        if !onBoth(b.localID) {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            _ = push(inputA, on: screenA, dx: 300)
+            try wait("the pointer is back on B after the lock") { onBoth(b.localID) }
+        }
         // A desk with an older Perch on it: B announces nothing beyond version 2.
         // Typing follows the pointer again at each handoff, as it does there,
         // and keys an older Perch refuses stay on the Mac they were typed on.
@@ -737,17 +752,18 @@ final class FixturePopups: DeskPastePresenting {
         // decode there: fields added since are optional.
         enum Old: Codable { case poll(UUID, Bool); case stop(UUID?); case state(UUID, KVMInputGrant?, String?, Set<UUID>, Set<UUID>, KVMInputFocus?, KVMInputFocus?) }
         let nonce = UUID(), encoder = JSONEncoder(), decoder = JSONDecoder()
-        guard case .poll(nonce, true)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.poll(nonce, true))),
+        guard case .poll(nonce, true, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.poll(nonce, true))),
               case .stop(nil, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.stop(nil))),
-              case .state(nonce, nil, nil, [], [], nil, nil, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.state(nonce, nil, nil, [], [], nil, nil))),
+              case .state(nonce, nil, nil, [], [], nil, nil, nil, nil)? = try? decoder.decode(KVMInputMessage.self, from: encoder.encode(Old.state(nonce, nil, nil, [], [], nil, nil))),
               case .stop(nil)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.stop(nil, true))),
-              case .state(nonce, nil, nil, [], [], nil, nil)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.state(nonce, nil, nil, [], [], nil, nil, 4))) else {
+              case .state(nonce, nil, nil, [], [], nil, nil)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.state(nonce, nil, nil, [], [], nil, nil, 4, [nonce: "locked"]))),
+              case .poll(nonce, false)? = try? decoder.decode(Old.self, from: encoder.encode(KVMInputMessage.poll(nonce, false, "locked"))) else {
             throw KVMError("Messages no longer decode between this build and 2.0.311")
         }
         var draggingMove = KVMInputEvent(kind: .motion, x: 1); draggingMove.dragging = true
         struct OldEvent: Codable { var kind: KVMInputEvent.Kind; var x: Double }
         guard (try? decoder.decode(OldEvent.self, from: encoder.encode(draggingMove)))?.x == 1 else { throw KVMError("A move from this build does not decode on 2.0.311") }
-        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
+        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a Mac that cannot share says why and the other Mac names it; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false

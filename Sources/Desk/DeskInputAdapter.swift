@@ -22,6 +22,8 @@ final class DeskInputAdapter: ObservableObject {
     /// Bring over the newest copy, for the Mac typing goes to.
     var bringOver: (() -> Void)?
     @Published private(set) var accessProblem: String?
+    /// Why this Mac cannot share, for the other Macs.
+    private var shareReason: KVMShareReason?
     /// A fact worth showing that does not stop sharing.
     @Published private(set) var note: String?
     private var tapRecovery = DeskTapRecovery()
@@ -67,6 +69,7 @@ final class DeskInputAdapter: ObservableObject {
         self.session = session
         eventSource?.localEventsSuppressionInterval = 0
         session.ready = { [weak self] in self?.healthy == true }
+        session.readyReason = { [weak self] in self?.shareReason }
         session.emit = { [weak self] event, location in self?.post(event, focus: location) }
         session.release = { [weak self] in self?.releasePosted() }
         session.keepAwake = { [weak self] in self?.declareActivity() }
@@ -159,15 +162,19 @@ final class DeskInputAdapter: ObservableObject {
     }
     private func checkAccess() {
         let console = CGSessionCopyCurrentDictionary() as? [String: Any]
-        let issue: String?
-        if !AccessCheck.accessibilityWithPosting { issue = "Allow Perch in System Settings → Privacy & Security → Accessibility. This is the Perch app’s access; Perch Helper’s existing access is separate." }
-        else if !AccessCheck.inputMonitoring { issue = "Allow Perch in System Settings → Privacy & Security → Input Monitoring. If it is already enabled, reopen this copy from Finder and try again." }
-        else if screenLocked || console?["CGSSessionScreenIsLocked"] as? Bool == true { issue = "The lock screen is active. Unlock this Mac to resume sharing." }
-        else if console?[kCGSessionOnConsoleKey as String] as? Bool != true || console?[kCGSessionLoginDoneKey as String] as? Bool != true { issue = "This user session is inactive. Resume sharing after returning to it." }
-        else if tapStartFailed { issue = "macOS could not start input sharing on this Mac. Perch tries again every few seconds." }
-        else if tapRecovery.rebuilding { issue = "macOS kept stopping input sharing on this Mac. Control is local; Perch starts it again in a few seconds." }
-        else if let tap, !CGEvent.tapIsEnabled(tap: tap), !reenableTap() { issue = "macOS kept stopping input sharing on this Mac. Control is local; Perch starts it again in a few seconds." }
-        else { issue = nil }
+        let reason: KVMShareReason?
+        if !AccessCheck.accessibilityWithPosting { reason = .needsAccessibility }
+        else if !AccessCheck.inputMonitoring { reason = .needsInputMonitoring }
+        else if screenLocked || console?["CGSSessionScreenIsLocked"] as? Bool == true { reason = .locked }
+        else if console?[kCGSessionOnConsoleKey as String] as? Bool != true || console?[kCGSessionLoginDoneKey as String] as? Bool != true { reason = .inactiveSession }
+        else if tapStartFailed { reason = .captureFailed }
+        else if tapRecovery.rebuilding { reason = .captureRestarting }
+        else if let tap, !CGEvent.tapIsEnabled(tap: tap), !reenableTap() { reason = .captureRestarting }
+        else { reason = nil }
+        // Worded once for every Mac (`KVMInputStatus`); the other Macs hear the
+        // reason itself with this Mac's polls.
+        shareReason = reason
+        let issue = reason.map(KVMInputStatus.here)
         if accessProblem != issue { accessProblem = issue }
         healthy = issue == nil
         // The reason sharing cannot start is shown in Desk, but nothing

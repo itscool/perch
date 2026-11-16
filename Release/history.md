@@ -1,6 +1,15 @@
 # Perch release history
 
-## 2.0.301 — Current
+## 2.0.311 — Current
+
+- Fixed a fault that filled the connection between the Macs and delayed switches, copies and the pointer.
+- The active preset is the one the screens show, and a switch is confirmed as soon as the picture moves.
+- ⌃⌥⌘V pastes the newest copy from any Mac into the app you are in. A folder with a broken link inside comes over too.
+- Sleep disabled outside Perch can be controlled from Perch; the menu says who set it. Restart and updates work with the lid closed. The lid helper updates once.
+- Versions across the desk read as from → to, and only updates that can happen are offered.
+- Shorter menu tooltips; the disk line starts with the disk's size. Every Mac on the desk needs this version.
+
+## 2.0.301
 
 - Copy on one Mac of the desk and paste on another: text straight away, and pictures, files and folders with ⌃⌥⌘V. Private copies such as passwords never leave the Mac.
 - A Mac running a newer Perch can update the others on the desk, with no click needed on them.

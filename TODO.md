@@ -1496,7 +1496,10 @@ the owner, `KVMPointerRules`, `KVMInputStatus` with each Mac's reason in its
 poll), and a Mac on another sharing version is left out of grants. Per-app
 navigation-key exceptions judged on the pointer's Mac stay open. *Needs both
 Macs:* media keys, a pinch and a swipe on the trackpad with the pointer away,
-the speed matching across the two LG screens, the secure entry popup.
+the speed matching across the two LG screens, the secure entry popup, and that
+Ctrl-Opt-Cmd-Esc does not also open macOS's Force Quit. The escape shortcut is
+now Ctrl-Opt-Cmd-Esc (Scott, November 16; the Agent Kill Switch that held it is
+gone); plain Ctrl-Opt-Esc is an ordinary key again.
 *Prevent idle lock, fixed November 16 (Scott: it never worked; make it work,
 on the work Mac too).* Cause, from the logs: loginwindow starts the screen
 saver and lock from the session idle clock; Perch's null HID event reset only

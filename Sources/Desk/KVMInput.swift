@@ -15,7 +15,9 @@ enum KVMInputProtocol {
     /// other Macs so a desk with an older Perch on it falls back gracefully.
     static let typingAcrossHandoffs = "typing-across-handoffs"
     static let wideInput = "wide-input"
-    static var features: Set<String> = [typingAcrossHandoffs, wideInput]
+    /// Volume, brightness and play/pause keys follow the pointer.
+    static let mediaKeys = "media-keys"
+    static var features: Set<String> = [typingAcrossHandoffs, wideInput, mediaKeys]
 }
 
 enum KVMInputConfiguration {
@@ -70,7 +72,9 @@ enum KVMInputConfiguration {
 /// Deliberately small wire vocabulary, never an archived native CGEvent.
 /// No text, clipboard contents, passwords or input history are persisted.
 struct KVMInputEvent: Codable, Equatable {
-    enum Kind: String, Codable { case motion, buttonDown, buttonUp, keyDown, keyUp, modifiers, scroll }
+    /// `mediaDown`/`mediaUp`: volume, brightness, play/pause and the other
+    /// media keys (macOS's system-defined key events), code = the key type.
+    enum Kind: String, Codable { case motion, buttonDown, buttonUp, keyDown, keyUp, modifiers, scroll, mediaDown, mediaUp }
     var kind: Kind
     var code: UInt16 = 0
     var flags: UInt64 = 0
@@ -95,6 +99,10 @@ struct KVMInputEvent: Codable, Equatable {
     /// Motion made with a mouse button held, a drag. Optional, so an older
     /// Perch neither sends nor needs it.
     var dragging: Bool? = nil
+    /// The same movement in desk millimetres, from the sending Mac's own screen
+    /// scale, so it covers the same distance on every screen of the desk. An
+    /// older Perch neither sends nor reads it and moves by points as before.
+    var mm: KVMPoint? = nil
     static let flagMask: UInt64 = 0x00FF_0000
     /// A key or button an older Perch refuses: newer function-row keys, extra buttons.
     var wide: Bool {
@@ -109,6 +117,7 @@ struct KVMInputEvent: Codable, Equatable {
         guard flags & ~Self.flagMask == 0, (0...3).contains(clickCount), x.isFinite, y.isFinite, abs(x) <= 10_000, abs(y) <= 10_000,
               [0, 1, 2, 4, 8, 128].contains(phase), (0...3).contains(momentum) else { return false }
         if let absolute { guard absolute.x.isFinite, absolute.y.isFinite, abs(absolute.x) <= 100_000, abs(absolute.y) <= 100_000 else { return false } }
+        if let mm { guard mm.x.isFinite, mm.y.isFinite, abs(mm.x) <= 10_000, abs(mm.y) <= 10_000 else { return false } }
         switch kind {
         // Key codes above 127 are Apple's newer function-row keys (Mission
         // Control, Spotlight, Dictation); refused, they acted on the wrong Mac.
@@ -116,6 +125,7 @@ struct KVMInputEvent: Codable, Equatable {
         case .modifiers: return [54,55,56,57,58,59,60,61,62,63].contains(code) && !repeated
         case .buttonDown, .buttonUp: return code <= 31 && !repeated
         case .motion, .scroll: return code == 0 && !repeated
+        case .mediaDown, .mediaUp: return code <= 31 && (kind == .mediaDown || !repeated)
         }
     }
 }
@@ -305,6 +315,9 @@ enum KVMInputMessage: Codable {
     /// Which sharing version this Mac speaks. A Perch that predates versioning
     /// never sends one and cannot decode it, which is itself the answer.
     case version(Int)
+    /// Secure keyboard entry on the sending Mac holds the keys meant for the Mac
+    /// it is sent to: on or off, and the app holding it.
+    case secureInput(Bool, String?)
     /// What this Mac's sharing can do beyond its version (`KVMInputProtocol.features`).
     /// An older Perch cannot decode it and ignores it, so it reads as none.
     case features([String])

@@ -32,6 +32,9 @@ struct KVMNativeEvent {
             let type: CGEventType = value.code == 0 ? (down ? .leftMouseDown : .leftMouseUp) : value.code == 1 ? (down ? .rightMouseDown : .rightMouseUp) : (down ? .otherMouseDown : .otherMouseUp)
             event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: CGMouseButton(rawValue: UInt32(value.code))!)
             event?.setIntegerValueField(.mouseEventClickState, value: Int64(value.clickCount))
+        case .mediaDown, .mediaUp:
+            // Posted as a system-defined event by the adapter (`DeskMediaKey`).
+            return nil
         case .scroll:
             if value.continuous {
                 let y = value.y + scrollRemainder.y, x = value.x + scrollRemainder.x

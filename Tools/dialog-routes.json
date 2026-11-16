@@ -23,12 +23,6 @@
     "review": "APP-REPLACEMENT-REVIEW.md; deferred once-per-process notice, Later/Back, existing verified restart route; ACCESSIBILITY-REVIEW-81.md shared keyboard/accessibility implementation",
     "acceptance": "Build 81 full isolated suite and shared native keyboard-lab journeys passed; individual production-route native input and spoken VoiceOver remain release acceptance"
   },
-  "DeskLiveSettings.swift:deskInputPreferences:page:1": {
-    "file": "DeskLiveSettings.swift",
-    "kind": "page",
-    "review": "Shared input retains its feature settings; Desk names move inline and all shortcut controls belong to Hotkeys.",
-    "acceptance": "Static-only corrections. Regression fixture compilation and source contract gate; native execution and real settings journeys remain pending. Prior build acceptance does not verify these changes."
-  },
   "DeskLiveSettings.swift:deskSettings:page:1": {
     "file": "DeskLiveSettings.swift",
     "kind": "page",

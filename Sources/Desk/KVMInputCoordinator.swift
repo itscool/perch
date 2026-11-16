@@ -75,6 +75,10 @@ final class KVMInputCoordinator {
     /// installed it rather than at the decision.
     private var crossingGrant: UUID?
 
+    /// The Macs a new grant takes in: ready now and sharing the same way. A Mac
+    /// on another sharing version is left out rather than offered a handoff it
+    /// would ignore, which stalled everyone for 3 s and repeated.
+    private var sharers: Set<UUID> { Set(readiness.keys.filter { fresh($0) && session.versionIssue($0) == nil }).union([node.localID]) }
     /// The Macs whose sharing is on and ready now, this one included.
     var sharingComputers: Set<UUID> { Set(readiness.keys.filter(fresh)).union(fresh(node.localID) ? [node.localID] : []) }
     /// Forget what the monitors were seen showing; the desk changed.
@@ -146,7 +150,7 @@ final class KVMInputCoordinator {
                 PerchLog.record("input.join", name + " joined the shared desk; the pointer stays where it is")
                 let old = grant.participants
                 prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
-                              participants: Set(readiness.keys.filter(fresh)).union([node.localID, peer]), focus: pointer))
+                              participants: sharers.union([peer]), focus: pointer))
                 fallback = (old, pointer)
                 return
             }
@@ -157,7 +161,7 @@ final class KVMInputCoordinator {
                 localProblem = "Move the pointer onto one of the desk's screens to start sharing. Perch will not jump it somewhere you did not put it."
                 return
             }
-            let participants = Set(readiness.keys.filter(fresh)).union([node.localID])
+            let participants = sharers
             prepare(.init(id: UUID(), epoch: node.graph.roster.epoch, revision: revision, preset: preset,
                           participants: participants, focus: .init(monitor: monitor, computer: owner, position: entry)))
         case .prepared(let id):
@@ -342,9 +346,16 @@ final class KVMInputCoordinator {
             // mid-drag lost the button's release on one Mac and dropped the drag
             // at the edge of the other, so the pointer waits at the edge instead.
             let dragging = value.dragging == true || held.buttonHeld
-            let scale = motionScale(location)
-            guard scale.x.isFinite, scale.y.isFinite, scale.x > 0, scale.y > 0 else { return }
-            let proposed = KVMPoint(x: location.position.x + value.x * scale.x, y: location.position.y + value.y * scale.y)
+            // The sender's own millimetres when it knows them, so the same hand
+            // movement covers the same distance on every screen; else points
+            // read at the pointer's screen scale, as an older Perch sends.
+            let delta: KVMPoint
+            if let mm = value.mm { delta = mm } else {
+                let scale = motionScale(location)
+                guard scale.x.isFinite, scale.y.isFinite, scale.x > 0, scale.y > 0 else { return }
+                delta = KVMPoint(x: value.x * scale.x, y: value.y * scale.y)
+            }
+            let proposed = KVMPoint(x: location.position.x + delta.x, y: location.position.y + delta.y)
             if !screen.geometry.contains(proposed) {
                 location.position = .init(x: min(screen.geometry.right, max(screen.geometry.x, proposed.x)),
                                           y: min(screen.geometry.bottom, max(screen.geometry.y, proposed.y)))
@@ -357,7 +368,7 @@ final class KVMInputCoordinator {
                 switch KVMEdge.crossing(group: node.group, preset: preset, source: screen.id, from: from, to: proposed) {
                 case .remote(let monitor, let computer, let entry):
                     // A Mac that is ready but not yet in the grant joins it here.
-                    guard !dragging, !bouncesBack(monitor), fresh(computer),
+                    guard !dragging, !bouncesBack(monitor), fresh(computer), session.versionIssue(computer) == nil,
                           let target = node.group.monitors.first(where: { $0.id == monitor })?.geometry else { break }
                     lastCrossingAt = now; lastCrossingFrom = screen.id
                     // Carry on by as much as the hand went past the edge, so a

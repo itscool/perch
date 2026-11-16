@@ -186,6 +186,7 @@ final class DeskRuntime: ObservableObject {
         model = DeskModel(backend: backend, group: node.group)
         backend.runtime = self
         inputAdapter.bringOverShortcut = { [weak self] in self?.bringOverShortcut }
+        input.secureInputElsewhere = { [weak self] name, app, on in self?.secureNotice(name: name, app: app, on: on) }
         clipboard.waitingChanged = { [weak self] in DispatchQueue.main.async { self?.refreshShareStatus() } }
         node.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
         switching.objectWillChange.sink { [weak self] in DispatchQueue.main.async { self?.updateModel() } }.store(in: &subscriptions)
@@ -343,6 +344,20 @@ final class DeskRuntime: ObservableObject {
         let active = DeskBringOverShortcut.active(in: ShortcutRegistry.perch)
         bringOverShortcut = active
         PerchLog.note("clipboard.shortcut", active == nil ? "⌃⌥⌘V is already used by another Perch shortcut, so bring over is off" : "⌃⌥⌘V brings over the newest copy")
+    }
+    private let securePresenter = DeskPastePresenter()
+    private var secureProgress: DeskPasteProgress?
+    /// Secure keyboard entry on another Mac holds the keys meant for this one:
+    /// a popup says so here, where the person is looking, until it ends.
+    private func secureNotice(name: String, app: String?, on: Bool) {
+        secureProgress?.close(); secureProgress = nil
+        guard on else { return }
+        let words = KVMInputStatus.secureElsewhere(name: name, app: app)
+        let progress = DeskPasteProgress(title: words.title, clock: { ProcessInfo.processInfo.systemUptime },
+                                         after: { delay, run in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: run) })
+        securePresenter.present(progress)
+        progress.hold(words.line)
+        secureProgress = progress
     }
     /// One sentence of fact about keyboard and mouse control, never an instruction.
     private func inputStatus() -> String? {

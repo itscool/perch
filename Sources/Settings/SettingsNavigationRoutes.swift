@@ -39,7 +39,6 @@ extension AppDelegate {
             item("keyboard", "Keyboards", ["Keyboards", "Set up navigation keys"], #selector(keyboardSettings), flagsAttention: true),
             item("exceptions", "App exceptions", ["Navigation app exceptions"], #selector(navigationExceptions), depth: 1),
             item("desk", "Desk", ["Desk"], #selector(deskSettings), flagsAttention: true),
-            item("desk-input", "Input options", ["Input options"], #selector(deskInputPreferences), depth: 1),
             item("logs", "Logs", ["Logs"], #selector(logsSettings)),
             item("lid-activity", "Lid activity", ["Lid activity"], #selector(lidActivity), depth: 1),
             item("cpu-logs", "CPU logs", ["CPU logs"], #selector(cpuLogs), depth: 1),

@@ -36,6 +36,24 @@ final class KVMInputSession: ObservableObject {
             focusChanged()
         }
     }
+    /// Secure keyboard entry on another Mac holds the keys meant for this one:
+    /// that Mac's name, the app holding it, and whether it is on. Shown as a
+    /// popup here, where the person is looking (Scott, November 16).
+    var secureInputElsewhere: ((String, String?, Bool) -> Void)?
+    /// The Mac this one told that its own secure keyboard entry holds the keys.
+    private var secureTold: UUID?
+    /// This Mac's secure keyboard entry, checked by the native adapter: while it
+    /// is on and typing should go to another Mac, that Mac is told, once.
+    func secureInput(_ on: Bool, app: String?) {
+        let target = on ? keyboardComputer.flatMap { $0 == node.localID ? nil : $0 } : nil
+        guard target != secureTold else { return }
+        if let told = secureTold { send(.secureInput(false, nil), to: told) }
+        secureTold = target
+        if let target {
+            send(.secureInput(true, app.map { String($0.prefix(80)) }), to: target)
+            PerchLog.record("input.secure", "Secure keyboard entry" + (app.map { " in " + $0 } ?? "") + " keeps this Mac's keys here; the Mac typing goes to was told")
+        }
+    }
     /// Control moved. Called the instant focus changes, in both directions.
     var focusChanged: () -> Void = {}
     @Published var localProblem: String?
@@ -186,6 +204,7 @@ final class KVMInputSession: ObservableObject {
         if node.isOwner { coordinator.end() }
         // Typing outlives a handoff, but not sharing itself.
         keyboardFocus = nil
+        secureInput(false, app: nil)
     }
     func stopForLocalControl() {
         automaticStartSuppressed = true
@@ -353,6 +372,8 @@ final class KVMInputSession: ObservableObject {
         // when every Mac in the grant takes them; otherwise they stay here, as
         // they did before.
         if event.wide, !all(grant.participants, can: KVMInputProtocol.wideInput) { return false }
+        // Media keys follow the pointer only where every Mac takes them.
+        if event.kind == .mediaDown || event.kind == .mediaUp, !all(grant.participants, can: KVMInputProtocol.mediaKeys) { return false }
         let pointerFocus = focus ?? grant.focus
         if let typing = keyboardFocus, !grant.participants.contains(typing.computer) { keyboardFocus = nil }
         // Apply the click's effect here at once. Waiting to be told where typing
@@ -635,6 +656,11 @@ final class KVMInputSession: ObservableObject {
         case .heartbeat, .poll, .focus, .prepared, .installed, .stop, .event, .visible:
             // The owner's side: only the desk owner coordinates.
             if node.isOwner { coordinator.receive(message, peer: peer, now: now) }
+        case .secureInput(let on, let app):
+            guard peer != node.localID else { return }
+            let name = node.group.computers.first { $0.id == peer }?.name ?? "the other Mac"
+            PerchLog.record("input.secure", name + (on ? " holds its keys: secure keyboard entry" + (app.map { " in " + $0 } ?? "") : " no longer holds its keys"))
+            secureInputElsewhere?(name, app.map { String($0.prefix(80)) }, on)
         case .inspect(let id, let revision, let monitor):
             guard peer == node.ownerID, enabled, revision == configurationRevision, !inspecting.contains(monitor),
                   node.group.monitors.first(where: { $0.id == monitor })?.control?.computer == node.localID, let readMonitor else { return }

@@ -22,8 +22,9 @@ func runSettingsReviewFixTests() throws {
     buttons(access.view).first { $0.title == "Hide permission instructions" }!.performClick(nil)
     granted = false; access.refresh()
     try check(!drag.isHidden, "Lost access did not restore recovery")
-    host.navigate(to: host.sidebar.destinations.first { $0.id == "desk-input" }!)
-    try check(host.pages.count == 1 && host.pages.last?.title == "Input options" && host.back.isHidden && !host.interactionBusy, "Input settings is not a stable sidebar destination")
+    // Input options went on November 16: its only setting, pointer speed, is
+    // now matched automatically.
+    try check(!host.sidebar.destinations.contains { $0.id == "desk-input" }, "The empty Input options page came back")
     host.navigate(to: host.sidebar.destinations.first { $0.id == "hotkeys" }!)
     try check(host.pages.count == 1 && host.pages.last?.title == "Hotkeys" && host.back.isHidden, "Desk preferences retained sheet navigation")
 

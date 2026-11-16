@@ -184,5 +184,34 @@ func runDeskInputRecoveryTests() throws {
     try check(KVMInputStatus.there("Mac Studio", .locked) == "Mac Studio is locked. Unlock it to share.", "A locked Mac was not named as locked")
     try check(!KVMInputStatus.layoutChanged.contains("Control to resume") && KVMInputStatus.layoutChanged.contains("by itself"),
               "After a desk change, the status still sent the person to a Control action that does not exist")
-    print("PASS: the input tap is turned back on after a timeout and rebuilt by itself after repeated ones; every reason sharing is not running is worded in one place and names the Mac")
+    // Scott's choices of November 16.
+    // Media keys: read and posted as macOS's system-defined key events.
+    let volumeUp = DeskMediaKey.data1(code: 0, down: true, repeated: false), playUp = DeskMediaKey.data1(code: 16, down: false, repeated: false)
+    try check(DeskMediaKey(data1: volumeUp) == DeskMediaKey(data1: volumeUp) && DeskMediaKey(data1: volumeUp)?.down == true && DeskMediaKey(data1: playUp)?.code == 16 && DeskMediaKey(data1: playUp)?.down == false,
+              "A media key did not survive being read and written")
+    try check(DeskMediaKey(data1: 0) == nil && DeskMediaKey(data1: (40 << 16) | (0x0A << 8)) == nil, "Something that is not a media key was taken for one")
+    try check(KVMInputEvent(kind: .mediaDown, code: 16).valid && !KVMInputEvent(kind: .mediaUp, code: 16, repeated: true).valid && !KVMInputEvent(kind: .mediaDown, code: 32).valid,
+              "Media key events were not bounded")
+    // Gestures are ignored on this Mac only while the pointer is elsewhere.
+    try check(DeskGestures.types.isSuperset(of: [29, 30, 31, 34]) && DeskGestures.ignored(pointerElsewhere: true) && !DeskGestures.ignored(pointerElsewhere: false),
+              "Trackpad gestures acted on the hidden Mac, or were lost on this one")
+    // Speed: the same hand movement covers the same millimetres on a Retina
+    // screen and a non-Retina one of the same size.
+    let geometry = KVMGeometry(x: 0, y: 0, width: 600, height: 340)
+    guard let retina = DeskMotionScale.scale(bounds: CGRect(x: 0, y: 0, width: 2560, height: 1440), geometry: geometry),
+          let plain = DeskMotionScale.scale(bounds: CGRect(x: 0, y: 0, width: 1280, height: 720), geometry: geometry) else { throw KVMError("A screen had no scale") }
+    let travelled = DeskMotionScale.millimetres(dx: 256, dy: 0, scale: retina)
+    try check(abs(travelled.x - 60) < 0.001 && abs(DeskMotionScale.points(mm: travelled, scale: plain).x - 128) < 0.001,
+              "Movement did not cover the same distance on screens of different scale")
+    // The secure keyboard entry popup names the Mac and the app, and stays up
+    // until it ends.
+    let words = KVMInputStatus.secureElsewhere(name: "MacBook Pro", app: "Terminal")
+    try check(words.title == "Keys stay on MacBook Pro" && words.line.contains("Terminal"), "The secure keyboard entry popup did not name the Mac and the app")
+    var scheduled = 0
+    let notice = DeskPasteProgress(title: words.title, clock: { 0 }, after: { _, _ in scheduled += 1 })
+    notice.hold(words.line)
+    try check(scheduled == 0 && !notice.isClosed && notice.line == words.line, "The secure keyboard entry popup closed by itself before it ended")
+    notice.close()
+    try check(notice.isClosed, "The secure keyboard entry popup did not close when it ended")
+    print("PASS: the input tap is turned back on after a timeout and rebuilt by itself after repeated ones; every reason sharing is not running is worded in one place and names the Mac; media keys, ignored gestures, matched speed and the secure keyboard entry popup")
 }

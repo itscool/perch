@@ -728,6 +728,31 @@ final class FixturePopups: DeskPastePresenting {
             _ = push(inputA, on: screenA, dx: 300)
             try wait("the pointer is back on B after the lock") { onBoth(b.localID) }
         }
+        // Scott's choices of November 16. The pointer is on B.
+        // Volume, brightness and play/pause follow the pointer.
+        let beforeMedia = deliveries.count
+        guard inputA.capture(.init(kind: .mediaDown, code: 0)), inputA.capture(.init(kind: .mediaUp, code: 0)) else { throw KVMError("A media key stayed on the Mac it was pressed on") }
+        try wait("the media key reaches the Mac with the pointer") { deliveries[beforeMedia...].contains { $0.0 == b.localID && $0.1.kind == .mediaDown } }
+        // Movement covers the same distance whatever the screen's points: the
+        // sender's millimetres move the pointer, not its points.
+        var across = KVMInputEvent(kind: .motion, x: 0, y: 0); across.mm = KVMPoint(x: 100, y: 0)
+        _ = inputA.capture(across)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        var small = KVMInputEvent(kind: .motion, x: -1000, y: 0); small.mm = KVMPoint(x: -5, y: 0)
+        _ = inputA.capture(small)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard onBoth(b.localID) else { throw KVMError("Movement was measured in points rather than the millimetres the sender gave") }
+        // Secure keyboard entry on A, while typing goes to B, is said on B.
+        var secureSeen: [(String, String?, Bool)] = []
+        inputB.secureInputElsewhere = { name, app, on in secureSeen.append((name, app, on)) }
+        inputA.secureInput(true, app: "Terminal")
+        try wait("B is told A's keys stay on A") { secureSeen.contains { $0.0 == a.localName && $0.1 == "Terminal" && $0.2 } }
+        inputA.secureInput(true, app: "Terminal")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        guard secureSeen.count == 1 else { throw KVMError("The secure keyboard entry notice was sent again and again") }
+        inputA.secureInput(false, app: nil)
+        try wait("B is told when it ends") { secureSeen.last?.2 == false }
+        inputB.secureInputElsewhere = nil
         // A desk with an older Perch on it: B announces nothing beyond version 2.
         // Typing follows the pointer again at each handoff, as it does there,
         // and keys an older Perch refuses stay on the Mac they were typed on.
@@ -738,6 +763,7 @@ final class FixturePopups: DeskPastePresenting {
         muteFeaturesToA = true
         try announce([])
         guard !inputA.capture(.init(kind: .keyDown, code: 160)) else { throw KVMError("A key an older Perch refuses was sent to it, and lost") }
+        guard !inputA.capture(.init(kind: .mediaDown, code: 0)) else { throw KVMError("A media key was sent to a Perch that cannot post it, and lost") }
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         try announce([])
         _ = push(inputB, on: screenB, dx: -300)
@@ -763,7 +789,26 @@ final class FixturePopups: DeskPastePresenting {
         var draggingMove = KVMInputEvent(kind: .motion, x: 1); draggingMove.dragging = true
         struct OldEvent: Codable { var kind: KVMInputEvent.Kind; var x: Double }
         guard (try? decoder.decode(OldEvent.self, from: encoder.encode(draggingMove)))?.x == 1 else { throw KVMError("A move from this build does not decode on 2.0.311") }
-        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a Mac that cannot share says why and the other Mac names it; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
+        // A Mac on another sharing version is left out of a new grant rather than
+        // offered a handoff it would ignore.
+        _ = inputA.receive(KVMInputSession.wirePrefix + (try JSONEncoder().encode(KVMInputMessage.version(KVMInputProtocol.version + 3))), peer: b.localID)
+        try wait("A hears B speaks another version") { inputA.versionIssue(b.localID) != nil }
+        inputA.stop(); inputB.stop()
+        try wait("both local") { !inputA.active && !inputB.active }
+        inputA.start(preset: preset, monitor: screenA, automatic: true)
+        try wait("A shares without the Mac on another version") { inputA.active && inputA.focus?.computer == a.localID }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        guard !inputB.active, !inputB.preparing else { throw KVMError("A Mac on another sharing version was offered the handoff") }
+        _ = inputA.receive(KVMInputSession.wirePrefix + (try JSONEncoder().encode(KVMInputMessage.version(KVMInputProtocol.version))), peer: b.localID)
+        try wait("versions agree again") { inputA.versionIssue(b.localID) == nil }
+        try wait("B joins once its version matches", seconds: 40) {
+            if !inputB.active { inputB.start(preset: preset, monitor: screenB, automatic: true) }
+            return onBoth(a.localID)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        _ = push(inputA, on: screenA, dx: 300)
+        try wait("the pointer is on B for the checks below") { onBoth(b.localID) }
+        print("PASS: typing stays where you last clicked across crossings; only a push outwards from the very edge crosses, never movement off the desk's screens; a drag never crosses and a lost button release is recovered; the coordinator's own handoff keeps its clicks; a Mac that comes back joins without moving the pointer, and a join that cannot finish leaves the desk as it was; Ctrl-Opt-Esc holds, refuses handoffs and says why until someone chooses again on any Mac; a Mac that cannot share says why and the other Mac names it; media keys follow the pointer, movement is measured in millimetres, secure keyboard entry is said where typing goes, a Mac on another sharing version is left out; a desk with an older Perch falls back to what it can do; messages decode both ways with 2.0.311")
         guard b.group.sharedKeyboards?.first(where: { $0.id == mouse.id })?.deviceKind == .mouse else { throw KVMError("Mouse identity lost in signed synchronization") }
 
         visible = false

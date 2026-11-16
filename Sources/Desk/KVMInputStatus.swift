@@ -87,6 +87,11 @@ enum KVMInputStatus {
         case .captureRestarting: return "macOS kept stopping input sharing on " + name + ". Perch starts it again there by itself."
         }
     }
+    /// The popup shown where typing should go while secure keyboard entry on the
+    /// keyboard's Mac holds its keys there: a title and one line.
+    static func secureElsewhere(name: String, app: String?) -> (title: String, line: String) {
+        ("Keys stay on " + name, "Secure keyboard entry is on" + (app.map { " in " + $0 } ?? "") + " there. Typing reaches this Mac again when it ends.")
+    }
     /// The desk changed while sharing ran. Sharing starts again by itself.
     static let layoutChanged = "The desk layout changed, so control came back to this Mac. Sharing starts again by itself."
 }

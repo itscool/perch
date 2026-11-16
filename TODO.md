@@ -1485,13 +1485,18 @@ decoding 2.0.311's exact messages both ways.
 held at the edge; typing after a crossing; a Mac waking and joining; Ctrl-Opt-
 Esc; the screens sleeping after two idle minutes; which Mac reacts to Cmd-Tab,
 Cmd-Space, screenshots and Spaces pressed on the keyboard without the pointer.
-*Decided by Scott, being built before he tests:* media keys follow the pointer;
-trackpad gestures are ignored on a Mac while the pointer is on the other one;
-pointer speed matches automatically and the setting goes; a popup on the Mac
-typing goes to when secure keyboard entry on the other Mac holds the keys. Then
-the session is split (the owner's coordination apart from each Mac's side), the
-status wording goes into one tested function, and a full review runs again.
-Per-app navigation-key exceptions judged on the pointer's Mac stay open.
+*Decided by Scott, built November 16:* media keys follow the pointer (a
+`media-keys` feature, so a Mac on 2.0.311 keeps them local); trackpad gestures
+are ignored on a Mac while the pointer is on the other one; pointer speed is
+matched by physical distance (motion carries millimetres from the sender's
+screen scale) and the Pointer speed setting and its Input options page are gone;
+secure keyboard entry on the keyboard's Mac shows a popup where typing goes,
+naming the app, until it ends. The session is split (`KVMInputCoordinator` for
+the owner, `KVMPointerRules`, `KVMInputStatus` with each Mac's reason in its
+poll), and a Mac on another sharing version is left out of grants. Per-app
+navigation-key exceptions judged on the pointer's Mac stay open. *Needs both
+Macs:* media keys, a pinch and a swipe on the trackpad with the pointer away,
+the speed matching across the two LG screens, the secure entry popup.
 *Prevent idle lock, fixed November 16 (Scott: it never worked; make it work,
 on the work Mac too).* Cause, from the logs: loginwindow starts the screen
 saver and lock from the session idle clock; Perch's null HID event reset only

@@ -45,7 +45,6 @@ struct DeskLiveSheet: View {
         case "computer": pairing
         case "screen": addScreen
         case "hotkeys": shortcutSettings
-        case "input": DeskInputSettings(adapter: runtime.inputAdapter)
         case "computerDetails", "removeComputer": computerDetails
         case "conflict": conflict
         case "connections":
@@ -586,11 +585,4 @@ struct DeskPreferencesMember: View {
 }
 extension AppDelegate {
     @objc func deskPreferences() { hotkeySettings() }
-    @objc func deskInputPreferences() {
-        let view = NSHostingView(rootView: DeskPreferencesRoot(kind: "input"))
-        view.frame = NSRect(x: 0, y: 0, width: 650, height: 610)
-        SettingsWindow.shared.show(.init(title: "Input options",
-            detail: "Adjust pointer speed on this Mac and optionally follow a keyboard’s computer buttons. Start keyboard and mouse sharing from Desk. Changes save immediately.",
-            view: view, preferredBodyWidth: 650))
-    }
 }

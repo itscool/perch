@@ -66,6 +66,13 @@ final class DeskPasteProgress {
     /// Nothing is coming, and the title already says why: show it, then close.
     func inform() { end(.informed, line: nil, hold: Self.failureVisible) }
 
+    /// A notice that stays until `close()`: the title says what is happening.
+    func hold(_ line: String?) {
+        guard phase == .moving else { return }
+        phase = .informed; self.line = line
+        changed()
+    }
+
     /// The person pressed Cancel: stop, and close at once.
     func cancel() {
         guard phase == .moving else { return }

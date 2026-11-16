@@ -32,10 +32,6 @@ final class DeskInputAdapter: ObservableObject {
     private var remoteCapture = false
     private var displayCache: [String: CGDirectDisplayID] = [:]
     private var displayCacheAt: Double = -1
-    @Published var pointerSpeed: Double = {
-        let saved = UserDefaults.standard.double(forKey: "desk.inputPointerSpeed")
-        return (0.25...4).contains(saved) ? saved : 1
-    }() { didSet { UserDefaults.standard.set(pointerSpeed, forKey: "desk.inputPointerSpeed") } }
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var healthTimer: Timer?
@@ -115,7 +111,9 @@ final class DeskInputAdapter: ObservableObject {
         guard healthy else { return }
         if tap == nil {
             let types: [CGEventType] = [.keyDown,.keyUp,.flagsChanged,.mouseMoved,.leftMouseDragged,.rightMouseDragged,.otherMouseDragged,.leftMouseDown,.leftMouseUp,.rightMouseDown,.rightMouseUp,.otherMouseDown,.otherMouseUp,.scrollWheel]
-            let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
+            // Media keys (system-defined events) and trackpad gestures too.
+            let extra = DeskGestures.types.union([DeskMediaKey.eventType])
+            let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) } | extra.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1) }
             tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .defaultTap, eventsOfInterest: mask, callback: { _, type, event, context in
                 guard let context else { return Unmanaged.passUnretained(event) }
                 let adapter = Unmanaged<DeskInputAdapter>.fromOpaque(context).takeUnretainedValue()
@@ -186,6 +184,9 @@ final class DeskInputAdapter: ObservableObject {
         let secure = IsSecureEventInputEnabled() && session.enabled && issue == nil
         let text = secure ? "Secure keyboard entry is on in an app on this Mac. Keys stay here until it ends; the pointer still moves between Macs." : nil
         if note != text { note = text }
+        // While it holds keys meant for another Mac, that Mac shows a popup.
+        let app = secure ? (console?["kCGSSessionSecureInputPID"] as? Int).flatMap { NSRunningApplication(processIdentifier: pid_t($0))?.localizedName } : nil
+        session.secureInput(secure, app: app)
     }
     /// macOS disables a tap whose callback fell behind. Re-enable it at once;
     /// after too many in a row, rebuild it after a pause (`DeskTapRecovery`).
@@ -200,6 +201,14 @@ final class DeskInputAdapter: ObservableObject {
             return false
         }
         guard event.getIntegerValueField(.eventSourceUserData) != KVMNativeEvent.eventTag else { return false }
+        // Trackpad gestures act on the Mac whose trackpad made them; while the
+        // pointer is on another Mac they are ignored here (Scott, November 16).
+        if DeskGestures.types.contains(type.rawValue) { return DeskGestures.ignored(pointerElsewhere: pointerElsewhere) }
+        // Volume, brightness and play/pause follow the pointer (Scott, November 16).
+        if type.rawValue == DeskMediaKey.eventType {
+            guard session.capturing, let key = DeskMediaKey(event) else { return false }
+            return session.capture(.init(kind: key.down ? .mediaDown : .mediaUp, code: key.code, repeated: key.repeated && key.down))
+        }
         // Always leave the emergency shortcut available too. No network event
         // can invoke this path because injected events are tagged above.
         if type == .keyDown || type == .keyUp {
@@ -238,7 +247,11 @@ final class DeskInputAdapter: ObservableObject {
             if !(0...3).contains(value.momentum) { value.momentum = 0 }
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             // The coordinator converts target desktop points to desk millimetres.
-            value = .init(kind: .motion, flags: flags, x: event.getDoubleValueField(.mouseEventDeltaX) * pointerSpeed, y: event.getDoubleValueField(.mouseEventDeltaY) * pointerSpeed)
+            let dx = event.getDoubleValueField(.mouseEventDeltaX), dy = event.getDoubleValueField(.mouseEventDeltaY)
+            value = .init(kind: .motion, flags: flags, x: dx, y: dy)
+            // The same movement in millimetres of the screen it was made on, so
+            // it covers the same distance on every screen (Scott, November 16).
+            value.mm = screenScale(at: event.location).map { DeskMotionScale.millimetres(dx: dx, dy: dy, scale: $0) }
             // Whether a button is down, said every time: a drag never crosses to
             // another Mac, and a move with none down releases a lost one.
             value.dragging = type != .mouseMoved
@@ -281,6 +294,23 @@ final class DeskInputAdapter: ObservableObject {
         return CGPoint(x: bounds.minX + (focus.position.x - geometry.x) / geometry.displayedWidth * max(0, bounds.width - 1),
                        y: bounds.minY + (focus.position.y - geometry.y) / geometry.displayedHeight * max(0, bounds.height - 1))
     }
+    /// Millimetres per point on the desk screen under a global Quartz point.
+    private func screenScale(at location: CGPoint) -> KVMPoint? {
+        let group = session.node.group
+        for connection in group.connections where connection.computer == session.node.localID {
+            guard let display = displayID(for: connection.localDisplay),
+                  let geometry = group.monitors.first(where: { $0.id == connection.monitor })?.geometry else { continue }
+            let bounds = CGDisplayBounds(display)
+            guard bounds.width > 1, bounds.height > 1, bounds.insetBy(dx: -1, dy: -1).contains(location) else { continue }
+            return DeskMotionScale.scale(bounds: bounds, geometry: geometry)
+        }
+        return nil
+    }
+    /// Whether the pointer is on, or on its way to, another Mac.
+    private var pointerElsewhere: Bool {
+        guard session.capturing else { return false }
+        return (session.handoffTarget?.computer ?? session.focusComputer).map { $0 != session.node.localID } ?? false
+    }
     /// Inverse of `point`: which desk screen a global Quartz point is on, and where.
     private func deskPosition(_ location: CGPoint) -> (UUID, KVMPoint)? {
         let group = session.node.group
@@ -301,6 +331,11 @@ final class DeskInputAdapter: ObservableObject {
     /// click land somewhere the cursor was not.
     private func post(_ value: KVMInputEvent, focus: KVMInputFocus) {
         guard healthy, !SettingsWindow.shared.testing else { session.stop("input capture on this Mac is not healthy"); return }
+        // Media keys are posted as macOS's own system-defined key events.
+        if value.kind == .mediaDown || value.kind == .mediaUp {
+            if !SettingsWindow.shared.testing { DeskMediaKey.post(code: value.code, down: value.kind == .mediaDown, repeated: value.repeated) }
+            return
+        }
         // Typing goes where the last click was, which need not be where the
         // pointer is. It never moves, shows or un-parks the cursor.
         if KVMInputRouting.typing(value.kind) {
@@ -313,13 +348,18 @@ final class DeskInputAdapter: ObservableObject {
         // point rather than from this Mac's parked cursor.
         let arriving = !handover.placed
         let here = arriving ? handover.base(entry: point(focus), live: cursor.location) : cursor.location
+        var value = value
+        // Movement in millimetres becomes points of the screen it lands on here.
+        if value.kind == .motion, let mm = value.mm, let scale = screenScale(at: here) {
+            let points = DeskMotionScale.points(mm: mm, scale: scale)
+            value.x = points.x; value.y = points.y
+        }
         let point = value.kind == .motion
             ? DeskCursorParking.moved(from: here, dx: value.x, dy: value.y, displays: cursor.displays)
             : here
         // Arriving: put the cursor where it belongs while still hidden, then show it.
         if arriving { cursor.warp(to: point); parking.end(cursor) }
         lastLocation = point
-        var value = value
         // Clicks are counted here, where the pointer is: the sending Mac's
         // cursor stands still while parked, so two quick clicks on two
         // different things there counted as a double-click.
@@ -453,4 +493,55 @@ struct DeskTapRecovery {
         rebuildAt = nil; disables = []
         return true
     }
+}
+
+/// Trackpad gestures: rotate (18), begin and end gesture (19, 20), gesture
+/// (29), magnify (30), swipe (31), smart magnify (32) and pressure (34).
+enum DeskGestures {
+    static let types: Set<UInt32> = [18, 19, 20, 29, 30, 31, 32, 34]
+    /// Ignored on this Mac while the pointer is on another: before, a pinch
+    /// zoomed and a swipe switched Spaces on the hidden Mac underneath.
+    static func ignored(pointerElsewhere: Bool) -> Bool { pointerElsewhere }
+}
+
+/// Volume, brightness, play/pause and the other media keys: macOS's
+/// system-defined key events, subtype 8, the key in the top half of data1.
+struct DeskMediaKey: Equatable {
+    static let eventType: UInt32 = 14
+    let code: UInt16
+    let down: Bool
+    let repeated: Bool
+    init?(data1: Int) {
+        let code = (data1 & 0xFFFF_0000) >> 16, flags = data1 & 0xFFFF, state = (flags & 0xFF00) >> 8
+        guard (0...31).contains(code), state == 0x0A || state == 0x0B else { return nil }
+        self.code = UInt16(code); down = state == 0x0A; repeated = flags & 0x1 == 1
+    }
+    init?(_ event: CGEvent) {
+        guard let ns = NSEvent(cgEvent: event), ns.type == .systemDefined, ns.subtype.rawValue == 8 else { return nil }
+        self.init(data1: ns.data1)
+    }
+    static func data1(code: UInt16, down: Bool, repeated: Bool) -> Int {
+        (Int(code) << 16) | ((down ? 0x0A : 0x0B) << 8) | (repeated ? 1 : 0)
+    }
+    /// Post it here, tagged so Perch's own tap leaves it alone.
+    static func post(code: UInt16, down: Bool, repeated: Bool) {
+        guard let event = NSEvent.otherEvent(with: .systemDefined, location: .zero, modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(down ? 0xA00 : 0xB00)),
+                                             timestamp: 0, windowNumber: 0, context: nil, subtype: 8,
+                                             data1: data1(code: code, down: down, repeated: repeated), data2: -1)?.cgEvent else { return }
+        event.setIntegerValueField(.eventSourceUserData, value: KVMNativeEvent.eventTag)
+        event.post(tap: .cghidEventTap)
+    }
+}
+
+/// Pointer speed matched across Macs: movement travels the same physical
+/// distance whichever screen it is on, from each screen's own scale.
+enum DeskMotionScale {
+    /// Millimetres per point of a screen, from its bounds in points and its
+    /// size on the desk.
+    static func scale(bounds: CGRect, geometry: KVMGeometry) -> KVMPoint? {
+        guard bounds.width > 1, bounds.height > 1, geometry.displayedWidth > 0, geometry.displayedHeight > 0 else { return nil }
+        return KVMPoint(x: geometry.displayedWidth / bounds.width, y: geometry.displayedHeight / bounds.height)
+    }
+    static func millimetres(dx: Double, dy: Double, scale: KVMPoint) -> KVMPoint { KVMPoint(x: dx * scale.x, y: dy * scale.y) }
+    static func points(mm: KVMPoint, scale: KVMPoint) -> KVMPoint { KVMPoint(x: mm.x / scale.x, y: mm.y / scale.y) }
 }

@@ -27,5 +27,16 @@ func runIdleLockWordingTests() throws {
               "An unreadable idle clock was reported as a fact: \(unknown)")
     try check(ScreenLockLog.unlockSummary(lockedFor: 3723).contains("1 h 2 min") && ScreenLockLog.unlockSummary(lockedFor: nil) == "Screen unlocked.",
               "Unlock reporting lost how long the Mac was locked")
+    // The signal goes only where it can work and is judged by the clock the
+    // screen saver uses (November 16, 2026: the old one never reset it).
+    try check(IdleNudge.decide(sessionIdle: 3, buttonHeld: false, locked: false, canPost: true) == .notNeeded, "The idle signal was posted while the Mac was in use")
+    try check(IdleNudge.decide(sessionIdle: 40, buttonHeld: false, locked: false, canPost: true) == .nudge, "An idle Mac was not signalled")
+    try check(IdleNudge.decide(sessionIdle: 40, buttonHeld: true, locked: false, canPost: true) == .busy, "The idle signal was posted in the middle of a drag")
+    try check(IdleNudge.decide(sessionIdle: 40, buttonHeld: false, locked: true, canPost: true) == .locked, "The idle signal was posted on the lock screen")
+    try check(IdleNudge.decide(sessionIdle: 40, buttonHeld: false, locked: false, canPost: false) == .cannotPost, "A signal that could not be posted was not said")
+    try check(IdleNudge.decide(sessionIdle: nil, buttonHeld: false, locked: false, canPost: true) == .notNeeded, "An unreadable clock was signalled blindly")
+    try check(IdleNudge.judge(before: 31, after: 0.1) == .worked && IdleNudge.judge(before: 31, after: 31.3) == .failed && IdleNudge.judge(before: 31, after: nil) == .failed,
+              "A signal was judged by anything but the session clock falling")
+    try check(IdleNudge.after + 30 < 60, "With a signal every 30 s the session clock could reach the shortest screen saver time")
     print("PASS: the idle lock row and help say how long the Mac stays unlocked, never the signalling interval; every screen lock is logged with the idle time, Perch's signalling and whether a desk session was interrupted")
 }

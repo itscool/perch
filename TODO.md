@@ -1492,8 +1492,21 @@ typing goes to when secure keyboard entry on the other Mac holds the keys. Then
 the session is split (the owner's coordination apart from each Mac's side), the
 status wording goes into one tested function, and a full review runs again.
 Per-app navigation-key exceptions judged on the pointer's Mac stay open.
-*Separate, from Scott:* "Prevent idle lock" does not stop his Macs locking,
-including the managed work MacBook; he wants it made to work. Also open from
+*Prevent idle lock, fixed November 16 (Scott: it never worked; make it work,
+on the work Mac too).* Cause, from the logs: loginwindow starts the screen
+saver and lock from the session idle clock; Perch's null HID event reset only
+the HID clock and its activity declaration only display sleep, so 23 locks came
+at exactly 20 minutes while Perch signalled (Nov 13 to 16); 120 activity
+assertions had also leaked. Now `IdleActivitySignal` posts a tagged
+zero-distance mouse move once the session has been idle 15 s (never during a
+drag or on the lock screen), reads the session clock before and after and logs
+whether it fell (`idle.signal`), holds a display-sleep assertion renewed with
+each signal, and reuses one activity assertion. The lock log reports the session
+clock. Desk sharing uses the same signal, so both Macs stay unlocked while
+sharing, as Scott requires. *Needs the live Mac:* the shell has no Accessibility,
+so the first proof is Perch's own log after a restart onto this build
+(`idle.signal` lines, no `kLWLockFromScreenSaverIdleLaunch` in loginwindow's
+log); then the work Mac's loginwindow log and a soak there. Also open from
 the review: status lines that name the wrong cause ("turn on Share" for a
 locked or sleeping Mac), the pointer position after a preset switch, a Mac on a
 different sharing version being included in grants, and frames lost when the

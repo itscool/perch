@@ -15,7 +15,7 @@ enum ControlHelp {
     static let pageKeys = "Move the text cursor by a page with Page Up/Down on external keyboards, instead of only scrolling the view. Built-in Fn+arrows and apps in your exceptions are unchanged."
     static let keyboardSetup = "Open keyboard settings to review access and learn or manage navigation keys."
     static let awake = "Keep the Mac from sleeping when idle; the displays can still turn off. Turning this off also stops keep-awake with the lid closed, and any caffeinate command keeping the Mac awake."
-    static let idleLock = "Keep the Mac from locking or starting the screen saver while you’re away, until you turn this off. Closing the lid and locking it yourself still work. It doesn’t keep the Mac awake; Keep awake does."
+    static let idleLock = "Keep the Mac from locking or starting the screen saver while you’re away, until you turn this off. Its screens stay on. Closing the lid and locking it yourself still work. It doesn’t keep the Mac awake; Keep awake does."
     /// Sleep disabled in macOS by something other than Perch.
     static let lidOutside = "Sleep was turned off outside Perch, with no limit: on battery with the lid closed the Mac stays awake, even in a bag. Turn this on and Perch takes it over, with its 60-second battery limit."
     static let lid = "Keep working with the lid closed. On power it stays awake; on battery it sleeps 60 seconds after the lid closes. While on, Sleep in the Apple menu does nothing."

@@ -1,49 +1,117 @@
 import AppKit
 import IOKit
-import IOKit.hidsystem
 import IOKit.pwr_mgt
 
-/// One "the user is here" signal for both of macOS's idle clocks.
+/// One "the user is here" signal that the screen saver and the lock really see.
 ///
-/// Power management (display and system sleep) is reset by a user-activity
-/// assertion. The screen saver and the idle lock, including an MDM maximum-
-/// inactivity policy, watch the HID idle clock, which only an event through the
-/// HID system resets. A null HID event is exactly "nothing happened": it moves
-/// no cursor, presses no button and types no key. Fallback when the null event
-/// is refused: a zero-delta mouse move at the current position, tagged so
-/// Perch's own event taps ignore it. Neither unlocks a screen that is already
-/// locked nor prevents an explicit lock (Ctrl-Cmd-Q, hot corner, lid, MDM lock).
+/// On current macOS, loginwindow starts the screen saver, and the lock that
+/// follows it, from the session's idle clock: the time since the last input
+/// event in this login session (`IdleClock.sessionSeconds`). Perch used to post
+/// a null HID event and declare user activity. The null event resets only the
+/// HID idle clock and the declaration only display sleep, so neither held off a
+/// single lock: on November 13 to 16, 2026, 23 locks came at exactly 20 idle
+/// minutes while Perch was signalling every 30 seconds.
+///
+/// What works, and what this does:
+/// 1. A zero-distance mouse move, tagged so Perch's own taps ignore it, posted
+///    into the HID stream: it counts as session input and resets that clock. It
+///    is posted only once the session has been idle a while (never while you
+///    are using the Mac), never during a drag or on the lock screen, and each
+///    one reads the clock before and after to say whether it really worked.
+/// 2. A display-sleep assertion, renewed with every signal and released by
+///    itself a little after the last one: loginwindow checks it before starting
+///    the screen saver, and the screens stay on.
+/// 3. The user-activity declaration, kept for display sleep, now updating one
+///    assertion instead of creating a new one every time (120 had piled up).
+/// None of it unlocks a screen already locked, or stops a lock asked for:
+/// closing the lid, Ctrl-Cmd-Q, a hot corner, an MDM lock command.
 final class IdleActivitySignal {
-    private var hidSystem: io_connect_t = 0
+    private var activity: IOPMAssertionID = 0
+    private var display: IOPMAssertionID = 0
     private lazy var eventSource = CGEventSource(stateID: .privateState)
+    /// The last signal's outcome, for the log and the lock report.
+    private(set) var lastOutcome: IdleNudge.Outcome?
     init() {}
     deinit { close() }
-    /// Declare activity now. Returns false only when every path failed.
+    /// Signal now. Returns false only when the signal could not be given at all.
     @discardableResult func declare(reason: String) -> Bool {
         guard !SettingsWindow.shared.testing else { return false }
-        var assertion: IOPMAssertionID = 0
-        _ = IOPMAssertionDeclareUserActivity(reason as CFString, kIOPMUserActiveLocal, &assertion)
-        if hidSystem == 0 {
-            let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
-            if service != 0 {
-                defer { IOObjectRelease(service) }
-                var connect: io_connect_t = 0
-                if IOServiceOpen(service, mach_task_self_, UInt32(kIOHIDParamConnectType), &connect) == KERN_SUCCESS { hidSystem = connect }
-            }
-        }
-        if hidSystem != 0 {
-            var data = NXEventData()
-            if IOHIDPostEvent(hidSystem, UInt32(NX_NULLEVENT), IOGPoint(x: 0, y: 0), &data, UInt32(kNXEventDataVersion), 0, 0) == KERN_SUCCESS { return true }
-            IOServiceClose(hidSystem); hidSystem = 0
+        let name = reason as CFString
+        if IOPMAssertionDeclareUserActivity(name, kIOPMUserActiveLocal, &activity) != kIOReturnSuccess { activity = 0 }
+        holdDisplay(name)
+        let before = IdleClock.sessionSeconds()
+        let decision = IdleNudge.decide(sessionIdle: before, buttonHeld: Self.buttonHeld, locked: Self.screenLocked, canPost: CGPreflightPostEventAccess())
+        guard decision == .nudge else {
+            lastOutcome = decision
+            if decision == .cannotPost { PerchLog.note("idle.signal", "Cannot hold off the idle lock: Perch needs Accessibility to post its signal") }
+            return decision != .cannotPost
         }
         guard let location = CGEvent(source: nil)?.location,
-              let event = CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: location, mouseButton: .left) else { return false }
+              let event = CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: location, mouseButton: .left) else {
+            lastOutcome = .cannotPost; return false
+        }
         event.setIntegerValueField(.eventSourceUserData, value: KVMNativeEvent.eventTag)
         event.post(tap: .cghidEventTap)
+        // The clock is read again a moment later: posted events reach the
+        // session on their own schedule.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            let after = IdleClock.sessionSeconds()
+            let outcome = IdleNudge.judge(before: before, after: after)
+            self?.lastOutcome = outcome
+            PerchLog.note("idle.signal", outcome.summary(before: before, after: after))
+        }
         return true
     }
+    /// Keep the screens from sleeping until a little after the last signal.
+    private func holdDisplay(_ name: CFString) {
+        if display != 0 { IOPMAssertionRelease(display); display = 0 }
+        let properties: [String: Any] = [kIOPMAssertionTypeKey as String: kIOPMAssertPreventUserIdleDisplaySleep as String,
+                                         kIOPMAssertionNameKey as String: name as String,
+                                         kIOPMAssertionTimeoutKey as String: IdleNudge.displayHold,
+                                         kIOPMAssertionTimeoutActionKey as String: kIOPMAssertionTimeoutActionRelease as String]
+        if IOPMAssertionCreateWithProperties(properties as CFDictionary, &display) != kIOReturnSuccess { display = 0 }
+    }
     func close() {
-        if hidSystem != 0 { IOServiceClose(hidSystem); hidSystem = 0 }
+        if display != 0 { IOPMAssertionRelease(display); display = 0 }
+        if activity != 0 { IOPMAssertionRelease(activity); activity = 0 }
+    }
+    private static var buttonHeld: Bool {
+        (0...2).contains { CGEventSource.buttonState(.combinedSessionState, button: CGMouseButton(rawValue: UInt32($0))!) }
+    }
+    private static var screenLocked: Bool {
+        (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool == true
+    }
+}
+
+/// When to post the idle signal and whether it worked, as logic only, pinned by
+/// fast tests.
+enum IdleNudge {
+    /// Only once the session has been idle this long: never while someone is
+    /// using the Mac. With a signal every 30 s, the session clock then never
+    /// passes about 45 s, under the shortest screen saver time macOS offers (1 min).
+    static let after: Double = 15
+    /// How long the screens are held on after a signal, in seconds.
+    static let displayHold = 75
+    enum Outcome: Equatable {
+        case nudge, notNeeded, busy, locked, cannotPost, worked, failed
+        func summary(before: Double?, after: Double?) -> String {
+            func seconds(_ value: Double?) -> String { value.map { String(format: "%.1f s", $0) } ?? "unreadable" }
+            switch self {
+            case .worked: return "The idle signal reset the session idle clock (" + seconds(before) + " → " + seconds(after) + ")"
+            case .failed: return "The idle signal did not reset the session idle clock (" + seconds(before) + " → " + seconds(after) + "); the screen saver may still start"
+            default: return "Idle signal: \(self)"
+            }
+        }
+    }
+    static func decide(sessionIdle: Double?, buttonHeld: Bool, locked: Bool, canPost: Bool) -> Outcome {
+        if locked { return .locked }
+        if buttonHeld { return .busy }
+        guard let sessionIdle, sessionIdle >= after else { return .notNeeded }
+        return canPost ? .nudge : .cannotPost
+    }
+    static func judge(before: Double?, after: Double?) -> Outcome {
+        guard let after, after.isFinite else { return .failed }
+        return after < 1 && (before ?? .infinity) >= 1 ? .worked : .failed
     }
 }
 
@@ -73,25 +141,24 @@ final class IdleLockPreventer {
     /// that Perch tried and could not, instead of implying it held the lock off.
     private(set) var lastSignalRefused = false
     private func fire() {
-        if signal.declare(reason: "Perch: prevent idle lock") { lastSignalled = Date(); lastSignalRefused = false }
-        else { lastSignalRefused = true }
+        if signal.declare(reason: "Perch: prevent idle lock") { lastSignalled = Date() }
+        // Refused: it could not be given, or it was given and the clock the
+        // screen saver uses did not move.
+        lastSignalRefused = signal.lastOutcome == .cannotPost || signal.lastOutcome == .failed
     }
     deinit { timer?.invalidate() }
 }
 
 
-/// How long this Mac has been without input, as macOS counts it for the screen
-/// saver and the idle lock. Read-only: it touches no setting and moves nothing.
+/// How long this Mac has been without input. Read-only: it touches no setting
+/// and moves nothing.
 enum IdleClock {
-    static func seconds() -> Double? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
-        guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
-        var properties: Unmanaged<CFMutableDictionary>?
-        guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
-              let values = properties?.takeRetainedValue() as? [String: Any],
-              let nanoseconds = values["HIDIdleTime"] as? UInt64 else { return nil }
-        return Double(nanoseconds) / 1_000_000_000
+    /// The session's idle clock: what loginwindow's screen saver and idle lock
+    /// go by on current macOS.
+    static func sessionSeconds() -> Double? {
+        guard let any = CGEventType(rawValue: ~0) else { return nil }
+        let value = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: any)
+        return value.isFinite && value >= 0 ? value : nil
     }
 }
 
@@ -105,7 +172,8 @@ final class ScreenLockLog {
     static let idleLockFloor: Double = 55
     private var observers: [Any] = []
     private var lockedAt: Date?
-    var idle: () -> Double? = { IdleClock.seconds() }
+    /// The session clock, which is the one the screen saver and lock go by.
+    var idle: () -> Double? = { IdleClock.sessionSeconds() }
     var preventing: () -> Bool = { false }
     var lastSignal: () -> Date? = { nil }
     var signalRefused: () -> Bool = { false }

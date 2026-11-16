@@ -22,18 +22,18 @@ func runSettingsPageLifetimeTests() throws {
         view.subviews.flatMap { ($0 as? SettingsActionButton).map { [$0] } ?? buttons(in: $0) }
     }
 
-    // Setup & status: Recheck must reach the live page.
+    // Setup & status: a row's Open must reach the live page.
     weak var setup: SetupOverviewPage?
-    var rechecks = 0
+    var opened: [SetupRoute] = []
     showParent()
     do {
         let page = SetupOverviewPage(firstVisit: false, read: { SetupSnapshot(config: SafetyConfiguration()) },
-                                     recheck: { rechecks += 1 }, navigate: { _, _ in })
+                                     navigate: { opened.append($0) })
         setup = page; page.show()
     }
     try check(setup != nil, "Setup & status was released while shown; its buttons would do nothing")
-    if let view = setup?.view { buttons(in: view).first { $0.title == "Recheck" }?.performClick(nil) }
-    try check(rechecks == 1, "Setup & status Recheck did not reach the page")
+    if let view = setup?.view { buttons(in: view).first { $0.title == "Open" }?.performClick(nil) }
+    try check(opened == [.maintenance], "Setup & status Open did not reach the page")
     try check(setup?.timer != nil, "Setup & status is not polling while shown")
     host.goBack()
     try check(setup == nil, "Setup & status stayed alive after leaving")

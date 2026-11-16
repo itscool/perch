@@ -1437,6 +1437,11 @@ and the desk canvas render (`--scenario refused`). Scott's saved desk breaks
 neither rule. *Needs a live look:* the reason label beside the held wire draws
 only in a real window, so it has not been seen yet.
 
+**Setup is its five steps (November 16).** The Setup page now lists exactly the
+sidebar's five Setup steps, with the same names and states, and each row opens
+its own step; Recheck and Fix next issue are gone (SETUP-CONSOLIDATION-2.0.md).
+The window suite still needs a run under AGENT MODE for it.
+
 ## Checkpoint: Agent Kill Switch removed, desk network check made deterministic (November 12, 2026)
 
 **Agent Kill Switch removed** at Scott's request: "it still slows down stuff WAY

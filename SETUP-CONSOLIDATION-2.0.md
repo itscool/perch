@@ -65,3 +65,23 @@ installation or publication was performed.
 All AGENT MODE sessions and isolated UI processes are stopped. The live app was
 not restarted/replaced and its settings were not changed. Physical feature and
 permission acceptance remains in TODO.md; this change reorganizes its setup UI.
+
+## November 16, 2026: Setup rows are the Setup steps
+
+Scott found Setup inconsistent: six rows on the page against five Setup steps
+in the sidebar, some rows opening a step and some leaving Setup for Keyboards,
+Desk or Lid activity. Approved change:
+
+| Journey | Change |
+| --- | --- |
+| Setup page rows | Exactly the five steps, with the sidebar's names and order: Background helpers, Keyboard access, Scrolling & navigation, Shared input access, Lid protection. Each row's Open goes to its own step. |
+| State | One source (`SetupSnapshot.checks`, `.sidebar`) for the page and the sidebar icons, so they never disagree. |
+| Feature rows | Keyboards, Desk monitor presets, Desk sharing and Keep awake left Setup. Keyboards and Desk show a warning icon in the sidebar only while they need attention (`flagsAttention`). |
+| Extra rows | Old process watcher and Start at login moved onto Background helpers as actions shown only while they apply; restored access is shown on Keyboard access (Input Monitoring) or Shared input access (Accessibility). |
+| Buttons | Recheck removed: the page re-reads every second. Fix next issue removed: each row needing attention has its own Open. |
+| Launch | Setup opens at launch only for a step that needs the person; a step still checking finishes by itself. |
+
+Pinned headless in `runSettingsHeadlessTests` (rows against the sidebar's
+destinations, states, flags) and in the window suite's `runSetupOverviewTests`
+(each Open reaches its own step; no Recheck or next-issue button). The window
+suite has not been rerun under AGENT MODE for this change.

@@ -25,9 +25,14 @@ extension AppDelegate {
         }
         setupOverview()
         let page = SettingsTaskPage(title: "Background helpers", detail: "Perch installs and maintains the helpers used by scrolling, Keep awake and putting back desk screens automatically.", height: 160, statusHeight: 100)
+        // What used to be separate Setup rows lives in this step, shown only
+        // while it applies.
+        let watcher = page.add("Remove old process watcher…", detail: "Perch no longer watches processes, but the watcher it installed is still running and slowing this Mac down. macOS asks for your password.") { [weak self] in self?.retireProcessWatcher() }
+        let login = page.add("Open macOS Login Items…", detail: "Starting Perch at login needs your approval in macOS.") { [weak self] in self?.reviewLoginApproval() }
         page.update = { [weak page] in
             page?.status.stringValue = BackgroundHelperRecovery.shared.detail
             page?.status.textColor = BackgroundHelperRecovery.shared.healthy ? StatusColors.success : BackgroundHelperRecovery.shared.failure != nil ? StatusColors.warning : .secondaryLabelColor
+            page?.arrangeRows(hiding: (RetiredProcessWatcher.installed() ? [] : [watcher]) + (SMAppService.mainApp.status == .requiresApproval ? [] : [login]))
         }
         page.show(delegate: self)
     }
@@ -43,7 +48,8 @@ extension AppDelegate {
             PerchLog.record("helper.watcher", "The old process watcher is still installed: " + error.localizedDescription)
         }
         refreshHelperHealth()
-        setupOverview()
+        // Stay on Background helpers: its row goes once the watcher has.
+        settingsRefresh?()
     }
     @objc func reviewLoginApproval() {
         SettingsWindow.shared.handoffToExternalApp { SMAppService.openSystemSettingsLoginItems(); return true }

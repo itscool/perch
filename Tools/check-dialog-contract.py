@@ -93,7 +93,7 @@ for file in sorted((repo/'Sources').rglob('*.swift')):
 # sidebar destination, or navigation silently does nothing; destination ids are
 # unique; every sidebar page title is shown by some page.
 routes = (repo/'Sources/Settings/SettingsNavigationRoutes.swift').read_text()
-destinations = re.findall(r'item\("([a-z-]+)", "[^"]*", \[([^\]]*)\], #selector\(\w+\)((?:, depth: \d)?(?:, setupStage: true)?)\)', routes)
+destinations = re.findall(r'item\("([a-z-]+)", "[^"]*", \[([^\]]*)\], #selector\(\w+\)((?:, depth: \d)?(?:, setupStage: true)?(?:, flagsAttention: true)?)\)', routes)
 ids = [d[0] for d in destinations]
 # A floor, not a count: well below the real number of pages (19 since the
 # Agent Kill Switch pages were removed), so only a failed parse trips it.

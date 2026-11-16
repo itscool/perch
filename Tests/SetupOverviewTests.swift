@@ -2,78 +2,30 @@ import AppKit
 
 func runSetupOverviewTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
+    // Which rows Setup shows, and their states, are checked headless in
+    // runSettingsHeadlessTests. Here: the page draws them and each opens its step.
     var config = SafetyConfiguration()
     config.reverseTrackpad = false; config.reverseWheel = false; config.navigation = nil
     config.keepAwake = false
     let unused = SetupSnapshot(config: config)
     var snapshot = SetupSnapshot(config: config)
-    try check(snapshot.checks.allSatisfy { $0.state == .optional }, "Unused optional features demand setup")
-    snapshot.lidWanted = true
-    try check(snapshot.checks.first { $0.id == "lid-setup" }?.state == .attention, "Saved lid choice hid unfinished helper setup")
-    snapshot.lidWanted = false
-    snapshot.keyboardCount = 1; snapshot.keyboardAccessNeeded = true
-    try check(snapshot.checks.first { $0.id == "keyboards" }?.state == .attention && snapshot.checks.first { $0.id == "keyboards" }?.route == .keyboardAccess, "First-use keyboard access was hidden as optional")
-    snapshot.keyboardCount = 0; snapshot.keyboardAccessNeeded = false
-    snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: true, detail: "Lid session requested.")
-    try check(snapshot.checks.first { $0.id == "awake" }?.state == .ready && snapshot.checks.first { $0.id == "awake" }!.detail.contains("cannot guarantee"), "A fresh active helper session was reported as unfinished setup or lost its macOS limitation")
-    snapshot.lidGuard = nil
-    config.reverseWheel = true
-    snapshot.config = config
-    func item(_ id: String) -> SetupCheck { snapshot.checks.first { $0.id == id }! }
-    try check(item("helpers").state == .checking && item("scrolling").state == .checking, "Missing helper was confused with lost grants")
-    snapshot.helperRecoveryFailure = "Recovery failed"
-    try check(item("helpers").state == .attention, "Failed automatic recovery remained progress")
-    snapshot.helperRecoveryFailure = nil
-    snapshot.lidHelperBusy = true; snapshot.lidHelperUpdatePending = true
-    try check(item("lid-setup").state == .checking && item("awake").state == .checking, "In-flight lid update was a warning")
-    snapshot.lidHelperBusy = false
-    try check(item("awake").state == .attention, "Incomplete lid update lost its recovery warning")
-    snapshot.lidHelperUpdatePending = false
-    let guardian = SafetyStatus(inputTrusted: false, inputActive: false, keepAwakeActive: false, message: "", error: nil)
-    snapshot.guardian = guardian; snapshot.input = InputHelperStatus(trusted: false, active: false)
+    config.reverseWheel = true; snapshot.config = config
+    snapshot.guardian = SafetyStatus(inputTrusted: false, inputActive: false, keepAwakeActive: false, message: "", error: nil)
+    snapshot.input = InputHelperStatus(trusted: false, active: false)
     snapshot.keyboardAccessNeeded = true; snapshot.keyboardSetupWanted = true
-    snapshot.monitorConfigured = true; snapshot.monitorAvailable = false; snapshot.monitorDetail = "Desk display is disconnected. Saved input choices are kept."
-    try check(item("scrolling").state == .attention && item("scrolling").route == .inputAccess && item("keyboards").state == .attention && item("displays").state == .attention, "Reset/disconnection recovery does not identify affected features")
-    var overviewRoute = ""
-    let overview = SetupOverviewPage(firstVisit: false, read: { snapshot }, recheck: {}, navigate: { _, id in overviewRoute = id })
+    try check(snapshot.scrolling.state == .attention && snapshot.keyboardAccess.state == .attention, "Lost access was not shown on its steps")
+    var opened: [SetupRoute] = []
+    let overview = SetupOverviewPage(firstVisit: false, read: { snapshot }, navigate: { opened.append($0) })
     overview.refresh()
     let overviewScroll = overview.view.subviews.compactMap { $0 as? NSScrollView }.first!
     let overviewButtons = overviewScroll.documentView!.subviews.compactMap { $0 as? SettingsActionButton }
-    try check(overviewButtons.count == snapshot.checks.count, "Setup overview has a fixed row capacity instead of every feature")
-    try check(overviewScroll.documentView!.frame.height > overviewScroll.contentSize.height, "Expanded setup lost scrolling to its last feature")
-    overviewButtons.last!.performClick(nil)
-    try check(overviewRoute == snapshot.checks.last?.id, "Last setup row navigates to the wrong feature")
+    try check(overviewButtons.count == 5 && overviewButtons.allSatisfy { $0.title == "Open" }, "Setup does not show one Open per step")
+    for button in overviewButtons { button.performClick(nil) }
+    try check(opened == [.maintenance, .keyboardAccess, .inputAccess, .sharingAccess, .lidSetup], "A Setup row opened another step: \(opened)")
+    let retired: Set<String> = ["Recheck", "Fix next issue", "Continue setup", "App settings"]
+    let pageButtons: [String] = overview.view.subviews.compactMap { ($0 as? NSButton)?.title }
+    try check(retired.isDisjoint(with: pageButtons), "Setup still has Recheck or a next-issue button: \(pageButtons)")
     let recovery = snapshot
-    snapshot.deskInputEnabled = true
-    try check(item("desk-input").state == .ready && item("desk-input").detail.contains("select a confirmed screen"), "Idle sharing was reported as broken setup or as an active session")
-    snapshot.deskInputActive = true
-    try check(item("desk-input").state == .ready, "Active desk input was not reported")
-    snapshot.deskInputProblem = "Secure entry is active"
-    try check(item("desk-input").state == .attention, "Input recovery was hidden by enabled preference")
-    snapshot.deskInputEnabled = false; snapshot.deskInputActive = false; snapshot.deskInputProblem = nil
-    snapshot.monitorAvailable = true; snapshot.monitorNeedsVerification = true
-    try check(item("displays").state == .unverified && item("displays").detail.contains("inputs are saved"), "Configured display with unknown input was counted as ready before visiting monitor settings")
-    snapshot.monitorBusy = true
-    try check(item("displays").state == .checking, "Pending display check was presented as a settled result")
-    snapshot.monitorBusy = false; snapshot.monitorWarning = true
-    try check(item("displays").state == .attention, "Failed current-input read was hidden by saved setup")
-    snapshot.monitorWarning = false; snapshot.monitorNeedsVerification = false
-    try check(item("displays").state == .ready, "Verified input or explicit named destination still demanded cycling setup")
-    snapshot.monitorAvailable = false
-    try check(item("displays").state == .attention, "Disconnect retained a ready display state")
-    snapshot.input = InputHelperStatus(trusted: true, active: true)
-    try check(item("scrolling").state == .ready && item("keyboards").state == .attention, "One restored grant made unrelated features ready")
-    snapshot.input?.timestamp = Date().addingTimeInterval(-10)
-    try check(item("scrolling").state == .checking && item("helpers").state == .checking, "Stale helper status stayed ready")
-    snapshot.input = InputHelperStatus(trusted: true, active: true)
-    // The kill switch's process watcher, still installed, is named with its
-    // one removal action.
-    snapshot.watcherInstalled = true
-    try check(item("watcher").state == .attention && item("watcher").route == .retireWatcher && item("watcher").action == "Remove…",
-              "An installed process watcher was not offered for removal")
-    snapshot.watcherInstalled = false
-    snapshot.lidDisabled = true
-    try check(item("awake").state == .attention, "Persistent lid override was hidden by an off Perch preference")
 
     let host = SettingsWindow.shared
     host.testing = true
@@ -83,24 +35,22 @@ func runSetupOverviewTests() throws {
     try check(Set(host.sidebar.destinations.map(\.id)).count == host.sidebar.destinations.count, "Sidebar destination identities must be unique")
     let configBefore = try? Data(contentsOf: SafetyFiles.config)
     let preferencesBefore = UserDefaults.standard.dictionaryRepresentation()
-    var current = recovery, rechecks = 0, routed: SetupRoute?
-    let page = SetupOverviewPage(firstVisit: false, read: { current }, recheck: { rechecks += 1 }, navigate: { route, _ in
+    var current = recovery, routed: SetupRoute?
+    let page = SetupOverviewPage(firstVisit: false, read: { current }, navigate: { route in
         routed = route
         host.show(.init(title: "Repair fixture", detail: "Injected repair page", view: NSView(frame: NSRect(x: 0, y: 0, width: 572, height: 120))))
     })
     page.show()
     try renderReleaseView(host.window.contentView!, path: "/private/tmp/perch-setup-recovery.png")
-    let controls = page.view.subviews.compactMap { $0 as? NSButton }
-    let next = controls.first { $0.title == "Fix next issue" }!
-    try check(next.visibleRect.height > 0, "Next setup action is below the fold")
-    next.performClick(nil)
-    try check(routed == .inputAccess && host.pages.count == 2, "Next issue skipped the applicable access repair")
+    let rowButtons = page.view.subviews.compactMap { $0 as? NSScrollView }.first!.documentView!.subviews.compactMap { $0 as? SettingsActionButton }
+    let scrolling = rowButtons[page.checks.firstIndex { $0.id == "input-access" }!]
+    try check(scrolling.visibleRect.height > 0, "A Setup step's Open is below the fold")
+    scrolling.performClick(nil)
+    try check(routed == .inputAccess && host.pages.count == 2, "Scrolling & navigation's row did not open its step")
     current.input = InputHelperStatus(trusted: true, active: true)
     host.goBack()
-    try check(host.pages.last?.view === page.view && page.checks.first { $0.id == "scrolling" }?.state == .ready, "Returning from repair lost overview or retained stale status")
-    controls.first { $0.title == "Recheck" }!.performClick(nil)
-    try check(rechecks == 1 && host.pages.count == 1, "Recheck navigated or repeated its request")
-    try check((try? Data(contentsOf: SafetyFiles.config)) == configBefore && (UserDefaults.standard.dictionaryRepresentation() as NSDictionary).isEqual(to: preferencesBefore), "Viewing setup or rechecking changed feature choices")
+    try check(host.pages.last?.view === page.view && page.checks.first { $0.id == "input-access" }?.state == .ready, "Returning from repair lost overview or retained stale status")
+    try check((try? Data(contentsOf: SafetyFiles.config)) == configBefore && (UserDefaults.standard.dictionaryRepresentation() as NSDictionary).isEqual(to: preferencesBefore), "Viewing setup changed feature choices")
     host.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: host.window))
     try check(page.timer == nil && host.pages.isEmpty, "Leaving setup retained its refresh timer")
 
@@ -142,5 +92,5 @@ func runSetupOverviewTests() throws {
     app.resetHub()
     try check(host.pages.last?.title == "Reset Settings", "Reset index missing")
     host.goBack()
-    print("PASS: observed setup readiness; independent permission recovery; stale helpers; the old process watcher offered for removal; first use and re-entry; next repair and Back; read-only Recheck; task categories and draft cancellation")
+    print("PASS: Setup draws its five steps, each opening its own; no Recheck or next-issue button; repair and Back; first use and re-entry; task categories and draft cancellation")
 }

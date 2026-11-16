@@ -8,7 +8,10 @@ struct SettingsDestination {
     let pageTitles: [String]
     var depth = 0
     var setupStage = false
+    /// A feature page that shows a warning only while it needs attention.
+    var flagsAttention = false
     let open: () -> Void
+    var showsStatus: Bool { setupStage || flagsAttention }
 }
 
 enum SettingsSetupStatus: String {
@@ -31,7 +34,7 @@ final class SettingsSidebarCell: NSTableCellView {
         label.lineBreakMode = .byTruncatingTail
         textField = label; addSubview(label)
         setAccessibilityLabel(item.title)
-        if item.setupStage {
+        if item.showsStatus {
             let icon = NSImageView()
             imageView = icon; addSubview(icon)
             progress.style = .spinning; progress.controlSize = .small
@@ -49,10 +52,11 @@ final class SettingsSidebarCell: NSTableCellView {
         imageView?.frame = NSRect(x: max(0, bounds.width - 23), y: (bounds.height - 14) / 2, width: 14, height: 14)
         progress.frame = imageView?.frame ?? .zero
     }
-    func showStatus(_ state: SettingsSetupStatus) {
-        imageView?.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.rawValue)
-        imageView?.contentTintColor = state.color
-        imageView?.isHidden = state == .checking
+    /// Nil hides the status: a feature page with nothing needing attention.
+    func showStatus(_ state: SettingsSetupStatus?) {
+        if let state { imageView?.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.rawValue) }
+        imageView?.contentTintColor = state?.color
+        imageView?.isHidden = state == nil || state == .checking
         progress.isHidden = state != .checking
         if state == .checking { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     }
@@ -68,7 +72,7 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
         // Size from the full label, not from an already-truncated cell.
         max(260, destinations.map { item in
             ceil((item.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: item.depth == 0 ? .medium : .regular)]).width)
-                + CGFloat(item.depth * 14) + (item.setupStage ? 22 : 0) + 80
+                + CGFloat(item.depth * 14) + (item.showsStatus ? 22 : 0) + 80
         }.max() ?? 0)
     }
     var choose: ((SettingsDestination) -> Void)?
@@ -92,15 +96,15 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
         setupStatuses = values
         // Update visible cells in place: never reload selection or interrupt editing.
         for (row, item) in destinations.enumerated() {
-            guard item.setupStage, row < table.numberOfRows, let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView else { continue }
+            guard item.showsStatus, row < table.numberOfRows, let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView else { continue }
             updateStatus(cell, item: item)
         }
     }
     private func updateStatus(_ cell: NSTableCellView, item: SettingsDestination) {
-        let state = setupStatuses[item.id] ?? .checking
+        let state = setupStatuses[item.id] ?? (item.setupStage ? .checking : nil)
         (cell as? SettingsSidebarCell)?.showStatus(state)
-        cell.toolTip = item.title + " — " + state.rawValue
-        cell.setAccessibilityValue(state.rawValue)
+        cell.toolTip = state.map { item.title + " — " + $0.rawValue }
+        cell.setAccessibilityValue(state?.rawValue)
     }
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -157,7 +161,7 @@ final class SettingsSidebar: NSView, NSTableViewDataSource, NSTableViewDelegate 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let item = destinations[row]
         let cell = SettingsSidebarCell(item: item)
-        if item.setupStage { updateStatus(cell, item: item) }
+        if item.showsStatus { updateStatus(cell, item: item) }
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {

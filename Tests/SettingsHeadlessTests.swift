@@ -12,19 +12,73 @@ func runSettingsHeadlessTests() throws {
     func check(_ value: Bool, _ message: String) throws { if !value { throw AppError(message: message) } }
     func all(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(all) }
 
-    // Setup rows are the list the page draws.
+    // Setup lists exactly its five steps, with the sidebar's ids, names and
+    // order, and every row opens its own step (Scott, November 16, 2026).
     var snapshot = SetupSnapshot(config: SafetyConfiguration())
-    let ids = Set(snapshot.checks.map(\.id))
-    try check(!ids.contains("agents") && !ids.contains("events"), "Setup still lists the Agent Kill Switch or its process events: \(ids.sorted())")
-    // The old process watcher has a row only while it is installed, with its
-    // one removal action, and the row goes when it does.
-    try check(!ids.contains("watcher"), "Setup showed the old process watcher on a Mac without it")
+    let stepIDs: [String] = ["maintenance", "keyboard-access", "input-access", "sharing-access", "lid-setup"]
+    let stepTitles: [String] = ["Background helpers", "Keyboard access", "Scrolling & navigation", "Shared input access", "Lid protection"]
+    let stepRoutes: [SetupRoute] = [.maintenance, .keyboardAccess, .inputAccess, .sharingAccess, .lidSetup]
+    let rowIDs: [String] = snapshot.checks.map { $0.id }
+    let rowTitles: [String] = snapshot.checks.map { $0.title }
+    let rowRoutes: [SetupRoute] = snapshot.checks.map { $0.route }
+    try check(rowIDs == stepIDs, "Setup's rows are not its five steps in the sidebar's order: \(rowTitles)")
+    try check(rowTitles == stepTitles, "Setup's rows are not named as in the sidebar: \(rowTitles)")
+    try check(rowRoutes == stepRoutes, "A Setup row opens another step: \(rowRoutes)")
+    let navigationApp = AppDelegate()
+    let destinations: [SettingsDestination] = navigationApp.settingsDestinations()
+    let sidebarSteps: [SettingsDestination] = destinations.filter { $0.setupStage }
+    let sidebarIDs: [String] = sidebarSteps.map { $0.id }
+    let sidebarTitles: [String] = sidebarSteps.map { $0.title }
+    try check(sidebarIDs == stepIDs, "The sidebar's Setup steps differ from the page's rows: \(sidebarTitles)")
+    try check(sidebarTitles == stepTitles, "The sidebar's Setup names differ from the page's: \(sidebarTitles)")
+    let flagged: [String] = destinations.filter { $0.flagsAttention }.map { $0.id }
+    try check(flagged == ["keyboard", "desk"], "Only Keyboards and Desk should flag attention outside Setup: \(flagged)")
+    let allOptional: Bool = snapshot.checks.allSatisfy { $0.state == .optional }
+    let sidebarKeys: Set<String> = Set(snapshot.sidebar.keys)
+    try check(allOptional, "A Mac using no features was asked to set something up")
+    try check(sidebarKeys == Set(stepIDs), "The sidebar flagged a feature with nothing wrong: \(sidebarKeys.sorted())")
+    // The old process watcher and the login approval belong to Background
+    // helpers; that row says so while they apply, and stops after.
     snapshot.watcherInstalled = true
-    let watcher = snapshot.checks.first { $0.id == "watcher" }
-    try check(watcher?.state == .attention && watcher?.route == .retireWatcher && watcher?.action == "Remove…",
-              "The old process watcher was not offered for removal: \(String(describing: watcher))")
-    snapshot.watcherInstalled = false
-    try check(!snapshot.checks.contains { $0.id == "watcher" }, "The old process watcher's row stayed after it was removed")
+    try check(snapshot.helpers.state == .attention && snapshot.helpers.detail.contains("process watcher") && snapshot.sidebar["maintenance"] == .attention,
+              "An installed process watcher was not shown on Background helpers: \(snapshot.helpers.detail)")
+    snapshot.watcherInstalled = false; snapshot.loginNeedsApproval = true
+    try check(snapshot.helpers.state == .attention && snapshot.helpers.detail.contains("Login Items"), "A login approval was not shown on Background helpers")
+    snapshot.loginNeedsApproval = false
+    try check(snapshot.helpers.state == .optional, "Background helpers kept a problem after it went")
+    // Restored access is shown on the step that grants it.
+    snapshot.accessRestoreNeeded = [.inputMonitoring]
+    try check(snapshot.keyboardAccess.state == .attention && snapshot.keyboardAccess.detail.contains("Input Monitoring") && snapshot.sharing.state == .optional,
+              "Removed Input Monitoring was not shown on Keyboard access alone")
+    snapshot.accessRestoreNeeded = [.accessibility]
+    try check(snapshot.sharing.state == .attention && snapshot.sharing.detail.contains("Accessibility") && snapshot.keyboardAccess.state == .optional,
+              "Removed Accessibility was not shown on Shared input access alone")
+    snapshot.accessRestoreNeeded = []
+    // Turning sharing on makes both of its permissions needed; granting them makes both ready.
+    snapshot.deskInputEnabled = true
+    try check(snapshot.sharing.state == .attention && snapshot.keyboardAccess.state == .attention, "Sharing on without access did not ask for it")
+    snapshot.sharingAccessGranted = true; snapshot.keyboardAccessGranted = true
+    try check(snapshot.sharing.state == .ready && snapshot.keyboardAccess.state == .ready, "Granted access was not ready")
+    // Lid protection: an update in progress checks, an unfinished one needs
+    // attention, sleep disabled outside Perch is named, a helper error shows.
+    snapshot.lidHelperBusy = true; snapshot.lidHelperUpdatePending = true
+    try check(snapshot.lid.state == .checking, "A lid helper update in progress was a warning")
+    snapshot.lidHelperBusy = false
+    try check(snapshot.lid.state == .attention, "An unfinished lid helper update was hidden")
+    snapshot.lidHelperUpdatePending = false; snapshot.lidDisabled = true
+    try check(snapshot.lid.state == .optional && snapshot.lid.detail.contains("outside Perch"), "Sleep disabled outside Perch was not named")
+    snapshot.lidWanted = true
+    try check(snapshot.lid.state == .attention, "A saved lid choice hid the missing helper")
+    snapshot.lidHelperInstalled = true; snapshot.lidGuard = .init(updatedAt: LidGuardClock.now, armed: false, detail: "Stopped", error: "Readback failed")
+    try check(snapshot.lid.state == .attention && snapshot.lid.detail == "Readback failed", "A current lid helper error was hidden")
+    snapshot.lidGuard?.updatedAt -= 20
+    try check(snapshot.lid.state == .ready, "A stale lid helper error was shown as current")
+    // Keyboards and Desk show a warning only while they need attention.
+    snapshot.keyboardsNeedAttention = true; snapshot.deskNeedsAttention = true
+    try check(snapshot.sidebar["keyboard"] == .attention && snapshot.sidebar["desk"] == .attention, "Keyboards or Desk needing attention showed nothing in the sidebar")
+    // Setup opens at launch only for a step that needs the person.
+    var checking = SetupSnapshot(config: SafetyConfiguration()); checking.config.keepAwake = true
+    try check(checking.helpers.state == .checking && !checking.checks.contains { $0.state == .attention }, "A helper still being checked counted as needing the person")
 
     // The menu: no kill switch, a disk line, and the peer update only when a
     // Mac is behind.

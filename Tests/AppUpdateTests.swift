@@ -43,7 +43,7 @@ func runAppUpdateTests() throws {
     try check(cleanupIndex < stopRecoveryIndex, "A failed cleanup could remove independent recovery during helper replacement")
     // The restart rule itself is checked headless, in runSettingsHeadlessTests.
     var snapshot = SetupSnapshot(config: SafetyConfiguration()); snapshot.lidHelperUpdatePending = true
-    try check(snapshot.checks.first(where: { $0.id == "awake" })?.route == .lidSetup, "Queued helper update does not reach its Setup stage")
+    try check(snapshot.lid.state == .attention && snapshot.lid.route == .lidSetup, "Queued helper update does not reach its Setup stage")
     let app = AppDelegate(); app.buildMenu()
     var helper = LidHelperSettingsSnapshot(helper: pending)
     app.configureSettings()

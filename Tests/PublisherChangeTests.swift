@@ -78,13 +78,15 @@ func runPublisherChangeTests() throws {
         stored: PublisherRecord(publisher: localCertificate, seen: Date(), cleared: localCertificate, clearedServices: [.accessibility]),
         failing: [.accessibility]) == [], "Setup explained a removal that was not made for this copy")
 
+    // Each removed permission is explained on the Setup step that grants it:
+    // Input Monitoring on Keyboard access, Accessibility on Shared input access.
     var snapshot = SetupSnapshot(config: SafetyConfiguration())
     snapshot.accessRestoreNeeded = [.accessibility, .inputMonitoring]
-    let row = snapshot.checks.first { $0.id == "access" }
-    try check(row?.state == .attention && row?.route == .inputAccess, "Setup does not show Perch's access as needing attention")
-    try check(row?.detail == "Perch removed permission entries that no longer work for this copy. macOS needs Accessibility and Input Monitoring granted again for Perch.",
-              "The Perch access explanation changed: \(row?.detail ?? "missing")")
+    try check(snapshot.keyboardAccess.state == .attention && snapshot.keyboardAccess.route == .keyboardAccess &&
+              snapshot.sharing.state == .attention && snapshot.sharing.route == .sharingAccess, "Setup does not show Perch's access as needing attention")
+    try check(snapshot.keyboardAccess.detail == "Perch removed its old Input Monitoring entry, which no longer worked for this copy. Grant Input Monitoring to Perch again.",
+              "The Perch access explanation changed: \(snapshot.keyboardAccess.detail)")
     snapshot.accessRestoreNeeded = []
-    try check(snapshot.checks.first { $0.id == "access" } == nil, "Setup explains a removal when nothing was removed")
+    try check(snapshot.keyboardAccess.state == .optional && snapshot.sharing.state == .optional, "Setup explains a removal when nothing was removed")
     print("PASS: a new publisher's dead Accessibility and Input Monitoring entries are removed once, only for Perch, never as All or globally; refusals keep a retry; Setup explains it until access is granted")
 }

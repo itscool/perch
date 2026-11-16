@@ -124,21 +124,31 @@ func runDeskFileTransferTests() throws {
     let table: [[String]: DeskTreeEntry.Kind] = [
         ["P"]: .directory, ["P", "bin"]: .directory, ["P", "bin", "tool"]: .file(size: 1, mode: 0o755), ["P", "lib"]: .directory,
         ["P", "lib", "current"]: .link(target: "../bin"), ["P", "loop"]: .link(target: "loop2"), ["P", "loop2"]: .link(target: "loop"),
-        ["P", "out"]: .link(target: "../Q")]
-    let inside: [([String], String)] = [(["P", "lib", "x"], "../bin/tool"), (["P", "x"], "lib/current/tool"), (["P", "x"], "bin"),
-                                        (["P", "x"], "./bin/./tool"), (["P", "lib", "x"], ".."), (["P", "x"], "bin//tool")]
-    let outside: [([String], String, String)] = [
-        (["P", "x"], "../Q", "climbs above its top folder"), (["P", "lib", "x"], "../../etc", "climbs two levels out"),
-        (["P", "x"], "/etc/passwd", "is absolute"), (["P", "x"], "missing", "leads nowhere"), (["P", "x"], "bin/tool/more", "goes through a file"),
-        (["P", "x"], "loop", "loops"), (["P", "x"], "out", "leads through a link that climbs out"), (["P"], "bin", "is the top-level item"),
-        (["P", "x"], "", "is empty"), (["P", "x"], "../P/bin", "climbs out and back")]
-    for (path, to) in inside {
-        try check(DeskTreeLinks.resolvesInside(link: path, target: to, table: table), "A link to \(to) inside the copy was refused")
+        ["P", "out"]: .link(target: "../Q"), ["P", "d"]: .directory, ["P", "d", "e"]: .directory, ["P", "d", "e", "up"]: .link(target: "../.."),
+        ["P", "d", "caf\u{e9}"]: .link(target: ".."), ["P", "Ab"]: .directory, ["P", "aB"]: .directory]
+    let copy = DeskTreeLinks.Copy(table)
+    let leads: [([String], String, DeskTreeLinks.Lead, String)] = [
+        (["P", "lib", "x"], "../bin/tool", .inside, "a file beside its folder"), (["P", "x"], "lib/current/tool", .inside, "through a link inside"),
+        (["P", "x"], "bin", .inside, "a folder"), (["P", "x"], "./bin/./tool", .inside, "with dots"), (["P", "lib", "x"], "..", .inside, "the top folder"),
+        (["P", "x"], "bin//tool", .inside, "with a double slash"), (["P", "x"], "BIN/Tool", .inside, "another case of the names"),
+        // Broken: sent as they are.
+        (["P", "x"], "missing", .broken, "nothing"), (["P", "x"], "bin/tool/more", .broken, "through a file"),
+        (["P", "lib", "x"], "../build/out/app", .broken, "a folder that is not there"), (["P", "x"], "missing/../bin", .broken, "back in after a missing name"),
+        // Refused.
+        (["P", "x"], "../Q", .outside, "climbs above its top folder"), (["P", "lib", "x"], "../../etc", .outside, "climbs two levels out"),
+        (["P", "x"], "/etc/passwd", .outside, "is absolute"), (["P", "x"], "loop", .outside, "loops"),
+        (["P", "x"], "out", .outside, "leads through a link that climbs out"), (["P"], "bin", .outside, "is the top-level item"),
+        (["P", "x"], "", .outside, "is empty"), (["P", "x"], "../P/bin", .outside, "climbs out and back"),
+        (["P", "x"], "missing/../..", .outside, "climbs out after a missing name"), (["P", "x"], "bin/tool/../../..", .outside, "climbs out after a file"),
+        // The disk finds a name by another case or Unicode form; so must the check.
+        (["P", "d", "e", "x"], "UP/..", .outside, "climbs out through a link spelled in another case"),
+        (["P", "d", "x"], "cafe\u{301}/..", .outside, "climbs out through a link spelled in another Unicode form"),
+        (["P", "x"], "AB", .outside, "could be either of two folders")]
+    for (path, to, lead, what) in leads {
+        let found = copy.lead(link: path, target: to)
+        try check(found == lead, "A link to \(to) (\(what)) was taken as \(found), not \(lead)")
     }
-    for (path, to, why) in outside {
-        try check(!DeskTreeLinks.resolvesInside(link: path, target: to, table: table), "A link that \(why) (\(to)) was taken to stay inside")
-    }
-    print("PASS: shared files keep a link only when, within the copy itself, it resolves to something inside its own top folder: absolute links, climbing out, leading nowhere, through a file, loops and links leading out are refused")
+    print("PASS: shared files keep a link that, within the copy itself, resolves inside its own top folder, and a broken one that leads nowhere without naming a place above it; absolute links, climbing out (also after a missing name, or through a name in another case or Unicode form), loops and links leading out are refused")
 
     // MARK: The sending Mac: what it sends, never following a link
 
@@ -191,8 +201,14 @@ func runDeskFileTransferTests() throws {
                 .linkOutside, "A folder holding a link that climbs out of it")
     try refuses([try variant("Absolute") { try fm.createSymbolicLink(atPath: $0.appendingPathComponent("abs").path, withDestinationPath: secret.path) }],
                 .linkOutside, "A folder holding an absolute link")
-    try refuses([try variant("Dangling") { try fm.createSymbolicLink(atPath: $0.appendingPathComponent("gone").path, withDestinationPath: "nowhere") }],
-                .linkOutside, "A folder holding a link to nothing")
+    try refuses([try variant("Dangling out") { try fm.createSymbolicLink(atPath: $0.appendingPathComponent("gone").path, withDestinationPath: "nowhere/../../x") }],
+                .linkOutside, "A folder holding a broken link that climbs out of it")
+    // A broken link inside goes as it is (Scott, November 16, 2026).
+    let dangling = try variant("Dangling") { try fm.createSymbolicLink(atPath: $0.appendingPathComponent("gone").path, withDestinationPath: "build/app") }
+    guard case .success(let broken) = DeskSourceTree.examine([dangling], limits: limits),
+          broken.list.entries.contains(.init(path: ["Dangling", "gone"], kind: .link(target: "build/app"))) else {
+        throw AppError(message: "A folder holding a broken link was not sent with the link as it is")
+    }
     let topLink = source.appendingPathComponent("Top link")
     try fm.createSymbolicLink(atPath: topLink.path, withDestinationPath: project.path)
     try refuses([topLink], .links, "A link selected directly")
@@ -216,7 +232,7 @@ func runDeskFileTransferTests() throws {
     try put(Data("twin".utf8), twin.appendingPathComponent("a.txt"))
     guard case .success(let twins) = DeskSourceTree.examine([project, twin], limits: limits) else { throw AppError(message: "Two folders with one name were refused") }
     try check(twins.list.entries.filter { $0.path.count == 1 }.map { $0.path[0] } == ["Project", "Project 2"], "Two selected items with one name were merged")
-    print("PASS: shared files examine a folder without following any link: hidden files, empty folders, executables (never setuid) and inner relative links kept; links leading out, absolute or nowhere, a selected link or alias, pipes, unreadable files and more than the limits refused by name with the amount over")
+    print("PASS: shared files examine a folder without following any link: hidden files, empty folders, executables (never setuid) and inner relative links kept, broken ones too; links leading out or absolute, a selected link or alias, pipes, unreadable files and more than the limits refused by name with the amount over")
 
     // MARK: The sending Mac: the stream of the files' contents
 
@@ -266,6 +282,7 @@ func runDeskFileTransferTests() throws {
         // The tar attack, both ways: a link, then a file written through it.
         ("an absolute link, then a file through it", [d(["P"]), l(["P", "a"], "/Users/x/.ssh"), f(["P", "a", "authorized_keys"], 10)], .linkOutside),
         ("a link inside, then a file through it", [d(["P"]), d(["P", "sub"]), l(["P", "a"], "sub"), f(["P", "a", "authorized_keys"], 10)], .unsafeName),
+        ("a broken link, then a file through it", [d(["P"]), l(["P", "a"], "nowhere"), f(["P", "a", "authorized_keys"], 10)], .unsafeName),
         ("a file through a file", [d(["P"]), f(["P", "x"], 1), f(["P", "x", "y"], 1)], .unsafeName),
         ("a folder that was never listed", [d(["P"]), f(["P", "missing", "x"], 1)], .unsafeName),
         ("a file before its folder", [f(["P", "x"], 1), d(["P"])], .unsafeName),
@@ -276,7 +293,7 @@ func runDeskFileTransferTests() throws {
         ("the same path twice", [d(["P"]), f(["P", "x"], 1), f(["P", "x"], 1)], .unsafeName),
         ("an absolute link", [d(["P"]), l(["P", "a"], "/etc")], .linkOutside),
         ("a link climbing out", [d(["P"]), d(["P", "q"]), l(["P", "q", "a"], "../../x")], .linkOutside),
-        ("a link to nothing", [d(["P"]), l(["P", "a"], "nowhere")], .linkOutside),
+        ("a broken link climbing out", [d(["P"]), l(["P", "a"], "nowhere/../../x")], .linkOutside),
         ("a link selected directly", [l(["a"], "b")], .links),
         ("a file over the per-file limit", [f(["big"], limits.perFile + 1)], .fileTooLarge),
         ("more than the total", [f(["a"], limits.perFile), f(["b"], limits.perFile), f(["c"], 1)], .tooLarge),
@@ -299,7 +316,7 @@ func runDeskFileTransferTests() throws {
     try check(safe.directories == [["P"], ["P", "sub"], ["P", "sub-dir"]] && safe.total == 18, "Folders or the total moved: \(safe.directories)")
     try check(safe.links == [.init(path: ["P", "cur"], target: "sub"), .init(path: ["P", "y"], target: "cur/x"), .init(path: ["P", "z"], target: "sub-dir")],
               "Links were not kept, or their targets not made safe like the names they lead to: \(safe.links)")
-    print("PASS: shared files refuse a hostile list before writing anything: a file through a link (the tar attack, absolute or inside), through a file or an unlisted folder, out of order, \".\", \"..\", empty, colliding or repeated names, links leading out or nowhere, a selected link, and anything over the limits; safe lists are made safe exactly")
+    print("PASS: shared files refuse a hostile list before writing anything: a file through a link (the tar attack, absolute or inside), through a file or an unlisted folder, out of order, \".\", \"..\", empty, colliding or repeated names, links leading out, a selected link, and anything over the limits; safe lists are made safe exactly")
 
     // MARK: The receiving Mac: writing a copy
 
@@ -311,7 +328,7 @@ func runDeskFileTransferTests() throws {
         .init(path: ["Album", "run.sh"], kind: .file(size: UInt64(script.count), mode: 0o755)),
         .init(path: ["Album", "zero"], kind: .file(size: 0, mode: 0o600)),
         .init(path: ["Album", "readonly"], kind: .file(size: 1, mode: 0o444)),
-        l(["Album", "latest"], "sub/photo.jpg"), f(["Notes.txt"], UInt64(note.count))])
+        l(["Album", "latest"], "sub/photo.jpg"), l(["Album", "gone"], "sub/old.jpg"), f(["Notes.txt"], UInt64(note.count))])
     let contents = [photo, script, Data(), Data("r".utf8), note]
     guard case .success(let albumPlan) = DeskTreePlan.make(album, limits: limits) else { throw AppError(message: "A safe album was refused") }
     func write(_ plan: DeskTreePlan, _ contents: [Data], piece: Int = 7000, digests: [Data]? = nil) throws -> (id: UUID, urls: [URL]) {
@@ -330,13 +347,14 @@ func runDeskFileTransferTests() throws {
     let base = writing.folder(written.id)
     try check(written.urls == [base.appendingPathComponent("Album"), base.appendingPathComponent("Notes.txt")], "The copy's top-level items are not what goes on the clipboard: \(written.urls)")
     let albumURL = base.appendingPathComponent("Album")
-    try check(listing(albumURL) == [".hidden", "empty", "latest", "readonly", "run.sh", "sub", "zero"] && isFolder(albumURL.appendingPathComponent("empty")) &&
+    try check(listing(albumURL) == [".hidden", "empty", "gone", "latest", "readonly", "run.sh", "sub", "zero"] && isFolder(albumURL.appendingPathComponent("empty")) &&
               isFolder(albumURL.appendingPathComponent(".hidden")), "The folder's shape, empty and hidden folders included, was not kept: \(listing(albumURL))")
     try check((try Data(contentsOf: albumURL.appendingPathComponent("sub/photo.jpg"))) == photo && (try Data(contentsOf: base.appendingPathComponent("Notes.txt"))) == note &&
               (try Data(contentsOf: albumURL.appendingPathComponent("zero"))).isEmpty, "Files did not arrive whole")
     try check(permissions(albumURL.appendingPathComponent("run.sh")) == 0o755 && permissions(albumURL.appendingPathComponent("zero")) == 0o600 &&
               permissions(albumURL.appendingPathComponent("readonly")) == 0o444, "Permission bits were not kept")
     try check(isLink(albumURL.appendingPathComponent("latest")) && linkTarget(albumURL.appendingPathComponent("latest")) == "sub/photo.jpg", "A link inside the copy was not recreated as a link")
+    try check(isLink(albumURL.appendingPathComponent("gone")) && linkTarget(albumURL.appendingPathComponent("gone")) == "sub/old.jpg", "A broken link was not recreated as it was")
     for item in ["Album", "Album/.hidden", "Album/empty", "Album/sub", "Album/sub/photo.jpg", "Album/run.sh", "Album/zero", "Album/readonly", "Notes.txt"] {
         try check(marked(base.appendingPathComponent(item)), "\(item) was not marked as downloaded: \(String(describing: quarantined(base.appendingPathComponent(item))))")
     }
@@ -366,7 +384,7 @@ func runDeskFileTransferTests() throws {
     catch { wroteThrough = false }
     planted.close()
     try check(!wroteThrough && listing(target).isEmpty, "A file was written through a link planted in the staging folder: \(listing(target))")
-    print("PASS: shared files write a copy whole: its shape, empty and hidden folders, contents, permission bits and links kept, every file and folder marked as downloaded, links created last, nothing partial left; a wrong digest or length never completes, and no file is ever written through a link planted where a folder was")
+    print("PASS: shared files write a copy whole: its shape, empty and hidden folders, contents, permission bits and links kept, broken ones as they were, every file and folder marked as downloaded, links created last, nothing partial left; a wrong digest or length never completes, and no file is ever written through a link planted where a folder was")
 
     // MARK: Received files go on the pasteboard as files
 

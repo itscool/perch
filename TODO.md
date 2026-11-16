@@ -1178,16 +1178,16 @@ launch, existing-install replacement and uninstall/recovery as one journey.
     delivered. Folders are created 0755; files keep their own bits.
   - Inside a copied folder a leading dot stays (".git"); at the top it goes, so
     nothing pasted is hidden.
-  - A dangling link inside a folder refuses the copy (named as a link leading
-    outside it), rather than being sent broken.
+  - A broken link inside a folder is sent as it is (Scott, November 16, 2026:
+    "sends the broken link"), as long as its target names no place above the
+    copied folder. Where a link leads is worked out the way the disk finds
+    names, with case and Unicode form ignored, so "UP/.." through a link named
+    "up" counts as climbing out. A link that loops is still refused. A Mac on
+    2.0.309 or older refuses such a folder, saying it links outside.
   - A received copy is never brought over from the Mac that received it: ⌃⌥⌘V
     leaves it to the Mac it was copied on.
   - Long text is announced without a size bucket, since it is read only up to
     64 KB; images likewise.
-
-  *Open question for Scott:*
-  - Should a dangling link inside a folder be sent as a broken link instead of
-    refusing the copy? Projects sometimes hold one.
 
   *Test debt found on the way, not caused by this work:* `check-desk-network`
   fails now and then in sections that run before any clipboard code. Over 24

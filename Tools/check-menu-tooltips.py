@@ -31,7 +31,7 @@ subprocess.run(['xcrun', 'swiftc', str(perch_source('MenuRowView.swift')),
                 str(perch_source('MenuPresentation.swift')), str(perch_source('MenuAppearanceModel.swift')),
                 str(perch_source('MenuAppearanceStore.swift')), str(perch_source('MenuAppearanceDrawing.swift')),
                 str(perch_source('JSONStore.swift')), str(perch_source('PerchVersion.swift')),
-                str(perch_source('MenuBoundaryTests.swift')),
+                str(perch_source('PerchStatusIcon.swift')), str(perch_source('MenuBoundaryTests.swift')),
                 str(perch_source('MenuTooltipTests.swift')), str(root/'main.swift'),
                 '-framework', 'AppKit', '-framework', 'SwiftUI', '-o', str(root/'menu-tooltips')], check=True)
 subprocess.run([str(root/'menu-tooltips')], check=True)

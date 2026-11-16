@@ -17,10 +17,11 @@ import CoreServices
 ///   items, 32 levels deep.
 /// - **Links are never followed on the sending Mac**, so nothing outside the
 ///   selection is ever read or sent. A link inside a copied folder is sent as a
-///   link only when it is relative and resolves, within the copy itself, to
-///   something inside its own top-level folder: app bundles and projects hold
-///   such links; one that leads outside would be a leak and refuses the copy. A
-///   link or alias selected directly is refused.
+///   link when it is relative and, within the copy itself, resolves to
+///   something inside its own top-level folder (app bundles and projects hold
+///   such links) or leads nowhere without naming a place above it: a broken
+///   link stays broken. One that leads outside would be a leak and refuses the
+///   copy. A link or alias selected directly is refused.
 /// - **Names.** Every name in every path is made safe before it touches the
 ///   disk. A peer can never write outside the folder a copy is staged in.
 /// - **The tar attack** ("a link entry, then a file written through it", say
@@ -192,40 +193,96 @@ struct DeskTreeList: Equatable {
 
 /// Where links lead, worked out within a copy alone, never on a disk.
 enum DeskTreeLinks {
-    /// Whether the link at `path` with this target resolves, through the copy's
-    /// own folders and links, to something that exists inside its own
-    /// top-level item. Absolute targets, a climb above the top-level item, a
-    /// missing item, a file used as a folder and link loops all fail.
-    static func resolvesInside(link path: [String], target: String, table: [[String]: DeskTreeEntry.Kind]) -> Bool {
-        guard path.count >= 2, !target.isEmpty, !target.hasPrefix("/") else { return false }
-        var current = Array(path.dropLast())
-        var queue = target.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
-        var hops = 0
-        while !queue.isEmpty {
-            let name = queue.removeFirst()
-            switch name {
-            case ".": continue
-            case "..":
-                // The top-level item is the boundary: climbing past it leaves the copy.
-                guard current.count > 1 else { return false }
-                current.removeLast()
-            default:
-                let candidate = current + [name]
-                switch table[candidate] {
-                case nil: return false
-                case .directory?: current = candidate
-                case .file?:
-                    // A file cannot be gone through as if it were a folder.
-                    guard queue.isEmpty else { return false }
-                    current = candidate
-                case .link(let next)?:
-                    hops += 1
-                    guard hops <= 32, !next.isEmpty, !next.hasPrefix("/") else { return false }
-                    queue = next.split(separator: "/", omittingEmptySubsequences: true).map(String.init) + queue
+    enum Lead: Equatable {
+        /// Resolves, through the copy's own folders and links, to something
+        /// inside its own top-level item.
+        case inside
+        /// Leads to nothing in the copy (a missing item, or a file used as a
+        /// folder) and never names a place above its top-level item. Sent as
+        /// it is, a broken link (Scott, November 16, 2026: projects hold them).
+        case broken
+        /// Absolute, climbs above the top-level item, or loops. Refuses the copy.
+        case outside
+    }
+
+    /// A copy's items by path. Also by name as a Mac's disk compares names, with
+    /// case and Unicode form ignored: APFS finds "README" when a link says
+    /// "readme", so a name missing from the list is only missing when no other
+    /// spelling of it is there either.
+    struct Copy {
+        let table: [[String]: DeskTreeEntry.Kind]
+        private let spellings: [[String]: [[String]]]
+        init(_ table: [[String]: DeskTreeEntry.Kind]) {
+            self.table = table
+            spellings = Dictionary(grouping: table.keys) { Array($0.dropLast()) + [DeskTreeLinks.fold($0.last ?? "")] }
+        }
+        enum Found { case item([String], DeskTreeEntry.Kind), none, ambiguous }
+        /// The item `name` finds in the folder at `folder`: the exact name, else
+        /// its one other spelling; ambiguous when two other spellings could answer.
+        func find(_ name: String, in folder: [String]) -> Found {
+            let exact = folder + [name]
+            if let kind = table[exact] { return .item(exact, kind) }
+            let others = spellings[folder + [DeskTreeLinks.fold(name)]] ?? []
+            guard others.count <= 1 else { return .ambiguous }
+            guard let path = others.first, let kind = table[path] else { return .none }
+            return .item(path, kind)
+        }
+
+        /// Where the link at `path` with this target leads.
+        func lead(link path: [String], target: String) -> Lead {
+            guard path.count >= 2, !target.isEmpty, !target.hasPrefix("/") else { return .outside }
+            var current = Array(path.dropLast())
+            var queue = DeskTreeLinks.names(target)
+            var hops = 0
+            while !queue.isEmpty {
+                let name = queue.removeFirst()
+                switch name {
+                case ".": continue
+                case "..":
+                    // The top-level item is the boundary: climbing past it leaves the copy.
+                    guard current.count > 1 else { return .outside }
+                    current.removeLast()
+                default:
+                    switch find(name, in: current) {
+                    case .none: return DeskTreeLinks.afterBreak(queue, depth: current.count + 1)
+                    case .ambiguous: return .outside
+                    case .item(let found, .directory): current = found
+                    case .item(let found, .file):
+                        // A file cannot be gone through as if it were a folder.
+                        guard queue.isEmpty else { return DeskTreeLinks.afterBreak(queue, depth: found.count) }
+                        current = found
+                    case .item(_, .link(let next)):
+                        hops += 1
+                        guard hops <= 32, !next.isEmpty, !next.hasPrefix("/") else { return .outside }
+                        queue = DeskTreeLinks.names(next) + queue
+                    }
                 }
             }
+            return .inside
         }
-        return true
+    }
+
+    /// A link that broke at some depth: what is left of its way is only names
+    /// now, and still must not climb above the top-level item, so that nothing
+    /// pasted beside it later turns it into a way out.
+    /// `depth` counts the names from the top-level item to where it broke.
+    static func afterBreak(_ rest: [String], depth: Int) -> Lead {
+        var depth = depth
+        for name in rest {
+            switch name {
+            case ".": continue
+            case "..": guard depth > 1 else { return .outside }; depth -= 1
+            default: depth += 1
+            }
+        }
+        return .broken
+    }
+
+    static func names(_ target: String) -> [String] {
+        target.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+    }
+    static func fold(_ name: String) -> String {
+        name.decomposedStringWithCanonicalMapping.folding(options: .caseInsensitive, locale: nil)
     }
 }
 
@@ -333,9 +390,9 @@ struct DeskSourceTree {
         // The table of the whole copy is built only when there is a link to resolve.
         let links = entries.filter { if case .link = $0.kind { return true }; return false }
         if !links.isEmpty {
-            let table = Dictionary(entries.map { ($0.path, $0.kind) }, uniquingKeysWith: { first, _ in first })
+            let copy = DeskTreeLinks.Copy(Dictionary(entries.map { ($0.path, $0.kind) }, uniquingKeysWith: { first, _ in first }))
             for entry in links {
-                if case .link(let target) = entry.kind, !DeskTreeLinks.resolvesInside(link: entry.path, target: target, table: table) {
+                if case .link(let target) = entry.kind, copy.lead(link: entry.path, target: target) == .outside {
                     return .failure(.init(.linkOutside))
                 }
             }
@@ -494,8 +551,11 @@ struct DeskTreePlan: Equatable {
         }
         // Checked by this Mac, against the copy as it will be written: the
         // other Mac's word that its links stay inside is not taken.
-        for link in plan.links where !DeskTreeLinks.resolvesInside(link: link.path, target: link.target, table: placed) {
-            return .failure(.init(.linkOutside))
+        if !plan.links.isEmpty {
+            let copy = DeskTreeLinks.Copy(placed)
+            for link in plan.links where copy.lead(link: link.path, target: link.target) == .outside {
+                return .failure(.init(.linkOutside))
+            }
         }
         return .success(plan)
     }
